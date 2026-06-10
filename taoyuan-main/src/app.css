@@ -14,12 +14,34 @@
   --color-success: #5a9e6f;
   --color-water: #4c6e8a;
   --color-earth: #8b6914;
-  --color-muted: #6b7280;
+  --color-warning: #d7ad58;
+  --color-muted: #9ca3af;
+  --color-highlight: #f0cf83;
+  --color-background: 26 26 26;
+  --color-accent-rgb: 200 164 92;
+  --color-danger-rgb: 195 64 67;
+  --color-success-rgb: 90 158 111;
+  --color-water-rgb: 76 110 138;
+  --color-earth-rgb: 139 105 20;
+  --color-warning-rgb: 215 173 88;
+  --color-muted-rgb: 156 163 175;
+  --color-highlight-rgb: 240 207 131;
+  --color-background-rgb: 26 26 26;
+  --color-surface-muted: rgba(255, 255, 255, 0.055);
+  --color-surface-raised: rgba(255, 255, 255, 0.085);
+  --color-border-subtle: rgba(200, 164, 92, 0.16);
+  --color-border: rgba(200, 164, 92, 0.34);
+  --color-focus-ring: rgba(200, 164, 92, 0.36);
+  --color-shadow: rgba(0, 0, 0, 0.22);
+  --color-overlay: rgba(0, 0, 0, 0.68);
 
   /* 品质颜色 */
   --color-quality-fine: #d4976a;
   --color-quality-excellent: #a8c4d4;
   --color-quality-supreme: #ffd700;
+  --color-quality-fine-rgb: 212 151 106;
+  --color-quality-excellent-rgb: 168 196 212;
+  --color-quality-supreme-rgb: 255 215 0;
 
   /* 字体 */
   --font-game: 'zpix', monospace;
@@ -127,7 +149,7 @@ button {
   padding: var(--spacing-2) var(--spacing-4);
   background-color: rgb(var(--color-panel));
   color: rgb(var(--color-text));
-  border: 1px solid rgba(200, 164, 92, 0.3);
+  border: 1px solid var(--color-border);
   border-radius: 2px;
   font-size: 0.75rem;
   /* min-height: 36px; */
@@ -144,6 +166,7 @@ button {
 
 .btn:hover {
   background-color: var(--color-accent);
+  color: rgb(var(--color-bg));
 }
 
 .btn:active {
@@ -157,15 +180,15 @@ button {
 /* 像素风面板 */
 .game-panel {
   background-color: rgb(var(--color-panel));
-  border: 1px solid rgba(200, 164, 92, 0.3);
+  border: 1px solid var(--color-border);
   border-radius: 2px;
   padding: var(--spacing-3);
   position: relative;
 }
 
 .game-panel-muted {
-  background-color: rgba(26, 26, 26, 0.24);
-  border: 1px solid rgba(200, 164, 92, 0.15);
+  background-color: var(--color-surface-muted);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 2px;
 }
 
@@ -226,28 +249,28 @@ button {
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border: 1px solid rgba(200, 164, 92, 0.18);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 2px;
-  background: rgba(26, 26, 26, 0.18);
+  background: var(--color-surface-muted);
   color: rgb(var(--color-text));
   font-size: 0.6875rem;
 }
 
 .tutorial-hint {
-  border: 1px solid rgba(200, 164, 92, 0.12);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 2px;
-  background: rgba(26, 26, 26, 0.18);
+  background: var(--color-surface-muted);
   padding: 6px 8px;
-  color: rgba(107, 114, 128, 0.95);
+  color: rgb(var(--color-muted-rgb) / 0.95);
   font-size: 0.625rem;
   line-height: 1.6;
 }
 
 .prompt-focus-target--active {
-  border-color: rgba(200, 164, 92, 0.62) !important;
+  border-color: var(--color-accent) !important;
   box-shadow:
-    0 0 0 1px rgba(200, 164, 92, 0.45),
-    0 0 0 4px rgba(200, 164, 92, 0.08);
+    0 0 0 1px var(--color-focus-ring),
+    0 0 0 4px rgb(var(--color-accent-rgb) / 0.08);
 }
 
 .prompt-action-card {
@@ -261,8 +284,8 @@ button {
 
 .prompt-action-card:hover,
 .prompt-action-card:active {
-  border-color: rgba(200, 164, 92, 0.45);
-  background: rgba(200, 164, 92, 0.08);
+  border-color: var(--color-border);
+  background: rgb(var(--color-accent-rgb) / 0.08);
 }
 
 .prompt-action-card--clickable {
@@ -272,7 +295,7 @@ button {
 .prompt-action-card--clickable:hover,
 .prompt-action-card--clickable:active {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 20px var(--color-shadow);
 }
 
 .prompt-action-cta {
@@ -322,7 +345,7 @@ button {
   min-width: 0;
   background-color: rgb(var(--color-bg));
   color: rgb(var(--color-text));
-  border: 1px solid rgba(200, 164, 92, 0.2);
+  border: 1px solid var(--color-border-subtle);
   border-radius: 2px;
   padding: 8px 12px;
   font-size: 0.75rem;
@@ -348,7 +371,7 @@ button {
 .online-select:focus,
 .online-textarea:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px rgba(200, 164, 92, 0.35);
+  box-shadow: 0 0 0 1px var(--color-focus-ring);
 }
 
 .online-input:disabled,
@@ -360,7 +383,7 @@ button {
 
 .online-input::placeholder,
 .online-textarea::placeholder {
-  color: rgba(107, 114, 128, 0.7);
+  color: rgb(var(--color-muted-rgb) / 0.7);
 }
 
 @media (min-width: 768px) {
@@ -410,7 +433,7 @@ button {
   gap: 4px;
   min-height: 42px;
   padding: 8px 14px;
-  border: 1px solid rgba(200, 164, 92, 0.3);
+  border: 1px solid var(--color-border);
   border-radius: 2px;
   background-color: rgb(var(--color-panel));
   color: rgb(var(--color-text));
@@ -444,7 +467,7 @@ button {
 }
 
 .online-action-btn--danger {
-  border-color: rgba(195, 64, 67, 0.4);
+  border-color: rgb(var(--color-danger-rgb) / 0.4);
   color: var(--color-danger);
 }
 
@@ -523,6 +546,36 @@ button {
   border-radius: 2px;
 }
 
+html[data-theme-tone='light'] .bg-black\/10,
+html[data-theme-tone='light'] .bg-bg\/5,
+html[data-theme-tone='light'] .bg-bg\/10,
+html[data-theme-tone='light'] .bg-background\/70 {
+  background-color: var(--color-surface-muted);
+}
+
+html[data-theme-tone='light'] .bg-black\/20,
+html[data-theme-tone='light'] .bg-bg\/15,
+html[data-theme-tone='light'] .bg-bg\/20,
+html[data-theme-tone='light'] .bg-bg\/25,
+html[data-theme-tone='light'] .bg-bg\/30,
+html[data-theme-tone='light'] .bg-bg\/40,
+html[data-theme-tone='light'] .bg-bg\/50,
+html[data-theme-tone='light'] .bg-bg\/60 {
+  background-color: var(--color-surface-raised);
+}
+
+html[data-theme-tone='light'] .bg-black\/60,
+html[data-theme-tone='light'] .bg-black\/70,
+html[data-theme-tone='light'] .bg-black\/75,
+html[data-theme-tone='light'] .bg-black\/80,
+html[data-theme-tone='light'] .bg-bg\/80 {
+  background-color: var(--color-overlay);
+}
+
+html[data-theme-tone='light'] .text-red-200 {
+  color: var(--color-danger);
+}
+
 /* 隐藏 number 输入框的浏览器自带加减按钮 */
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {
@@ -563,6 +616,7 @@ input[type='number'] {
 .qmsg .qmsg-content-wrapper {
   color: rgb(var(--color-bg)) !important;
   background: var(--color-accent) !important;
+  border: 1px solid var(--color-border) !important;
 }
 
 .qmsg .qmsg-content-text[data-limitwidthwrap='wrap'] {

@@ -3,10 +3,11 @@
 const themeColor =
   name =>
   ({ opacityValue }) => {
+    const token = `var(--color-${name}-rgb, var(--color-${name}))`
     if (opacityValue !== undefined) {
-      return `rgb(var(--color-${name}) / ${opacityValue})`
+      return `rgb(${token} / ${opacityValue})`
     }
-    return `rgb(var(--color-${name}))`
+    return `rgb(${token})`
   }
 
 export default {
@@ -15,17 +16,20 @@ export default {
     extend: {
       colors: {
         bg: themeColor('bg'),
+        background: themeColor('background'),
         panel: themeColor('panel'),
         text: themeColor('text'),
-        accent: '#c8a45c',
-        danger: '#c34043',
-        success: '#5a9e6f',
-        water: '#4c6e8a',
-        earth: '#8b6914',
-        muted: '#6b7280',
-        'quality-fine': '#d4976a',
-        'quality-excellent': '#a8c4d4',
-        'quality-supreme': '#ffd700'
+        accent: themeColor('accent'),
+        danger: themeColor('danger'),
+        success: themeColor('success'),
+        warning: themeColor('warning'),
+        water: themeColor('water'),
+        earth: themeColor('earth'),
+        muted: themeColor('muted'),
+        highlight: themeColor('highlight'),
+        'quality-fine': themeColor('quality-fine'),
+        'quality-excellent': themeColor('quality-excellent'),
+        'quality-supreme': themeColor('quality-supreme')
       },
       fontFamily: {
         game: ['zpix', 'monospace']

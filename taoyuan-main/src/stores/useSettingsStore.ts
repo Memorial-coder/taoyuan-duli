@@ -94,9 +94,37 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const applyTheme = () => {
     const t = getThemeByKey(theme.value)
-    document.documentElement.style.setProperty('--color-bg', hexToRgb(t.bg))
-    document.documentElement.style.setProperty('--color-panel', hexToRgb(t.panel))
-    document.documentElement.style.setProperty('--color-text', hexToRgb(t.text))
+    const root = document.documentElement
+    root.setAttribute('data-theme', t.key)
+    root.setAttribute('data-theme-tone', t.tone)
+
+    const rgbColorVars = {
+      bg: t.bg,
+      panel: t.panel,
+      text: t.text,
+      accent: t.accent,
+      danger: t.danger,
+      success: t.success,
+      warning: t.warning,
+      water: t.water,
+      earth: t.earth,
+      muted: t.muted,
+      highlight: t.highlight,
+      background: t.bg
+    }
+
+    for (const [name, value] of Object.entries(rgbColorVars)) {
+      root.style.setProperty(`--color-${name}`, name === 'bg' || name === 'panel' || name === 'text' || name === 'background' ? hexToRgb(value) : value)
+      root.style.setProperty(`--color-${name}-rgb`, hexToRgb(value))
+    }
+
+    root.style.setProperty('--color-surface-muted', t.surfaceMuted)
+    root.style.setProperty('--color-surface-raised', t.surfaceRaised)
+    root.style.setProperty('--color-border-subtle', t.borderSubtle)
+    root.style.setProperty('--color-border', t.border)
+    root.style.setProperty('--color-focus-ring', t.focusRing)
+    root.style.setProperty('--color-shadow', t.shadow)
+    root.style.setProperty('--color-overlay', t.overlay)
   }
 
   const applyPageWidth = () => {
