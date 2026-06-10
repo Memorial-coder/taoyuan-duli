@@ -2370,6 +2370,16 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'seasonal',
     recommendedUses: ['霜山药泥', '霜药护脉丹', '霜山药粉', '灵宠霜药糕', '家畜冬根料', '清润药膳', '寒夜山药礼', '冬祭霜药供', '公共仓霜药包', '山药粉订单'],
     summary: '霜雪蒜与山药杂交的冰润根茎，适合山药泥料理、护脉炼丹、制粉、灵宠霜药点心、家畜冬根料、清润药膳、寒夜赠礼、冬祭供品、公共仓霜药备料和山药粉订单。'
+  },
+  {
+    cropId: 'ancient_fruit',
+    tags: ['food', 'alchemy', 'pet_feed', 'wine', 'gift', 'festival', 'order', 'online_cost', 'medicine'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['远古果酒', '灵果清酿', '灵宠灵果点心', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品', '远古水果委托'],
+    summary: '远古种子孕育的神秘果实，适合高阶酿酒、炼丹、灵宠点心、稀有赠礼、节会供品、公共仓备料和高价值订单。'
   }
 ]
 

@@ -1575,7 +1575,7 @@
                   data-testid="online-cohabitation-shared-workshop-recipe"
                 >
                   <option v-for="recipe in sharedWorkshopRecipeOptions" :key="recipe.id" :value="recipe.id">
-                    {{ recipe.label }}
+                    {{ sharedWorkshopRecipeDisplayLabel(recipe) }}
                   </option>
                 </select>
                 <div v-if="selectedSharedWorkshopRecipe" class="grid gap-2 text-[0.625rem] text-muted">
@@ -3633,6 +3633,7 @@
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
+  import { useProcessingStore } from '@/stores/useProcessingStore'
   import type {
     CohabitationAuditEntry,
     CohabitationContract,
@@ -4110,6 +4111,7 @@
 
   const route = useRoute()
   const cohabitationStore = useCohabitationStore()
+  const processingStore = useProcessingStore()
   const activeTab = ref<CohabitationTabKey>('overview')
   const cohabitationRouteTabSyncTimer = ref<ReturnType<typeof window.setTimeout> | null>(null)
   const lastRefreshAttemptAt = ref(0)
@@ -6386,6 +6388,27 @@
     hanhai_silk: '瀚海丝绸',
     chrysanthemum: '菊花',
     peach_wine: '桃花酒',
+    ancient_fruit: '远古水果',
+    candied_fruit_mix: '百果蜜脯',
+    mixed_seed_oil: '杂籽油',
+    refined_seed_oil: '精炼籽油',
+    mixed_fruit_wine: '百果酒',
+    seasonal_fruit_wine: '时令果酒',
+    spirit_fruit_brew: '灵果清酿',
+    ancient_fruit_wine: '远古果酒',
+    mixed_pickles: '什锦腌菜',
+    root_pickles: '根菜脆腌',
+    smoked_fish: '烟熏鱼',
+    smoked_legendary_fish: '传奇烟熏鱼',
+    dried_crop_bundle: '田园干货包',
+    dried_fruit_mix: '什锦果干',
+    mixed_flour: '混合粉料',
+    fine_flour: '精磨粉料',
+    herbal_tea_blend: '草本调饮',
+    mixed_tofu: '杂豆腐',
+    medicinal_powder: '百草药粉',
+    wildflower_honey: '百花蜜',
+    rustic_incense: '田园合香',
     food_congee: '白粥',
     food_stir_fried_cabbage: '炒青菜',
     food_radish_soup: '萝卜汤',
@@ -6665,6 +6688,9 @@
       furnace: '熔炉',
       sugar_jar: '糖渍罐',
       beehive: '蜂箱',
+      dehydrator: '脱水机',
+      incense_maker: '制香坊',
+      smoker: '烟熏机',
     }
     return labels[value] || value || '工坊'
   }
@@ -6859,6 +6885,20 @@
     { id: 'shared_refined_quartz', label: '共同熔炉精制石英', station: 'furnace', process_kind: 'alchemy_material', input_items: [{ item_id: 'quartz', quantity: 2, quality: 'normal' }, { item_id: 'charcoal', quantity: 1, quality: 'normal' }], output_item_id: 'refined_quartz', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_candied_peach', label: '共同糖渍罐蜜桃脯', station: 'sugar_jar', process_kind: 'cooking_material', input_items: [{ item_id: 'peach', quantity: 2, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'candied_peach', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_osmanthus_honey', label: '共同蜂箱桂花蜜', station: 'beehive', process_kind: 'alchemy_material', input_items: [{ item_id: 'osmanthus', quantity: 1, quality: 'normal' }], output_item_id: 'osmanthus_honey', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_wine_ancient_fruit', label: '共同酒坊远古果酒', station: 'wine_workshop', process_kind: 'processing', local_processing_recipe_id: 'hidden_wine_ancient_fruit', input_items: [{ item_id: 'ancient_fruit', quantity: 1, quality: 'normal' }], output_item_id: 'ancient_fruit_wine', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_wine_chrysanthemum', label: '共同酒坊菊花灵酿', station: 'wine_workshop', process_kind: 'processing', local_processing_recipe_id: 'hidden_wine_chrysanthemum', input_items: [{ item_id: 'chrysanthemum', quantity: 2, quality: 'normal' }], output_item_id: 'spirit_fruit_brew', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_pickle_garlic', label: '共同酱缸蒜香试腌', station: 'sauce_jar', process_kind: 'processing', local_processing_recipe_id: 'hidden_pickle_garlic', input_items: [{ item_id: 'garlic', quantity: 2, quality: 'normal' }], output_item_id: 'mixed_pickles', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_sugar_watermelon', label: '共同糖渍罐西瓜蜜脯', station: 'sugar_jar', process_kind: 'processing', local_processing_recipe_id: 'hidden_sugar_watermelon', input_items: [{ item_id: 'watermelon', quantity: 2, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'candied_fruit_mix', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_dehydrate_watermelon', label: '共同脱水机西瓜果干', station: 'dehydrator', process_kind: 'processing', local_processing_recipe_id: 'hidden_dehydrate_watermelon', input_items: [{ item_id: 'watermelon', quantity: 1, quality: 'normal' }], output_item_id: 'dried_fruit_mix', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_flour_sweet_potato', label: '共同石磨红薯粉料', station: 'stone_mill', process_kind: 'processing', local_processing_recipe_id: 'hidden_flour_sweet_potato', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }], output_item_id: 'mixed_flour', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_medicine_ginger', label: '共同药碾姜味药粉', station: 'herb_grinder', process_kind: 'processing', local_processing_recipe_id: 'hidden_medicine_ginger', input_items: [{ item_id: 'ginger', quantity: 2, quality: 'normal' }], output_item_id: 'medicinal_powder', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_honey_peanut', label: '共同蜂箱百花蜜', station: 'beehive', process_kind: 'processing', local_processing_recipe_id: 'hidden_honey_peanut', input_items: [{ item_id: 'peanut', quantity: 1, quality: 'normal' }], output_item_id: 'wildflower_honey', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_dry_radish', label: '共同晒架田园干货', station: 'drying_rack', process_kind: 'processing', local_processing_recipe_id: 'hidden_dry_radish', input_items: [{ item_id: 'radish', quantity: 1, quality: 'normal' }], output_item_id: 'dried_crop_bundle', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_tea_radish', label: '共同茶炉草本调饮', station: 'tea_maker', process_kind: 'processing', local_processing_recipe_id: 'hidden_tea_radish', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }], output_item_id: 'herbal_tea_blend', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_tofu_potato', label: '共同豆腐坊杂豆腐', station: 'tofu_press', process_kind: 'processing', local_processing_recipe_id: 'hidden_tofu_potato', input_items: [{ item_id: 'potato', quantity: 3, quality: 'normal' }], output_item_id: 'mixed_tofu', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_incense_chrysanthemum', label: '共同制香坊菊香合香', station: 'incense_maker', process_kind: 'processing', local_processing_recipe_id: 'hidden_incense_chrysanthemum', input_items: [{ item_id: 'chrysanthemum', quantity: 2, quality: 'normal' }], output_item_id: 'rustic_incense', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_smoke_carp', label: '共同烟熏机鲤鱼烟熏', station: 'smoker', process_kind: 'processing', local_processing_recipe_id: 'hidden_smoke_carp', input_items: [{ item_id: 'carp', quantity: 1, quality: 'normal' }, { item_id: 'wood', quantity: 1, quality: 'normal' }], output_item_id: 'smoked_fish', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_hidden_smoke_dragonfish', label: '共同烟熏机龙鱼烟熏', station: 'smoker', process_kind: 'processing', local_processing_recipe_id: 'hidden_smoke_dragonfish', input_items: [{ item_id: 'dragonfish', quantity: 1, quality: 'normal' }, { item_id: 'wood', quantity: 1, quality: 'normal' }], output_item_id: 'smoked_legendary_fish', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_ball', label: '共同灶台饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_ball', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_vegetable_soup', label: '共同灶台田园蔬菜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }, { item_id: 'radish', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_vegetable_soup', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_dried_vegetable_soup', label: '共同灶台干菜米粉汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'dried_vegetable', quantity: 1, quality: 'fine' }, { item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_dried_vegetable_soup', output_quantity: 1, output_quality: 'normal' },
@@ -7096,6 +7136,16 @@
   const selectedSharedWorkshopRecipe = computed(() =>
     sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null
   )
+  const sharedWorkshopLocalProcessingRecipeId = (recipe?: SharedWorkshopRecipeOption | null) =>
+    typeof recipe?.local_processing_recipe_id === 'string' ? recipe.local_processing_recipe_id : ''
+  const isSharedWorkshopHiddenUndiscovered = (recipe?: SharedWorkshopRecipeOption | null) => {
+    const localRecipeId = sharedWorkshopLocalProcessingRecipeId(recipe)
+    return Boolean(localRecipeId) && !processingStore.isHiddenProcessingRecipeDiscovered(localRecipeId)
+  }
+  const sharedWorkshopRecipeDisplayLabel = (recipe?: SharedWorkshopRecipeOption | null) => {
+    const localRecipeId = sharedWorkshopLocalProcessingRecipeId(recipe)
+    return localRecipeId ? processingStore.getProcessingRecipeDisplayName(localRecipeId) : recipe?.label || ''
+  }
   const selectedSharedWorkshopSupportsAlchemyAuto = computed(() =>
     selectedSharedWorkshopRecipe.value?.process_kind === 'alchemy_elixir' &&
     selectedSharedWorkshopRecipe.value?.alchemy_result_kind === 'success'
@@ -7131,6 +7181,7 @@
   const sharedWorkshopOutputLabel = computed(() => {
     const recipe = selectedSharedWorkshopRecipe.value
     if (!recipe) return '未选择配方'
+    if (isSharedWorkshopHiddenUndiscovered(recipe)) return '未知产物'
     return `${warehouseItemLabels[recipe.output_item_id] || recipe.output_item_id} x${recipe.output_quantity} · ${qualityLabel(recipe.output_quality)}`
   })
   const canProcessSelectedSharedWorkshopRecipe = computed(() =>
@@ -9683,16 +9734,20 @@
       return
     }
     try {
+      const recipeLabelBeforeDiscovery = sharedWorkshopRecipeDisplayLabel(recipe)
       const mediumBudgetLedger = sharedWorkshopMediumBudgetLedger.value
       const result = await cohabitationStore.processSharedWorkshopRecipe({
         recipe_id: recipe.id,
         alchemy_result_mode: selectedSharedWorkshopSupportsAlchemyAuto.value ? sharedWorkshopAlchemyResultMode.value : 'fixed',
         alchemy_heat_level: selectedSharedWorkshopSupportsAlchemyAuto.value && sharedWorkshopAlchemyResultMode.value === 'auto' ? sharedWorkshopAlchemyHeatLevel.value : 'balanced',
         fund_ledger_id: mediumBudgetLedger?.id || undefined,
-        memo: `前端执行共同工坊配方：${recipe.label}`,
+        memo: `前端执行共同工坊配方：${recipeLabelBeforeDiscovery}`,
         idempotency_key: `ui-shared-workshop-${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       const action = result?.workshop_action
+      const localProcessingRecipeId = result?.recipe?.local_processing_recipe_id || recipe.local_processing_recipe_id || ''
+      const hiddenJustDiscovered = localProcessingRecipeId ? processingStore.discoverProcessingRecipe(localProcessingRecipeId) : false
+      const recipeLabelAfterDiscovery = sharedWorkshopRecipeDisplayLabel(recipe)
       const outputItemId = action?.output_item_id || result?.recipe?.output_item_id || recipe.output_item_id
       const outputQuantity = action?.output_quantity ?? result?.recipe?.output_quantity ?? recipe.output_quantity
       const outputQuality = action?.output_quality || result?.recipe?.output_quality || recipe.output_quality
@@ -9711,6 +9766,7 @@
       sharedWorkshopLastResultRows.value = [
         { id: 'output', label: '产出入仓', value: outputLabel },
         { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '服务端已处理，未返回流水 ID' },
+        ...(hiddenJustDiscovered ? [{ id: 'hidden-discovery', label: '隐藏配方', value: `已发现 ${recipeLabelAfterDiscovery}` }] : []),
         ...(alchemyAutoResultLabel ? [{ id: 'alchemy-result', label: '炼丹结果', value: alchemyAutoResultLabel }] : []),
         ...(action?.alchemy_auto_result && alchemyWeightsLabel ? [{ id: 'alchemy-weights', label: '概率权重', value: [alchemyWeightProfile ? `档位 ${alchemyWeightProfile}` : '', `火候 ${alchemyHeatLabel}`, alchemyWeightsLabel].filter(Boolean).join(' · ') }] : []),
         { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
@@ -9723,7 +9779,7 @@
       const budgetSuffix = action?.medium_fund_budget_linked && linkedFundLedgerId ? `，中额预算 ${linkedFundLedgerId} 已绑定` : ''
       sharedWorkshopActionMessage.value = result?.already_processed
         ? `该工坊配方已处理，已读回 ${outputLabel}${budgetSuffix}`
-        : `已完成 ${recipe.label}，${outputLabel} 已进入共同仓库${budgetSuffix}`
+        : `已完成 ${recipeLabelAfterDiscovery}，${outputLabel} 已进入共同仓库${budgetSuffix}`
     } catch (error) {
       sharedWorkshopActionMessage.value = error instanceof Error ? error.message : '处理共同工坊配方失败'
     }

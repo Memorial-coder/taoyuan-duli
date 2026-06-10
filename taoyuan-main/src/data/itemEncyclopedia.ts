@@ -32,6 +32,8 @@ import {
 } from './cropUseProfiles'
 import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel, getPetSpecialFeedUseText, getPetTypeLabel } from './petFeeds'
 
+const PUBLIC_PROCESSING_RECIPES = PROCESSING_RECIPES.filter(recipe => recipe.visibility !== 'hidden')
+
 export interface ItemEncyclopediaDetail {
   label: string
   value: string
@@ -103,7 +105,7 @@ const getCropRecipeUseEntries = (itemId: string): string[] => {
     entries.push(`料理按用途标签读取：${cookingRecipes.slice(0, 4).map(recipe => recipe.name).join('、')}`)
   }
 
-  const alchemyRecipes = PROCESSING_RECIPES.filter(
+  const alchemyRecipes = PUBLIC_PROCESSING_RECIPES.filter(
     recipe => !!recipe.alchemy && (recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId))
   )
   const alchemyTags = getCropUseTagMatches(itemId, ['alchemy', 'medicine'])
@@ -116,7 +118,7 @@ const getCropRecipeUseEntries = (itemId: string): string[] => {
 
 const getCropDualPathEntries = (itemId: string): string[] => {
   const cookingRecipes = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId))
-  const alchemyRecipes = PROCESSING_RECIPES.filter(
+  const alchemyRecipes = PUBLIC_PROCESSING_RECIPES.filter(
     recipe => !!recipe.alchemy && (recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId))
   )
 
@@ -384,7 +386,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
     }
   } else if (item.category === 'elixir') {
     pushDetail(details, '丹药定位', '丹炉炼制的短效经营准备品')
-    const alchemyRecipe = PROCESSING_RECIPES.find(recipe => recipe.outputItemId === item.id && recipe.alchemy)
+    const alchemyRecipe = PUBLIC_PROCESSING_RECIPES.find(recipe => recipe.outputItemId === item.id && recipe.alchemy)
     if (alchemyRecipe?.alchemy) {
       const meta = alchemyRecipe.alchemy
       const limit = meta.role === 'main' ? ALCHEMY_MAIN_DAILY_LIMIT : ALCHEMY_SUPPORT_DAILY_LIMIT
@@ -411,7 +413,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
     pushDetail(details, '当前限制', '丹炉按每日主丹/辅丹限制开炉；背包服用后当日只保留一枚丹药效果')
   }
 
-  const alchemyResultRecipes = PROCESSING_RECIPES.filter(recipe => recipe.alchemy?.results?.some(result => result.outputItemId === item.id))
+  const alchemyResultRecipes = PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.alchemy?.results?.some(result => result.outputItemId === item.id))
   if (alchemyResultRecipes.length > 0 && item.category !== 'elixir') {
     const resultLabels = uniqueStrings(
       alchemyResultRecipes.flatMap(recipe =>
@@ -437,7 +439,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
 }
 
 export const getItemProducedBy = (itemId: string): string[] => {
-  return PROCESSING_RECIPES.filter(recipe =>
+  return PUBLIC_PROCESSING_RECIPES.filter(recipe =>
     recipe.outputItemId === itemId || recipe.alchemy?.results?.some(result => result.outputItemId === itemId)
   ).map(recipe => {
     const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
@@ -448,7 +450,7 @@ export const getItemProducedBy = (itemId: string): string[] => {
 }
 
 export const getItemUsedIn = (itemId: string): string[] => {
-  const processingUses = PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId)).map(recipe => {
+  const processingUses = PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId)).map(recipe => {
     const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
     return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId)}`
   })
@@ -491,7 +493,7 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
 
   if (item.category === 'machine') {
     const machineId = item.id.startsWith('machine_') ? item.id.replace(/^machine_/, '') : item.id
-    PROCESSING_RECIPES.filter(recipe => recipe.machineType === machineId)
+    PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.machineType === machineId)
       .slice(0, 6)
       .forEach(recipe => {
         relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
@@ -500,13 +502,13 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
       })
   }
 
-  PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id || recipe.alchemy?.results?.some(result => result.outputItemId === item.id))
+  PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id || recipe.alchemy?.results?.some(result => result.outputItemId === item.id))
     .slice(0, 4)
     .forEach(recipe => {
       if (recipe.inputItemId) relatedIds.push(getGlossaryEntryIdForItemId(recipe.inputItemId))
     })
 
-  PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === item.id || recipe.extraInputs?.some(entry => entry.itemId === item.id))
+  PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === item.id || recipe.extraInputs?.some(entry => entry.itemId === item.id))
     .slice(0, 4)
     .forEach(recipe => {
       relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
@@ -609,13 +611,13 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
       break
     case 'material':
       keywords.push('材料', '制作', '加工')
-      if (PROCESSING_RECIPES.some(recipe => recipe.alchemy?.results?.some(result => result.outputItemId === item.id))) {
+      if (PUBLIC_PROCESSING_RECIPES.some(recipe => recipe.alchemy?.results?.some(result => result.outputItemId === item.id))) {
         keywords.push('炼丹结果', '成丹', '偏丹', '废丹', '奇丹', '丹炉', '丹材回收')
       }
       break
     case 'elixir':
       keywords.push('丹药', '炼丹', '丹炉', '短效增益', '探索', '社交', '行动效率', '每日主丹', '每日辅丹', '不无限叠')
-      PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id && recipe.alchemy).forEach(recipe => {
+      PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id && recipe.alchemy).forEach(recipe => {
         const meta = recipe.alchemy!
         keywords.push(
           ALCHEMY_PILL_ROLE_LABELS[meta.role],

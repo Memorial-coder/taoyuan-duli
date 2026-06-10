@@ -32,7 +32,18 @@ type RemoveAgingResult =
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 
 /** 可陈酿的物品ID（酒类） */
-const AGEABLE_ITEMS = ['watermelon_wine', 'osmanthus_wine', 'peach_wine', 'jujube_wine', 'corn_wine', 'rice_vinegar']
+const AGEABLE_ITEMS = [
+  'watermelon_wine',
+  'osmanthus_wine',
+  'peach_wine',
+  'jujube_wine',
+  'corn_wine',
+  'mixed_fruit_wine',
+  'seasonal_fruit_wine',
+  'spirit_fruit_brew',
+  'ancient_fruit_wine',
+  'rice_vinegar'
+]
 
 export const useHomeStore = defineStore('home', () => {
   const npcStore = useNpcStore()

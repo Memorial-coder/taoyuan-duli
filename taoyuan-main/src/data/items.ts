@@ -284,6 +284,16 @@ const PROCESSED_ITEMS: ItemDef[] = [
     healthRestore: 8
   },
   {
+    id: 'candied_fruit_mix',
+    name: '百果蜜脯',
+    category: 'processed',
+    description: '糖渍罐试出的混合果脯，适合作为节会甜品、宠物点心和伴手礼胚料。',
+    sellPrice: 360,
+    edible: true,
+    staminaRestore: 22,
+    healthRestore: 10
+  },
+  {
     id: 'honey',
     name: '蜂蜜',
     category: 'processed',
@@ -296,6 +306,8 @@ const PROCESSED_ITEMS: ItemDef[] = [
   { id: 'sesame_oil', name: '芝麻油', category: 'processed', description: '醇香的小磨麻油。', sellPrice: 260, edible: false },
   { id: 'rapeseed_oil', name: '菜籽油', category: 'processed', description: '油菜籽榨出的清亮食用油，适合家常烹调和集市摊位。', sellPrice: 190, edible: false },
   { id: 'tea_oil', name: '茶油', category: 'processed', description: '珍贵的山茶油。', sellPrice: 620, edible: false },
+  { id: 'mixed_seed_oil', name: '杂籽油', category: 'processed', description: '油坊用适合榨油的作物试压出的通用食用油，可接料理和订单。', sellPrice: 240, edible: false },
+  { id: 'refined_seed_oil', name: '精炼香油', category: 'processed', description: '高价值油料慢压出的清亮香油，适合节会菜、公共仓备料和赠礼。', sellPrice: 520, edible: false },
   {
     id: 'peach_wine',
     name: '桃花酒',
@@ -327,6 +339,46 @@ const PROCESSED_ITEMS: ItemDef[] = [
     healthRestore: 10
   },
   {
+    id: 'mixed_fruit_wine',
+    name: '百果酒',
+    category: 'processed',
+    description: '酒坊用适合酿造的作物试出的通用果酒，适合拜访、节会和公共仓消耗。',
+    sellPrice: 460,
+    edible: true,
+    staminaRestore: 24,
+    healthRestore: 12
+  },
+  {
+    id: 'seasonal_fruit_wine',
+    name: '时令果酒',
+    category: 'processed',
+    description: '季节性甜果酿出的清亮果酒，比普通百果酒更适合节庆供桌。',
+    sellPrice: 720,
+    edible: true,
+    staminaRestore: 32,
+    healthRestore: 16
+  },
+  {
+    id: 'spirit_fruit_brew',
+    name: '灵果清酿',
+    category: 'processed',
+    description: '灵性作物入坛后凝出的清酿，可用于高阶赠礼、节会供品和公共仓稀有备料。',
+    sellPrice: 1200,
+    edible: true,
+    staminaRestore: 45,
+    healthRestore: 22
+  },
+  {
+    id: 'ancient_fruit_wine',
+    name: '远古果酒',
+    category: 'processed',
+    description: '远古水果慢酿出的幽蓝果酒，酒液里像封着亘古生命力，可陈酿也适合高阶供礼。',
+    sellPrice: 7600,
+    edible: true,
+    staminaRestore: 80,
+    healthRestore: 40
+  },
+  {
     id: 'pickled_chili',
     name: '泡椒',
     category: 'processed',
@@ -345,6 +397,26 @@ const PROCESSED_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 12,
     healthRestore: 5
+  },
+  {
+    id: 'mixed_pickles',
+    name: '百味腌菜',
+    category: 'processed',
+    description: '酱缸试出的通用腌菜，能把零散蔬果转成订单、家常配菜和冬储材料。',
+    sellPrice: 260,
+    edible: true,
+    staminaRestore: 14,
+    healthRestore: 6
+  },
+  {
+    id: 'root_pickles',
+    name: '根菜脆腌',
+    category: 'processed',
+    description: '根茎作物腌出的脆口小菜，适合护院汤、冬储单和药膳前置。',
+    sellPrice: 340,
+    edible: true,
+    staminaRestore: 18,
+    healthRestore: 8
   },
   { id: 'mayonnaise', name: '蛋黄酱', category: 'processed', description: '用鸡蛋制成的浓郁蛋黄酱。', sellPrice: 115, edible: false },
   {
@@ -391,6 +463,26 @@ const PROCESSED_ITEMS: ItemDef[] = [
 
 /** 烟熏鱼物品 */
 const SMOKED_ITEMS: ItemDef[] = [
+  {
+    id: 'smoked_fish',
+    name: '烟熏鱼',
+    category: 'processed',
+    description: '烟熏机试出的通用熏鱼，方便保存，可接料理、订单和公共仓备料。',
+    sellPrice: 120,
+    edible: true,
+    staminaRestore: 24,
+    healthRestore: 12
+  },
+  {
+    id: 'smoked_legendary_fish',
+    name: '传说熏鱼',
+    category: 'processed',
+    description: '传说鱼经烟熏后留下的稀有珍味，适合作为收藏家宴和高阶委托材料。',
+    sellPrice: 1800,
+    edible: true,
+    staminaRestore: 90,
+    healthRestore: 45
+  },
   {
     id: 'smoked_crucian',
     name: '烟熏鲫鱼',
@@ -574,6 +666,26 @@ const DRIED_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 16,
     healthRestore: 8
+  },
+  {
+    id: 'dried_crop_bundle',
+    name: '田园干货包',
+    category: 'processed',
+    description: '晒架把适合长期保存的作物晒成一包干货，可接冬储订单、料理和公共仓备料。',
+    sellPrice: 210,
+    edible: true,
+    staminaRestore: 18,
+    healthRestore: 8
+  },
+  {
+    id: 'dried_fruit_mix',
+    name: '什锦果干',
+    category: 'processed',
+    description: '脱水机试出的混合果干，甜味浓缩，适合宠物点心、节会甜品和旅途干粮。',
+    sellPrice: 360,
+    edible: true,
+    staminaRestore: 28,
+    healthRestore: 14
   },
   {
     id: 'dried_herb',
@@ -950,6 +1062,16 @@ const CRAB_POT_ITEMS: ItemDef[] = [
 /** 花蜜物品 */
 const FLOWER_HONEY_ITEMS: ItemDef[] = [
   {
+    id: 'wildflower_honey',
+    name: '百花蜜',
+    category: 'processed',
+    description: '蜂箱旁摆放各类花作后采出的混合花蜜，适合茶饮、节会甜品和赠礼。',
+    sellPrice: 360,
+    edible: true,
+    staminaRestore: 24,
+    healthRestore: 12
+  },
+  {
     id: 'chrysanthemum_honey',
     name: '菊花蜜',
     category: 'processed',
@@ -1069,7 +1191,9 @@ const FLOUR_ITEMS: ItemDef[] = [
   { id: 'rice_flour', name: '米粉', category: 'material', description: '用稻米磨成的细腻米粉。', sellPrice: 160, edible: false },
   { id: 'wheat_flour', name: '面粉', category: 'material', description: '用冬小麦磨成的面粉。', sellPrice: 130, edible: false },
   { id: 'cornmeal', name: '玉米粉', category: 'material', description: '用玉米磨成的粗粉。', sellPrice: 180, edible: false },
-  { id: 'sesame_powder', name: '芝麻粉', category: 'material', description: '用芝麻细磨成的香粉，可做糕点、宠物点心或辛香丹材。', sellPrice: 145, edible: false }
+  { id: 'sesame_powder', name: '芝麻粉', category: 'material', description: '用芝麻细磨成的香粉，可做糕点、宠物点心或辛香丹材。', sellPrice: 145, edible: false },
+  { id: 'mixed_flour', name: '杂粮粉', category: 'material', description: '石磨把适合制粉的作物磨成通用杂粮粉，可接灶台、宠物点心和订单。', sellPrice: 190, edible: false },
+  { id: 'fine_flour', name: '精磨粉', category: 'material', description: '高价值谷物或根茎细磨成的精粉，适合节会糕点与高阶料理。', sellPrice: 360, edible: false }
 ]
 
 /** 茶饮物品 */
@@ -1123,6 +1247,16 @@ const TEA_DRINK_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 40,
     healthRestore: 20
+  },
+  {
+    id: 'herbal_tea_blend',
+    name: '草本调饮',
+    category: 'processed',
+    description: '制茶机把带香气或药性的作物调成草本饮品，适合拜访和节会寒暄。',
+    sellPrice: 520,
+    edible: true,
+    staminaRestore: 26,
+    healthRestore: 13
   }
 ]
 
@@ -1157,6 +1291,16 @@ const TOFU_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 15,
     healthRestore: 8
+  },
+  {
+    id: 'mixed_tofu',
+    name: '杂豆腐',
+    category: 'processed',
+    description: '豆腐坊用豆类作物试压出的豆腐，适合家常菜、宠物点心和公共仓备料。',
+    sellPrice: 420,
+    edible: true,
+    staminaRestore: 22,
+    healthRestore: 10
   }
 ]
 
@@ -1198,6 +1342,14 @@ const HERB_PRODUCT_ITEMS: ItemDef[] = [
     category: 'processed',
     description: '干莲子研成的清苦细粉，可入安神茶、清心丹或节前礼盒。',
     sellPrice: 360,
+    edible: false
+  },
+  {
+    id: 'medicinal_powder',
+    name: '百草药粉',
+    category: 'processed',
+    description: '药碾把适合入药的作物研成通用药粉，可接丹炉、药膳和节会药饮。',
+    sellPrice: 320,
     edible: false
   },
   {
@@ -1482,7 +1634,8 @@ const FEED_ITEMS: ItemDef[] = [
 const INCENSE_ITEMS: ItemDef[] = [
   { id: 'pine_incense', name: '松香', category: 'gift', description: '清新的松香，送礼佳品。', sellPrice: 100, edible: false },
   { id: 'camphor_incense', name: '樟脑香', category: 'gift', description: '提神醒脑的樟脑香。', sellPrice: 150, edible: false },
-  { id: 'osmanthus_incense', name: '桂花香', category: 'gift', description: '馥郁的桂花香。', sellPrice: 780, edible: false }
+  { id: 'osmanthus_incense', name: '桂花香', category: 'gift', description: '馥郁的桂花香。', sellPrice: 780, edible: false },
+  { id: 'rustic_incense', name: '田园合香', category: 'gift', description: '制香坊把香草花作调成的合香，适合拜访、节会和静心礼。', sellPrice: 420, edible: false }
 ]
 
 /** 武器图鉴物品 */

@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 43, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 44, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4515,6 +4515,14 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('peanut'), 'warehouse item policy should list peanut as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('wild_berry'), 'warehouse item policy should list wild berry as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('watermelon'), 'warehouse item policy should list base watermelon as common cooking input')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('mixed_fruit_wine'), 'warehouse item policy should list generic hidden wine as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('spirit_fruit_brew'), 'warehouse item policy should list spirit fruit hidden wine as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('mixed_pickles'), 'warehouse item policy should list generic hidden pickles as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('candied_fruit_mix'), 'warehouse item policy should list generic hidden candied fruit as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('mixed_flour'), 'warehouse item policy should list generic hidden flour as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('medicinal_powder'), 'warehouse item policy should list generic hidden medicinal powder as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('wildflower_honey'), 'warehouse item policy should list generic hidden flower honey as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('smoked_fish'), 'warehouse item policy should list generic hidden smoked fish as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_camel_milk_tea'), 'warehouse item policy should list animal-product dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('carp'), 'warehouse item policy should list common fish as common items')
@@ -4545,6 +4553,9 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_garlic_radish_side_dish'), 'warehouse item policy should list ordinary garlic radish dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_bitter_gourd_cooling_soup'), 'warehouse item policy should list ordinary bitter gourd soup dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ancient_fruit'), 'warehouse item policy should list ancient fruit as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ancient_fruit_wine'), 'warehouse item policy should list ancient fruit wine as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('smoked_legendary_fish'), 'warehouse item policy should list legendary smoked fish as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('marsh_luminous_cleansing_elixir'), 'warehouse item policy should list marsh rare-material elixir outputs as rare items')
@@ -5749,6 +5760,49 @@ await assertRecipePolicyAlchemyResultBranches({
   inputs: [{ itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }, { itemId: 'lotus_seed', quantity: 1 }],
 })
 
+await injectRecipePolicyStock('ginger', 2)
+const recipePolicyHiddenMedicine = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_hidden_medicine_ginger',
+  memo: 'qa process shared hidden ginger medicine',
+  idempotency_key: 'qa-recipe-policy-hidden-medicine-ginger',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyHiddenMedicine.recipe.id, 'shared_hidden_medicine_ginger', 'shared hidden medicine recipe should expose shared recipe id')
+assert.equal(recipePolicyHiddenMedicine.recipe.local_processing_recipe_id, 'hidden_medicine_ginger', 'shared hidden medicine recipe should map to local hidden recipe id')
+assert.equal(recipePolicyHiddenMedicine.recipe.output_item_id, 'medicinal_powder', 'shared hidden medicine recipe should output medicinal powder')
+assert.equal(recipePolicyHiddenMedicine.workshop_action.recipe_id, 'shared_hidden_medicine_ginger', 'shared hidden medicine action should keep recipe id')
+assert.equal(recipePolicyHiddenMedicine.workshop_action.output_item_id, 'medicinal_powder', 'shared hidden medicine action should keep output item id')
+assert.ok(recipePolicyHiddenMedicine.workshop_action.warehouse_ledger_ids.length >= 2, 'shared hidden medicine action should return consume and output ledger ids')
+assert.ok(recipePolicyHiddenMedicine.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'ginger'), 'shared hidden medicine should consume ginger')
+const recipePolicyHiddenMedicineOutput = recipePolicyHiddenMedicine.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === 'medicinal_powder')
+assert.ok(recipePolicyHiddenMedicineOutput, 'shared hidden medicine should write medicinal powder output ledger')
+assert.equal(recipePolicyHiddenMedicineOutput.source_ledger_ids.length, 1, 'shared hidden medicine output should trace the consume ledger')
+const recipePolicyHiddenMedicineQuantity = recipePolicyHiddenMedicine.warehouse.items.find(item => item.item_id === 'medicinal_powder' && item.quality === recipePolicyHiddenMedicine.workshop_action.output_quality)?.quantity ?? 0
+const recipePolicyHiddenMedicineReplay = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_hidden_medicine_ginger',
+  memo: 'qa replay shared hidden ginger medicine',
+  idempotency_key: 'qa-recipe-policy-hidden-medicine-ginger',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyHiddenMedicineReplay.already_processed, true, 'shared hidden medicine idempotency replay should report already processed')
+assert.equal(recipePolicyHiddenMedicineReplay.warehouse.items.find(item => item.item_id === 'medicinal_powder' && item.quality === recipePolicyHiddenMedicine.workshop_action.output_quality)?.quantity ?? 0, recipePolicyHiddenMedicineQuantity, 'shared hidden medicine idempotency replay should not duplicate output')
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_hidden_not_registered',
+    memo: 'qa unknown shared hidden recipe should stay rejected',
+    idempotency_key: 'qa-recipe-policy-hidden-unknown-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('whitelisted recipes'),
+  'shared workshop should reject unknown hidden recipe ids'
+)
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_hidden_wine_ancient_fruit',
+    memo: 'qa ancient fruit hidden wine should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-hidden-ancient-wine-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'shared hidden ancient fruit wine should require storage.withdraw_rare before consuming ancient fruit'
+)
+
 for (const recipeId of [
   'shared_ginseng_soup',
   'shared_forest_tonic',
@@ -5892,6 +5946,21 @@ await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   memo: 'qa allow rare material shared alchemy',
   idempotency_key: 'qa-recipe-policy-allow-rare-alchemy',
 }, actor(recipePolicyOwner))
+await injectRecipePolicyStock('ancient_fruit', 1)
+const recipePolicyAncientWine = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_hidden_wine_ancient_fruit',
+  memo: 'qa process shared hidden ancient fruit wine',
+  idempotency_key: 'qa-recipe-policy-hidden-ancient-wine',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyAncientWine.recipe.local_processing_recipe_id, 'hidden_wine_ancient_fruit', 'shared hidden ancient wine should map to local hidden recipe id')
+assert.equal(recipePolicyAncientWine.recipe.output_item_id, 'ancient_fruit_wine', 'shared hidden ancient wine should output ancient fruit wine')
+assert.equal(recipePolicyAncientWine.workshop_action.output_item_id, 'ancient_fruit_wine', 'shared hidden ancient wine action should keep output item id')
+assert.ok(recipePolicyAncientWine.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'ancient_fruit'), 'shared hidden ancient wine should consume ancient fruit')
+const recipePolicyAncientWineOutput = recipePolicyAncientWine.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === 'ancient_fruit_wine')
+assert.ok(recipePolicyAncientWineOutput, 'shared hidden ancient wine should write output ledger')
+assert.equal(recipePolicyAncientWineOutput.withdrawal_risk_level, 'rare', 'shared hidden ancient wine output should stay rare protected')
+assert.equal(recipePolicyAncientWineOutput.high_value_withdrawal_required, true, 'shared hidden ancient wine output should require high-value withdrawal flow')
+assert.ok(recipePolicyAncientWine.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyAncientWine.ledger_entry.id && item.item_id === 'ancient_fruit_wine'), 'shared hidden ancient wine origin asset should trace output ledger')
 await processRecipePolicyRareDish({
   recipeId: 'shared_ginseng_soup',
   outputItemId: 'food_ginseng_soup',
@@ -7322,6 +7391,49 @@ await assert.rejects(
   error => error?.status === 409,
   'resolved rare crystal compensation review should not reopen'
 )
+
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'ginger',
+  quantity: 2,
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_offline_shared_hidden_medicine_ginger_deposit',
+  idempotencyKey: 'qa-offline-shared-hidden-medicine-ginger-deposit',
+  sourceSaveId: 123456931,
+})
+const offlineSharedHiddenWorkshopQueue = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-hidden-workshop',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-hidden-medicine-op',
+      idempotency_key: 'qa-offline-shared-hidden-medicine-op-idem',
+      recipe_id: 'shared_hidden_medicine_ginger',
+      memo: 'qa offline shared hidden medicine recipe',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(offlineSharedHiddenWorkshopQueue.offline_queue_merge.accepted_count, 1, 'offline shared hidden workshop queue should accept whitelisted hidden recipe')
+assert.equal(offlineSharedHiddenWorkshopQueue.offline_queue_merge.rejected_count, 0, 'offline shared hidden workshop queue should not reject whitelisted hidden recipe')
+assert.equal(offlineSharedHiddenWorkshopQueue.offline_queue_merge.results[0]?.recipe_id, 'shared_hidden_medicine_ginger', 'offline shared hidden workshop result should keep recipe id')
+assert.equal(offlineSharedHiddenWorkshopQueue.offline_queue_merge.results[0]?.output_item_id, 'medicinal_powder', 'offline shared hidden workshop result should keep output item id')
+assert.ok((offlineSharedHiddenWorkshopQueue.offline_queue_merge.results[0]?.warehouse_ledger_ids || []).length >= 2, 'offline shared hidden workshop result should keep warehouse ledger ids')
+assert.ok(offlineSharedHiddenWorkshopQueue.offline_queue_merge.results[0]?.output_ledger_id, 'offline shared hidden workshop result should keep output ledger id')
+const offlineSharedHiddenOutputQuality = offlineSharedHiddenWorkshopQueue.offline_queue_merge.results[0]?.output_quality || 'normal'
+const offlineSharedHiddenOutputQuantity = offlineSharedHiddenWorkshopQueue.contract.shared_warehouse.items.find(item => item.item_id === 'medicinal_powder' && item.quality === offlineSharedHiddenOutputQuality)?.quantity ?? 0
+assert.ok(offlineSharedHiddenOutputQuantity >= 1, 'offline shared hidden workshop output should enter shared warehouse')
+const duplicateOfflineSharedHiddenWorkshopQueue = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-hidden-workshop',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-hidden-medicine-op',
+      idempotency_key: 'qa-offline-shared-hidden-medicine-op-idem',
+      recipe_id: 'shared_hidden_medicine_ginger',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(duplicateOfflineSharedHiddenWorkshopQueue.offline_queue_merge.idempotent, true, 'duplicate offline shared hidden workshop queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineSharedHiddenWorkshopQueue.contract.shared_warehouse.items.find(item => item.item_id === 'medicinal_powder' && item.quality === offlineSharedHiddenOutputQuality)?.quantity ?? 0, offlineSharedHiddenOutputQuantity, 'duplicate offline shared hidden workshop queue should not duplicate output')
 
 const offlineWorkshopInsufficientOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
 const offlineWorkshopInsufficientPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw

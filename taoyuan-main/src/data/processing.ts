@@ -13,6 +13,9 @@ import type {
   BombDef
 } from '@/types'
 import { CROPS } from './crops'
+import { FISH } from './fish'
+import { FRUIT_TREE_DEFS } from './fruitTrees'
+import { getCropUseProfile, type CropUseProfile } from './cropUseProfiles'
 
 export const ALCHEMY_MAIN_DAILY_LIMIT = 1
 export const ALCHEMY_SUPPORT_DAILY_LIMIT = 2
@@ -2816,6 +2819,354 @@ export const TACKLES: TackleDef[] = [
     shopPrice: 200
   }
 ]
+
+const getProcessingInputSignature = (recipe: Pick<ProcessingRecipeDef, 'machineType' | 'inputItemId' | 'extraInputs'>): string => {
+  const extras = (recipe.extraInputs ?? [])
+    .map(extra => `${extra.itemId}:${extra.quantity}`)
+    .sort()
+    .join(',')
+  return `${recipe.machineType}|${recipe.inputItemId ?? 'none'}|${extras}`
+}
+
+const _existingProcessingInputSignatures = new Set(PROCESSING_RECIPES.map(getProcessingInputSignature))
+
+const hasHiddenText = (text: string, keywords: string[]) => keywords.some(keyword => text.includes(keyword))
+
+const isFlowerLikeCrop = (crop: (typeof CROPS)[number], profile: CropUseProfile): boolean => {
+  const text = `${crop.id} ${crop.name} ${crop.description}`
+  return profile.flavor.includes('香') && hasHiddenText(text, ['flower', 'blossom', 'osmanthus', 'chrysanthemum', 'lotus', '花', '桂', '菊', '莲', '兰', '蕾', '芽'])
+}
+
+const isRootLikeCrop = (crop: (typeof CROPS)[number], profile: CropUseProfile): boolean => {
+  const text = `${crop.id} ${crop.name} ${crop.description}`
+  return profile.flavor.includes('土') || hasHiddenText(text, ['potato', 'yam', 'radish', 'root', '薯', '山药', '萝卜', '藕', '根'])
+}
+
+const getHiddenWineOutput = (cropId: string, profile: CropUseProfile): string => {
+  if (cropId === 'ancient_fruit') return 'ancient_fruit_wine'
+  if (profile.spirituality === 'mystic' || profile.spirituality === 'spirit') return 'spirit_fruit_brew'
+  if (profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal') return 'seasonal_fruit_wine'
+  return 'mixed_fruit_wine'
+}
+
+const getUnknownProcessingName = (machineType: ProcessingRecipeDef['machineType']): string => {
+  switch (machineType) {
+    case 'wine_workshop':
+      return '未知酿造'
+    case 'sauce_jar':
+      return '未知腌制'
+    case 'oil_press':
+      return '未知压榨'
+    case 'mill':
+      return '未知研磨'
+    case 'herb_grinder':
+      return '未知药粉'
+    case 'drying_rack':
+    case 'dehydrator':
+      return '未知风干'
+    case 'bee_house':
+      return '未知花蜜'
+    case 'sugar_jar':
+      return '未知糖渍'
+    case 'smoker':
+      return '未知烟熏'
+    case 'tea_maker':
+      return '未知调饮'
+    case 'tofu_press':
+      return '未知豆制'
+    case 'incense_maker':
+      return '未知合香'
+    default:
+      return '未知加工'
+  }
+}
+
+const pushHiddenProcessingRecipe = (recipes: ProcessingRecipeDef[], recipe: ProcessingRecipeDef) => {
+  const signature = getProcessingInputSignature(recipe)
+  if (_existingProcessingInputSignatures.has(signature)) return
+  _existingProcessingInputSignatures.add(signature)
+  recipes.push(recipe)
+}
+
+const buildHiddenProcessingRecipe = (
+  recipe: Omit<ProcessingRecipeDef, 'visibility' | 'hiddenMeta'> & {
+    familyId: string
+    unknownName?: string
+    gate?: NonNullable<ProcessingRecipeDef['hiddenMeta']>['gate']
+    sharedEnabled?: boolean
+  }
+): ProcessingRecipeDef => {
+  const { familyId, unknownName, gate, sharedEnabled, ...base } = recipe
+  return {
+    ...base,
+    visibility: 'hidden',
+    hiddenMeta: {
+      unknownName: unknownName ?? getUnknownProcessingName(base.machineType),
+      familyId,
+      gate,
+      revealOn: 'collect',
+      sharedEnabled
+    }
+  }
+}
+
+const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
+  const recipes: ProcessingRecipeDef[] = []
+
+  for (const crop of CROPS) {
+    const profile = getCropUseProfile(crop.id)
+    if (!profile) continue
+    const inputQuantity = profile.rarityUse === 'valuable' ? 1 : 2
+    const title = crop.name
+
+    if (profile.tags.includes('wine')) {
+      const outputItemId = getHiddenWineOutput(crop.id, profile)
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: crop.id === 'ancient_fruit' ? 'hidden_wine_ancient_fruit' : `hidden_wine_${crop.id}`,
+        machineType: 'wine_workshop',
+        name: crop.id === 'ancient_fruit' ? '远古果酒' : `${title}试酿`,
+        inputItemId: crop.id,
+        inputQuantity: crop.id === 'ancient_fruit' ? 1 : inputQuantity,
+        outputItemId,
+        outputQuantity: 1,
+        processingDays: crop.id === 'ancient_fruit' ? 5 : profile.rarityUse === 'valuable' ? 4 : 3,
+        description: crop.id === 'ancient_fruit'
+          ? '远古水果在酒坊中慢慢沉成幽蓝酒液，首次成功后会记入隐藏酿造配方。'
+          : `将${title}投入酒坊试酿，成功后可固定作为${outputItemId === 'mixed_fruit_wine' ? '百果酒' : outputItemId === 'seasonal_fruit_wine' ? '时令果酒' : '灵果清酿'}配方使用。`,
+        familyId: 'hidden_wine',
+        gate: crop.id === 'ancient_fruit' ? { workshopLevel: 2, requiredItemId: 'ancient_fruit' } : undefined,
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.tags.includes('pickle')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_pickle_${crop.id}`,
+        machineType: 'sauce_jar',
+        name: `${title}试腌`,
+        inputItemId: crop.id,
+        inputQuantity,
+        outputItemId: isRootLikeCrop(crop, profile) ? 'root_pickles' : 'mixed_pickles',
+        outputQuantity: 1,
+        processingDays: 2,
+        description: `将${title}投入酱缸试腌，成功后会固定为隐藏腌制配方。`,
+        familyId: 'hidden_pickle',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.tags.includes('oil')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_oil_${crop.id}`,
+        machineType: 'oil_press',
+        name: `${title}试榨`,
+        inputItemId: crop.id,
+        inputQuantity: profile.rarityUse === 'valuable' ? 2 : 3,
+        outputItemId: profile.rarityUse === 'valuable' ? 'refined_seed_oil' : 'mixed_seed_oil',
+        outputQuantity: 1,
+        processingDays: 1,
+        description: `将${title}投入油坊试榨，适合作为通用油料出口。`,
+        familyId: 'hidden_oil',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.tags.includes('flour')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_flour_${crop.id}`,
+        machineType: 'mill',
+        name: `${title}试磨`,
+        inputItemId: crop.id,
+        inputQuantity: 2,
+        outputItemId: profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal' ? 'fine_flour' : 'mixed_flour',
+        outputQuantity: 1,
+        processingDays: 1,
+        description: `将${title}投入石磨试磨，成功后成为隐藏制粉配方。`,
+        familyId: 'hidden_flour',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.tags.includes('medicine')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_medicine_${crop.id}`,
+        machineType: 'herb_grinder',
+        name: `${title}试研`,
+        inputItemId: crop.id,
+        inputQuantity: profile.rarityUse === 'valuable' ? 1 : 2,
+        outputItemId: 'medicinal_powder',
+        outputQuantity: 1,
+        processingDays: 1,
+        description: `将${title}投入药碾试研，转成通用百草药粉。`,
+        familyId: 'hidden_medicine',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.flavor.includes('甜') && (profile.tags.includes('gift') || profile.tags.includes('pet_feed') || profile.tags.includes('festival'))) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_sugar_${crop.id}`,
+        machineType: 'sugar_jar',
+        name: `${title}试渍`,
+        inputItemId: crop.id,
+        inputQuantity: 2,
+        extraInputs: [{ itemId: 'honey', quantity: 1 }],
+        outputItemId: 'candied_fruit_mix',
+        outputQuantity: 1,
+        processingDays: 2,
+        description: `将${title}与蜂蜜慢渍，试出通用百果蜜脯。`,
+        familyId: 'hidden_sugar',
+        sharedEnabled: true
+      }))
+    }
+
+    if (isFlowerLikeCrop(crop, profile)) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_honey_${crop.id}`,
+        machineType: 'bee_house',
+        name: `${title}花蜜`,
+        inputItemId: crop.id,
+        inputQuantity: 1,
+        outputItemId: 'wildflower_honey',
+        outputQuantity: 1,
+        processingDays: 4,
+        description: `在蜂箱旁放置${title}，试出可稳定复现的百花蜜。`,
+        familyId: 'hidden_honey',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.tags.includes('food') || profile.tags.includes('medicine')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_dry_${crop.id}`,
+        machineType: 'drying_rack',
+        name: `${title}试晒`,
+        inputItemId: crop.id,
+        inputQuantity: 1,
+        outputItemId: 'dried_crop_bundle',
+        outputQuantity: 1,
+        processingDays: 2,
+        description: `将${title}放上晒架试晒，转成田园干货包。`,
+        familyId: 'hidden_dry',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.flavor.includes('甜')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_dehydrate_${crop.id}`,
+        machineType: 'dehydrator',
+        name: `${title}试脱水`,
+        inputItemId: crop.id,
+        inputQuantity: 1,
+        outputItemId: 'dried_fruit_mix',
+        outputQuantity: 1,
+        processingDays: 2,
+        description: `将${title}放入脱水机试制，得到什锦果干。`,
+        familyId: 'hidden_dehydrate',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.flavor.includes('香') || profile.flavor.includes('苦') || profile.tags.includes('medicine')) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_tea_${crop.id}`,
+        machineType: 'tea_maker',
+        name: `${title}调饮`,
+        inputItemId: crop.id,
+        inputQuantity: 2,
+        outputItemId: 'herbal_tea_blend',
+        outputQuantity: 1,
+        processingDays: 2,
+        description: `将${title}放入制茶机试调，得到草本调饮。`,
+        familyId: 'hidden_tea',
+        sharedEnabled: true
+      }))
+    }
+
+    if (hasHiddenText(`${crop.id} ${crop.name}`, ['bean', '豆'])) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_tofu_${crop.id}`,
+        machineType: 'tofu_press',
+        name: `${title}试压`,
+        inputItemId: crop.id,
+        inputQuantity: 3,
+        outputItemId: 'mixed_tofu',
+        outputQuantity: 1,
+        processingDays: 1,
+        description: `将${title}投入豆腐坊试压，得到杂豆腐。`,
+        familyId: 'hidden_tofu',
+        sharedEnabled: true
+      }))
+    }
+
+    if (profile.flavor.includes('香') && (profile.tags.includes('gift') || profile.tags.includes('medicine') || profile.tags.includes('festival'))) {
+      pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+        id: `hidden_incense_${crop.id}`,
+        machineType: 'incense_maker',
+        name: `${title}试香`,
+        inputItemId: crop.id,
+        inputQuantity: 2,
+        outputItemId: 'rustic_incense',
+        outputQuantity: 1,
+        processingDays: 2,
+        description: `将${title}送入制香坊试配，得到田园合香。`,
+        familyId: 'hidden_incense',
+        sharedEnabled: true
+      }))
+    }
+  }
+
+  for (const fruitTree of FRUIT_TREE_DEFS) {
+    pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+      id: `hidden_tree_wine_${fruitTree.fruitId}`,
+      machineType: 'wine_workshop',
+      name: `${fruitTree.fruitName}试酿`,
+      inputItemId: fruitTree.fruitId,
+      inputQuantity: 2,
+      outputItemId: 'seasonal_fruit_wine',
+      outputQuantity: 1,
+      processingDays: 3,
+      description: `将${fruitTree.fruitName}投入酒坊试酿，得到时令果酒。`,
+      familyId: 'hidden_wine',
+      sharedEnabled: true
+    }))
+    pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+      id: `hidden_tree_dehydrate_${fruitTree.fruitId}`,
+      machineType: 'dehydrator',
+      name: `${fruitTree.fruitName}试脱水`,
+      inputItemId: fruitTree.fruitId,
+      inputQuantity: 1,
+      outputItemId: 'dried_fruit_mix',
+      outputQuantity: 1,
+      processingDays: 2,
+      description: `将${fruitTree.fruitName}放入脱水机试制，得到什锦果干。`,
+      familyId: 'hidden_dehydrate',
+      sharedEnabled: true
+    }))
+  }
+
+  for (const fish of FISH) {
+    pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
+      id: `hidden_smoke_${fish.id}`,
+      machineType: 'smoker',
+      name: `${fish.name}试熏`,
+      inputItemId: fish.id,
+      inputQuantity: 1,
+      extraInputs: [{ itemId: 'wood', quantity: 1 }],
+      outputItemId: fish.difficulty === 'legendary' ? 'smoked_legendary_fish' : 'smoked_fish',
+      outputQuantity: 1,
+      processingDays: 1,
+      description: `将${fish.name}放入烟熏机试制，成功后固定为隐藏烟熏配方。`,
+      familyId: 'hidden_smoke',
+      sharedEnabled: true
+    }))
+  }
+
+  return recipes
+}
+
+PROCESSING_RECIPES.push(...buildHiddenCropProcessingRecipes())
 
 // 为所有尚无种子制造机配方的作物自动生成配方
 const _existingSeedMakerInputs = new Set(

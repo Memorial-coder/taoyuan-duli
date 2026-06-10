@@ -129,7 +129,7 @@
                 class="flex items-start justify-between gap-2 py-0.5"
               >
                 <div class="flex min-w-0 items-center gap-2">
-                  <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                  <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
                   <div class="min-w-0">
                     <p class="text-xs text-text truncate">{{ option.displayName }}</p>
                     <p class="text-[0.625rem] text-muted leading-snug">{{ option.recommendationText }}</p>
@@ -165,7 +165,7 @@
                       @click="handleStartProcessing(originalIndex, option.recipeId, option.quality)"
                     >
                       <span class="processing-option-card__body">
-                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
                         <span class="processing-option-card__copy">
                           <span class="processing-option-card__name">
                             {{ option.displayName }}
@@ -199,7 +199,7 @@
                       @click="handleStartProcessing(originalIndex, option.recipeId)"
                     >
                       <span class="processing-option-card__body">
-                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
                         <span class="processing-option-card__copy">
                           <span class="processing-option-card__name">
                             {{ option.displayName }}
@@ -230,7 +230,7 @@
               <div v-else-if="!slot.ready" :data-testid="`processing-slot-running-${slot.recipeId}`">
                 <div class="flex items-center justify-between text-xs mb-1">
                   <span class="inline-flex min-w-0 items-center gap-1.5 text-muted">
-                    <ItemIcon :item="getRecipeOutputItem(slot.recipeId)" size="xs" :show-badge="false" />
+                    <ItemIcon :item="getRecipeOutputItem(slot.recipeId)" size="xs" :show-badge="false" :silhouette="isRecipeHiddenUndiscovered(slot.recipeId)" />
                     <span class="truncate">{{ getRecipeName(slot.recipeId) }}</span>
                   </span>
                   <span class="text-muted">{{ slot.daysProcessed }}/{{ slot.totalDays }}天</span>
@@ -268,7 +268,7 @@
                   :data-testid="`processing-collect-${slot.recipeId}`"
                   @click="handleCollect(originalIndex)"
                 >
-                  <ItemIcon :item="slot.alchemyResult ? getItemById(slot.alchemyResult.outputItemId) : getRecipeOutputItem(slot.recipeId)" size="xs" :show-badge="false" />
+                  <ItemIcon :item="slot.alchemyResult ? getItemById(slot.alchemyResult.outputItemId) : getRecipeOutputItem(slot.recipeId)" size="xs" :show-badge="false" :silhouette="!!slot.recipeId && isRecipeHiddenUndiscovered(slot.recipeId)" />
                   收取 {{ getSlotOutputName(slot) }}
                 </Button>
               </div>
@@ -575,7 +575,7 @@
               <span class="text-xs text-accent">最多 {{ batchMaxCount }} 台</span>
             </div>
             <div class="flex items-center justify-between mb-1.5">
-              <span class="text-xs">{{ currentBatchRecipe.name }}{{ batchQualityLabel }}</span>
+              <span class="text-xs">{{ currentBatchOption?.displayName ?? currentBatchRecipe.name }}{{ batchQualityLabel }}</span>
               <span class="text-[0.625rem] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
             </div>
             <div v-if="currentBatchOption?.alchemyLimitText" class="text-[0.625rem] text-muted mb-1.5">
@@ -729,6 +729,7 @@
     substitutionText: string
     recommendationText: string
     alchemyBlocked: boolean
+    hiddenUndiscovered: boolean
   }
 
   interface MachineSlotViewModel {
@@ -926,6 +927,7 @@
     )
     const substitutionText = recipe.alchemy ? processingStore.getAlchemySubstitutionText(recipe.id, 1, quality) : ''
     const recommendationText = buildProcessingRecommendationText(recipe, available && !alchemyLimit?.blocked, alchemyMetaText, cropUseText)
+    const hiddenUndiscovered = recipe.visibility === 'hidden' && !processingStore.isHiddenProcessingRecipeDiscovered(recipe.id)
 
     return {
       key: quality ? `${recipe.id}:${quality}` : recipe.id,
@@ -936,7 +938,7 @@
       available,
       disabled: !available || !!alchemyLimit?.blocked,
       outputItem,
-      displayName: recipe.name,
+      displayName: hiddenUndiscovered ? recipe.hiddenMeta?.unknownName ?? '未知加工' : recipe.name,
       qualityLabel: quality && quality !== 'normal' ? `[${QUALITY_NAMES[quality]}]` : recipe.minInputQuality ? `[${QUALITY_NAMES[recipe.minInputQuality]}以上]` : '',
       inputItem,
       inputItemName: recipe.inputItemId ? getItemName(recipe.inputItemId) : null,
@@ -946,7 +948,8 @@
       cropUseText,
       substitutionText,
       recommendationText,
-      alchemyBlocked: !!alchemyLimit?.blocked
+      alchemyBlocked: !!alchemyLimit?.blocked,
+      hiddenUndiscovered
     }
   }
 
@@ -1231,7 +1234,7 @@
     )
     if (started > 0) {
       sfxClick()
-      addLog(`开始批量加工${recipe.name}${batchQualityLabel.value} ×${started}。${substitutionText ? ` ${substitutionText}。` : ''}`)
+      addLog(`开始批量加工${currentBatchOption.value?.displayName ?? recipe.name}${batchQualityLabel.value} ×${started}。${substitutionText ? ` ${substitutionText}。` : ''}`)
       batchProcessModal.value = null
       return
     }
@@ -1582,12 +1585,18 @@
   }
 
   const getRecipeName = (recipeId: string): string => {
-    return getProcessingRecipeById(recipeId)?.name ?? recipeId
+    return processingStore.getProcessingRecipeDisplayName(recipeId)
+  }
+
+  const isRecipeHiddenUndiscovered = (recipeId: string): boolean => {
+    const recipe = getProcessingRecipeById(recipeId)
+    return recipe?.visibility === 'hidden' && !processingStore.isHiddenProcessingRecipeDiscovered(recipeId)
   }
 
   const getRecipeOutputName = (recipeId: string): string => {
     const recipe = getProcessingRecipeById(recipeId)
     if (!recipe) return recipeId
+    if (isRecipeHiddenUndiscovered(recipeId)) return recipe.hiddenMeta?.unknownName ?? '未知加工'
     return getItemById(recipe.outputItemId)?.name ?? recipe.name
   }
 
@@ -1869,7 +1878,7 @@
     if (processingStore.startProcessing(slotIndex, recipeId, quality)) {
       sfxClick()
       const qualityLabel = quality && quality !== 'normal' ? `(${QUALITY_NAMES[quality]})` : ''
-      addLog(`开始加工${recipe?.name ?? recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。${substitutionText ? ` ${substitutionText}。` : ''}`)
+      addLog(`开始加工${recipe ? processingStore.getProcessingRecipeDisplayName(recipe.id) : recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。${substitutionText ? ` ${substitutionText}。` : ''}`)
     } else {
       if (recipe?.alchemy) {
         const status = processingStore.getAlchemyDailyLimitStatus(recipeId)

@@ -3267,6 +3267,7 @@ export interface CohabitationSharedWorkshopRecipe {
   label: string
   station: string
   process_kind: string
+  local_processing_recipe_id?: string
   input_items: Array<{
     item_id: string
     quantity: number

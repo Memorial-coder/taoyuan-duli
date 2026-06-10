@@ -51,6 +51,24 @@ const WORKSHOP_UPGRADES = [
       { itemId: 'gold_bar', quantity: 10 },
       { itemId: 'wood', quantity: 80 }
     ]
+  },
+  {
+    level: 3,
+    cost: 50000,
+    materials: [
+      { itemId: 'gold_bar', quantity: 20 },
+      { itemId: 'iridium_bar', quantity: 5 },
+      { itemId: 'wood', quantity: 120 }
+    ]
+  },
+  {
+    level: 4,
+    cost: 90000,
+    materials: [
+      { itemId: 'iridium_bar', quantity: 12 },
+      { itemId: 'refined_quartz', quantity: 20 },
+      { itemId: 'stone', quantity: 150 }
+    ]
   }
 ]
 
@@ -62,6 +80,7 @@ export const useProcessingStore = defineStore('processing', () => {
 
   /** 已放置的加工机器（运行中的槽位） */
   const machines = ref<ProcessingSlot[]>([])
+  const discoveredProcessingRecipeIds = ref<string[]>([])
   const alchemyDailyLimitState = ref({
     dayTag: '',
     mainStarted: 0,
@@ -72,6 +91,44 @@ export const useProcessingStore = defineStore('processing', () => {
   const getQualityRank = (quality: Quality) => QUALITY_VALUES.indexOf(quality)
   const getQualitiesAtLeast = (minQuality: Quality): Quality[] => QUALITY_VALUES.slice(Math.max(0, getQualityRank(minQuality)))
   const isQualityAtLeast = (quality: Quality, minQuality: Quality): boolean => getQualityRank(quality) >= getQualityRank(minQuality)
+
+  const normalizeDiscoveredProcessingRecipeIds = (raw: unknown): string[] => {
+    if (!Array.isArray(raw)) return []
+    return Array.from(new Set(raw.filter((id): id is string => {
+      const recipe = typeof id === 'string' ? getProcessingRecipeById(id) : null
+      return recipe?.visibility === 'hidden'
+    })))
+  }
+
+  const isHiddenProcessingRecipeDiscovered = (recipeId: string): boolean => {
+    const recipe = getProcessingRecipeById(recipeId)
+    return !recipe || recipe.visibility !== 'hidden' || discoveredProcessingRecipeIds.value.includes(recipeId)
+  }
+
+  const discoverProcessingRecipe = (recipeId: string): boolean => {
+    const recipe = getProcessingRecipeById(recipeId)
+    if (recipe?.visibility !== 'hidden') return false
+    if (discoveredProcessingRecipeIds.value.includes(recipeId)) return false
+    discoveredProcessingRecipeIds.value.push(recipeId)
+    return true
+  }
+
+  const getProcessingRecipeDisplayName = (recipeId: string): string => {
+    const recipe = getProcessingRecipeById(recipeId)
+    if (!recipe) return recipeId
+    if (recipe.visibility === 'hidden' && !isHiddenProcessingRecipeDiscovered(recipe.id)) {
+      return recipe.hiddenMeta?.unknownName ?? '未知加工'
+    }
+    return recipe.name
+  }
+
+  const canAccessProcessingRecipe = (recipe: ProcessingRecipeDef): boolean => {
+    if (recipe.visibility !== 'hidden') return true
+    const gate = recipe.hiddenMeta?.gate
+    if (gate?.workshopLevel !== undefined && workshopLevel.value < gate.workshopLevel) return false
+    if (gate?.requiredItemId && getCombinedItemCount(gate.requiredItemId) <= 0) return false
+    return true
+  }
 
   const getAlchemyDayTag = () => `${gameStore.year}:${gameStore.season}:${gameStore.day}`
 
@@ -344,7 +401,7 @@ export const useProcessingStore = defineStore('processing', () => {
   const getSlotCompletionName = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): string => {
     const output = getSlotOutput(slot, recipe)
     const outputName = getItemById(output.itemId)?.name ?? output.itemId
-    return slot.alchemyResult ? `${slot.alchemyResult.label}：${outputName}` : recipe.name
+    return slot.alchemyResult ? `${slot.alchemyResult.label}：${outputName}` : getProcessingRecipeDisplayName(recipe.id)
   }
 
   const getIdleMachineIndicesByType = (machineType: MachineType) =>
@@ -411,7 +468,7 @@ export const useProcessingStore = defineStore('processing', () => {
     return sanitized
   }
 
-  /** 工坊等级：0/1/2，对应 15/20/25 */
+  /** 工坊等级：0/1/2/3/4，对应 15/20/25/30/35 */
   const workshopLevel = ref(0)
 
   /** 最大放置机器数 */
@@ -725,6 +782,13 @@ export const useProcessingStore = defineStore('processing', () => {
       }
     }
 
+    if (discoverProcessingRecipe(recipe.id)) {
+      addLog(`发现隐藏加工配方：${recipe.name}！`, {
+        category: 'processing',
+        meta: { recipeId: recipe.id, machineType: recipe.machineType, inputItemId: recipe.inputItemId ?? '' }
+      })
+    }
+
     // 重置槽位
     slot.recipeId = null
     slot.inputItemId = null
@@ -844,7 +908,7 @@ export const useProcessingStore = defineStore('processing', () => {
 
   /** 获取某台机器可用的加工配方列表 */
   const getAvailableRecipes = (machineType: MachineType) => {
-    return getRecipesForMachine(machineType)
+    return getRecipesForMachine(machineType).filter(canAccessProcessingRecipe)
   }
 
   // === 每日更新 ===
@@ -1037,6 +1101,7 @@ export const useProcessingStore = defineStore('processing', () => {
     return {
       machines: machines.value,
       workshopLevel: workshopLevel.value,
+      discoveredProcessingRecipeIds: discoveredProcessingRecipeIds.value,
       alchemyDailyLimitState: alchemyDailyLimitState.value
     }
   }
@@ -1044,6 +1109,7 @@ export const useProcessingStore = defineStore('processing', () => {
   const deserialize = (data: ReturnType<typeof serialize>) => {
     machines.value = Array.isArray(data?.machines) ? data.machines.map(sanitizeProcessingSlot).filter((slot): slot is ProcessingSlot => !!slot) : []
     workshopLevel.value = (data as any).workshopLevel ?? 0
+    discoveredProcessingRecipeIds.value = normalizeDiscoveredProcessingRecipeIds((data as any)?.discoveredProcessingRecipeIds)
     const rawAlchemyState = (data as any)?.alchemyDailyLimitState
     if (rawAlchemyState && typeof rawAlchemyState === 'object') {
       alchemyDailyLimitState.value = {
@@ -1059,6 +1125,7 @@ export const useProcessingStore = defineStore('processing', () => {
 
   return {
     machines,
+    discoveredProcessingRecipeIds,
     machineCount,
     maxMachines,
     workshopLevel,
@@ -1077,6 +1144,9 @@ export const useProcessingStore = defineStore('processing', () => {
     getAlchemyMaterialPlan,
     getAlchemyRequirementAvailableCount,
     getAlchemySubstitutionText,
+    isHiddenProcessingRecipeDiscovered,
+    discoverProcessingRecipe,
+    getProcessingRecipeDisplayName,
     startProcessing,
     startProcessingBatch,
     collectProduct,

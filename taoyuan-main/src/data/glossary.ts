@@ -22,6 +22,8 @@ import {
   getItemUsageText,
 } from './itemEncyclopedia'
 
+const PUBLIC_PROCESSING_RECIPES = PROCESSING_RECIPES.filter(recipe => recipe.visibility !== 'hidden')
+
 export type GlossaryCategory =
   | 'crop'
   | 'fish'
@@ -307,7 +309,7 @@ const buildGlossary = (): GlossaryEntry[] => {
   }
 
   for (const machine of PROCESSING_MACHINES) {
-    const relatedEntryIds = uniqueStrings(PROCESSING_RECIPES.filter(recipe => recipe.machineType === machine.id).flatMap(recipe => [
+    const relatedEntryIds = uniqueStrings(PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.machineType === machine.id).flatMap(recipe => [
       ...(recipe.inputItemId ? [getGlossaryEntryIdForItemId(recipe.inputItemId)] : []),
       getGlossaryEntryIdForItemId(recipe.outputItemId),
     ]))
@@ -665,6 +667,29 @@ const buildGlossary = (): GlossaryEntry[] => {
       'valuable',
     ],
     intents: ['usage', 'system'],
+  }))
+
+  entries.push(makeEntry({
+    id: 'system_hidden_processing_recipe',
+    name: '隐藏加工配方',
+    category: 'item',
+    categoryLabel: '机制',
+    description: '工坊中的实验型加工配方。未发现前会以未知酿造、未知腌制、未知压榨等名称出现，首次收取成品后才记录为当前存档已发现配方。',
+    details: [
+      { label: '显示规则', value: '公开配方直接显示真名；隐藏配方未发现时显示未知名和剪影，收取后显示真实配方名。' },
+      { label: '材料族', value: '酒坊读酿酒用途，酱缸读腌制用途，油坊读油料用途，石磨读制粉用途，药碾读药材用途，其他机器按花、甜果、鱼类、豆类等家族扩展。' },
+      { label: '高阶门槛', value: '远古水果等专属隐藏配方需要工坊等级和持有稀有原料后才会出现。' },
+      { label: '共同工坊', value: '共同工坊仍由服务端白名单控制，不接受任意客户端输入输出。' },
+    ],
+    source: '在工坊加工区选择未知配方并收取成品后发现。',
+    usage: '用于给远古水果和大量用途明确的作物补充二级消耗出口，让中后期材料有更多加工路线。',
+    relatedPanels: [
+      { panel: 'workshop', label: '去工坊实验' },
+      { panel: 'online', label: '去共同庄园' },
+    ],
+    relatedEntryIds: ['system_crop_use_profile', 'crop_ancient_fruit'],
+    keywords: ['隐藏配方', '隐藏加工', '未知加工', '未知酿造', '未知腌制', '未知压榨', '通配配方', '实验配方', '远古果酒', 'ancient_fruit_wine', 'hidden processing recipe'],
+    intents: ['unlock', 'usage', 'system'],
   }))
 
   entries.push(makeEntry({

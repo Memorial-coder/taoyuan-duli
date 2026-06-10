@@ -84,6 +84,18 @@ export interface ProcessingRecipeDef {
   id: string
   machineType: MachineType
   name: string
+  /** 配方可见性：hidden = 未发现前在工坊中以未知配方展示 */
+  visibility?: 'public' | 'hidden'
+  hiddenMeta?: {
+    unknownName: string
+    familyId: string
+    gate?: {
+      workshopLevel?: number
+      requiredItemId?: string
+    }
+    revealOn: 'collect'
+    sharedEnabled?: boolean
+  }
   /** 输入物品ID（null = 无需输入，如蜂箱） */
   inputItemId: string | null
   inputQuantity: number
