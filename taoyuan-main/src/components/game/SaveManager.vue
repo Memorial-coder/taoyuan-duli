@@ -340,14 +340,15 @@
     return `${playerName} · ${dayText}${moneyText}`
   }
 
-  const formatSaveFieldAnomaly = (entry: { field_path?: string; action?: string; normalized_value?: unknown; limit?: unknown }) => {
+  const formatSaveFieldAnomaly = (entry: { field_path?: string; action?: string; observed_value?: unknown; normalized_value?: unknown; limit?: unknown }) => {
     const fieldPath = entry.field_path || 'unknown_field'
     const action = entry.action ? ` · ${entry.action}` : ''
+    const observed = entry.observed_value !== undefined && entry.observed_value !== null ? ` · observed ${String(entry.observed_value)}` : ''
     const limit = entry.limit !== undefined && entry.limit !== null ? ` · limit ${String(entry.limit)}` : ''
     const normalized = entry.normalized_value !== undefined && entry.normalized_value !== null
       ? ` -> ${String(entry.normalized_value)}`
       : ''
-    return `${fieldPath}${action}${limit}${normalized}`
+    return `${fieldPath}${action}${observed}${limit}${normalized}`
   }
 
   const refreshSlots = async () => {

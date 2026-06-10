@@ -130,5 +130,35 @@ assert.doesNotThrow(
   'repaired save should pass the normal write guard'
 )
 
+const plantedPlotRaw = encryptTaoyuanData({
+  data: {
+    player: { playerName: 'planted_plot_guard_user', money: 120 },
+    game: { year: 1, season: 'spring', day: 1 },
+    farm: {
+      plots: [{ id: 0, state: 'planted', cropId: 'cabbage', growthDays: 0 }],
+    },
+  },
+})
+
+assert.doesNotThrow(
+  () => prepareSlotEntryForSave('planted_plot_guard_user', 0, plantedPlotRaw, 1),
+  'newly planted farm plot state should pass the normal write guard'
+)
+
+const fractionalGrowthRaw = encryptTaoyuanData({
+  data: {
+    player: { playerName: 'fractional_growth_guard_user', money: 120 },
+    game: { year: 1, season: 'spring', day: 16 },
+    farm: {
+      plots: [{ id: 0, state: 'growing', cropId: 'cabbage', growthDays: 1.3 }],
+    },
+  },
+})
+
+assert.doesNotThrow(
+  () => prepareSlotEntryForSave('fractional_growth_guard_user', 0, fractionalGrowthRaw, 1),
+  'normal crop growth bonuses may persist fractional farm plot growthDays'
+)
+
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-save-corruption-guard] passed')

@@ -479,6 +479,13 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
       push('numeric_field_out_of_range', fieldPath, value, `${min}..${max}`, Math.min(max, Math.max(min, Math.floor(Number.isFinite(number) ? number : min))));
     }
   };
+  const assertNumberRange = (fieldPath, value, min, max) => {
+    if (value === undefined || value === null || value === '') return;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < min || number > max) {
+      push('numeric_field_out_of_range', fieldPath, value, `${min}..${max}`, Math.min(max, Math.max(min, Number.isFinite(number) ? number : min)));
+    }
+  };
 
   if (!gameplayData || typeof gameplayData !== 'object') return anomalies;
   if (gameplayData.player && typeof gameplayData.player === 'object') {
@@ -520,7 +527,7 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
         push('illegal_collection_state', 'farm.plots', plots, 'array', []);
       } else {
         if (plots.length > SAVE_FARM_PLOT_LIMIT) push('collection_overflow', 'farm.plots', plots.length, SAVE_FARM_PLOT_LIMIT, SAVE_FARM_PLOT_LIMIT);
-        const validPlotStates = new Set(['wasteland', 'tilled', 'growing', 'harvestable', 'withered', 'empty', 'locked']);
+        const validPlotStates = new Set(['wasteland', 'tilled', 'planted', 'growing', 'harvestable', 'withered', 'empty', 'locked']);
         plots.slice(0, SAVE_FARM_PLOT_LIMIT).forEach((plot, index) => {
           if (!plot || typeof plot !== 'object') {
             push('illegal_farm_plot', `farm.plots[${index}]`, plot, 'object', null);
@@ -529,7 +536,7 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
           if (plot.state !== undefined && !validPlotStates.has(String(plot.state))) {
             push('illegal_enum_state', `farm.plots[${index}].state`, plot.state, [...validPlotStates].join('|'), 'wasteland');
           }
-          assertIntegerRange(`farm.plots[${index}].growthDays`, plot.growthDays, 0, SAVE_FARM_GROWTH_DAY_LIMIT);
+          assertNumberRange(`farm.plots[${index}].growthDays`, plot.growthDays, 0, SAVE_FARM_GROWTH_DAY_LIMIT);
         });
       }
     }
