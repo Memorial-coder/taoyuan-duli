@@ -117,6 +117,16 @@ assert(
   'generateFloorGrid 放置蘑菇格时必须区分骷髅矿穴与主矿洞奖励池'
 )
 
+const cookingStorePath = 'taoyuan-main/src/stores/useCookingStore.ts'
+const cookingStore = read(cookingStorePath)
+const miningStorePath = 'taoyuan-main/src/stores/useMiningStore.ts'
+const miningStore = read(miningStorePath)
+assert(cookingStore.includes('getActiveMiningOreBonusChance'), '料理 store 必须暴露挖矿料理矿石额外产出概率')
+assert(
+  /const cookingOreBonusChance = useCookingStore\(\)\.getActiveMiningOreBonusChance\(\)[\s\S]*?quantity \+= 1/.test(miningStore),
+  '矿洞矿石格必须应用料理矿石额外产出概率'
+)
+
 if (errors.length > 0) {
   console.error('qa-region-helper-guards 失败:')
   for (const error of errors) console.error(`- ${error}`)

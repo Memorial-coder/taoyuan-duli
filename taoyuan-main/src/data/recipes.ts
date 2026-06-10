@@ -1321,7 +1321,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 85,
       healthRestore: 55,
-      buff: { type: 'mining', value: 40, description: '挖矿体力消耗-40%（当天）' }
+      buff: { type: 'mining', value: 40, oreBonusChance: 0.25, description: '挖矿体力消耗-40%，25%概率矿石产出+1（当天）' }
     },
     unlockSource: '采矿等级9',
     requiredSkill: { type: 'mining', level: 9 },

@@ -42,11 +42,16 @@ const normalizeActiveBuff = (value: unknown): RecipeDef['effect']['buff'] | null
   if (!raw.type || !VALID_BUFF_TYPES.has(raw.type)) return null
   const numericValue = Number(raw.value)
   if (!Number.isFinite(numericValue)) return null
-  return {
+  const normalized: NonNullable<RecipeDef['effect']['buff']> = {
     type: raw.type,
     value: numericValue,
     description: typeof raw.description === 'string' ? raw.description : ''
   }
+  const oreBonusChance = Number(raw.oreBonusChance)
+  if (Number.isFinite(oreBonusChance) && oreBonusChance > 0) {
+    normalized.oreBonusChance = Math.min(1, oreBonusChance)
+  }
+  return normalized
 }
 
 const getBuffDescription = (buff: RecipeDef['effect']['buff'] | null | undefined) => buff?.description ?? ''
@@ -223,6 +228,7 @@ export const useCookingStore = defineStore('cooking', () => {
   const getActiveAlchemyPetCalmFriendshipBonus = () => activeElixir.value?.petCalmFriendshipBonus ?? 0
   const getActiveDefenseReduction = () => (activeBuff.value?.type === 'defense' && isDefenseReductionBuff(activeBuff.value) ? activeBuff.value.value / 100 : 0)
   const getActiveDefenseFlatBonus = () => (activeBuff.value?.type === 'defense' && isDefenseFlatBuff(activeBuff.value) ? activeBuff.value.value : 0)
+  const getActiveMiningOreBonusChance = () => Math.max(0, Math.min(1, activeBuff.value?.oreBonusChance ?? 0))
   const recentStoryTriggerRecords = computed(() => storyTriggerRecords.value.slice(0, STORY_TRIGGER_RECORD_LIMIT))
 
   const consumeStoryTriggerRecord = (preferredLabels: string[] = []): CookingStoryTriggerRecord | null => {
@@ -537,6 +543,7 @@ export const useCookingStore = defineStore('cooking', () => {
     getActiveAlchemyPetCalmFriendshipBonus,
     getActiveDefenseReduction,
     getActiveDefenseFlatBonus,
+    getActiveMiningOreBonusChance,
     recipes,
     canCook,
     maxCookable,

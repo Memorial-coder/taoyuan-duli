@@ -949,6 +949,8 @@ export const useMiningStore = defineStore('mining', () => {
       if (fractionalOreBonus > 0 && Math.random() < fractionalOreBonus) quantity += 1
     }
     if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
+    const cookingOreBonusChance = useCookingStore().getActiveMiningOreBonusChance()
+    if (cookingOreBonusChance > 0 && Math.random() < cookingOreBonusChance) quantity += 1
     // 仙缘能力：灵狐眼（hu_xian_2）15%概率额外掉落矿石
     if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
 

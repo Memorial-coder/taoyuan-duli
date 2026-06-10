@@ -153,6 +153,9 @@ assert(
   RECIPES.some(recipe => recipe.ingredients.some(ingredient => ingredient.itemId === 'skull_mushroom')),
   '幽骨菇必须至少接入一道食谱用途'
 )
+const skullMushroomSoup = RECIPES.find(recipe => recipe.id === 'skull_mushroom_soup')
+assert(skullMushroomSoup?.effect.buff?.oreBonusChance === 0.25, '幽骨菌汤必须提供 25% 概率矿石产出+1')
+assert(skullMushroomSoup?.effect.buff?.description.includes('矿石产出+1'), '幽骨菌汤 Buff 文案必须说明矿石产出+1')
 
 assert(migrateLegacyItemId('osmanthus_tea', 'quest_reward') === 'processed_osmanthus_tea', '任务奖励旧桂花茶应迁移到加工茶')
 assert(migrateLegacyItemId('osmanthus_tea', 'general') === 'osmanthus_tea', '通用旧桂花茶应保留作物身份')

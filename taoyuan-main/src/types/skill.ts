@@ -233,6 +233,8 @@ export interface RecipeDef {
       type: 'fishing' | 'mining' | 'giftBonus' | 'speed' | 'defense' | 'luck' | 'farming' | 'stamina' | 'all_skills'
       value: number // 百分比或倍率
       description: string
+      /** 挖矿料理额外矿石概率，取值 0-1 */
+      oreBonusChance?: number
     }
   }
   unlockSource: string // 解锁来源描述
