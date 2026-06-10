@@ -564,7 +564,7 @@
             <span class="text-sm text-accent">温室</span>
             <span v-if="ghHarvestableCount > 0" class="text-xs text-accent">{{ ghHarvestableCount }}块可收获</span>
           </div>
-          <span class="text-xs text-muted">{{ farmStore.greenhousePlots.length }}块地</span>
+          <span class="text-xs text-muted">{{ farmStore.greenhousePlots.length }}块地 · 果树{{ ghFruitTreeCount }}/{{ GREENHOUSE_FRUIT_TREE_SLOT_COUNT }}</span>
         </div>
       </div>
 
@@ -733,14 +733,14 @@
                 <span class="text-[0.625rem] text-muted whitespace-nowrap">{{ tree.growthDays }}/28天</span>
               </div>
               <div class="flex justify-end">
-                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type }">砍伐</Button>
+                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type, area: 'outdoor' }">砍伐</Button>
               </div>
             </template>
             <template v-else>
               <div class="flex items-center justify-between">
                 <span v-if="tree.todayFruit" class="text-[0.625rem] text-accent">今日已结果</span>
                 <span v-else class="text-[0.625rem] text-success">{{ getTreeFruitSeason(tree.type) }}产果</span>
-                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type }">砍伐</Button>
+                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type, area: 'outdoor' }">砍伐</Button>
               </div>
             </template>
           </div>
@@ -771,6 +771,7 @@
             <p class="text-accent text-sm mb-2">砍伐果树</p>
             <p class="text-xs text-text mb-3">
               确定要砍掉
+              <span v-if="chopFruitTreeTarget.area === 'greenhouse'">温室中的</span>
               <span class="text-accent">{{ getTreeName(chopFruitTreeTarget.type) }}</span>
               吗？砍伐后不可恢复。
             </p>
@@ -917,7 +918,7 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showGreenhouseModal = false"
       >
-        <div class="game-panel max-w-sm w-full relative">
+        <div class="game-panel max-w-md w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showGreenhouseModal = false">
             <X :size="14" />
           </button>
@@ -925,7 +926,7 @@
             <Warehouse :size="14" />
             <span>温室</span>
           </div>
-          <p class="text-xs text-muted mb-3">无季节限制 · 自动浇水 · {{ farmStore.greenhousePlots.length }}块地</p>
+          <p class="text-xs text-muted mb-3">无季节限制 · 自动浇水 · {{ farmStore.greenhousePlots.length }}块地 · 果树{{ ghFruitTreeCount }}/{{ GREENHOUSE_FRUIT_TREE_SLOT_COUNT }}</p>
 
           <!-- 操作按钮 -->
           <div class="flex flex-wrap gap-2 mb-3">
@@ -962,6 +963,47 @@
             </Button>
           </div>
 
+          <!-- 温室果树位 -->
+          <div class="border border-accent/10 rounded-xs p-2 mb-3">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center space-x-1.5 text-xs text-accent">
+                <TreeDeciduous :size="12" />
+                <span>果树位</span>
+              </div>
+              <span class="text-[0.625rem] text-muted">{{ ghFruitTreeCount }}/{{ GREENHOUSE_FRUIT_TREE_SLOT_COUNT }}</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1">
+              <button
+                v-for="slot in greenhouseFruitTreeSlots"
+                :key="slot.slotId"
+                class="min-h-[4.25rem] rounded-xs border border-accent/20 px-1.5 py-1 text-left text-[0.625rem] transition-colors hover:border-accent/60 hover:bg-panel/80"
+                :class="slot.tree ? 'bg-success/5' : 'bg-bg/50 text-muted'"
+                @click="slot.tree ? (chopFruitTreeTarget = { id: slot.tree.id, type: slot.tree.type, area: 'greenhouse' }) : (activeGreenhouseFruitTreeSlotId = slot.slotId)"
+              >
+                <template v-if="slot.tree">
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="truncate font-bold" :class="slot.tree.mature ? 'text-accent' : 'text-muted'">{{ getTreeName(slot.tree.type) }}</span>
+                    <Axe :size="10" class="shrink-0 text-muted" />
+                  </div>
+                  <div v-if="!slot.tree.mature" class="mt-1 flex items-center gap-1">
+                    <div class="h-1 flex-1 rounded-xs border border-accent/10 bg-bg">
+                      <div class="h-full rounded-xs bg-success transition-all" :style="{ width: getTreeGrowthProgress(slot.tree) + '%' }" />
+                    </div>
+                    <span class="shrink-0 text-muted">{{ slot.tree.growthDays }}/28</span>
+                  </div>
+                  <p v-else-if="slot.tree.todayFruit" class="mt-1 text-accent">今日已结果</p>
+                  <p v-else class="mt-1 text-success">全年结果</p>
+                </template>
+                <template v-else>
+                  <div class="flex h-full min-h-[3rem] flex-col items-center justify-center text-center">
+                    <TreePine :size="16" class="text-muted/40" />
+                    <span class="mt-1">空位 #{{ slot.slotId + 1 }}</span>
+                  </div>
+                </template>
+              </button>
+            </div>
+          </div>
+
           <!-- 温室地块网格 -->
           <div class="grid gap-1 max-w-full" :style="{ gridTemplateColumns: `repeat(${ghGridCols}, minmax(0, 1fr))` }">
             <button
@@ -981,6 +1023,43 @@
               </template>
               <CirclePlus v-if="plot.fertilizer" :size="8" class="absolute bottom-0 left-0 text-success drop-shadow-sm" />
             </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 温室果树种植弹窗 -->
+    <Transition name="panel-fade">
+      <div
+        v-if="activeGreenhouseFruitTreeSlotId !== null"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="activeGreenhouseFruitTreeSlotId = null"
+      >
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeGreenhouseFruitTreeSlotId = null">
+            <X :size="14" />
+          </button>
+          <p class="text-accent text-sm mb-2">温室果树位 #{{ activeGreenhouseFruitTreeSlotId + 1 }}</p>
+          <p class="text-xs text-muted mb-2">温室果树成熟后全年结果，选择一株树苗种下：</p>
+          <div v-if="plantableSaplings.length > 0" class="flex flex-col space-y-1">
+            <button
+              v-for="s in plantableSaplings"
+              :key="s.saplingId"
+              class="btn text-xs justify-between"
+              @click="handlePlantGreenhouseTree(activeGreenhouseFruitTreeSlotId, s.type)"
+            >
+              <span class="flex items-center gap-1">
+                <TreePine :size="12" />
+                <span>{{ s.name }}</span>
+              </span>
+              <span class="text-muted">×{{ s.count }}</span>
+            </button>
+          </div>
+          <div v-else class="flex flex-col items-center py-4">
+            <TreePine :size="32" class="text-muted/30" />
+            <p class="text-xs text-muted mt-2">背包中没有树苗</p>
+            <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
+            <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
           </div>
         </div>
       </div>
@@ -1294,7 +1373,7 @@
   import { useWalletStore } from '@/stores/useWalletStore'
   import { getCropById, getCropsBySeason, getItemById } from '@/data'
   import { getStarRating } from '@/data/breeding'
-  import { FRUIT_TREE_DEFS, MAX_FRUIT_TREES } from '@/data/fruitTrees'
+  import { FRUIT_TREE_DEFS, MAX_FRUIT_TREES, GREENHOUSE_FRUIT_TREE_SLOT_COUNT } from '@/data/fruitTrees'
   import { GREENHOUSE_UPGRADES } from '@/data/buildings'
   import { WILD_TREE_DEFS, MAX_WILD_TREES, getWildTreeDef } from '@/data/wildTrees'
   import { CROPS } from '@/data/crops'
@@ -1428,7 +1507,8 @@
   const showGhUpgradeModal = ref(false)
   const showGhBatchPlant = ref(false)
   const showGhBatchFertilize = ref(false)
-  const chopFruitTreeTarget = ref<{ id: number; type: string } | null>(null)
+  const activeGreenhouseFruitTreeSlotId = ref<number | null>(null)
+  const chopFruitTreeTarget = ref<{ id: number; type: string; area: 'outdoor' | 'greenhouse' } | null>(null)
   const chopWildTreeTarget = ref<{ id: number; type: string; chopCount: number } | null>(null)
 
   const goToShop = () => {
@@ -1443,6 +1523,7 @@
     showBatchActions.value = false
     showGreenhouseModal.value = false
     showGhBatchFertilize.value = false
+    activeGreenhouseFruitTreeSlotId.value = null
     navigateToPanel('shop')
   }
 
@@ -2172,6 +2253,14 @@
     return SEASON_NAMES[def.fruitSeason as keyof typeof SEASON_NAMES]
   }
 
+  const getTreeGrowthDays = (type: string): number => {
+    return FRUIT_TREE_DEFS.find(d => d.type === type)?.growthDays ?? 28
+  }
+
+  const getTreeGrowthProgress = (tree: { type: string; growthDays: number }): number => {
+    return Math.min(100, Math.floor((tree.growthDays / getTreeGrowthDays(tree.type)) * 100))
+  }
+
   const plantableSaplings = computed(() => {
     return FRUIT_TREE_DEFS.filter(d => inventoryStore.hasItem(d.saplingId)).map(d => ({
       type: d.type as FruitTreeType,
@@ -2180,6 +2269,15 @@
       count: inventoryStore.getItemCount(d.saplingId)
     }))
   })
+
+  const ghFruitTreeCount = computed(() => farmStore.greenhouseFruitTrees.length)
+
+  const greenhouseFruitTreeSlots = computed(() =>
+    Array.from({ length: GREENHOUSE_FRUIT_TREE_SLOT_COUNT }, (_, slotId) => ({
+      slotId,
+      tree: farmStore.getGreenhouseFruitTreeBySlot(slotId) ?? null
+    }))
+  )
 
   const plantableWildSeeds = computed(() => {
     return WILD_TREE_DEFS.filter(d => inventoryStore.hasItem(d.seedItemId)).map(d => ({
@@ -2209,6 +2307,25 @@
     }
   }
 
+  const handlePlantGreenhouseTree = (slotId: number | null, treeType: FruitTreeType) => {
+    if (slotId === null) return
+    const def = FRUIT_TREE_DEFS.find(d => d.type === treeType)
+    if (!def) return
+    if (!inventoryStore.removeItem(def.saplingId)) {
+      addLog('背包中没有该树苗。')
+      return
+    }
+    if (farmStore.plantGreenhouseFruitTree(slotId, treeType)) {
+      addLog(`在温室边缘种下了${def.name}苗，成熟后全年结果。`)
+      const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plantTree)
+      if (tr.message) addLog(tr.message)
+    } else {
+      inventoryStore.addItem(def.saplingId)
+      addLog('这个温室果树位已经被占用了。')
+    }
+    activeGreenhouseFruitTreeSlotId.value = null
+  }
+
   const confirmChopFruitTree = () => {
     const target = chopFruitTreeTarget.value
     if (!target) return
@@ -2231,13 +2348,14 @@
       return
     }
     const treeName = getTreeName(target.type)
-    const woodQty = farmStore.removeFruitTree(target.id)
+    const isGreenhouseTree = target.area === 'greenhouse'
+    const woodQty = isGreenhouseTree ? farmStore.removeGreenhouseFruitTree(target.id) : farmStore.removeFruitTree(target.id)
     if (woodQty > 0) {
       inventoryStore.addItem('wood', woodQty)
       if (Math.random() < 0.03) {
         useSecretNoteStore().tryCollectNote('tree')
       }
-      addLog(`砍掉了${treeName}，获得${woodQty}个木材。（体力-${cost}）`)
+      addLog(`砍掉了${isGreenhouseTree ? '温室中的' : ''}${treeName}，获得${woodQty}个木材。（体力-${cost}）`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.chopTree)
       if (tr.message) addLog(tr.message)
     }

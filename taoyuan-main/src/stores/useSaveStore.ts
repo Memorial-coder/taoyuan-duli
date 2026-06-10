@@ -1412,6 +1412,7 @@ export const useSaveStore = defineStore('save', () => {
         })),
         sprinklers: [],
         fruitTrees: [],
+        greenhouseFruitTrees: [],
         greenhousePlots: [],
         greenhouseLevel: 0,
         wildTrees: [],

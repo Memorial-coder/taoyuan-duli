@@ -4,11 +4,11 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { FarmPlot, FarmSize, Season, Quality } from '@/types'
-import type { SprinklerType, FertilizerType, PlantedFruitTree, FruitTreeType, WildTreeType, PlantedWildTree } from '@/types'
+import type { SprinklerType, FertilizerType, PlantedFruitTree, PlantedGreenhouseFruitTree, FruitTreeType, WildTreeType, PlantedWildTree } from '@/types'
 import type { SeedGenetics } from '@/types/breeding'
 import { getCropById } from '@/data'
 import { SPRINKLERS, getFertilizerById } from '@/data/processing'
-import { FRUIT_TREE_DEFS, MAX_FRUIT_TREES } from '@/data/fruitTrees'
+import { FRUIT_TREE_DEFS, MAX_FRUIT_TREES, GREENHOUSE_FRUIT_TREE_SLOT_COUNT } from '@/data/fruitTrees'
 import { MAX_WILD_TREES, getWildTreeDef } from '@/data/wildTrees'
 import { GREENHOUSE_PLOT_COUNT } from '@/data/buildings'
 import { useWalletStore } from './useWalletStore'
@@ -48,6 +48,7 @@ export const useFarmStore = defineStore('farm', () => {
   const plots = ref<FarmPlot[]>(createPlots(4))
   const sprinklers = ref<PlacedSprinkler[]>([])
   const fruitTrees = ref<PlantedFruitTree[]>([])
+  const greenhouseFruitTrees = ref<PlantedGreenhouseFruitTree[]>([])
   const greenhousePlots = ref<FarmPlot[]>([])
   const greenhouseLevel = ref(0)
   const wildTrees = ref<PlantedWildTree[]>([])
@@ -67,6 +68,7 @@ export const useFarmStore = defineStore('farm', () => {
     plots.value = createPlots(size)
     sprinklers.value = []
     fruitTrees.value = []
+    greenhouseFruitTrees.value = []
     greenhousePlots.value = []
     wildTrees.value = []
     nextFruitTreeId.value = 0
@@ -747,6 +749,10 @@ export const useFarmStore = defineStore('farm', () => {
 
   // === 果树 ===
 
+  type FruitTreeUpdateOptions = {
+    includeGreenhouse?: boolean
+  }
+
   /** 种植果树 */
   const plantFruitTree = (treeType: FruitTreeType): boolean => {
     if (fruitTrees.value.length >= MAX_FRUIT_TREES) return false
@@ -761,8 +767,43 @@ export const useFarmStore = defineStore('farm', () => {
     return true
   }
 
+  /** 种植温室边缘果树 */
+  const plantGreenhouseFruitTree = (slotId: number, treeType: FruitTreeType): boolean => {
+    if (slotId < 0 || slotId >= GREENHOUSE_FRUIT_TREE_SLOT_COUNT) return false
+    if (greenhouseFruitTrees.value.some(tree => tree.slotId === slotId)) return false
+    greenhouseFruitTrees.value.push({
+      id: nextFruitTreeId.value++,
+      slotId,
+      type: treeType,
+      growthDays: 0,
+      mature: false,
+      yearAge: 0,
+      todayFruit: false
+    })
+    return true
+  }
+
+  const getGreenhouseFruitTreeBySlot = (slotId: number): PlantedGreenhouseFruitTree | undefined => {
+    return greenhouseFruitTrees.value.find(tree => tree.slotId === slotId)
+  }
+
+  const collectFruitFromTree = (
+    tree: PlantedFruitTree,
+    def: (typeof FRUIT_TREE_DEFS)[number],
+    results: { fruitId: string; quality: Quality }[],
+    extraFruit: boolean,
+    spiritPeachActive: boolean
+  ): void => {
+    const quality = getFruitQuality(tree.yearAge)
+    // 仙缘能力：灵桃（tao_yao_3）桃树10%概率产灵桃
+    const fruitId = tree.type === 'peach_tree' && spiritPeachActive && Math.random() < 0.1 ? 'spirit_peach' : def.fruitId
+    results.push({ fruitId, quality })
+    if (extraFruit) results.push({ fruitId, quality })
+    tree.todayFruit = true
+  }
+
   /** 果树每日更新 */
-  const dailyFruitTreeUpdate = (currentSeason: Season): { fruits: { fruitId: string; quality: Quality }[] } => {
+  const dailyFruitTreeUpdate = (currentSeason: Season, options: FruitTreeUpdateOptions = {}): { fruits: { fruitId: string; quality: Quality }[] } => {
     const results: { fruitId: string; quality: Quality }[] = []
     // 仙缘能力
     const hiddenNpcStore2 = useHiddenNpcStore()
@@ -777,12 +818,22 @@ export const useFarmStore = defineStore('farm', () => {
       if (tree.mature) {
         const def = FRUIT_TREE_DEFS.find(d => d.type === tree.type)
         if (def && def.fruitSeason === currentSeason) {
-          const quality = getFruitQuality(tree.yearAge)
-          // 仙缘能力：灵桃（tao_yao_3）桃树10%概率产灵桃
-          const fruitId = tree.type === 'peach_tree' && spiritPeachActive && Math.random() < 0.1 ? 'spirit_peach' : def.fruitId
-          results.push({ fruitId, quality })
-          if (extraFruit) results.push({ fruitId, quality })
-          tree.todayFruit = true
+          collectFruitFromTree(tree, def, results, extraFruit, spiritPeachActive)
+        }
+      }
+    }
+    if (options.includeGreenhouse) {
+      for (const tree of greenhouseFruitTrees.value) {
+        tree.growthDays++
+        tree.todayFruit = false
+        if (!tree.mature && tree.growthDays >= 28) {
+          tree.mature = true
+        }
+        if (tree.mature) {
+          const def = FRUIT_TREE_DEFS.find(d => d.type === tree.type)
+          if (def) {
+            collectFruitFromTree(tree, def, results, extraFruit, spiritPeachActive)
+          }
         }
       }
     }
@@ -807,9 +858,22 @@ export const useFarmStore = defineStore('farm', () => {
     return tree.mature ? 5 : 2
   }
 
+  /** 移除温室果树（砍伐），返回木材数量 */
+  const removeGreenhouseFruitTree = (treeId: number): number => {
+    const idx = greenhouseFruitTrees.value.findIndex(t => t.id === treeId)
+    if (idx === -1) return 0
+    const tree = greenhouseFruitTrees.value[idx]!
+    greenhouseFruitTrees.value.splice(idx, 1)
+    return tree.mature ? 5 : 2
+  }
+
   /** 果树换季更新（仅新年时增加年龄） */
   const fruitTreeSeasonUpdate = (isNewYear: boolean): void => {
     for (const tree of fruitTrees.value) {
+      if (tree.mature && isNewYear) tree.yearAge++
+      tree.todayFruit = false
+    }
+    for (const tree of greenhouseFruitTrees.value) {
       if (tree.mature && isNewYear) tree.yearAge++
       tree.todayFruit = false
     }
@@ -1056,6 +1120,7 @@ export const useFarmStore = defineStore('farm', () => {
       plots: plots.value,
       sprinklers: sprinklers.value,
       fruitTrees: fruitTrees.value,
+      greenhouseFruitTrees: greenhouseFruitTrees.value,
       greenhousePlots: greenhousePlots.value,
       greenhouseLevel: greenhouseLevel.value,
       wildTrees: wildTrees.value,
@@ -1093,8 +1158,16 @@ export const useFarmStore = defineStore('farm', () => {
       ...t,
       yearAge: t.yearAge ?? t.seasonAge ?? 0
     }))
+    greenhouseFruitTrees.value = ((data as any).greenhouseFruitTrees ?? []).map((t: any) => ({
+      ...t,
+      slotId: t.slotId ?? 0,
+      yearAge: t.yearAge ?? t.seasonAge ?? 0
+    }))
     nextFruitTreeId.value =
-      (data as any).nextFruitTreeId ?? (fruitTrees.value.length > 0 ? Math.max(...fruitTrees.value.map(t => t.id)) + 1 : 0)
+      (data as any).nextFruitTreeId ??
+      ([...fruitTrees.value, ...greenhouseFruitTrees.value].length > 0
+        ? Math.max(...[...fruitTrees.value, ...greenhouseFruitTrees.value].map(t => t.id)) + 1
+        : 0)
     wildTrees.value = ((data as any).wildTrees ?? []).map((t: any) => ({
       ...t,
       chopCount: t.chopCount ?? 0
@@ -1122,6 +1195,7 @@ export const useFarmStore = defineStore('farm', () => {
     plots,
     sprinklers,
     fruitTrees,
+    greenhouseFruitTrees,
     greenhousePlots,
     tilledPlots,
     harvestableCount,
@@ -1152,7 +1226,10 @@ export const useFarmStore = defineStore('farm', () => {
     harvestGiantCrop,
     expandFarm,
     plantFruitTree,
+    plantGreenhouseFruitTree,
     removeFruitTree,
+    removeGreenhouseFruitTree,
+    getGreenhouseFruitTreeBySlot,
     dailyFruitTreeUpdate,
     fruitTreeSeasonUpdate,
     wildTrees,

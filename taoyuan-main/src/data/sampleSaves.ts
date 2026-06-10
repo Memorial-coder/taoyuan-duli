@@ -450,6 +450,7 @@ const createBaseEnvelope = (options: {
         plots: createPlots(size),
         sprinklers: [],
         fruitTrees: [],
+        greenhouseFruitTrees: [],
         greenhousePlots: [],
         greenhouseLevel: 0,
         wildTrees: [],

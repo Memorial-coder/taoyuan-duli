@@ -96,6 +96,10 @@ export interface PlantedFruitTree {
   todayFruit: boolean
 }
 
+export interface PlantedGreenhouseFruitTree extends PlantedFruitTree {
+  slotId: number
+}
+
 export type FarmhouseLevel = 0 | 1 | 2 | 3
 export type CaveChoice = 'none' | 'mushroom' | 'fruit_bat'
 

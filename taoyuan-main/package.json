@@ -42,6 +42,7 @@
     "qa:hanhai-session-timer-guards": "node scripts/qa-hanhai-session-timer-guards.mjs",
     "qa:game-deeplink-restore-guards": "node scripts/qa-game-deeplink-restore-guards.mjs",
     "qa:game-deeplink-browser-smoke": "node scripts/qa-game-deeplink-browser-smoke.mjs",
+    "qa:greenhouse-fruit-trees": "node scripts/qa-greenhouse-fruit-trees.mjs",
     "qa:item-data-guards": "node scripts/qa-item-data-guards.mjs",
     "qa:quest-guards": "node scripts/qa-quest-guards.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",

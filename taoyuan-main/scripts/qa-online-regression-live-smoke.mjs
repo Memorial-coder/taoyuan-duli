@@ -224,6 +224,7 @@ const buildSeedSavePayload = ({ playerName = '烟测', money = 1200, day = 2, re
         plots,
         sprinklers: [],
         fruitTrees: [],
+        greenhouseFruitTrees: [],
         greenhousePlots: [],
         greenhouseLevel: 0,
         wildTrees: [],

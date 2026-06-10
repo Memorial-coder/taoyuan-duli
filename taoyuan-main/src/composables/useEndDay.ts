@@ -1258,7 +1258,7 @@ export const handleEndDay = () => {
   }
 
   // 果树更新
-  const fruitResult = farmStore.dailyFruitTreeUpdate(gameStore.season)
+  const fruitResult = farmStore.dailyFruitTreeUpdate(gameStore.season, { includeGreenhouse: homeStore.greenhouseUnlocked })
   for (const f of fruitResult.fruits) {
     inventoryStore.addItem(f.fruitId, 1, f.quality)
   }
