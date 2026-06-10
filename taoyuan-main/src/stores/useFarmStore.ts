@@ -319,6 +319,32 @@ export const useFarmStore = defineStore('farm', () => {
   // === 肥料 ===
 
   /** 给地块施肥 */
+  const getCropEffectiveDays = (plot: FarmPlot, speedup: number): number | null => {
+    if (!plot.cropId) return null
+    const crop = getCropById(plot.cropId)
+    if (!crop) return null
+    return Math.max(1, Math.floor(crop.growthDays * (1 - speedup)))
+  }
+
+  const markPlotHarvestableIfReady = (plot: FarmPlot, speedup: number): boolean => {
+    if (plot.state !== 'planted' && plot.state !== 'growing') return false
+    const effectiveDays = getCropEffectiveDays(plot, speedup)
+    if (effectiveDays === null || plot.growthDays < effectiveDays) return false
+    plot.state = 'harvestable'
+    return true
+  }
+
+  const getFertilizerGrowthSpeedup = (plot: FarmPlot): number => {
+    const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
+    return fertDef?.growthSpeedup ?? 0
+  }
+
+  const getCurrentFieldGrowthBonus = (): number => {
+    const gameStore = useGameStore()
+    const spiritGrowth = gameStore.season === 'spring' ? useHiddenNpcStore().getAbilityValue('tao_yao_2') / 100 : 0
+    return useWalletStore().getCropGrowthBonus() + spiritGrowth
+  }
+
   const applyFertilizer = (plotId: number, fertilizerType: FertilizerType): boolean => {
     const plot = plots.value[plotId]
     if (!plot) return false
@@ -326,6 +352,18 @@ export const useFarmStore = defineStore('farm', () => {
     if (hasSprinklerAtPlot(plotId)) return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentFieldGrowthBonus())
+    return true
+  }
+
+  const replaceFertilizer = (plotId: number, fertilizerType: FertilizerType): boolean => {
+    const plot = plots.value[plotId]
+    if (!plot) return false
+    if (plot.state === 'wasteland') return false
+    if (hasSprinklerAtPlot(plotId)) return false
+    if (!plot.fertilizer || plot.fertilizer === fertilizerType) return false
+    plot.fertilizer = fertilizerType
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentFieldGrowthBonus())
     return true
   }
 
@@ -336,6 +374,17 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + useWalletStore().getCropGrowthBonus())
+    return true
+  }
+
+  const replaceGreenhouseFertilizer = (plotId: number, fertilizerType: FertilizerType): boolean => {
+    const plot = greenhousePlots.value[plotId]
+    if (!plot) return false
+    if (plot.state === 'wasteland') return false
+    if (!plot.fertilizer || plot.fertilizer === fertilizerType) return false
+    plot.fertilizer = fertilizerType
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + useWalletStore().getCropGrowthBonus())
     return true
   }
 
@@ -433,17 +482,10 @@ export const useFarmStore = defineStore('farm', () => {
       // 处理浇水状态
       if (plot.watered) {
         // 肥料加速：减少作物所需生长天数
-        const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
-        const speedup = (fertDef?.growthSpeedup ?? 0) + walletGrowth + spiritGrowth
+        const speedup = getFertilizerGrowthSpeedup(plot) + walletGrowth + spiritGrowth
         plot.growthDays += 1
-        const crop = getCropById(plot.cropId!)
-        if (crop) {
-          const effectiveDays = Math.max(1, Math.floor(crop.growthDays * (1 - speedup)))
-          if (plot.growthDays >= effectiveDays) {
-            plot.state = 'harvestable'
-          } else if (plot.state === 'planted') {
-            plot.state = 'growing'
-          }
+        if (!markPlotHarvestableIfReady(plot, speedup) && plot.state === 'planted') {
+          plot.state = 'growing'
         }
       } else {
         // 抗性减缓枯萎：高抗性时 unwateredDays 增长更慢
@@ -947,17 +989,10 @@ export const useFarmStore = defineStore('farm', () => {
     for (const plot of greenhousePlots.value) {
       if (plot.state !== 'planted' && plot.state !== 'growing') continue
       plot.watered = true
-      const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
-      const speedup = (fertDef?.growthSpeedup ?? 0) + walletGrowth
+      const speedup = getFertilizerGrowthSpeedup(plot) + walletGrowth
       plot.growthDays += 1
-      const crop = getCropById(plot.cropId!)
-      if (crop) {
-        const effectiveDays = Math.max(1, Math.floor(crop.growthDays * (1 - speedup)))
-        if (plot.growthDays >= effectiveDays) {
-          plot.state = 'harvestable'
-        } else if (plot.state === 'planted') {
-          plot.state = 'growing'
-        }
+      if (!markPlotHarvestableIfReady(plot, speedup) && plot.state === 'planted') {
+        plot.state = 'growing'
       }
       plot.watered = false
     }
@@ -1000,6 +1035,19 @@ export const useFarmStore = defineStore('farm', () => {
       if (cropId) results.push({ cropId })
     }
     return results
+  }
+
+  const reconcileMatureCrops = (): number => {
+    let changed = 0
+    const fieldBonus = getCurrentFieldGrowthBonus()
+    for (const plot of plots.value) {
+      if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + fieldBonus)) changed++
+    }
+    const greenhouseBonus = useWalletStore().getCropGrowthBonus()
+    for (const plot of greenhousePlots.value) {
+      if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + greenhouseBonus)) changed++
+    }
+    return changed
   }
 
   const serialize = () => {
@@ -1066,6 +1114,7 @@ export const useFarmStore = defineStore('farm', () => {
     lightningRods.value = (data as any).lightningRods ?? 0
     scarecrows.value = (data as any).scarecrows ?? 0
     giantCropCounter.value = (data as any).giantCropCounter ?? 0
+    reconcileMatureCrops()
   }
 
   return {
@@ -1091,6 +1140,7 @@ export const useFarmStore = defineStore('farm', () => {
     removeSprinkler,
     getAllWateredBySprinklers,
     applyFertilizer,
+    replaceFertilizer,
     applyFertileSoil,
     dailyUpdate,
     onSeasonChange,
@@ -1114,12 +1164,14 @@ export const useFarmStore = defineStore('farm', () => {
     initGreenhouse,
     greenhouseLevel,
     applyGreenhouseFertilizer,
+    replaceGreenhouseFertilizer,
     greenhousePlantCrop,
     greenhousePlantGeneticSeed,
     greenhouseHarvestPlot,
     greenhouseDailyUpdate,
     upgradeGreenhouse,
     greenhouseBatchHarvest,
+    reconcileMatureCrops,
     serialize,
     deserialize
   }

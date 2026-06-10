@@ -15,6 +15,15 @@ const assert = (condition, message) => {
 }
 
 const source = fs.readFileSync(path.join(projectRoot, 'src/stores/useInventoryStore.ts'), 'utf8')
+const farmViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/FarmView.vue'), 'utf8')
+
+const getSourceBetween = (body, startMarker, endMarker) => {
+  const start = body.indexOf(startMarker)
+  const end = body.indexOf(endMarker, start + startMarker.length)
+  assert(start >= 0, `源码缺少片段：${startMarker}`)
+  assert(end > start, `源码缺少片段结束标记：${endMarker}`)
+  return start >= 0 && end > start ? body.slice(start, end) : ''
+}
 
 assert(source.includes("const TOOL_TIER_ORDER: ToolTier[] = ['basic', 'iron', 'steel', 'iridium']"), '工具 tier 顺序必须集中定义。')
 assert(source.includes('const getNextToolTier = (tier: ToolTier): ToolTier | null =>'), '必须提供按当前工具等级计算下一阶的 helper。')
@@ -82,6 +91,16 @@ const dailyResult = simulateDailyUpdate(
 assert(dailyResult.completed, '日结模型：剩余 1 天的 pendingUpgrade 应完成。')
 assert(dailyResult.tool.tier === 'iridium', '日结模型：实际工具等级必须升到下一阶。')
 assert(dailyResult.result?.targetTier === 'iridium', '日结模型：返回日志 tier 必须等于实际完成 tier，而不是异常存档 targetTier。')
+
+const greenhouseHarvestSource = getSourceBetween(farmViewSource, 'const doGhHarvest = () => {', '  const doGhBatchHarvest = () => {')
+const greenhouseBatchHarvestSource = getSourceBetween(farmViewSource, 'const doGhBatchHarvest = () => {', '  const doGhBatchPlant = (cropId: string) => {')
+for (const [label, block] of [
+  ['温室单块收获', greenhouseHarvestSource],
+  ['温室一键收获', greenhouseBatchHarvestSource]
+]) {
+  assert(!block.includes("isToolAvailable('scythe')"), `${label}不应因镰刀升级阻止成熟作物收获。`)
+  assert(!block.includes('consumeStamina(') && !block.includes('restoreStamina('), `${label}应与普通地块手动收获一致，不消耗体力。`)
+}
 
 if (errors.length > 0) {
   console.error('工具升级守卫失败：')

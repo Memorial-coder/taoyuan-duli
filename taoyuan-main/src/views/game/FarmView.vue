@@ -399,15 +399,18 @@
               <div v-if="activePlot.state === 'tilled' && hasSprinkler(activePlot.id)" class="text-xs text-water border border-water/20 rounded-xs p-2">
                 该地块已放置洒水器，当前不可种植作物。
               </div>
-              <template v-if="canFertilize && fertilizerItems.length > 0">
-                <Divider label="施肥" />
+              <template v-if="canFieldFertilizerAction && activePlotFertilizerOptions.length > 0">
+                <Divider :label="activePlot.fertilizer ? '替换肥料' : '施肥'" />
+                <div v-if="activePlot.fertilizer" class="text-xs text-muted border border-accent/10 rounded-xs p-2">
+                  当前：{{ plotFertName }}。替换后旧肥料不返还。
+                </div>
                 <button
-                  v-for="f in fertilizerItems"
+                  v-for="f in activePlotFertilizerOptions"
                   :key="f.itemId"
                   class="btn w-full text-xs justify-between shrink-0"
                   @click="doFertilize(f.type)"
                 >
-                  <span :class="f.colorClass">{{ f.name }}</span>
+                  <span :class="f.colorClass">{{ activePlot.fertilizer ? `替换为${f.name}` : f.name }}</span>
                   <span class="text-muted">×{{ f.count }}</span>
                 </button>
               </template>
@@ -1208,17 +1211,18 @@
               <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
             </div>
 
-            <div v-if="canGhFertilize && fertilizerItems.length > 0" class="border border-accent/10 rounded-xs p-2">
-              <p class="text-xs text-muted mb-1">施肥</p>
+            <div v-if="canGhFertilizerAction && activeGhPlotFertilizerOptions.length > 0" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-xs text-muted mb-1">{{ activeGhPlot.fertilizer ? '替换肥料' : '施肥' }}</p>
+              <p v-if="activeGhPlot.fertilizer" class="text-[0.625rem] text-muted mb-1">当前：{{ ghPlotFertName }}。替换后旧肥料不返还。</p>
               <div class="flex flex-wrap gap-1">
                 <button
-                  v-for="f in fertilizerItems"
+                  v-for="f in activeGhPlotFertilizerOptions"
                   :key="f.itemId"
                   class="btn text-xs farm-seed-chip"
                   @click="doGhFertilize(f.type)"
                 >
                   <CirclePlus :size="10" />
-                  <span class="farm-seed-chip__label" :class="f.colorClass">{{ f.name }}</span>
+                  <span class="farm-seed-chip__label" :class="f.colorClass">{{ activeGhPlot.fertilizer ? `替换为${f.name}` : f.name }}</span>
                   <span class="text-muted">(×{{ f.count }})</span>
                 </button>
               </div>
@@ -1242,7 +1246,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, type Component } from 'vue'
+  import { ref, computed, onMounted, type Component } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     Droplets,
@@ -1325,7 +1329,7 @@
   const farmTab = ref<'field' | 'tree'>('field')
 
   const goToSharedManorMap = () => {
-    router.push({ name: 'online-cohabitation', query: { tab: 'map' } })
+    void router.push({ name: 'online-cohabitation', query: { tab: 'map' } })
   }
 
   const farmStore = useFarmStore()
@@ -1336,6 +1340,10 @@
   const shopStore = useShopStore()
   const breedingStore = useBreedingStore()
   const settingsStore = useSettingsStore()
+
+  onMounted(() => {
+    farmStore.reconcileMatureCrops()
+  })
 
   // === 田庄特殊功能 ===
 
@@ -1629,11 +1637,27 @@
     return plot.state !== 'wasteland' && !plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
   })
 
+  const canReplaceFertilizer = computed(() => {
+    const plot = activePlot.value
+    if (!plot) return false
+    return plot.state !== 'wasteland' && !!plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
+  })
+
+  const canFieldFertilizerAction = computed(() => canFertilize.value || canReplaceFertilizer.value)
+
   const canGhFertilize = computed(() => {
     const plot = activeGhPlot.value
     if (!plot) return false
     return plot.state !== 'wasteland' && !plot.fertilizer
   })
+
+  const canGhReplaceFertilizer = computed(() => {
+    const plot = activeGhPlot.value
+    if (!plot) return false
+    return plot.state !== 'wasteland' && !!plot.fertilizer
+  })
+
+  const canGhFertilizerAction = computed(() => canGhFertilize.value || canGhReplaceFertilizer.value)
 
   // === 背包物品列表 ===
 
@@ -1654,6 +1678,16 @@
       count: inventoryStore.getItemCount(f.id),
       colorClass: itemValueColor(f.shopPrice ?? 0)
     })).filter(f => f.count > 0)
+  })
+
+  const activePlotFertilizerOptions = computed(() => {
+    const current = activePlot.value?.fertilizer ?? null
+    return fertilizerItems.value.filter(f => f.type !== current)
+  })
+
+  const activeGhPlotFertilizerOptions = computed(() => {
+    const current = activeGhPlot.value?.fertilizer ?? null
+    return fertilizerItems.value.filter(f => f.type !== current)
   })
 
   const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
@@ -2067,16 +2101,30 @@
 
   const doFertilize = (type: FertilizerType) => {
     if (activePlotId.value === null) return
+    const currentFertilizer = activePlot.value?.fertilizer ?? null
+    if (currentFertilizer === type) {
+      addLog('该地块已经施了这种肥料。')
+      activePlotId.value = null
+      return
+    }
     if (!inventoryStore.removeItem(type)) {
       addLog('没有该肥料了。')
       return
     }
-    if (farmStore.applyFertilizer(activePlotId.value, type)) {
-      const fertDef = getFertilizerById(type)
-      addLog(`施了${fertDef?.name ?? '肥料'}。`)
+    const succeeded = currentFertilizer
+      ? farmStore.replaceFertilizer(activePlotId.value, type)
+      : farmStore.applyFertilizer(activePlotId.value, type)
+    if (succeeded) {
+      const nextFertDef = getFertilizerById(type)
+      if (currentFertilizer) {
+        const currentFertDef = getFertilizerById(currentFertilizer)
+        addLog(`将${currentFertDef?.name ?? '原肥料'}替换为${nextFertDef?.name ?? '肥料'}，旧肥料未返还。`)
+      } else {
+        addLog(`施了${nextFertDef?.name ?? '肥料'}。`)
+      }
     } else {
       inventoryStore.addItem(type)
-      addLog('无法在此施肥（需要已开垦且未施肥的地块）。')
+      addLog(currentFertilizer ? '无法替换此地块的肥料。' : '无法在此施肥（需要已开垦且未施肥的地块）。')
     }
     activePlotId.value = null
   }
@@ -2341,16 +2389,30 @@
       handleEndDay()
       return
     }
+    const currentFertilizer = activeGhPlot.value?.fertilizer ?? null
+    if (currentFertilizer === type) {
+      addLog('该温室地块已经施了这种肥料。')
+      activeGhPlotId.value = null
+      return
+    }
     if (!inventoryStore.removeItem(type)) {
       addLog('没有该肥料了。')
       return
     }
-    if (farmStore.applyGreenhouseFertilizer(activeGhPlotId.value, type)) {
-      const fertDef = getFertilizerById(type)
-      addLog(`给温室地块施了${fertDef?.name ?? '肥料'}。`)
+    const succeeded = currentFertilizer
+      ? farmStore.replaceGreenhouseFertilizer(activeGhPlotId.value, type)
+      : farmStore.applyGreenhouseFertilizer(activeGhPlotId.value, type)
+    if (succeeded) {
+      const nextFertDef = getFertilizerById(type)
+      if (currentFertilizer) {
+        const currentFertDef = getFertilizerById(currentFertilizer)
+        addLog(`将温室地块的${currentFertDef?.name ?? '原肥料'}替换为${nextFertDef?.name ?? '肥料'}，旧肥料未返还。`)
+      } else {
+        addLog(`给温室地块施了${nextFertDef?.name ?? '肥料'}。`)
+      }
     } else {
       inventoryStore.addItem(type)
-      addLog('无法在此施肥（需要已开垦且未施肥的温室地块）。')
+      addLog(currentFertilizer ? '无法替换此温室地块的肥料。' : '无法在此施肥（需要已开垦且未施肥的温室地块）。')
     }
     activeGhPlotId.value = null
   }
@@ -2510,21 +2572,13 @@
       handleEndDay()
       return
     }
-    if (!inventoryStore.isToolAvailable('scythe')) {
-      addLog('镰刀正在升级中，无法收获。')
-      return
-    }
-    if (!playerStore.consumeStamina(1)) {
-      addLog('体力不足，无法收获。')
-      return
-    }
     const result = harvestGreenhousePlotWithRewards(activeGhPlotId.value)
     if (result.success) {
       const qualityLabel = result.quality && result.quality !== 'normal' ? `(${QUALITY_NAMES[result.quality]})` : ''
       const qtyLabel = result.quantity > 1 ? `×${result.quantity}` : ''
       sfxHarvest()
       showFloat(`+${result.cropName}${qtyLabel}${qualityLabel}`, 'success')
-      let msg = `在温室收获了${result.cropName}${qtyLabel}${qualityLabel}！(-1体力)`
+      let msg = `在温室收获了${result.cropName}${qtyLabel}${qualityLabel}！`
       if (result.bonusMoney > 0) msg += ` 甜度加成+${result.bonusMoney}文`
       if (result.leveledUp) msg += ` 农耕提升到${result.newLevel}级！`
       addLog(msg)
@@ -2536,7 +2590,6 @@
         return
       }
     } else {
-      playerStore.restoreStamina(1)
       addLog('背包空间不足，无法收获。')
     }
     activeGhPlotId.value = null
@@ -2548,22 +2601,12 @@
       handleEndDay()
       return
     }
-    if (!inventoryStore.isToolAvailable('scythe')) {
-      addLog('镰刀正在升级中，无法收获。')
-      return
-    }
-    if (Math.floor(playerStore.stamina) <= 0) {
-      addLog('体力不足，无法收获。')
-      return
-    }
     let harvested = 0
     let blockedByBag = false
     const targets = farmStore.greenhousePlots.filter(p => p.state === 'harvestable')
     for (const plot of targets) {
-      if (!playerStore.consumeStamina(1)) break
       const result = harvestGreenhousePlotWithRewards(plot.id)
       if (!result.success) {
-        playerStore.restoreStamina(1)
         blockedByBag = true
         continue
       }
@@ -2572,7 +2615,7 @@
     if (harvested > 0) {
       sfxHarvest()
       showFloat(`温室收获 ×${harvested}`, 'success')
-      addLog(`在温室一键收获了${harvested}株作物。(-${harvested}体力)`)
+      addLog(`在温室一键收获了${harvested}株作物。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.harvest * harvested)
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
