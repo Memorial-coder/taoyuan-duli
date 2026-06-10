@@ -224,7 +224,7 @@
           <!-- 来源提示 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">
-              {{ museumStore.isDonated(selectedItem.id) ? selectedItem.sourceHint : '捐赠后可查看该藏品的来源提示。' }}
+              {{ getMuseumItemHint(selectedItem) }}
             </p>
           </div>
 
@@ -285,6 +285,7 @@
   import type { MuseumItemDef, MuseumCategory } from '@/types'
   import { getItemById } from '@/data/items'
 
+  const ANCIENT_SEED_MUSEUM_ITEM_ID = 'ancient_seed'
   const inventoryStore = useInventoryStore()
   const museumStore = useMuseumStore()
 
@@ -306,6 +307,14 @@
 
   const getCategoryLabel = (cat: MuseumCategory): string => {
     return MUSEUM_CATEGORIES.find(c => c.key === cat)?.label ?? cat
+  }
+
+  const getMuseumItemHint = (item: MuseumItemDef): string => {
+    if (!museumStore.isDonated(item.id)) return '捐赠后可查看该藏品的来源提示。'
+    if (item.id === ANCIENT_SEED_MUSEUM_ITEM_ID) {
+      return `${item.sourceHint}；馆方已返还一粒可种植远古种子，远古水果可通过种子制造机继续制种。`
+    }
+    return item.sourceHint
   }
 
   const getHallLabel = (hallZoneId: string): string => {
