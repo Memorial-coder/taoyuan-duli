@@ -444,7 +444,7 @@
     <!-- 任务详情弹窗 -->
     <Transition name="panel-fade">
       <div v-if="questModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="questModal = null">
-        <div class="game-panel max-w-xs w-full relative">
+        <div class="game-panel max-w-xs w-full relative max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain pr-5" data-testid="quest-detail-modal">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="questModal = null">
             <X :size="14" />
           </button>

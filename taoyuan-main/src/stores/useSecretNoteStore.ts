@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { SECRET_NOTES, getItemById, getTodayEvent } from '@/data'
-import type { SecretNoteCategory, SecretNoteDef, SecretNoteSource } from '@/types'
+import { SECRET_NOTES, TAB_TO_LOCATION_GROUP, getItemById, getTodayEvent } from '@/data'
+import type { LocationGroup, SecretNoteCategory, SecretNoteDef, SecretNoteSource } from '@/types'
 import { useGameStore } from './useGameStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useInventoryStore } from './useInventoryStore'
@@ -21,6 +21,12 @@ type SecretLeadState = {
 }
 
 type SecretNoteVerificationStatus = 'untracked' | 'tracked' | 'ready' | 'resolved'
+type SecretNoteRequiredPanel = NonNullable<SecretNoteDef['verification']>['requiredPanel']
+
+const getRequiredPanelLocationGroup = (panel: SecretNoteRequiredPanel): LocationGroup | null => {
+  if (!panel) return null
+  return TAB_TO_LOCATION_GROUP[panel] ?? null
+}
 
 const mapNoteTypeToCategory = (note: SecretNoteDef): SecretNoteCategory => {
   if (note.category) return note.category
@@ -137,7 +143,8 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
       }
       unmetConditions.push(`需在${weatherLabelMap[verification.requiredWeather] ?? verification.requiredWeather}验证`)
     }
-    if (verification.requiredPanel && gameStore.currentLocationGroup !== verification.requiredPanel) {
+    const requiredLocationGroup = getRequiredPanelLocationGroup(verification.requiredPanel)
+    if (verification.requiredPanel && requiredLocationGroup !== gameStore.currentLocationGroup) {
       const panelLabelMap: Record<string, string> = {
         farm: '农场',
         forage: '竹林',

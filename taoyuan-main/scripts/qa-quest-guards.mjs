@@ -10,6 +10,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
 const srcRoot = path.join(projectRoot, 'src')
+const questViewSource = fs.readFileSync(path.join(srcRoot, 'views/game/QuestView.vue'), 'utf8')
 
 const errors = []
 
@@ -175,6 +176,15 @@ const installBrowserShims = () => {
 }
 
 installBrowserShims()
+
+const questDetailModalLine = questViewSource
+  .split('\n')
+  .find(line => line.includes('data-testid="quest-detail-modal"')) ?? ''
+
+assert(questDetailModalLine.includes('max-h-[calc(100dvh-2rem)]'), 'Quest detail modal must fit inside the mobile viewport.')
+assert(questDetailModalLine.includes('md:max-h-[calc(100dvh-3rem)]'), 'Quest detail modal must fit inside the desktop overlay padding.')
+assert(questDetailModalLine.includes('overflow-y-auto'), 'Quest detail modal must expose vertical scrolling.')
+assert(questDetailModalLine.includes('overscroll-contain'), 'Quest detail modal scroll should stay contained in the overlay.')
 
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
