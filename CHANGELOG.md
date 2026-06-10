@@ -1,6 +1,8 @@
 # 桃源乡独立版更新日志
 
-最后整理：2026-06-05
+最后整理：2026-06-10
+- 隐藏通配加工配方上线：工坊在显式配方之外新增按材料族生成的隐藏实验配方，未发现时以「未知酿造 / 未知腌制 / 未知压榨」等伪装卡片展示，首次收取成品后写入当前存档发现列表并显示真名；远古水果新增高阶专属产物「远古果酒」，可作为可陈酿高价值加工出口。
+- 共同工坊同步新增 `shared_hidden_*` 白名单配方，服务端仍拒绝未知 `recipe_id`，隐藏名称由本地 `discoveredProcessingRecipeIds` 决定；共同仓库策略升到 v44，并把远古水果、远古果酒和高阶烟熏鱼纳入稀有保护。隐藏配方 QA、前端检查、共同工坊合同与离线队列回归均已通过，`check` 仍仅保留既有 3 条 warning。
 - PR-F 非房间 QA 全量收口：补回 `/game/npc`、`/game/processing` 旧深链到现有村庄 / 工坊页面的兼容跳转；宠物加餐状态优先显示特殊喂食短名，与「稻米」按钮一致。定向炼丹 / 宠物 / NPC E2E 4 passed，完整 game-smoke 64 passed，未过滤 mobile smoke、结构 QA、玩家文案扫描和 check 均通过；运行时仍有本地后端 4013 proxy 拒连噪声但不影响退出码。
 - 共同庄园 legacy tab alias 收口：`tab=public / separation / festival` 深链会在刷新与契约切换后保持映射到公开、离线、节会分组，不再回到总览；公开面板首帧补 `summary` / `governance` 空值保护。目标 E2E 通过，全量 game-smoke 收窄为 60 passed / 4 failed，剩余失败为炼丹、宠物和 NPC 跨域页面。
 - 房间流程 PR-F E2E 收束：节庆广场完工后进入节会房间的浏览器用例会先关闭详情抽屉再点击房间入口，避免抽屉遮挡；远征 / 区域样例改用 dev server 复验，确认静态 server 下样例 API 缺失不是远征流程失败。跨域兼容改动：村社公共建设详情抽屉补回看摘要，花灯墙贡献后可真实读回「挂花灯 · 进行中」。当前 HEAD 续跑 check、结构 QA、未过滤 mobile smoke 和 Agent A 目标组合 34 条 E2E 均通过；全量 game-smoke 仍为 59 passed / 5 failed，失败停在炼丹、宠物、NPC 和共同庄园 tab alias，未出现房间域失败。

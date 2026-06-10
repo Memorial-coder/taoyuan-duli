@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0610 隐藏通配加工配方
+- 加工配方元数据新增 `visibility` 与 `hiddenMeta`，工坊现在先匹配显式配方，再为酒坊、酱缸、油坊、石磨、药碾、晒架、脱水机、蜂箱、糖渍罐、烟熏机等可实验机器按材料族生成隐藏通配配方；同一机器、输入和附加材料已有显式配方时不会生成隐藏配方。
+- 隐藏配方未发现时在工坊卡片显示「未知酿造 / 未知腌制 / 未知压榨」等伪装名称、剪影图标和材料需求，不提前泄露产物；批量加工也支持隐藏配方，首次成功收取成品后写入 `discoveredProcessingRecipeIds`，后续卡片、百科和机器资料会显示真实名称、输出和用途推荐。
+- 新增通用分层产物与远古水果专属高阶出口：`ancient_fruit` 在 2 级工坊且持有原料后可出现 `hidden_wine_ancient_fruit`，5 天产出「远古果酒」`ancient_fruit_wine`，并补齐远古水果 `wine / alchemy / gift / festival / online_cost` 用途档案；远古果酒已接入陈酿列表。
+- 共同工坊新增 `shared_hidden_*` 白名单配方并映射本地隐藏配方 ID，成功处理后同步写入本地发现状态；服务端继续只接受白名单配方，未知 `recipe_id` 会被拒绝，远古水果、远古果酒和高阶烟熏鱼进入稀有保护策略，`item_policy` 升到 v44。
+- 本轮验证：`node taoyuan-main\scripts\qa-hidden-processing-guards.mjs` 通过，生成 2492 个隐藏配方 / 3075 个总配方；`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run check`、`node server\scripts\qa-cohabitation-offline-closeout.mjs` 和 `node server\scripts\qa-cohabitation-contract.mjs` 均通过；`check` 仍仅保留既有 3 条 warning。
+
 ### 0605 PR-F 非房间 QA 全量收口
 - `src/router/index.ts` 补回 `npc -> village`、`processing -> workshop` legacy redirect，保留旧深链和旧 named route 可用性，不改变现有 `village` / `workshop` 主路由。
 - `src/views/game/AnimalView.vue` 的宠物今日加餐状态优先使用特殊喂食定义的 `shortLabel`，让状态「今日：稻米 · 饱腹」与按钮文案一致；不改变喂食扣减、时间推进、store action 或存档字段。
