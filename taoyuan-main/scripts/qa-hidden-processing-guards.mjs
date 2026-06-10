@@ -166,6 +166,7 @@ const hiddenBalanceMachineTypes = new Set([
   'herb_grinder',
   'incense_maker'
 ])
+const publicBalanceMachineTypes = hiddenBalanceMachineTypes
 
 const getRecipeInputEntries = recipe => {
   const entries = []
@@ -225,6 +226,32 @@ for (const recipe of hiddenRecipes) {
     assert(
       outputRecovery.health >= inputRecovery.health,
       `${recipe.id} 隐藏加工生命恢复倒挂：${outputRecovery.health} < ${inputRecovery.health}（产物 ${recipe.outputItemId}）`
+    )
+  }
+}
+
+for (const recipe of PROCESSING_RECIPES) {
+  if (recipe.visibility === 'hidden' || !publicBalanceMachineTypes.has(recipe.machineType)) continue
+
+  const inputValue = getRecipeInputValue(recipe)
+  const outputValue = getRecipeOutputValue(recipe)
+  if (inputValue <= 0 || outputValue <= 0) continue
+
+  assert(
+    outputValue >= inputValue,
+    `${recipe.id} public processing value loss: ${outputValue} < ${inputValue} (${recipe.outputItemId})`
+  )
+
+  const inputRecovery = getRecipeInputRecovery(recipe)
+  const outputRecovery = getRecipeOutputRecovery(recipe)
+  if (outputRecovery.edible) {
+    assert(
+      outputRecovery.stamina >= inputRecovery.stamina,
+      `${recipe.id} public processing stamina loss: ${outputRecovery.stamina} < ${inputRecovery.stamina} (${recipe.outputItemId})`
+    )
+    assert(
+      outputRecovery.health >= inputRecovery.health,
+      `${recipe.id} public processing health loss: ${outputRecovery.health} < ${inputRecovery.health} (${recipe.outputItemId})`
     )
   }
 }

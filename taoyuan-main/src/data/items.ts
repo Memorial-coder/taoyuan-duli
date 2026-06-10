@@ -1859,7 +1859,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '精饲料',
     category: 'material',
     description: '精心配制的优质饲料，显著提升动物心情和好感度。',
-    sellPrice: 40,
+    sellPrice: 210,
     edible: false
   },
   {
@@ -1867,7 +1867,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '滋补饲料',
     category: 'material',
     description: '添加滋补成分的饲料，加速动物产出周期。',
-    sellPrice: 50,
+    sellPrice: 185,
     edible: false
   },
   {
@@ -1883,7 +1883,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '红薯饱腹粮',
     category: 'material',
     description: '红薯与干草磨成的厚实宠物粮，适合给宠物补足耐力和护院精神。',
-    sellPrice: 70,
+    sellPrice: 110,
     edible: false
   },
   {
@@ -1891,7 +1891,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '南瓜宠物饭',
     category: 'material',
     description: '南瓜和稻米拌成的绵甜宠物饭，适合猫狗日常亲密喂食。',
-    sellPrice: 75,
+    sellPrice: 210,
     edible: false
   },
   {
@@ -1899,7 +1899,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '芝麻巡院饼',
     category: 'material',
     description: '芝麻粉、红薯饱腹粮与蜂蜜压成的高阶宠物点心，适合田犬巡院前补气味记忆。',
-    sellPrice: 120,
+    sellPrice: 190,
     edible: false
   },
   {
@@ -1907,7 +1907,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '莲心桂花糕',
     category: 'material',
     description: '莲心粉、桂花与蜂蜜揉成的高阶宠物点心，适合猫与灵宠记住草本香气。',
-    sellPrice: 150,
+    sellPrice: 680,
     edible: false
   },
   {
@@ -1915,7 +1915,7 @@ const FEED_ITEMS: ItemDef[] = [
     name: '灵果月华糕',
     category: 'material',
     description: '蜜桃脯、月草与莲心粉制成的高阶灵宠点心，稀有灵果线索更强但冷却更长。',
-    sellPrice: 260,
+    sellPrice: 2100,
     edible: false
   }
 ]
