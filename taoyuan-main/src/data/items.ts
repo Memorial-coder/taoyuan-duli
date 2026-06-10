@@ -767,7 +767,7 @@ const DRIED_ITEMS: ItemDef[] = [
     description: '野果脱水制成的果脯，方便保存。',
     sellPrice: 90,
     edible: true,
-    staminaRestore: 12,
+    staminaRestore: 18,
     healthRestore: 6
   },
   {
@@ -1607,7 +1607,7 @@ const HERB_PRODUCT_ITEMS: ItemDef[] = [
     name: '莲心粉',
     category: 'processed',
     description: '干莲子研成的清苦细粉，可入安神茶、清心丹或节前礼盒。',
-    sellPrice: 360,
+    sellPrice: 800,
     edible: false
   },
   {
