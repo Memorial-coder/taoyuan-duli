@@ -55,6 +55,31 @@ export const getMushroomRewards = (floor: number): { itemId: string; quantity: n
   ]
 }
 
+export const getMineMushroomTileItems = (floor: number): { itemId: string; quantity: number }[] => {
+  const items: { itemId: string; quantity: number }[] = []
+  if (floor <= 40) {
+    items.push({ itemId: Math.random() < 0.7 ? 'wild_mushroom' : 'herb', quantity: 1 })
+  } else if (floor <= 80) {
+    items.push({ itemId: Math.random() < 0.5 ? 'wild_mushroom' : 'ginseng', quantity: 1 })
+  } else {
+    items.push({ itemId: Math.random() < 0.4 ? 'ginseng' : 'wild_mushroom', quantity: 1 })
+    if (Math.random() < 0.3) items.push({ itemId: 'herb', quantity: 1 })
+  }
+  return items
+}
+
+export const getSkullCavernMushroomTileItems = (floor: number): { itemId: string; quantity: number }[] => {
+  const items: { itemId: string; quantity: number }[] = [
+    { itemId: 'skull_mushroom', quantity: floor >= 50 && Math.random() < 0.35 ? 2 : 1 }
+  ]
+  if (floor >= 20 && Math.random() < 0.35) items.push({ itemId: 'ginseng', quantity: 1 })
+  if (floor >= 40 && Math.random() < 0.25) items.push({ itemId: 'shadow_ore', quantity: 1 })
+  if (floor >= 60 && Math.random() < 0.18) items.push({ itemId: 'void_ore', quantity: 1 })
+  if (floor >= 80 && Math.random() < 0.12) items.push({ itemId: 'iridium_ore', quantity: 1 })
+  if (floor >= 100 && Math.random() < 0.04) items.push({ itemId: 'prismatic_shard', quantity: 1 })
+  return items
+}
+
 /** 宝箱层奖励 */
 export const getTreasureRewards = (floor: number): { items: { itemId: string; quantity: number }[]; money: number } => {
   const zoneIndex = Math.floor((floor - 1) / 20)
@@ -884,16 +909,7 @@ export const generateFloorGrid = (
   if (dist.mushroomCount) {
     const mushCount = randInt(dist.mushroomCount[0], dist.mushroomCount[1])
     for (let i = 0; i < mushCount; i++) {
-      // 每格 1-2 个蘑菇/药草
-      const items: { itemId: string; quantity: number }[] = []
-      if (floorNum <= 40) {
-        items.push({ itemId: Math.random() < 0.7 ? 'wild_mushroom' : 'herb', quantity: 1 })
-      } else if (floorNum <= 80) {
-        items.push({ itemId: Math.random() < 0.5 ? 'wild_mushroom' : 'ginseng', quantity: 1 })
-      } else {
-        items.push({ itemId: Math.random() < 0.4 ? 'ginseng' : 'wild_mushroom', quantity: 1 })
-        if (Math.random() < 0.3) items.push({ itemId: 'herb', quantity: 1 })
-      }
+      const items = isSkullCavern ? getSkullCavernMushroomTileItems(floorNum) : getMineMushroomTileItems(floorNum)
       placeRandom('mushroom', { mushroomItems: items })
     }
   }

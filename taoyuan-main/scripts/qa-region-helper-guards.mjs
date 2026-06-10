@@ -106,6 +106,17 @@ const unexpectedGridRefs = gridRefs.filter(filePath => ![
 ].includes(filePath))
 assert(unexpectedGridRefs.length === 0, `generateFloorGrid 存在矿洞 store 外调用：${unexpectedGridRefs.join(', ')}`)
 
+const mineDataPath = 'taoyuan-main/src/data/mine.ts'
+const mineData = read(mineDataPath)
+assert(
+  /getSkullCavernMushroomTileItems[\s\S]*?skull_mushroom/.test(mineData),
+  '骷髅矿穴蘑菇层必须拥有专属幽骨菇奖励池'
+)
+assert(
+  /const items = isSkullCavern \? getSkullCavernMushroomTileItems\(floorNum\) : getMineMushroomTileItems\(floorNum\)/.test(mineData),
+  'generateFloorGrid 放置蘑菇格时必须区分骷髅矿穴与主矿洞奖励池'
+)
+
 if (errors.length > 0) {
   console.error('qa-region-helper-guards 失败:')
   for (const error of errors) console.error(`- ${error}`)
