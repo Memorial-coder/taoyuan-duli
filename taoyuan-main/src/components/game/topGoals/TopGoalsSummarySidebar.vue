@@ -14,8 +14,8 @@
         <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="mt-1 text-[0.625rem] text-success">
           辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
         </p>
-        <p v-if="weeklyPlanSnapshot.claimableNodeLabels.length > 0" class="mt-1 text-[0.625rem] text-muted">
-          当前可领：{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') }}
+        <p v-if="weeklyPlanQuestActionNodeLabels.length > 0" class="mt-1 text-[0.625rem] text-muted">
+          任务收尾：{{ weeklyPlanQuestActionNodeLabels.join('、') }}
         </p>
         <p class="mt-1 text-[0.625rem] text-muted leading-5">下周准备：{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
       </div>
@@ -110,9 +110,11 @@
 </template>
 
 <script setup lang="ts">
+  import { computed } from 'vue'
   import TopGoalsGoalCard from './TopGoalsGoalCard.vue'
   import type { GoalState, MainQuestStageState } from '@/stores/useGoalStore'
   import type { PromptAction, WeeklyChronicleEntry, WeeklyGoalSettlementSummary, WeeklyPlanSnapshot } from '@/types'
+  import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
   import type {
     TopGoalsCta,
     TopGoalsEventCampaignSummary,
@@ -120,7 +122,7 @@
     TopGoalsWeeklyStreakSummary
   } from './types'
 
-  defineProps<{
+  const props = defineProps<{
     buildPromptFocusAttr: (focusKey: string) => string
     currentEventCampaign: TopGoalsEventCampaignSummary | null
     weeklyPlanSnapshot: WeeklyPlanSnapshot
@@ -137,6 +139,8 @@
     getGoalProgressText: (goal: GoalState) => string
     getGoalSourceText: (goal: GoalState) => string
   }>()
+
+  const weeklyPlanQuestActionNodeLabels = computed(() => getWeeklyPlanQuestActionNodes(props.weeklyPlanSnapshot).map(node => node.label))
 
   const emit = defineEmits<{
     selectCta: [cta: TopGoalsCta]

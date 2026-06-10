@@ -226,6 +226,7 @@
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { MAX_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore } from '@/stores/useSettingsStore'
+  import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
 
   const props = defineProps<{ open: boolean; current: string; hasVoidChest?: boolean }>()
   const emit = defineEmits<{ close: []; 'open-settings': []; 'open-log': []; 'open-void': [] }>()
@@ -301,6 +302,7 @@
     }
     return map[normalized] ?? null
   }
+  const weeklyPlanQuestActionNodes = computed(() => getWeeklyPlanQuestActionNodes(goalStore.weeklyPlanSnapshot))
 
   const quickEntries = computed<QuickEntry[]>(() => {
     const entries: QuickEntry[] = []
@@ -337,12 +339,12 @@
       }
     }
 
-    if (goalStore.weeklyPlanSnapshot.claimableNodeLabels.length > 0) {
+    if (weeklyPlanQuestActionNodes.value.length > 0) {
       pushEntry({
         key: 'quest',
-        title: '先领可领奖点',
-        summary: `当前有 ${goalStore.weeklyPlanSnapshot.claimableNodeLabels.length} 处可领奖或可收尾节点。`,
-        tag: '可领取'
+        title: '查看任务收尾',
+        summary: `当前有 ${weeklyPlanQuestActionNodes.value.length} 个限时或结算节点需要在任务页确认。`,
+        tag: '收尾'
       })
     }
 

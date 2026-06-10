@@ -73,11 +73,11 @@
       </div>
       <div v-if="questStore.currentLimitedTimeQuestCampaign" class="border border-warning/20 rounded-xs px-3 py-2 mb-2 bg-warning/5">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-warning">当前可领取 / 限时窗口</p>
+          <p class="text-xs text-warning">任务收尾 / 限时窗口</p>
           <span class="text-[0.625rem] text-muted">剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天</span>
         </div>
         <p class="text-[0.625rem] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
-        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') || '当前没有额外领奖点。' }}</p>
+        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanQuestActionNodeLabels.join('、') || '当前没有额外任务收尾节点。' }}</p>
         <p class="text-[0.625rem] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>
       </div>
       <div v-if="goalStore.currentThemeWeek" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
@@ -785,6 +785,7 @@
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
   import { getCropById } from '@/data/crops'
   import { addLog } from '@/composables/useGameLog'
+  import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
 
   const route = useRoute()
   const questStore = useQuestStore()
@@ -793,6 +794,7 @@
   const isCompactMobile = ref(false)
   const questPreludeExpanded = ref(false)
   const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
+  const weeklyPlanQuestActionNodeLabels = computed(() => getWeeklyPlanQuestActionNodes(weeklyPlanSnapshot.value).map(node => node.label))
   const npcStore = useNpcStore()
   const villageProjectStore = useVillageProjectStore()
   const walletStore = useWalletStore()

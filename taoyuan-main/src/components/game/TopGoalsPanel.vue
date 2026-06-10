@@ -179,6 +179,7 @@
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
+  import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
   import type { GuidanceCrossSystemAction } from '@/types'
   import type { TopGoalsCta, TopGoalsPlanTab } from '@/components/game/topGoals/types'
 
@@ -215,6 +216,7 @@
 
   const primaryDecisionAction = computed(() => decisionLoopActions.value[0] ?? null)
   const primaryDailyGoal = computed(() => goalStore.dailyGoals.find(goal => !goal.completed) ?? goalStore.dailyGoals[0] ?? null)
+  const weeklyPlanQuestActionNodes = computed(() => getWeeklyPlanQuestActionNodes(goalStore.weeklyPlanSnapshot))
   const currentPanelName = computed(() => (typeof route.name === 'string' ? route.name : ''))
   const rawCompactCta = computed<TopGoalsCta | null>(() => {
     if (primaryDecisionAction.value) {
@@ -251,7 +253,7 @@
     return '先处理眼前这一步，再决定要不要展开更完整的经营规划。'
   })
   const compactStatusLabel = computed(() => {
-    if (goalStore.weeklyPlanSnapshot.claimableNodeLabels.length > 0) return `可领 ${goalStore.weeklyPlanSnapshot.claimableNodeLabels.length} 处`
+    if (weeklyPlanQuestActionNodes.value.length > 0) return `收尾 ${weeklyPlanQuestActionNodes.value.length} 处`
     if (primaryDecisionAction.value) return `本周路线 ${decisionLoopActions.value.length} 条`
     if (primaryDailyGoal.value) return `今日目标 ${goalStore.dailyGoals.length} 项`
     return `里程碑 ${currentMainQuestProgress.value}`
