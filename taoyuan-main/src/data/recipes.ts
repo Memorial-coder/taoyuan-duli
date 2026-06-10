@@ -427,7 +427,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 28,
       healthRestore: 10,
-      buff: { type: 'speed', value: 8, description: '行动速度+8%（当天）' }
+      buff: { type: 'speed', value: 12, description: '行动速度+12%（当天）' }
     },
     unlockSource: '加工链第一批',
     requiredSkill: { type: 'farming', level: 2 },
@@ -478,7 +478,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 36,
       healthRestore: 14,
-      buff: { type: 'speed', value: 10, description: '行动速度+10%（当天）' }
+      buff: { type: 'speed', value: 16, description: '行动速度+16%（当天）' }
     },
     unlockSource: '加工链第七批',
     requiredSkill: { type: 'farming', level: 4 },
@@ -495,7 +495,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 34,
       healthRestore: 12,
-      buff: { type: 'speed', value: 6, description: '行动速度+6%（当天）' }
+      buff: { type: 'speed', value: 12, description: '行动速度+12%（当天）' }
     },
     unlockSource: '加工链第二批',
     requiredSkill: { type: 'farming', level: 3 },
@@ -1023,7 +1023,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 50,
       healthRestore: 30,
-      buff: { type: 'speed', value: 2, description: '移动速度+2（当天）' }
+      buff: { type: 'speed', value: 18, description: '行动速度+18%（当天）' }
     },
     unlockSource: '与丹青结婚后',
     description: '丹青婚后按古方熬煮的养心粥。'

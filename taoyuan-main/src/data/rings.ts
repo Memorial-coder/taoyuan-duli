@@ -373,16 +373,16 @@ export const RINGS: RingDef[] = [
     name: '行路指环',
     description: '兔足与金的融合赋予轻盈步伐，赶路更快。',
     effects: [
-      { type: 'travel_speed', value: 0.15 },
+      { type: 'travel_speed', value: 0.18 },
       { type: 'stamina_reduction', value: 0.05 }
     ],
     recipe: [
-      { itemId: 'gold_bar', quantity: 3 },
+      { itemId: 'gold_bar', quantity: 4 },
       { itemId: 'rabbit_foot', quantity: 1 }
     ],
-    recipeMoney: 2000,
+    recipeMoney: 2600,
     obtainSource: '合成',
-    sellPrice: 1100
+    sellPrice: 1400
   },
 
   // ===== 新增BOSS掉落 =====

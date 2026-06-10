@@ -31,12 +31,12 @@ export const SHOES: ShoeDef[] = [
     id: 'leather_boots',
     name: '皮靴',
     description: '结实的皮革长靴，走路更快。',
-    effects: [{ type: 'travel_speed', value: 0.15 }],
-    shopPrice: 800,
+    effects: [{ type: 'travel_speed', value: 0.18 }],
+    shopPrice: 1200,
     recipe: null,
     recipeMoney: 0,
     obtainSource: '绸缎庄',
-    sellPrice: 320
+    sellPrice: 480
   },
   {
     id: 'miner_boots',
@@ -59,17 +59,17 @@ export const SHOES: ShoeDef[] = [
     name: '疾风靴',
     description: '轻盈如风的皮靴，大幅缩短旅途时间。',
     effects: [
-      { type: 'travel_speed', value: 0.25 },
+      { type: 'travel_speed', value: 0.3 },
       { type: 'stamina_reduction', value: 0.08 }
     ],
     shopPrice: null,
     recipe: [
-      { itemId: 'iron_bar', quantity: 5 },
+      { itemId: 'iron_bar', quantity: 6 },
       { itemId: 'rabbit_foot', quantity: 1 }
     ],
-    recipeMoney: 2000,
+    recipeMoney: 3200,
     obtainSource: '铁匠铺合成',
-    sellPrice: 1000
+    sellPrice: 1600
   },
   {
     id: 'iron_greaves',
@@ -126,17 +126,17 @@ export const SHOES: ShoeDef[] = [
     name: '月步靴',
     description: '月光石嵌入的灵巧之靴，行路如飞。',
     effects: [
-      { type: 'travel_speed', value: 0.3 },
+      { type: 'travel_speed', value: 0.35 },
       { type: 'luck', value: 0.08 }
     ],
     shopPrice: null,
     recipe: [
       { itemId: 'gold_bar', quantity: 5 },
-      { itemId: 'moonstone', quantity: 2 }
+      { itemId: 'moonstone', quantity: 3 }
     ],
-    recipeMoney: 4000,
+    recipeMoney: 5500,
     obtainSource: '铁匠铺合成',
-    sellPrice: 2000
+    sellPrice: 2750
   },
   {
     id: 'dragon_scale_boots',

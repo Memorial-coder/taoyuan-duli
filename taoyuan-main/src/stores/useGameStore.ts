@@ -22,6 +22,18 @@ import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { processHiddenNpcDiscovery } from '@/composables/useHiddenNpcDiscovery'
 
+const MAX_TRAVEL_SPEED_BONUS = 0.45
+const MAX_FOOD_ACTION_SPEED_BONUS = 0.25
+const MAX_ALCHEMY_ACTION_SPEED_BONUS = 0.1
+const MAX_TOTAL_ACTION_SPEED_BONUS = 0.32
+const MIN_SPEED_SAVE_MESSAGE_MINUTES = 2
+
+type TravelCostDetails = {
+  cost: number
+  travelSpeedSavedMinutes: number
+  actionSpeedSavedMinutes: number
+}
+
 /** 瀛ｈ妭椤哄簭 */
 const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
 
@@ -142,12 +154,27 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 鎺ㄨ繘鏃堕棿锛堝皬鏃讹級锛岃繑鍥炵粨鏋?*/
+  const getActionSpeedReduction = (): number => {
+    const cookingStore = useCookingStore()
+    const foodSpeedBuff = cookingStore.activeBuff?.type === 'speed'
+      ? Math.min(MAX_FOOD_ACTION_SPEED_BONUS, Math.max(0, cookingStore.activeBuff.value / 100))
+      : 0
+    const alchemySpeedBuff = Math.min(
+      MAX_ALCHEMY_ACTION_SPEED_BONUS,
+      Math.max(0, cookingStore.getActiveAlchemyActionSpeedBonus())
+    )
+    const combined = 1 - (1 - foodSpeedBuff) * (1 - alchemySpeedBuff)
+    return Math.min(MAX_TOTAL_ACTION_SPEED_BONUS, combined)
+  }
+
   const getEffectiveActionHours = (hours: number): number => {
     if (hours <= 0) return 0
-    const cookingStore = useCookingStore()
-    const speedBuff = cookingStore.activeBuff?.type === 'speed' ? cookingStore.activeBuff.value / 100 : 0
-    const alchemySpeedBuff = cookingStore.getActiveAlchemyActionSpeedBonus()
-    return hours * (1 - speedBuff) * (1 - alchemySpeedBuff)
+    return hours * (1 - getActionSpeedReduction())
+  }
+
+  const buildActionSpeedSaveMessage = (baseHours: number, effectiveHours: number): string => {
+    const savedMinutes = Math.round(Math.max(0, baseHours - effectiveHours) * 60)
+    return savedMinutes >= MIN_SPEED_SAVE_MESSAGE_MINUTES ? `行动速度节省${savedMinutes}分钟。` : ''
   }
 
   const advanceTime = (hours: number, options?: { skipSpeedBuff?: boolean }): { ok: boolean; passedOut: boolean; message: string } => {
@@ -155,13 +182,18 @@ export const useGameStore = defineStore('game', () => {
 
 
     const effectiveHours = options?.skipSpeedBuff ? hours : getEffectiveActionHours(hours)
+    const speedMessage = options?.skipSpeedBuff ? '' : buildActionSpeedSaveMessage(hours, effectiveHours)
 
     const prevHour = hour.value
     const newHour = hour.value + effectiveHours
 
     if (newHour >= PASSOUT_HOUR) {
       hour.value = PASSOUT_HOUR
-      return { ok: true, passedOut: true, message: '已经凌晨2点了，你撑不住倒下了……' }
+      return {
+        ok: true,
+        passedOut: true,
+        message: [speedMessage, '已经凌晨2点了，你撑不住倒下了……'].filter(Boolean).join(' ')
+      }
     }
 
     hour.value = newHour
@@ -170,10 +202,14 @@ export const useGameStore = defineStore('game', () => {
     // 璺ㄥ崍澶滄彁绀猴紙浠呬竴娆★級
     if (!midnightWarned.value && prevHour < MIDNIGHT_HOUR && hour.value >= MIDNIGHT_HOUR) {
       midnightWarned.value = true
-      return { ok: true, passedOut: false, message: '已经过了午夜，你开始感到困倦……' }
+      return {
+        ok: true,
+        passedOut: false,
+        message: [speedMessage, '已经过了午夜，你开始感到困倦……'].filter(Boolean).join(' ')
+      }
     }
 
-    return { ok: true, passedOut: false, message: '' }
+    return { ok: true, passedOut: false, message: speedMessage }
   }
 
   const getActiveShortcutIdsForTravel = (from: LocationGroup, to: LocationGroup): string[] => {
@@ -213,24 +249,37 @@ export const useGameStore = defineStore('game', () => {
   const getShortcutStaminaReduction = (from: LocationGroup, to: LocationGroup) =>
     Math.min(2, getActiveShortcutIdsForTravel(from, to).length)
 
-  /** 鏌ヨ鍒囨崲鍒扮洰鏍?tab 鐨勭Щ鍔ㄨ€楁椂 */
-  const getTravelCost = (targetTab: string): number => {
+  const getTravelCostDetails = (targetTab: string): TravelCostDetails => {
     const targetGroup = TAB_TO_LOCATION_GROUP[targetTab]
-    if (!targetGroup) return 0
-    if (targetGroup === currentLocationGroup.value) return 0
+    if (!targetGroup) return { cost: 0, travelSpeedSavedMinutes: 0, actionSpeedSavedMinutes: 0 }
+    if (targetGroup === currentLocationGroup.value) {
+      return { cost: 0, travelSpeedSavedMinutes: 0, actionSpeedSavedMinutes: 0 }
+    }
     const key = `${currentLocationGroup.value}->${targetGroup}`
     const baseCost = TRAVEL_TIME[key] ?? 0.5
     // 鎷ユ湁椹噺灏?0%鏃呰鏃堕棿
     const animalStore = useAnimalStore()
-    let multiplier = animalStore.hasHorse ? 0.7 : 1
+    const horseMultiplier = animalStore.hasHorse ? 0.7 : 1
     // 瑁呭鏃呰閫熷害鍔犳垚锛堜笌椹彔涔橈級
     const inventoryStore = useInventoryStore()
-    const travelSpeedBonus = inventoryStore.getRingEffectValue('travel_speed')
-    if (travelSpeedBonus > 0) {
-      multiplier *= 1 - travelSpeedBonus
+    const travelSpeedBonus = Math.min(
+      MAX_TRAVEL_SPEED_BONUS,
+      Math.max(0, inventoryStore.getRingEffectValue('travel_speed'))
+    )
+    const shortcutMultiplier = getShortcutTravelMultiplier(currentLocationGroup.value, targetGroup)
+    const costBeforeTravelSpeed = baseCost * horseMultiplier * shortcutMultiplier
+    const costBeforeActionSpeed = costBeforeTravelSpeed * (1 - travelSpeedBonus)
+    const cost = getEffectiveActionHours(costBeforeActionSpeed)
+    return {
+      cost,
+      travelSpeedSavedMinutes: Math.round(Math.max(0, costBeforeTravelSpeed - costBeforeActionSpeed) * 60),
+      actionSpeedSavedMinutes: Math.round(Math.max(0, costBeforeActionSpeed - cost) * 60)
     }
-    multiplier *= getShortcutTravelMultiplier(currentLocationGroup.value, targetGroup)
-    return getEffectiveActionHours(baseCost * multiplier)
+  }
+
+  /** 鏌ヨ鍒囨崲鍒扮洰鏍?tab 鐨勭Щ鍔ㄨ€楁椂 */
+  const getTravelCost = (targetTab: string): number => {
+    return getTravelCostDetails(targetTab).cost
   }
 
   /** 绉诲姩鍒扮洰鏍?tab 瀵瑰簲鐨勫湴鐐圭粍 */
@@ -239,7 +288,8 @@ export const useGameStore = defineStore('game', () => {
     if (!targetGroup) return { ok: true, timeCost: 0, passedOut: false, message: '' }
     if (targetGroup === currentLocationGroup.value) return { ok: true, timeCost: 0, passedOut: false, message: '' }
 
-    const cost = getTravelCost(targetTab)
+    const travelCostDetails = getTravelCostDetails(targetTab)
+    const cost = travelCostDetails.cost
     const targetName = getLocationGroupName(targetGroup)
 
     // 浣撳姏娑堣€楋細鏈夐┈鍑忓崐锛堝悜涓嬪彇鏁达級
@@ -265,7 +315,16 @@ export const useGameStore = defineStore('game', () => {
     const result = advanceTime(cost, { skipSpeedBuff: true })
     currentLocationGroup.value = targetGroup
 
-    const travelMsg = cost > 0 ? `前往${targetName}，路上花了${Math.round(cost * 60)}分钟，消耗${staminaCost}点体力。` : ''
+    const speedSaveParts = [
+      travelCostDetails.travelSpeedSavedMinutes >= MIN_SPEED_SAVE_MESSAGE_MINUTES
+        ? `旅行加速节省${travelCostDetails.travelSpeedSavedMinutes}分钟`
+        : '',
+      travelCostDetails.actionSpeedSavedMinutes >= MIN_SPEED_SAVE_MESSAGE_MINUTES
+        ? `行动速度节省${travelCostDetails.actionSpeedSavedMinutes}分钟`
+        : ''
+    ].filter(Boolean)
+    const speedSaveText = speedSaveParts.length > 0 ? `，${speedSaveParts.join('，')}` : ''
+    const travelMsg = cost > 0 ? `前往${targetName}，路上花了${Math.round(cost * 60)}分钟${speedSaveText}，消耗${staminaCost}点体力。` : ''
     return {
       ok: true,
       timeCost: cost,
