@@ -341,6 +341,19 @@
               <span class="text-xs text-muted">{{ availableCombatItems.length }}种</span>
             </div>
             <div
+              v-if="inventoryStore.equipmentPresets.length > 0"
+              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
+              @click="showPresetListModal = true"
+            >
+              <span class="text-xs text-accent">
+                <BookMarked :size="12" class="inline" />
+                切换装备方案
+              </span>
+              <span v-if="inventoryStore.activePresetId" class="text-[0.625rem] text-muted">
+                {{ inventoryStore.equipmentPresets.find(p => p.id === inventoryStore.activePresetId)?.name ?? '' }}
+              </span>
+            </div>
+            <div
               v-if="miningStore.stairsFound"
               class="flex items-center justify-between border border-success/30 rounded-xs px-3 py-1.5"
               :class="miningStore.stairsUsable ? 'cursor-pointer hover:bg-success/5' : 'opacity-50'"
@@ -660,34 +673,37 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-70 p-4"
         @click.self="showPresetListModal = false"
       >
-        <div class="game-panel max-w-xs w-full relative">
+        <div class="game-panel relative flex max-h-[78vh] w-full max-w-sm flex-col">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showPresetListModal = false">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">
+          <p class="mb-3 pr-6 text-sm text-accent">
             <BookMarked :size="14" class="inline" />
             装备方案
           </p>
-          <div v-if="inventoryStore.equipmentPresets.length > 0" class="flex flex-col space-y-1.5 max-h-60 overflow-y-auto">
+          <div
+            v-if="inventoryStore.equipmentPresets.length > 0"
+            class="flex min-h-0 flex-1 flex-col space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
+          >
             <div
               v-for="preset in inventoryStore.equipmentPresets"
               :key="preset.id"
-              class="border rounded-xs p-2"
+              class="border rounded-xs p-3"
               :class="inventoryStore.activePresetId === preset.id ? 'border-accent/40' : 'border-accent/10'"
             >
-              <div class="flex items-center justify-between mb-1">
+              <div class="mb-2 flex items-center justify-between gap-2">
                 <p class="text-xs text-accent truncate">{{ preset.name }}</p>
                 <span v-if="inventoryStore.activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
-              <div class="grid grid-cols-2 gap-1">
+              <div class="grid grid-cols-2 gap-1.5">
                 <Button
-                  class="py-0 px-1.5 text-[0.625rem]"
+                  class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap"
                   :disabled="inventoryStore.activePresetId === preset.id"
                   @click="quickApplyPreset(preset.id)"
                 >
                   使用
                 </Button>
-                <Button class="py-0 px-1.5 text-[0.625rem]" @click="viewPresetDetail(preset.id)">查看</Button>
+                <Button class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap" @click="viewPresetDetail(preset.id)">查看</Button>
               </div>
             </div>
           </div>
