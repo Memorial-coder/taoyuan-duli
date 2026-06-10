@@ -97,10 +97,6 @@ export const handlePlotClick = (plotId: number) => {
       return
     }
   } else if (plot.state === 'tilled' && selectedSeed.value) {
-    if (farmStore.hasSprinklerAtPlot(plotId)) {
-      addLog('该地块已放置洒水器，无法种植。')
-      return
-    }
     const cropDef = getCropById(selectedSeed.value.cropId)
     if (!cropDef) return
     if (!inventoryStore.hasItem(cropDef.seedId)) {
@@ -601,7 +597,7 @@ export const handleBatchPlant = (cropId: string) => {
   const cropDef = getCropById(cropId)
   if (!cropDef) return
 
-  const targets = farmStore.plots.filter(p => p.state === 'tilled' && !farmStore.hasSprinklerAtPlot(p.id))
+  const targets = farmStore.plots.filter(p => p.state === 'tilled')
   if (targets.length === 0) {
     addLog('没有可种植的空耕地。')
     return
@@ -666,7 +662,7 @@ export const handleBatchFertilize = (fertilizerType: FertilizerType) => {
   const fertDef = getFertilizerById(fertilizerType)
   if (!fertDef) return
 
-  const targets = farmStore.plots.filter(p => p.state !== 'wasteland' && !p.fertilizer && !farmStore.hasSprinklerAtPlot(p.id))
+  const targets = farmStore.plots.filter(p => p.state !== 'wasteland' && !p.fertilizer)
   if (targets.length === 0) {
     addLog('没有可施肥的地块。')
     return

@@ -340,7 +340,7 @@
               >
                 铲除
               </Button>
-              <template v-if="activePlot.state === 'tilled' && !hasSprinkler(activePlot.id) && plantableSeeds.length > 0">
+              <template v-if="activePlot.state === 'tilled' && plantableSeeds.length > 0">
                 <Divider label="种植" />
                 <button
                   v-for="seed in plantableSeeds"
@@ -369,7 +369,7 @@
                   <span class="text-muted farm-seed-option__count">×{{ seed.count }}</span>
                 </button>
               </template>
-              <template v-if="activePlot.state === 'tilled' && !hasSprinkler(activePlot.id) && plantableBreedingSeeds.length > 0">
+              <template v-if="activePlot.state === 'tilled' && plantableBreedingSeeds.length > 0">
                 <Divider label="育种种子" class="!my-2" />
                 <button
                   v-for="seed in plantableBreedingSeeds"
@@ -388,16 +388,13 @@
               </template>
               <!-- 种子空状态 -->
               <div
-                v-if="activePlot.state === 'tilled' && !hasSprinkler(activePlot.id) && plantableSeeds.length === 0 && plantableBreedingSeeds.length === 0"
+                v-if="activePlot.state === 'tilled' && plantableSeeds.length === 0 && plantableBreedingSeeds.length === 0"
                 class="flex flex-col items-center py-4"
               >
                 <Sprout :size="32" class="text-muted/30" />
                 <p class="text-xs text-muted mt-2">背包中没有当季可种植的种子</p>
                 <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
                 <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
-              </div>
-              <div v-if="activePlot.state === 'tilled' && hasSprinkler(activePlot.id)" class="text-xs text-water border border-water/20 rounded-xs p-2">
-                该地块已放置洒水器，当前不可种植作物。
               </div>
               <template v-if="canFieldFertilizerAction && activePlotFertilizerOptions.length > 0">
                 <Divider :label="activePlot.fertilizer ? '替换肥料' : '施肥'" />
@@ -1431,7 +1428,7 @@
     if (!tutorialStore.enabled || gameStore.year > 1) return null
     if (farmStore.plots.every(p => p.state === 'wasteland')) return '点击下方「一键操作」→「一键开垦」来开垦荒地，或直接点击地块逐一操作。'
     const hasPlanted = farmStore.plots.some(p => p.state === 'planted' || p.state === 'growing' || p.state === 'harvestable')
-    if (!hasPlanted && farmStore.plots.some(p => p.state === 'tilled' && !farmStore.hasSprinklerAtPlot(p.id)))
+    if (!hasPlanted && farmStore.plots.some(p => p.state === 'tilled'))
       return '已开垦的地块可以种植作物。使用「一键种植」可批量播种背包中的种子。'
     if (farmStore.plots.some(p => (p.state === 'planted' || p.state === 'growing') && !p.watered) && !gameStore.isRainy)
       return '作物需要每天浇水才会生长。「一键浇水」可一次浇完所有作物。'
@@ -1715,13 +1712,13 @@
   const canFertilize = computed(() => {
     const plot = activePlot.value
     if (!plot) return false
-    return plot.state !== 'wasteland' && !plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
+    return plot.state !== 'wasteland' && !plot.fertilizer
   })
 
   const canReplaceFertilizer = computed(() => {
     const plot = activePlot.value
     if (!plot) return false
-    return plot.state !== 'wasteland' && !!plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
+    return plot.state !== 'wasteland' && !!plot.fertilizer
   })
 
   const canFieldFertilizerAction = computed(() => canFertilize.value || canReplaceFertilizer.value)
@@ -1849,11 +1846,11 @@
   }
 
   const isPlantableTilledPlot = (plot: (typeof farmStore.plots)[number]): boolean => {
-    return plot.state === 'tilled' && !farmStore.hasSprinklerAtPlot(plot.id)
+    return plot.state === 'tilled'
   }
 
   const isFertilizablePlot = (plot: (typeof farmStore.plots)[number]): boolean => {
-    return plot.state !== 'wasteland' && !plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
+    return plot.state !== 'wasteland' && !plot.fertilizer
   }
 
   const isGreenhouseFertilizablePlot = (plot: (typeof farmStore.greenhousePlots)[number]): boolean => {
@@ -2056,7 +2053,7 @@
   const getPlotTooltip = (plot: (typeof farmStore.plots)[number]): string => {
     let tip = ''
     if (plot.state === 'wasteland') tip = '荒地（点击开垦）'
-    else if (plot.state === 'tilled') tip = hasSprinkler(plot.id) ? '已放置洒水器（不可种植）' : '已耕地（点击播种）'
+    else if (plot.state === 'tilled') tip = '已耕地（点击播种）'
     else if (plot.state === 'harvestable') {
       const crop = getCropById(plot.cropId!)
       tip = `${crop?.name ?? ''}已成熟（点击收获）`
