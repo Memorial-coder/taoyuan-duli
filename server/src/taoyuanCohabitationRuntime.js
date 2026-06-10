@@ -8020,7 +8020,7 @@ function normalizePetActionLedger(value = []) {
 
 function normalizeFarmActionLedgerEntry(entry = {}) {
   const action = sanitizeText(entry.action, 40) || 'water';
-  if (!['water', 'plant', 'fertilize', 'harvest', 'cure_pests', 'clear_weeds', 'remove_crop'].includes(action)) return null;
+  if (!['water', 'plant', 'fertilize', 'replace_fertilizer', 'harvest', 'cure_pests', 'clear_weeds', 'remove_crop'].includes(action)) return null;
   const plotId = sanitizeText(entry.plot_id || entry.shared_plot_id, 140);
   if (!plotId) return null;
   const outputItemId = normalizeWarehouseItemId(entry.output_item_id || entry.harvest_item_id || entry.item_id);
@@ -8038,6 +8038,7 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
     actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
     seed_item_id: normalizeWarehouseItemId(entry.seed_item_id),
     fertilizer_item_id: normalizeWarehouseItemId(entry.fertilizer_item_id || entry.fertilizerItemId),
+    previous_fertilizer_item_id: normalizeWarehouseItemId(entry.previous_fertilizer_item_id || entry.previousFertilizerItemId),
     fertilizer_permission_key: sanitizeText(entry.fertilizer_permission_key || entry.permission_key, 60),
     premium_fertilizer: entry.premium_fertilizer === true,
     fertilizer_effect: sanitizeText(entry.fertilizer_effect || entry.effect, 80),
@@ -14460,6 +14461,7 @@ function normalizeSharedFarmFertilizePayload(payload = {}, auditContext = {}) {
     ...request,
     fertilizer_item_id: fertilizerProfile.item_id,
     fertilizer_profile: fertilizerProfile,
+    replace_existing_fertilizer: payload.replace_existing_fertilizer === true || payload.replaceExistingFertilizer === true,
   };
 }
 
@@ -23627,9 +23629,10 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
   contract.shared_farm_ledger = normalizeFarmActionLedger(contract.shared_farm_ledger);
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const farmAction = request.replace_existing_fertilizer ? 'replace_fertilizer' : 'fertilize';
 
   const previousEntry = contract.shared_farm_ledger.find(entry =>
-    entry.action === 'fertilize'
+    entry.action === farmAction
     && (
       (entry.idempotency_key && entry.idempotency_key === request.idempotency_key)
       || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
@@ -23654,7 +23657,8 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
       ledger_entry: previousEntry,
       warehouse_ledger_entries: previousWarehouseEntries,
       idempotent: true,
-      already_fertilized: previousEntry.status === 'committed',
+      already_fertilized: farmAction === 'fertilize' && previousEntry.status === 'committed',
+      already_replaced_fertilizer: farmAction === 'replace_fertilizer' && previousEntry.status === 'committed',
     };
   }
 
@@ -23665,7 +23669,13 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   assertSharedFarmFertilizeAllowed(contract, member, plot, actorPermissions, request.fertilizer_profile);
   const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
   if (plotState.state === 'wasteland') throw createError('shared farm wasteland plot cannot be fertilized', 409);
-  if (plotState.fertilizer) throw createError('shared farm plot already has fertilizer', 409);
+  const previousFertilizerItemId = normalizeWarehouseItemId(plotState.fertilizer);
+  if (request.replace_existing_fertilizer) {
+    if (!previousFertilizerItemId) throw createError('shared farm plot has no fertilizer to replace', 409);
+    if (previousFertilizerItemId === request.fertilizer_item_id) throw createError('shared farm plot already uses this fertilizer', 409);
+  } else if (previousFertilizerItemId) {
+    throw createError('shared farm plot already has fertilizer', 409);
+  }
 
   const allocationResult = buildWarehouseWithdrawalAllocations(
     contract.shared_warehouse,
@@ -23679,7 +23689,19 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
-  const simultaneousOnlineBonus = buildSharedFarmPlantFertilizeCoopBonusSnapshot(contract, actorUsername, plot);
+  const simultaneousOnlineBonus = request.replace_existing_fertilizer
+    ? {
+        applied: false,
+        action: 'shared_farm_replace_fertilizer',
+        type: '',
+        bonus_value: 0,
+        recent_member_count: 0,
+        recent_member_usernames: [],
+        plant_actor_username: '',
+        plant_ledger_id: '',
+        policy: 'fertilizer replacement does not grant plant-fertilize cooperation bonus',
+      }
+    : buildSharedFarmPlantFertilizeCoopBonusSnapshot(contract, actorUsername, plot);
   const beforeState = { ...plotState };
   const afterState = {
     ...plotState,
@@ -23701,7 +23723,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   };
   const nextPlots = sharedMap.plots.map(entry => entry.id === plot.id ? nextPlot : entry);
   const nextStateCounts = countPlotStates(nextPlots);
-  const warehouseTargetRef = `shared_farm:fertilize:${plot.id}`;
+  const warehouseTargetRef = `shared_farm:${farmAction}:${plot.id}`;
   const warehouseLedgerEntries = allocationResult.allocations.map(allocation => normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
     action: 'consume',
@@ -23736,7 +23758,9 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
     premium_fertilizer: request.fertilizer_profile?.premium === true,
     fertilizer_effect: request.fertilizer_profile?.effect || '',
-    compensation_hint: '共同农田普通施肥已扣减共同仓库基础肥料并写入契约地图；若误用，需要按本 consume ledger 和农田 ledger 走后续回滚或补偿。',
+    compensation_hint: request.replace_existing_fertilizer
+      ? '共同农田替换肥料已扣减共同仓库新肥料并写入契约地图；旧肥料不返还，若误用，需要按本 consume ledger 和农田 ledger 走后续回滚或补偿。'
+      : '共同农田普通施肥已扣减共同仓库基础肥料并写入契约地图；若误用，需要按本 consume ledger 和农田 ledger 走后续回滚或补偿。',
     status: 'committed',
   })).filter(Boolean);
 
@@ -23765,7 +23789,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   };
   const ledgerEntry = normalizeFarmActionLedgerEntry({
     id: makeId('shared_farm_ledger'),
-    action: 'fertilize',
+    action: farmAction,
     plot_id: plot.id,
     source_plot_id: plot.source_plot_id,
     source_area: plot.source_area,
@@ -23775,6 +23799,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     fertilizer_item_id: request.fertilizer_item_id,
+    previous_fertilizer_item_id: previousFertilizerItemId,
     crop_id: plotState.crop_id,
     warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     shared_warehouse_changed: true,
@@ -23805,7 +23830,9 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     operation_id: request.operation_id,
     at: operatedAt,
     reversible: true,
-    compensation_hint: 'contract-map shared farm fertilize consumes one shared-warehouse basic fertilizer; personal saves are unchanged after fertilizer入仓。',
+    compensation_hint: request.replace_existing_fertilizer
+      ? 'contract-map shared farm replace_fertilizer consumes one shared-warehouse fertilizer; the previous plot fertilizer is intentionally not returned and personal saves are unchanged.'
+      : 'contract-map shared farm fertilize consumes one shared-warehouse basic fertilizer; personal saves are unchanged after fertilizer入仓。',
     status: 'committed',
   });
   contract.shared_farm_ledger = [ledgerEntry, ...contract.shared_farm_ledger].slice(0, FARM_ACTION_LEDGER_LIMIT);
@@ -23821,7 +23848,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     ...warehouseLedgerEntries.map(buildWarehouseOriginAsset),
     ...contract.origin_assets.warehouse_items,
   ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
-  appendAudit(contract, 'shared_farm_fertilized', actor, {
+  appendAudit(contract, request.replace_existing_fertilizer ? 'shared_farm_fertilizer_replaced' : 'shared_farm_fertilized', actor, {
     ledger_id: ledgerEntry.id,
     operation_id: request.operation_id,
     warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
@@ -23831,6 +23858,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     origin_owner_username: plot.origin_owner_username,
     actor_username: actorUsername,
     fertilizer_item_id: request.fertilizer_item_id,
+    previous_fertilizer_item_id: previousFertilizerItemId,
     fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
     premium_fertilizer: request.fertilizer_profile?.premium === true,
     fertilizer_effect: request.fertilizer_profile?.effect || '',
@@ -23853,10 +23881,12 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     warehouse_ledger_entries: warehouseLedgerEntries,
     idempotent: false,
     already_fertilized: false,
+    already_replaced_fertilizer: false,
     farm_action: {
-      action: 'fertilize',
+      action: farmAction,
       plot_id: plot.id,
       fertilizer_item_id: request.fertilizer_item_id,
+      previous_fertilizer_item_id: previousFertilizerItemId,
       fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
       premium_fertilizer: request.fertilizer_profile?.premium === true,
       fertilizer_effect: request.fertilizer_profile?.effect || '',
@@ -25902,6 +25932,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       care_action: actionResult.action || ledgerEntry.action || '',
       seed_item_id: actionResult.seed_item_id || ledgerEntry.seed_item_id || normalizeWarehouseItemId(operation.payload?.seed_item_id || operation.payload?.seedItemId || operation.payload?.item_id || operation.payload?.itemId),
       fertilizer_item_id: actionResult.fertilizer_item_id || ledgerEntry.fertilizer_item_id || (action.startsWith('fertilize_shared_farm') ? getOfflineQueueDefaultFertilizerItemId(action) : ''),
+      previous_fertilizer_item_id: actionResult.previous_fertilizer_item_id || ledgerEntry.previous_fertilizer_item_id || '',
       fertilizer_permission_key: actionResult.fertilizer_permission_key || ledgerEntry.fertilizer_permission_key || '',
       premium_fertilizer: actionResult.premium_fertilizer === true || ledgerEntry.premium_fertilizer === true,
       fertilizer_effect: actionResult.fertilizer_effect || ledgerEntry.fertilizer_effect || '',
@@ -25915,6 +25946,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       already_applied: result.already_applied === true,
       already_planted: result.already_planted === true,
       already_fertilized: result.already_fertilized === true,
+      already_replaced_fertilizer: result.already_replaced_fertilizer === true,
       already_harvested: result.already_harvested === true,
       simultaneous_online_bonus: actionResult.simultaneous_online_bonus || ledgerEntry.simultaneous_online_bonus || null,
     };

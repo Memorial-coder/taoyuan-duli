@@ -224,6 +224,7 @@ export interface CohabitationSharedFarmLedgerEntry {
   actor_key?: string
   seed_item_id?: string
   fertilizer_item_id?: string
+  previous_fertilizer_item_id?: string
   fertilizer_permission_key?: string
   premium_fertilizer?: boolean
   fertilizer_effect?: string
@@ -3241,6 +3242,7 @@ export interface CohabitationSharedFarmPlantPayload {
 export interface CohabitationSharedFarmFertilizePayload {
   plot_id: string
   fertilizer_item_id: 'basic_fertilizer' | 'quality_fertilizer' | 'speed_gro' | 'deluxe_speed_gro' | 'quality_retaining_soil' | string
+  replace_existing_fertilizer?: boolean
   memo?: string
   idempotency_key: string
 }
@@ -3492,6 +3494,7 @@ export interface CohabitationSharedFarmActionResponse extends CohabitationDetail
   already_applied?: boolean
   already_planted?: boolean
   already_fertilized?: boolean
+  already_replaced_fertilizer?: boolean
   already_harvested?: boolean
   farm_action?: {
     action: string
@@ -3502,6 +3505,7 @@ export interface CohabitationSharedFarmActionResponse extends CohabitationDetail
     plot_id: string
     seed_item_id?: string
     fertilizer_item_id?: string
+    previous_fertilizer_item_id?: string
     crop_id?: string
     output_item_id?: string
     output_quantity?: number
