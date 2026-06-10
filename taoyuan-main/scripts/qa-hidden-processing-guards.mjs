@@ -126,12 +126,22 @@ assert(ancientWine?.hiddenMeta?.gate?.requiredItemId === 'ancient_fruit', '远�
 const ancientFruitItem = getItemById('ancient_fruit')
 const ancientWineItem = getItemById('ancient_fruit_wine')
 const ancientWineInputQuantity = Math.max(1, ancientWine?.inputQuantity ?? 1)
-const ancientWineMinimumSellPrice = (ancientFruitItem?.sellPrice ?? 0) * ancientWineInputQuantity * 3
+const ancientWineProcessingDays = Math.max(1, ancientWine?.processingDays ?? 1)
+const ancientWineMinimumMultiplier = 3 + Math.max(0, ancientWineProcessingDays - 3) * 0.5
+const ancientWineMinimumSellPrice = Math.floor((ancientFruitItem?.sellPrice ?? 0) * ancientWineInputQuantity * ancientWineMinimumMultiplier)
 assert(!!ancientFruitItem, '缺少远古水果物品定义 ancient_fruit')
 assert(!!ancientWineItem, '缺少远古果酒物品定义 ancient_fruit_wine')
 assert(
   (ancientWineItem?.sellPrice ?? 0) >= ancientWineMinimumSellPrice,
-  `远古果酒售价必须至少覆盖酒坊三倍增值：${ancientWineItem?.sellPrice ?? 0} < ${ancientFruitItem?.sellPrice ?? 0} × ${ancientWineInputQuantity} × 3`
+  `远古果酒售价必须覆盖酒坊基础三倍与慢酿天数溢价：${ancientWineItem?.sellPrice ?? 0} < ${ancientFruitItem?.sellPrice ?? 0} × ${ancientWineInputQuantity} × ${ancientWineMinimumMultiplier}`
+)
+assert(
+  (ancientWineItem?.staminaRestore ?? 0) >= (ancientFruitItem?.staminaRestore ?? 0),
+  `远古果酒体力恢复不能低于远古水果：${ancientWineItem?.staminaRestore ?? 0} < ${ancientFruitItem?.staminaRestore ?? 0}`
+)
+assert(
+  (ancientWineItem?.healthRestore ?? 0) >= (ancientFruitItem?.healthRestore ?? 0),
+  `远古果酒生命恢复不能低于远古水果：${ancientWineItem?.healthRestore ?? 0} < ${ancientFruitItem?.healthRestore ?? 0}`
 )
 
 const ancientProfile = getCropUseProfile('ancient_fruit')
