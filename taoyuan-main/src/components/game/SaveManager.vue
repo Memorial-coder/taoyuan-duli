@@ -1,20 +1,20 @@
 <template>
   <div class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
-    <div class="game-panel w-full max-w-md text-center relative max-h-[80vh] flex flex-col">
+    <div class="game-panel save-manager-panel w-full max-w-md min-w-0 text-center relative max-h-[80vh] flex flex-col">
       <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
         <X :size="14" />
       </button>
       <Divider title class="my-4" :label="props.saveIntent === 'save-return' ? '保存并返回' : props.saveIntent === 'save' ? '保存进度' : '存档管理'" />
-      <div class="flex items-center justify-center space-x-2 mb-3">
-        <Button class="py-1 px-3 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
+      <div class="save-manager-storage-toggle mb-3 grid gap-2">
+        <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
           本地存储
         </Button>
-        <Button class="py-1 px-3 text-xs" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" @click="switchMode('server')">
+        <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" @click="switchMode('server')">
           服务端持久化
         </Button>
       </div>
       <div class="mb-3 space-y-2 text-left">
-        <p v-if="props.saveIntent === 'save' || props.saveIntent === 'save-return'" class="text-[0.6875rem] text-muted leading-5 text-center">
+        <p v-if="props.saveIntent === 'save' || props.saveIntent === 'save-return'" class="break-words text-[0.6875rem] text-muted leading-5 text-center">
           请选择存储方式后再保存。不同方式各有优点，你可以按自己的使用习惯选择。
         </p>
         <div class="grid grid-cols-1 gap-2 text-[0.625rem] text-muted">
@@ -74,7 +74,7 @@
           </Button>
         </div>
       </div>
-      <div class="mb-3 rounded-xs border border-accent/15 bg-accent/5 px-3 py-2 text-left text-[0.625rem] leading-5">
+      <div class="mb-3 rounded-xs border border-accent/15 bg-accent/5 px-3 py-2 text-left text-[0.625rem] leading-5 break-words">
         <p class="text-accent">联机存档身份</p>
         <p class="mt-1 text-muted">{{ saveIdentityHint }}</p>
       </div>
@@ -92,7 +92,7 @@
       </div>
       <div class="mb-3">
         <Button
-          class="text-center justify-center text-sm w-full"
+          class="save-manager-primary-action min-w-0 text-center justify-center text-sm w-full leading-5"
           :icon="Save"
           :icon-size="12"
           :disabled="savingCurrent || saveStore.activeSlot < 0"
@@ -101,36 +101,36 @@
           {{ savingCurrent ? '保存中...' : saveStore.activeSlot >= 0 ? `保存当前进度到存档 ${saveStore.activeSlot + 1}` : '当前没有可保存的活跃存档' }}
         </Button>
       </div>
-      <div class="flex-1 flex flex-col space-y-2 mb-3" @click="menuOpen = null">
+      <div class="flex-1 flex min-h-0 min-w-0 flex-col space-y-2 mb-3" @click="menuOpen = null">
         <div v-for="info in slots" :key="info.slot">
-          <div v-if="info.exists" class="flex space-x-1 w-full">
-            <button v-if="props.allowLoad" class="btn flex-1 !justify-between text-xs" @click="$emit('load', info.slot)">
-              <span class="inline-flex items-center space-x-1">
-                <FolderOpen :size="12" />
-                <span>存档 {{ info.slot + 1 }}</span>
-                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
+          <div v-if="info.exists" class="save-manager-slot-row flex w-full min-w-0 gap-1">
+            <button v-if="props.allowLoad" class="btn save-manager-slot-button min-w-0 flex-1 text-xs" @click="$emit('load', info.slot)">
+              <span class="save-manager-slot-label inline-flex min-w-0 items-center space-x-1">
+                <FolderOpen class="shrink-0" :size="12" />
+                <span class="shrink-0">存档 {{ info.slot + 1 }}</span>
+                <span v-if="info.pendingSync" class="shrink-0 rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
               </span>
-              <span class="text-muted text-xs">
+              <span class="save-manager-slot-meta text-muted text-xs">
                 {{ info.playerName ?? '未命名' }} · 第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{
                   info.day
                 }}天
               </span>
             </button>
-            <div v-else class="btn flex-1 !justify-between text-xs cursor-default">
-              <span class="inline-flex items-center space-x-1">
-                <FolderOpen :size="12" />
-                <span>存档 {{ info.slot + 1 }}</span>
-                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
+            <div v-else class="btn save-manager-slot-button min-w-0 flex-1 text-xs cursor-default">
+              <span class="save-manager-slot-label inline-flex min-w-0 items-center space-x-1">
+                <FolderOpen class="shrink-0" :size="12" />
+                <span class="shrink-0">存档 {{ info.slot + 1 }}</span>
+                <span v-if="info.pendingSync" class="shrink-0 rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
               </span>
-              <span class="text-muted text-xs">
+              <span class="save-manager-slot-meta text-muted text-xs">
                 {{ info.playerName ?? '未命名' }} · 第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{
                   info.day
                 }}天
               </span>
             </div>
-            <div class="relative">
+            <div class="relative shrink-0">
               <Button
-                class="px-2 h-full"
+                class="h-full min-w-10 shrink-0 px-2"
                 :icon="Settings"
                 :icon-size="12"
                 @click.stop="menuOpen = menuOpen === info.slot ? null : info.slot"
@@ -178,18 +178,18 @@
               </div>
             </div>
           </div>
-          <div v-else-if="info.readBlocked" class="flex space-x-1 w-full">
-            <div class="flex-1 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+          <div v-else-if="info.readBlocked" class="flex w-full min-w-0 gap-1">
+            <div class="min-w-0 flex-1 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger break-words">
               存档 {{ info.slot + 1 }} — 状态未知，等待服务端恢复后再确认。
             </div>
           </div>
-          <div v-else class="flex space-x-1 w-full">
-            <div class="text-xs text-muted border border-accent/10 rounded-xs px-3 py-2 flex-1">存档 {{ info.slot + 1 }} — 空</div>
+          <div v-else class="flex w-full min-w-0 gap-1">
+            <div class="min-w-0 flex-1 truncate rounded-xs border border-accent/10 px-3 py-2 text-xs text-muted">存档 {{ info.slot + 1 }} — 空</div>
             <Button
               v-if="webdavReady && saveStore.storageMode === 'local'"
               :icon="CloudDownload"
               :icon-size="12"
-              class="px-2"
+              class="shrink-0 px-2"
               :disabled="downloading"
               @click="handleDownload(info.slot)"
             >
@@ -559,3 +559,66 @@
     }
   )
 </script>
+
+<style scoped>
+  .save-manager-panel {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .save-manager-storage-toggle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .save-manager-storage-button :deep(span),
+  .save-manager-primary-action :deep(span) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .save-manager-slot-row {
+    align-items: stretch;
+  }
+
+  .save-manager-slot-button {
+    justify-content: space-between;
+    gap: 0.5rem;
+    overflow: hidden;
+  }
+
+  .save-manager-slot-button > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0;
+  }
+
+  .save-manager-slot-label {
+    max-width: 50%;
+    overflow: hidden;
+  }
+
+  .save-manager-slot-meta {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 420px) {
+    .save-manager-slot-button {
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0.125rem;
+    }
+
+    .save-manager-slot-label {
+      max-width: 100%;
+    }
+
+    .save-manager-slot-meta {
+      width: 100%;
+      text-align: left;
+    }
+  }
+</style>

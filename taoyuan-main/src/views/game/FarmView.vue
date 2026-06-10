@@ -2815,20 +2815,22 @@
 
   .farm-batch-action__count {
     flex-shrink: 0;
-    color: rgb(var(--color-muted));
+    color: var(--color-accent);
+    font-weight: 600;
   }
 
   .farm-batch-action:disabled {
-    opacity: 1;
+    opacity: 0.52;
+    filter: grayscale(1);
     cursor: not-allowed;
     color: rgb(var(--color-muted));
-    background-color: rgba(var(--color-panel), 0.92);
-    border-color: rgba(200, 164, 92, 0.18);
+    background-color: rgba(var(--color-bg), 0.58);
+    border-color: rgba(107, 114, 128, 0.38);
     -webkit-text-fill-color: rgb(var(--color-muted));
   }
 
   .farm-batch-action:disabled:hover {
-    background-color: rgba(var(--color-panel), 0.92);
+    background-color: rgba(var(--color-bg), 0.58);
     color: rgb(var(--color-muted));
     -webkit-text-fill-color: rgb(var(--color-muted));
   }
@@ -2837,6 +2839,7 @@
   .farm-batch-action:disabled .farm-batch-action__count {
     color: rgb(var(--color-muted));
     opacity: 1;
+    font-weight: 400;
     -webkit-text-fill-color: rgb(var(--color-muted));
   }
 </style>
