@@ -13,6 +13,28 @@
       </div>
     </div>
 
+    <div class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/20" data-testid="guild-level-progress">
+      <div class="flex items-center justify-between gap-3 text-xs">
+        <span class="text-muted shrink-0">升级进度</span>
+        <span class="text-accent text-right">
+          {{ guildLevelProgress.current }}/{{ guildLevelProgress.required }}
+          <span class="text-muted">经验</span>
+        </span>
+      </div>
+      <div class="mt-2 flex items-center gap-2">
+        <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10 overflow-hidden">
+          <div
+            class="h-full bg-accent rounded-xs transition-all"
+            :style="{ width: `${guildLevelProgress.percent}%` }"
+          />
+        </div>
+        <span class="text-[0.625rem] text-accent whitespace-nowrap">{{ guildLevelProgress.percent }}%</span>
+      </div>
+      <p class="mt-1.5 text-[0.625rem] text-muted leading-4">
+        {{ guildLevelProgress.label }}
+      </p>
+    </div>
+
     <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="guild-primary-action-card">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
@@ -717,6 +739,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import {
     MONSTER_GOALS,
+    GUILD_LEVELS,
     GUILD_SHOP_ITEMS,
     GUILD_DONATIONS,
     GUILD_SEASON_CONFIG,
@@ -765,6 +788,35 @@
   const getPhaseLabel = (phase: string) => PHASE_LABELS[phase as keyof typeof PHASE_LABELS] ?? phase
   const getRankBandLabel = (rankBand: string) => RANK_BAND_LABELS[rankBand] ?? rankBand
   const hasActiveSeason = computed(() => Boolean(guildStore.seasonOverview.currentSeasonId))
+  const currentGuildLevelFloorExp = computed(() => {
+    if (guildStore.guildLevel <= 0) return 0
+    return GUILD_LEVELS[guildStore.guildLevel - 1]?.expRequired ?? 0
+  })
+  const nextGuildLevelDef = computed(() => GUILD_LEVELS[guildStore.guildLevel] ?? null)
+  const guildLevelProgress = computed(() => {
+    const nextLevel = nextGuildLevelDef.value
+    const currentExp = Math.max(0, guildStore.guildExp)
+    if (!nextLevel) {
+      return {
+        current: currentExp,
+        required: currentExp,
+        percent: 100,
+        label: '公会等级已达当前最高级。'
+      }
+    }
+
+    const floorExp = currentGuildLevelFloorExp.value
+    const currentSpanExp = Math.max(0, currentExp - floorExp)
+    const requiredSpanExp = Math.max(1, nextLevel.expRequired - floorExp)
+    const percent = Math.min(100, Math.max(0, Math.round((currentSpanExp / requiredSpanExp) * 100)))
+    const remaining = Math.max(0, nextLevel.expRequired - currentExp)
+    return {
+      current: currentExp,
+      required: nextLevel.expRequired,
+      percent,
+      label: remaining > 0 ? `距 Lv.${nextLevel.level} 还差 ${remaining} 经验。` : `可提升到 Lv.${nextLevel.level}。`
+    }
+  })
   const activeSeasonActivities = computed(() => guildStore.featuredSeasonActivities)
   const activeMilestones = computed(() => guildStore.featuredSeasonMilestones)
   const activeRewardPool = computed(() => guildStore.activeRewardPoolOverview)
