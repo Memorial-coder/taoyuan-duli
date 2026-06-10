@@ -55,6 +55,8 @@ const MAX_CAPACITY = 120
 const MAX_STACK = 999
 const TEMP_CAPACITY = 10
 export const MAX_EQUIPMENT_PRESETS = 10
+type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
+type LockableEquipmentEntry = { locked?: boolean }
 
 export const useInventoryStore = defineStore('inventory', () => {
   const playerStore = usePlayerStore()
@@ -136,6 +138,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const cloneOwnedHats = (source: OwnedHat[]) => source.map(hat => ({ ...hat }))
   const cloneOwnedShoes = (source: OwnedShoe[]) => source.map(shoe => ({ ...shoe }))
   const cloneEquipmentPresets = (source: EquipmentPreset[]) => source.map(preset => ({ ...preset }))
+  const readLockedFlag = (entry: { locked?: unknown }): boolean | undefined => entry.locked === true ? true : undefined
   const pushEquipmentMigrationLog = (message: string) => {
     equipmentMigrationLogs.value.push(message)
   }
@@ -275,6 +278,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (index === equippedWeaponIndex.value) return { success: false, message: '不能卖出装备中的武器，请先切换。' }
     if (index < 0 || index >= ownedWeapons.value.length) return { success: false, message: '无效索引。' }
     const weapon = ownedWeapons.value[index]!
+    if (weapon.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const price = getWeaponSellPrice(weapon.defId, weapon.enchantmentId)
     const playerStore = usePlayerStore()
     playerStore.earnMoney(price)
@@ -542,6 +546,20 @@ export const useInventoryStore = defineStore('inventory', () => {
   const toggleLock = (itemId: string, quality: Quality) => {
     const slot = items.value.find(i => i.itemId === itemId && i.quality === quality)
     if (slot) slot.locked = !slot.locked
+  }
+
+  /** 切换装备锁定状态（锁定后禁止出售） */
+  const toggleEquipmentLock = (kind: EquipmentLockTarget, index: number): boolean => {
+    const sources: Record<EquipmentLockTarget, LockableEquipmentEntry[]> = {
+      weapon: ownedWeapons.value,
+      ring: ownedRings.value,
+      hat: ownedHats.value,
+      shoe: ownedShoes.value
+    }
+    const entry = sources[kind][index]
+    if (!entry) return false
+    entry.locked = !entry.locked
+    return true
   }
 
   /** 一键整理背包（按分类→物品ID→品质排序，合并同类栈） */
@@ -844,6 +862,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const sellRing = (index: number): { success: boolean; message: string } => {
     if (index < 0 || index >= ownedRings.value.length) return { success: false, message: '无效索引。' }
     const ring = ownedRings.value[index]!
+    if (ring.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const def = getRingById(ring.defId)
     const price = def?.sellPrice ?? 0
     // 自动卸下
@@ -1053,6 +1072,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const sellHat = (index: number): { success: boolean; message: string } => {
     if (index < 0 || index >= ownedHats.value.length) return { success: false, message: '无效索引。' }
     const hat = ownedHats.value[index]!
+    if (hat.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const def = getHatById(hat.defId)
     const price = def?.sellPrice ?? 0
     // 自动卸下
@@ -1132,6 +1152,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const sellShoe = (index: number): { success: boolean; message: string } => {
     if (index < 0 || index >= ownedShoes.value.length) return { success: false, message: '无效索引。' }
     const shoe = ownedShoes.value[index]!
+    if (shoe.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const def = getShoeById(shoe.defId)
     const price = def?.sellPrice ?? 0
     // 自动卸下
@@ -1458,7 +1479,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         if (rawEnchantmentId && !enchantmentId) {
           pushEquipmentMigrationLog(`清空武器 ${defId} 的无效附魔：${rawEnchantmentId}。`)
         }
-        validWeapons.push({ defId, enchantmentId, rawIndex })
+        validWeapons.push({ defId, enchantmentId, locked: readLockedFlag(rawWeapon), rawIndex })
       })
 
       if (validWeapons.length <= 0) {
@@ -1486,7 +1507,7 @@ export const useInventoryStore = defineStore('inventory', () => {
           pushEquipmentMigrationLog(`移除无效戒指：${defId || `#${rawIndex}`}。`)
           return
         }
-        validRings.push({ defId, rawIndex })
+        validRings.push({ defId, locked: readLockedFlag(entry as { locked?: unknown }), rawIndex })
       })
 
       const remapRingSlot = (slotValue: unknown, label: string) => {
@@ -1515,10 +1536,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       equippedIndexValue: unknown,
       resolveDef: (defId: string) => unknown,
       label: string
-    ): { entries: Array<{ defId: string }>; equippedIndex: number } => {
+    ): { entries: Array<{ defId: string; locked?: boolean }>; equippedIndex: number } => {
       const rawEntries = Array.isArray(value) ? value : []
       const equippedRawIndex = normalizeSlotIndex(equippedIndexValue)
-      const validEntries: Array<{ defId: string; rawIndex: number }> = []
+      const validEntries: Array<{ defId: string; locked?: boolean; rawIndex: number }> = []
       rawEntries.forEach((entry, rawIndex) => {
         if (!entry || typeof entry !== 'object') return
         const defId = typeof (entry as { defId?: unknown }).defId === 'string' ? (entry as { defId: string }).defId : ''
@@ -1526,7 +1547,7 @@ export const useInventoryStore = defineStore('inventory', () => {
           pushEquipmentMigrationLog(`移除无效${label}：${defId || `#${rawIndex}`}。`)
           return
         }
-        validEntries.push({ defId, rawIndex })
+        validEntries.push({ defId, locked: readLockedFlag(entry as { locked?: unknown }), rawIndex })
       })
       const remappedIndex = validEntries.findIndex(entry => entry.rawIndex === equippedRawIndex)
       if (equippedRawIndex >= 0 && remappedIndex < 0) {
@@ -1664,6 +1685,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     discardTempItem,
     sortItems,
     toggleLock,
+    toggleEquipmentLock,
     MAX_EQUIPMENT_PRESETS,
     getTool,
     getToolStaminaMultiplier,

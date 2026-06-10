@@ -62,4 +62,6 @@ export interface RingDef {
 /** 拥有的戒指实例（存储用） */
 export interface OwnedRing {
   defId: string
+  /** 锁定后禁止出售 */
+  locked?: boolean
 }

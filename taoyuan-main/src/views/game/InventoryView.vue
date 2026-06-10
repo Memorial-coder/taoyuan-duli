@@ -134,10 +134,12 @@
             :class="idx === inventoryStore.equippedWeaponIndex ? 'border-accent/30' : 'border-accent/10'"
             @click="activeWeaponIdx = idx"
           >
-            <span class="text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
-              {{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId) }}
+            <span class="flex items-center gap-1 min-w-0 text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
+              <Lock v-if="weapon.locked" :size="11" class="shrink-0 text-accent/70" />
+              <span class="truncate">{{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId) }}</span>
             </span>
             <span v-if="idx === inventoryStore.equippedWeaponIndex" class="text-xs text-accent">装备中</span>
+            <span v-else-if="weapon.locked" class="text-xs text-accent">已锁定</span>
             <span v-else class="text-xs text-muted">{{ getWeaponSellPrice(weapon.defId, weapon.enchantmentId) }}文</span>
           </div>
         </div>
@@ -164,8 +166,9 @@
               @click="activeHatIdx = idx"
             >
               <div class="min-w-0">
-                <span class="text-xs" :class="inventoryStore.equippedHatIndex === idx ? 'text-accent' : ''">
-                  {{ getHatById(hat.defId)?.name ?? hat.defId }}
+                <span class="flex items-center gap-1 min-w-0 text-xs" :class="inventoryStore.equippedHatIndex === idx ? 'text-accent' : ''">
+                  <Lock v-if="hat.locked" :size="11" class="shrink-0 text-accent/70" />
+                  <span class="truncate">{{ getHatById(hat.defId)?.name ?? hat.defId }}</span>
                 </span>
                 <p class="text-[0.625rem] text-muted truncate">{{ getHatById(hat.defId)?.description }}</p>
               </div>
@@ -203,8 +206,9 @@
               @click="activeShoeIdx = idx"
             >
               <div class="min-w-0">
-                <span class="text-xs" :class="inventoryStore.equippedShoeIndex === idx ? 'text-accent' : ''">
-                  {{ getShoeById(shoe.defId)?.name ?? shoe.defId }}
+                <span class="flex items-center gap-1 min-w-0 text-xs" :class="inventoryStore.equippedShoeIndex === idx ? 'text-accent' : ''">
+                  <Lock v-if="shoe.locked" :size="11" class="shrink-0 text-accent/70" />
+                  <span class="truncate">{{ getShoeById(shoe.defId)?.name ?? shoe.defId }}</span>
                 </span>
                 <p class="text-[0.625rem] text-muted truncate">{{ getShoeById(shoe.defId)?.description }}</p>
               </div>
@@ -250,8 +254,9 @@
               @click="activeRingIdx = idx"
             >
               <div class="min-w-0">
-                <span class="text-xs" :class="isRingEquipped(idx) ? 'text-accent' : ''">
-                  {{ getRingById(ring.defId)?.name ?? ring.defId }}
+                <span class="flex items-center gap-1 min-w-0 text-xs" :class="isRingEquipped(idx) ? 'text-accent' : ''">
+                  <Lock v-if="ring.locked" :size="11" class="shrink-0 text-accent/70" />
+                  <span class="truncate">{{ getRingById(ring.defId)?.name ?? ring.defId }}</span>
                 </span>
                 <p class="text-[0.625rem] text-muted truncate">{{ getRingById(ring.defId)?.description }}</p>
               </div>
@@ -693,7 +698,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeWeaponIdx = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">{{ activeWeaponName }}</p>
+          <p class="text-sm text-accent mb-2 flex items-center gap-1">
+            <span class="truncate">{{ activeWeaponName }}</span>
+            <span v-if="activeWeaponLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
+          </p>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeWeaponDef.description }}</p>
           </div>
@@ -720,15 +728,24 @@
             </div>
           </div>
           <div class="flex flex-col space-y-1.5">
+            <Button
+              class="w-full justify-center"
+              :icon="activeWeaponLocked ? LockOpen : Lock"
+              :icon-size="12"
+              @click="handleToggleWeaponLock"
+            >
+              {{ activeWeaponLocked ? '解锁装备' : '锁定装备' }}
+            </Button>
             <Button v-if="activeWeaponIdx !== inventoryStore.equippedWeaponIndex" class="w-full justify-center" @click="handleEquipWeapon">
               装备
             </Button>
             <Button
               v-if="activeWeaponIdx !== inventoryStore.equippedWeaponIndex && inventoryStore.ownedWeapons.length > 1"
               class="w-full justify-center text-danger border-danger/40"
+              :disabled="activeWeaponLocked"
               @click="handleSellWeapon"
             >
-              卖出 · {{ activeWeaponPrice }}文
+              {{ activeWeaponLocked ? '已锁定，不能卖出' : `卖出 · ${activeWeaponPrice}文` }}
             </Button>
             <p v-if="activeWeaponIdx === inventoryStore.equippedWeaponIndex" class="text-[0.625rem] text-muted text-center">
               当前装备中，请先切换其他武器再卖出
@@ -749,7 +766,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeRingIdx = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">{{ activeRingDef.name }}</p>
+          <p class="text-sm text-accent mb-2 flex items-center gap-1">
+            <span class="truncate">{{ activeRingDef.name }}</span>
+            <span v-if="activeRingLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
+          </p>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeRingDef.description }}</p>
           </div>
@@ -764,6 +784,14 @@
             </div>
           </div>
           <div class="flex flex-col space-y-1.5">
+            <Button
+              class="w-full justify-center"
+              :icon="activeRingLocked ? LockOpen : Lock"
+              :icon-size="12"
+              @click="handleToggleRingLock"
+            >
+              {{ activeRingLocked ? '解锁装备' : '锁定装备' }}
+            </Button>
             <div class="flex space-x-1.5">
               <Button
                 class="flex-1 justify-center"
@@ -782,8 +810,8 @@
                 {{ inventoryStore.equippedRingSlot2 === activeRingIdx ? '卸下槽2' : '装备槽2' }}
               </Button>
             </div>
-            <Button class="w-full justify-center text-danger border-danger/40" @click="handleSellRing">
-              卖出 · {{ activeRingDef.sellPrice }}文
+            <Button class="w-full justify-center text-danger border-danger/40" :disabled="activeRingLocked" @click="handleSellRing">
+              {{ activeRingLocked ? '已锁定，不能卖出' : `卖出 · ${activeRingDef.sellPrice}文` }}
             </Button>
           </div>
         </div>
@@ -801,7 +829,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeHatIdx = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">{{ activeHatDef.name }}</p>
+          <p class="text-sm text-accent mb-2 flex items-center gap-1">
+            <span class="truncate">{{ activeHatDef.name }}</span>
+            <span v-if="activeHatLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
+          </p>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeHatDef.description }}</p>
           </div>
@@ -816,11 +847,19 @@
             </div>
           </div>
           <div class="flex flex-col space-y-1.5">
+            <Button
+              class="w-full justify-center"
+              :icon="activeHatLocked ? LockOpen : Lock"
+              :icon-size="12"
+              @click="handleToggleHatLock"
+            >
+              {{ activeHatLocked ? '解锁装备' : '锁定装备' }}
+            </Button>
             <Button class="w-full justify-center" @click="handleToggleHatFromPopup">
               {{ inventoryStore.equippedHatIndex === activeHatIdx ? '卸下' : '装备' }}
             </Button>
-            <Button class="w-full justify-center text-danger border-danger/40" @click="handleSellHat">
-              卖出 · {{ activeHatDef.sellPrice }}文
+            <Button class="w-full justify-center text-danger border-danger/40" :disabled="activeHatLocked" @click="handleSellHat">
+              {{ activeHatLocked ? '已锁定，不能卖出' : `卖出 · ${activeHatDef.sellPrice}文` }}
             </Button>
           </div>
         </div>
@@ -838,7 +877,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeShoeIdx = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">{{ activeShoeDef.name }}</p>
+          <p class="text-sm text-accent mb-2 flex items-center gap-1">
+            <span class="truncate">{{ activeShoeDef.name }}</span>
+            <span v-if="activeShoeLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
+          </p>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeShoeDef.description }}</p>
           </div>
@@ -853,11 +895,19 @@
             </div>
           </div>
           <div class="flex flex-col space-y-1.5">
+            <Button
+              class="w-full justify-center"
+              :icon="activeShoeLocked ? LockOpen : Lock"
+              :icon-size="12"
+              @click="handleToggleShoeLock"
+            >
+              {{ activeShoeLocked ? '解锁装备' : '锁定装备' }}
+            </Button>
             <Button class="w-full justify-center" @click="handleToggleShoeFromPopup">
               {{ inventoryStore.equippedShoeIndex === activeShoeIdx ? '卸下' : '装备' }}
             </Button>
-            <Button class="w-full justify-center text-danger border-danger/40" @click="handleSellShoe">
-              卖出 · {{ activeShoeDef.sellPrice }}文
+            <Button class="w-full justify-center text-danger border-danger/40" :disabled="activeShoeLocked" @click="handleSellShoe">
+              {{ activeShoeLocked ? '已锁定，不能卖出' : `卖出 · ${activeShoeDef.sellPrice}文` }}
             </Button>
           </div>
         </div>
@@ -1247,6 +1297,16 @@
     return getWeaponSellPrice(weapon.defId, weapon.enchantmentId)
   })
 
+  const activeWeaponLocked = computed(() => {
+    if (activeWeaponIdx.value === null) return false
+    return !!inventoryStore.ownedWeapons[activeWeaponIdx.value]?.locked
+  })
+
+  const handleToggleWeaponLock = () => {
+    if (activeWeaponIdx.value === null) return
+    inventoryStore.toggleEquipmentLock('weapon', activeWeaponIdx.value)
+  }
+
   const handleEquipWeapon = () => {
     if (activeWeaponIdx.value === null) return
     inventoryStore.equipWeapon(activeWeaponIdx.value)
@@ -1257,7 +1317,7 @@
     if (activeWeaponIdx.value === null) return
     const result = inventoryStore.sellWeapon(activeWeaponIdx.value)
     addLog(result.message)
-    activeWeaponIdx.value = null
+    if (result.success) activeWeaponIdx.value = null
   }
 
   // === 戒指弹窗 ===
@@ -1270,6 +1330,16 @@
     if (!ring) return null
     return getRingById(ring.defId) ?? null
   })
+
+  const activeRingLocked = computed(() => {
+    if (activeRingIdx.value === null) return false
+    return !!inventoryStore.ownedRings[activeRingIdx.value]?.locked
+  })
+
+  const handleToggleRingLock = () => {
+    if (activeRingIdx.value === null) return
+    inventoryStore.toggleEquipmentLock('ring', activeRingIdx.value)
+  }
 
   const handleEquipRingFromPopup = (slot: 0 | 1) => {
     if (activeRingIdx.value === null) return
@@ -1286,7 +1356,7 @@
     if (activeRingIdx.value === null) return
     const result = inventoryStore.sellRing(activeRingIdx.value)
     addLog(result.message)
-    activeRingIdx.value = null
+    if (result.success) activeRingIdx.value = null
   }
 
   // === 帽子辅助 ===
@@ -1317,6 +1387,16 @@
     return getHatById(hat.defId) ?? null
   })
 
+  const activeHatLocked = computed(() => {
+    if (activeHatIdx.value === null) return false
+    return !!inventoryStore.ownedHats[activeHatIdx.value]?.locked
+  })
+
+  const handleToggleHatLock = () => {
+    if (activeHatIdx.value === null) return
+    inventoryStore.toggleEquipmentLock('hat', activeHatIdx.value)
+  }
+
   const handleToggleHatFromPopup = () => {
     if (activeHatIdx.value === null) return
     handleToggleHat(activeHatIdx.value)
@@ -1326,7 +1406,7 @@
     if (activeHatIdx.value === null) return
     const result = inventoryStore.sellHat(activeHatIdx.value)
     addLog(result.message)
-    activeHatIdx.value = null
+    if (result.success) activeHatIdx.value = null
   }
 
   // === 鞋子辅助 ===
@@ -1357,6 +1437,16 @@
     return getShoeById(shoe.defId) ?? null
   })
 
+  const activeShoeLocked = computed(() => {
+    if (activeShoeIdx.value === null) return false
+    return !!inventoryStore.ownedShoes[activeShoeIdx.value]?.locked
+  })
+
+  const handleToggleShoeLock = () => {
+    if (activeShoeIdx.value === null) return
+    inventoryStore.toggleEquipmentLock('shoe', activeShoeIdx.value)
+  }
+
   const handleToggleShoeFromPopup = () => {
     if (activeShoeIdx.value === null) return
     handleToggleShoe(activeShoeIdx.value)
@@ -1366,7 +1456,7 @@
     if (activeShoeIdx.value === null) return
     const result = inventoryStore.sellShoe(activeShoeIdx.value)
     addLog(result.message)
-    activeShoeIdx.value = null
+    if (result.success) activeShoeIdx.value = null
   }
 
   // === 临时背包 ===

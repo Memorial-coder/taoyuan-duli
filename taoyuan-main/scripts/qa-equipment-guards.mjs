@@ -299,6 +299,56 @@ const freshInventoryStore = () => {
   assert(inventoryStore.getEquippedWeapon().defId === 'copper_sword', 'Missing preset weapon should fall back to an existing weapon.')
 }
 
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedWeapons = [
+    { defId: 'wooden_stick', enchantmentId: null },
+    { defId: 'copper_sword', enchantmentId: null, locked: true }
+  ]
+  inventoryStore.equippedWeaponIndex = 0
+  inventoryStore.ownedRings = [{ defId: 'miners_ring', locked: true }]
+  inventoryStore.ownedHats = [{ defId: 'miner_helmet', locked: true }]
+  inventoryStore.ownedShoes = [{ defId: 'miner_boots', locked: true }]
+
+  const lockedWeaponSell = inventoryStore.sellWeapon(1)
+  const lockedRingSell = inventoryStore.sellRing(0)
+  const lockedHatSell = inventoryStore.sellHat(0)
+  const lockedShoeSell = inventoryStore.sellShoe(0)
+  assert(lockedWeaponSell.success === false && lockedWeaponSell.message.includes('锁定'), '锁定武器不得卖出。')
+  assert(lockedRingSell.success === false && lockedRingSell.message.includes('锁定'), '锁定戒指不得卖出。')
+  assert(lockedHatSell.success === false && lockedHatSell.message.includes('锁定'), '锁定帽子不得卖出。')
+  assert(lockedShoeSell.success === false && lockedShoeSell.message.includes('锁定'), '锁定鞋子不得卖出。')
+  assert(inventoryStore.ownedWeapons.length === 2, '锁定武器卖出失败时不得从列表移除。')
+  assert(inventoryStore.ownedRings.length === 1, '锁定戒指卖出失败时不得从列表移除。')
+  assert(inventoryStore.ownedHats.length === 1, '锁定帽子卖出失败时不得从列表移除。')
+  assert(inventoryStore.ownedShoes.length === 1, '锁定鞋子卖出失败时不得从列表移除。')
+
+  assert(inventoryStore.toggleEquipmentLock('weapon', 1), '武器锁定开关应返回成功。')
+  assert(inventoryStore.toggleEquipmentLock('ring', 0), '戒指锁定开关应返回成功。')
+  assert(inventoryStore.toggleEquipmentLock('hat', 0), '帽子锁定开关应返回成功。')
+  assert(inventoryStore.toggleEquipmentLock('shoe', 0), '鞋子锁定开关应返回成功。')
+  assert(inventoryStore.sellWeapon(1).success === true, '武器解锁后应允许卖出。')
+  assert(inventoryStore.sellRing(0).success === true, '戒指解锁后应允许卖出。')
+  assert(inventoryStore.sellHat(0).success === true, '帽子解锁后应允许卖出。')
+  assert(inventoryStore.sellShoe(0).success === true, '鞋子解锁后应允许卖出。')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedWeapons = [{ defId: 'wooden_stick', enchantmentId: null, locked: true }]
+  inventoryStore.ownedRings = [{ defId: 'miners_ring', locked: true }]
+  inventoryStore.ownedHats = [{ defId: 'miner_helmet', locked: true }]
+  inventoryStore.ownedShoes = [{ defId: 'miner_boots', locked: true }]
+  const save = inventoryStore.serialize()
+
+  const restoredStore = freshInventoryStore()
+  restoredStore.deserialize(save)
+  assert(restoredStore.ownedWeapons[0]?.locked === true, '武器锁定状态应随存档保留。')
+  assert(restoredStore.ownedRings[0]?.locked === true, '戒指锁定状态应随存档保留。')
+  assert(restoredStore.ownedHats[0]?.locked === true, '帽子锁定状态应随存档保留。')
+  assert(restoredStore.ownedShoes[0]?.locked === true, '鞋子锁定状态应随存档保留。')
+}
+
 if (errors.length > 0) {
   console.error('Equipment guard failed:')
   for (const error of errors) {

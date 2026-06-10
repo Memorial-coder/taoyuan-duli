@@ -130,6 +130,8 @@ export interface EnchantmentDef {
 export interface OwnedWeapon {
   defId: string
   enchantmentId: string | null
+  /** 锁定后禁止出售 */
+  locked?: boolean
 }
 
 /** 箱子阶梯 */
