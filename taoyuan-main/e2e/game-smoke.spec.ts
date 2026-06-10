@@ -6563,6 +6563,8 @@ test.describe('web game smoke', () => {
     expect(prepared).toBeTruthy()
 
     await expect(page.getByTestId(`random-npc-visitor-${prepared!.visitorId}`)).toContainText(prepared!.visitorName)
+    await page.getByTestId(`random-npc-card-open-visitor-${prepared!.visitorId}`).click()
+    await expect(page.getByTestId('random-npc-detail-sheet')).toBeVisible()
     await page.getByTestId(`random-npc-choice-${prepared!.visitorId}-${prepared!.choiceId}`).click()
 
     await expect(page.getByTestId(`random-npc-last-event-${prepared!.visitorId}`)).toContainText(prepared!.expectedResponse)

@@ -279,7 +279,7 @@
             class="border border-accent/10 rounded-xs p-2 bg-bg/10"
             :data-testid="`random-npc-visitor-${visitor.id}`"
           >
-            <div class="flex items-start justify-between gap-2">
+            <div class="flex items-start gap-2">
               <NpcPortrait
                 class="shrink-0"
                 :id="visitor.id"
@@ -290,183 +290,43 @@
                 size="sm"
               />
               <div class="min-w-0 flex-1">
-                <p class="text-xs text-accent">
-                  {{ visitor.name }}
-                  <span class="text-[0.625rem] text-muted ml-1">{{ visitor.occupation }}</span>
-                </p>
-                <p class="text-[0.625rem] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
-              </div>
-              <span class="text-[0.625rem]" :class="visitor.locked ? 'text-warning' : visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
-                {{ visitor.locked ? '锁定 · ' : '' }}{{ getRandomNpcVisitTierLabel(visitor.tier) }}
-              </span>
-            </div>
-            <div class="flex flex-wrap gap-1 mt-1">
-              <span
-                v-for="tag in visitor.personalityTags"
-                :key="`${visitor.id}-${tag}`"
-                class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
-              >
-                {{ tag }}
-              </span>
-              <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ visitor.plotHook }}</span>
-            </div>
-            <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ visitor.dialogueOpening }}</p>
-            <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[0.625rem]">
-              <p class="text-muted">人物卡</p>
-              <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ visitor.appearanceKeywords.join('、') }}</p>
-              <p class="text-muted leading-4 mt-0.5">来村目的：{{ visitor.villagePurpose }}</p>
-                <p class="text-muted leading-4 mt-0.5">恋爱观：{{ visitor.romanceView }}</p>
-                <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(visitor.developmentRoutes) }}</p>
-                <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(visitor.dialogueScenes) }}</p>
-                <p class="text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(visitor.preferences.bindings) }}</p>
-            </div>
-            <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
-              <div class="border border-accent/10 rounded-xs px-1.5 py-1">
-                <span class="text-muted/60">好感</span>
-                <p class="text-accent mt-0.5">{{ visitor.affinity }}/100</p>
-              </div>
-              <div class="border border-accent/10 rounded-xs px-1.5 py-1">
-                <span class="text-muted/60">忌讳</span>
-                <p class="text-muted mt-0.5">{{ visitor.taboo }}</p>
-              </div>
-            </div>
-            <div class="border border-accent/10 rounded-xs p-2 mt-2">
-              <p class="text-[0.625rem] text-muted">关系方向</p>
-              <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(visitor.relationshipSignals) }}</p>
-              <div v-if="getRecentRandomNpcDialogueMemories(visitor.dialogueMemories).length > 0" class="mt-1 space-y-1">
-                <div
-                  v-for="memory in getRecentRandomNpcDialogueMemories(visitor.dialogueMemories)"
-                  :key="memory.id"
-                  class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  :data-testid="`random-npc-dialogue-memory-${visitor.id}-${memory.choiceId}`"
-                >
-                  <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
-                  <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
-                  <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
-                </div>
-              </div>
-            </div>
-            <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${visitor.id}`">
-              <p class="text-[0.625rem] text-muted">自然成长</p>
-              <div class="mt-1 space-y-1">
-                <div
-                  v-for="beat in getRandomNpcVisitorGrowthPreview(visitor)"
-                  :key="`${visitor.id}-${beat.id}`"
-                  class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
-                    <span class="text-muted">{{ beat.progressLabel }}</span>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-xs text-accent truncate">
+                      {{ visitor.name }}
+                      <span class="text-[0.625rem] text-muted ml-1">{{ visitor.occupation }}</span>
+                    </p>
+                    <p class="text-[0.625rem] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
                   </div>
-                  <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
-                  <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                  <span class="text-[0.625rem] shrink-0" :class="visitor.locked ? 'text-warning' : visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
+                    {{ visitor.locked ? '锁定 · ' : '' }}{{ getRandomNpcVisitTierLabel(visitor.tier) }}
+                  </span>
                 </div>
-              </div>
-            </div>
-            <div class="border border-accent/10 rounded-xs p-2 mt-2">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-[0.625rem] text-muted">短线恋爱</p>
-                <span class="text-[0.625rem] text-accent">{{ getRandomNpcShortRomanceStatusText(visitor.shortRomance) }}</span>
-              </div>
-              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ visitor.shortRomance.note }}</p>
-              <div v-if="getRecentRandomNpcShortRomanceHistory(visitor.shortRomance).length > 0" class="mt-1 space-y-1">
-                <p
-                  v-for="event in getRecentRandomNpcShortRomanceHistory(visitor.shortRomance)"
-                  :key="event.id"
-                  class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                >
-                  {{ event.dayTag }} · {{ event.summary }}
+                <div class="flex flex-wrap gap-1 mt-1">
+                  <span
+                    v-for="tag in visitor.personalityTags"
+                    :key="`${visitor.id}-${tag}`"
+                    class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                  >
+                    {{ tag }}
+                  </span>
+                  <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ visitor.plotHook }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1 line-clamp-2">{{ visitor.dialogueOpening }}</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-1 truncate">{{ getRandomNpcRelationshipSignalText(visitor.relationshipSignals) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1" :data-testid="`random-npc-last-event-${visitor.id}`">
+                  {{ getLastRandomNpcEvent(visitor) }}
                 </p>
-              </div>
-              <div class="grid grid-cols-2 gap-1 mt-2">
-                <Button
-                  class="justify-center !px-2 !py-1"
-                  :disabled="!canStartRandomNpcShortRomance(visitor.id).success"
-                  :data-testid="`random-npc-short-romance-${visitor.id}`"
-                  @click="handleStartRandomNpcShortRomance(visitor.id)"
-                >
-                  暧昧邀约
-                </Button>
-                <Button
-                  class="justify-center !px-2 !py-1"
-                  :disabled="visitor.shortRomance.status !== 'invited'"
-                  @click="handleEndRandomNpcShortRomance(visitor.id)"
-                >
-                  收束
-                </Button>
-              </div>
-            </div>
-            <div class="border border-accent/10 rounded-xs p-2 mt-2">
-              <p class="text-[0.625rem] text-muted">小订单：{{ visitor.smallOrder.title }}</p>
-              <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ visitor.smallOrder.summary }}</p>
-              <div class="flex flex-wrap gap-1 mt-1">
-                <span
-                  v-for="item in visitor.smallOrder.requestedItems"
-                  :key="`${visitor.id}-${item.itemId}`"
-                  class="text-[0.625rem] border border-accent/15 rounded-xs px-1 py-0.5"
-                >
-                  {{ getItemById(item.itemId)?.name ?? item.itemId }}×{{ item.quantity }}
-                </span>
-              </div>
-              <p class="text-[0.625rem] text-success/80 mt-1">{{ visitor.smallOrder.rewardSummary }}</p>
-              <p class="text-[0.625rem] text-muted mt-1">
-                {{ getRandomNpcSmallOrderProgressText(visitor.smallOrder) }}
-              </p>
-              <Button
-                class="w-full justify-center !px-2 !py-1 mt-2"
-                :icon="Package"
-                :disabled="visitor.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(visitor.smallOrder)"
-                :data-testid="`random-npc-small-order-${visitor.id}`"
-                @click="handleFulfillRandomNpcSmallOrder(visitor.id)"
-              >
-                {{ visitor.smallOrderCompleted ? '已交付' : '交付小订单' }}
-              </Button>
-            </div>
-            <div class="mt-2 space-y-1">
-              <Button
-                v-for="choice in visitor.dialogueChoices"
-                :key="`${visitor.id}-${choice.id}`"
-                class="w-full justify-start !px-2 !py-1 text-left"
-                :icon="MessageCircle"
-                :disabled="visitor.talkedToday"
-                :data-testid="`random-npc-choice-${visitor.id}-${choice.id}`"
-                @click="handleRandomVisitorTalk(visitor.id, choice.id)"
-              >
-                {{ choice.text }}
-              </Button>
-            </div>
-            <div class="flex items-center justify-between gap-2 mt-2">
-              <p class="text-[0.625rem] text-muted leading-4" :data-testid="`random-npc-last-event-${visitor.id}`">
-                {{ getLastRandomNpcEvent(visitor) }}
-              </p>
-              <div class="flex shrink-0 items-center gap-1">
-                <Button
-                  class="justify-center !px-2 !py-1"
-                  :icon="Star"
-                  :class="{ '!bg-warning !text-bg': visitor.locked }"
-                  :disabled="!visitor.locked && !canLockMoreRandomNpc(visitor.id)"
-                  :data-testid="`random-npc-lock-${visitor.id}`"
-                  @click="handleToggleRandomNpcLock(visitor.id, !visitor.locked)"
-                >
-                  {{ visitor.locked ? '已锁定' : '锁定' }}
-                </Button>
-                <Button
-                  class="justify-center !px-2 !py-1"
-                  :class="{ '!bg-accent !text-bg': visitor.affinity >= randomNpcAcquaintanceThreshold }"
-                  :disabled="visitor.affinity < randomNpcAcquaintanceThreshold || visitor.tier !== 'short_visit'"
-                  @click="handleAddRandomVisitorToAcquaintance(visitor.id)"
-                >
-                  {{ visitor.tier === 'short_visit' ? '记入熟人册' : '已记录' }}
-                </Button>
-                <Button
-                  v-if="visitor.tier === 'acquaintance'"
-                  class="justify-center !px-2 !py-1"
-                  :class="{ '!bg-success !text-bg': visitor.affinity >= randomNpcLongStayThreshold }"
-                  :disabled="visitor.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(visitor.id)"
-                  @click="handlePromoteRandomNpcToLongStay(visitor.id)"
-                >
-                  {{ isRandomNpcLongStay(visitor.id) ? '已长住' : '邀长住' }}
-                </Button>
+                <div class="flex items-center justify-end mt-2">
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :icon="PanelRightOpen"
+                    :data-testid="`random-npc-card-open-visitor-${visitor.id}`"
+                    @click="openRandomNpcDetail('visitor', visitor.id, 'story')"
+                  >
+                    详情
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -482,7 +342,7 @@
               :key="acquaintance.visitorId"
               class="border border-success/15 rounded-xs p-2 bg-bg/10"
             >
-              <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start gap-2">
                 <NpcPortrait
                   class="shrink-0"
                   :id="acquaintance.visitorId"
@@ -493,137 +353,51 @@
                   size="sm"
                 />
                 <div class="min-w-0 flex-1">
-                  <p class="text-xs text-accent">
-                    {{ acquaintance.name }}
-                    <span class="text-[0.625rem] text-muted ml-1">{{ acquaintance.occupation }}</span>
-                  </p>
-                  <p class="text-[0.625rem] text-muted mt-0.5 truncate">
-                    {{ acquaintance.origin }} · {{ getRandomNpcAgeBandLabel(acquaintance.ageBand) }} · {{ getRandomNpcRelationshipLabel(acquaintance.relationshipTag) }}
-                  </p>
-                </div>
-                <span class="text-[0.625rem] text-success whitespace-nowrap">好感 {{ acquaintance.affinity }}</span>
-              </div>
-              <div class="flex flex-wrap gap-1 mt-1">
-                <span
-                  v-for="tag in acquaintance.personalityTags"
-                  :key="`${acquaintance.visitorId}-${tag}`"
-                  class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
-                >
-                  {{ tag }}
-                </span>
-                <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ acquaintance.plotHook }}</span>
-              </div>
-              <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
-                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
-                  <span class="text-muted/60">初见</span>
-                  <p class="text-muted mt-0.5">{{ acquaintance.firstMetDayTag || acquaintance.firstMetWeekId }}</p>
-                </div>
-                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
-                  <span class="text-muted/60">最近</span>
-                  <p class="text-muted mt-0.5">{{ acquaintance.lastSeenDayTag || '本周' }}</p>
-                </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[0.625rem] text-muted">文游关键记录</p>
-                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(acquaintance.relationshipSignals) }}</p>
-                <div v-if="getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories).length > 0" class="mt-1 space-y-1">
-                  <div
-                    v-for="memory in getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories)"
-                    :key="memory.id"
-                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }}</p>
-                    <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
-                    <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
-                  </div>
-                </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[0.625rem] text-muted">短线恋爱</p>
-                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcShortRomanceStatusText(acquaintance.shortRomance) }}</span>
-                </div>
-                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ acquaintance.shortRomance.note }}</p>
-                <div v-if="getRecentRandomNpcShortRomanceHistory(acquaintance.shortRomance).length > 0" class="mt-1 space-y-1">
-                  <p
-                    v-for="event in getRecentRandomNpcShortRomanceHistory(acquaintance.shortRomance)"
-                    :key="event.id"
-                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    {{ event.dayTag }} · {{ event.summary }}
-                  </p>
-                </div>
-                <div class="grid grid-cols-2 gap-1 mt-2">
-                  <Button
-                    class="justify-center !px-2 !py-1"
-                    :disabled="!canStartRandomNpcShortRomance(acquaintance.visitorId).success"
-                    :data-testid="`random-npc-acquaintance-short-romance-${acquaintance.visitorId}`"
-                    @click="handleStartRandomNpcShortRomance(acquaintance.visitorId)"
-                  >
-                    暧昧邀约
-                  </Button>
-                  <Button
-                    class="justify-center !px-2 !py-1"
-                    :disabled="acquaintance.shortRomance.status !== 'invited'"
-                    @click="handleEndRandomNpcShortRomance(acquaintance.visitorId)"
-                  >
-                    收束
-                  </Button>
-                </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${acquaintance.visitorId}`">
-                <p class="text-[0.625rem] text-muted">自然成长</p>
-                <div class="mt-1 space-y-1">
-                  <div
-                    v-for="beat in getRandomNpcAcquaintanceGrowthPreview(acquaintance)"
-                    :key="`${acquaintance.visitorId}-${beat.id}`"
-                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    <div class="flex items-center justify-between gap-2">
-                      <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
-                      <span class="text-muted">{{ beat.progressLabel }}</span>
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent truncate">
+                        {{ acquaintance.name }}
+                        <span class="text-[0.625rem] text-muted ml-1">{{ acquaintance.occupation }}</span>
+                      </p>
+                      <p class="text-[0.625rem] text-muted mt-0.5 truncate">
+                        {{ acquaintance.origin }} · {{ getRandomNpcAgeBandLabel(acquaintance.ageBand) }} · {{ getRandomNpcRelationshipLabel(acquaintance.relationshipTag) }}
+                      </p>
                     </div>
-                    <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
-                    <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                    <span class="text-[0.625rem] text-success shrink-0">好感 {{ acquaintance.affinity }}</span>
+                  </div>
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    <span
+                      v-for="tag in acquaintance.personalityTags"
+                      :key="`${acquaintance.visitorId}-${tag}`"
+                      class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                    >
+                      {{ tag }}
+                    </span>
+                    <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ acquaintance.plotHook }}</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
+                    <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                      <span class="text-muted/60">初见</span>
+                      <p class="text-muted mt-0.5 truncate">{{ acquaintance.firstMetDayTag || acquaintance.firstMetWeekId }}</p>
+                    </div>
+                    <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                      <span class="text-muted/60">最近</span>
+                      <p class="text-muted mt-0.5 truncate">{{ acquaintance.lastSeenDayTag || '本周' }}</p>
+                    </div>
+                  </div>
+                  <p class="text-[0.625rem] text-accent/90 leading-4 mt-1 truncate">{{ getRandomNpcRelationshipSignalText(acquaintance.relationshipSignals) }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1 line-clamp-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
+                  <div class="flex items-center justify-end mt-2">
+                    <Button
+                      class="justify-center !px-2 !py-1"
+                      :icon="PanelRightOpen"
+                      :data-testid="`random-npc-card-open-acquaintance-${acquaintance.visitorId}`"
+                      @click="openRandomNpcDetail('acquaintance', acquaintance.visitorId, 'story')"
+                    >
+                      详情
+                    </Button>
                   </div>
                 </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[0.625rem] text-muted">人物卡</p>
-                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">外貌：{{ acquaintance.appearanceKeywords.join('、') }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">来村目的：{{ acquaintance.villagePurpose }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">恋爱观：{{ acquaintance.romanceView }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(acquaintance.developmentRoutes) }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(acquaintance.dialogueScenes) }}</p>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[0.625rem] text-muted">偏好</p>
-                  <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">
-                    最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
-                  </p>
-                  <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(acquaintance.preferences.bindings) }}</p>
-                  <p class="text-[0.625rem] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
-              </div>
-              <p class="text-[0.625rem] text-muted leading-4 mt-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
-              <div class="flex items-center justify-between gap-2 mt-1">
-                <p class="text-[0.625rem] text-success/80 min-w-0">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
-                <Button
-                  class="shrink-0 justify-center !px-2 !py-1"
-                  :icon="Package"
-                  :disabled="acquaintance.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(acquaintance.smallOrder)"
-                  :data-testid="`random-npc-acquaintance-small-order-${acquaintance.visitorId}`"
-                  @click="handleFulfillRandomNpcSmallOrder(acquaintance.visitorId)"
-                >
-                  {{ acquaintance.smallOrderCompleted ? '已交付' : '交付' }}
-                </Button>
-                <Button
-                  class="shrink-0 justify-center !px-2 !py-1"
-                  :class="{ '!bg-success !text-bg': acquaintance.affinity >= randomNpcLongStayThreshold }"
-                  :disabled="acquaintance.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(acquaintance.visitorId)"
-                  @click="handlePromoteRandomNpcToLongStay(acquaintance.visitorId)"
-                >
-                  {{ isRandomNpcLongStay(acquaintance.visitorId) ? '已长住' : '邀为长住' }}
-                </Button>
               </div>
             </div>
           </div>
@@ -639,7 +413,7 @@
               :key="resident.residentId"
               class="border border-accent/15 rounded-xs p-2 bg-bg/10"
             >
-              <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start gap-2">
                 <NpcPortrait
                   class="shrink-0"
                   :id="resident.residentId"
@@ -650,351 +424,41 @@
                   size="sm"
                 />
                 <div class="min-w-0 flex-1">
-                  <p class="text-xs text-accent">
-                    {{ resident.name }}
-                    <span class="text-[0.625rem] text-muted ml-1">{{ resident.occupation }}</span>
-                  </p>
-                  <p class="text-[0.625rem] text-muted mt-0.5 truncate">
-                    {{ getRandomNpcLongStayRouteLabel(resident.route) }} · {{ resident.origin }} · {{ getRandomNpcRelationshipLabel(resident.relationshipTag) }} · {{ resident.plotHook }}
-                  </p>
-                </div>
-                <span class="text-[0.625rem] text-success whitespace-nowrap">阶段 {{ resident.relationshipEventStage }}/3</span>
-              </div>
-              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ resident.residenceReason }}</p>
-              <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
-                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
-                  <span class="text-muted/60">目标</span>
-                  <p class="text-accent mt-0.5">{{ resident.lifeGoal }}</p>
-                </div>
-                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
-                  <span class="text-muted/60">忌讳</span>
-                  <p class="text-muted mt-0.5">{{ resident.taboo }}</p>
-                </div>
-              </div>
-              <p class="text-[0.625rem] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
-              <p class="text-[0.625rem] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[0.625rem] text-muted">人物卡</p>
-                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">外貌：{{ resident.appearanceKeywords.join('、') }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">来村目的：{{ resident.villagePurpose }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">恋爱观：{{ resident.romanceView }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(resident.developmentRoutes) }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(resident.dialogueScenes) }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(resident.preferences.bindings) }}</p>
-              </div>
-              <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[0.625rem] text-muted">家族节点</p>
-                  <span class="text-[0.625rem] text-accent">本地 {{ resident.familyTies.length }}/4</span>
-                </div>
-                <div class="mt-1 space-y-1">
-                  <div
-                    v-for="tie in resident.familyTies"
-                    :key="`${resident.residentId}-${tie.id}`"
-                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    <p class="text-accent">{{ getRandomNpcFamilyTieKindLabel(tie.kind) }} · {{ tie.relation }} · {{ tie.name }}</p>
-                    <p class="text-muted leading-4">{{ tie.summary }}（{{ getRandomNpcFamilyTieAttitudeLabel(tie.attitude) }}）</p>
-                  </div>
-                </div>
-              </div>
-              <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[0.625rem] text-muted">见家人与家族评价</p>
-                  <span class="text-[0.625rem] text-accent">评价 {{ resident.familyLine.reputation }}/100</span>
-                </div>
-                <p class="text-[0.625rem] text-accent/90 leading-4 mt-1">{{ resident.familyLine.lastReview }}</p>
-                <div class="grid grid-cols-2 gap-1 mt-2">
-                  <Button
-                    v-for="tie in resident.familyTies"
-                    :key="`${resident.residentId}-${tie.id}-meeting`"
-                    class="justify-center !px-2 !py-1"
-                    :disabled="!canMeetRandomNpcFamilyTie(resident, tie.id).success"
-                    @click="handleMeetRandomNpcFamilyTie(resident.residentId, tie.id)"
-                  >
-                    {{ getRandomNpcFamilyMeetingButtonText(resident, tie.id, tie.relation) }}
-                  </Button>
-                </div>
-                <p class="text-[0.625rem] text-muted leading-4 mt-1">
-                  每个家族节点最多推进 3 轮见面；同一节点每日只推进 1 轮，记录仍保留在本地随机 NPC 存档。
-                </p>
-                <div v-if="getSpecialFamilyTies(resident).length > 0" class="border-t border-accent/10 mt-2 pt-2">
-                  <p class="text-[0.625rem] text-accent">核心家族深线</p>
-                  <div class="grid grid-cols-1 gap-1 mt-1">
-                    <Button
-                      v-for="tie in getSpecialFamilyTies(resident)"
-                      :key="`${resident.residentId}-${tie.id}-special`"
-                      class="justify-center !px-2 !py-1"
-                      :disabled="!canProgressRandomNpcFamilySpecialEvent(resident, tie.id).success"
-                      :data-testid="`random-npc-family-special-${resident.residentId}-${tie.id}`"
-                      @click="handleProgressRandomNpcFamilySpecialEvent(resident.residentId, tie.id)"
-                    >
-                      {{ getRandomNpcFamilySpecialButtonText(resident, tie.id, tie.relation) }}
-                    </Button>
-                  </div>
-                  <div v-if="getRecentRandomNpcFamilySpecialEvents(resident).length > 0" class="mt-1 space-y-1">
-                    <p
-                      v-for="event in getRecentRandomNpcFamilySpecialEvents(resident)"
-                      :key="event.id"
-                      class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                    >
-                      {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}<span v-if="event.rewardSummary">（{{ event.rewardSummary }}）</span>
-                    </p>
-                  </div>
-                  <p class="text-[0.625rem] text-muted leading-4 mt-1">
-                    核心家族节点各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
-                  </p>
-                </div>
-                <div v-if="getRandomNpcFamilyCommission(resident)" class="border-t border-accent/10 mt-2 pt-2">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-[0.625rem] text-accent">{{ getRandomNpcFamilyCommission(resident)?.title }}</p>
-                    <span class="text-[0.625rem]" :class="isRandomNpcFamilyCommissionCompleted(resident) ? 'text-success' : 'text-muted'">
-                      {{ isRandomNpcFamilyCommissionCompleted(resident) ? '已评价' : '待交付' }}
-                    </span>
-                  </div>
-                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcFamilyCommission(resident)?.summary }}</p>
-                  <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcFamilyCommissionProgressText(resident) }}</p>
-                  <Button
-                    class="w-full justify-center !px-2 !py-1 mt-2"
-                    :icon="Package"
-                    :disabled="!canFulfillRandomNpcFamilyCommission(resident)"
-                    :data-testid="`random-npc-family-commission-${resident.residentId}`"
-                    @click="handleFulfillRandomNpcFamilyCommission(resident.residentId)"
-                  >
-                    {{ getRandomNpcFamilyCommissionButtonText(resident) }}
-                  </Button>
-                </div>
-                <div
-                  v-if="resident.relationshipLine.commitmentStatus === 'married'"
-                  class="border-t border-accent/10 mt-2 pt-2"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-[0.625rem] text-accent">婚后家业线</p>
-                    <span class="text-[0.625rem] text-muted">阶段 {{ resident.familyLine.familyBusinessStage }}/3</span>
-                  </div>
-                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ resident.familyLine.familyBusinessNote }}</p>
-                  <Button
-                    class="w-full justify-center !px-2 !py-1 mt-2"
-                    :disabled="!canDevelopRandomNpcFamilyBusiness(resident).success"
-                    @click="handleDevelopRandomNpcFamilyBusiness(resident.residentId)"
-                  >
-                    推进婚后家业
-                  </Button>
-                  <div v-if="npcStore.children.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-                    <p class="text-[0.625rem] text-muted">孩子兴趣影响</p>
-                    <div class="grid grid-cols-1 gap-1 mt-1">
-                      <Button
-                        v-for="child in npcStore.children"
-                        :key="`${resident.residentId}-child-influence-${child.id}`"
-                        class="justify-center !px-2 !py-1"
-                        :disabled="!canApplyRandomNpcFamilyInfluenceToChild(child.id, resident).success"
-                        :data-testid="`random-npc-child-family-influence-${resident.residentId}-${child.id}`"
-                        @click="handleApplyRandomNpcFamilyInfluenceToChild(child.id, resident.residentId)"
-                      >
-                        {{ child.name }}：{{ getChildFamilyInfluenceButtonText(child, resident) }}
-                      </Button>
-                      <Button
-                        v-for="child in npcStore.children"
-                        :key="`${resident.residentId}-child-family-event-${child.id}`"
-                        class="justify-center !px-2 !py-1"
-                        :disabled="!canProgressRandomNpcChildFamilyEvent(child.id, resident).success"
-                        :data-testid="`random-npc-child-family-event-${resident.residentId}-${child.id}`"
-                        @click="handleProgressRandomNpcChildFamilyEvent(child.id, resident.residentId)"
-                      >
-                        {{ child.name }}：{{ getChildFamilyEventButtonText(child, resident) }}
-                      </Button>
-                    </div>
-                    <div
-                      v-for="child in npcStore.children"
-                      :key="`${resident.residentId}-child-family-event-history-${child.id}`"
-                      class="mt-1 space-y-1"
-                    >
-                      <p
-                        v-for="event in getRecentChildFamilyEvents(child, resident)"
-                        :key="event.id"
-                        class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                      >
-                        {{ child.name }} · {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent truncate">
+                        {{ resident.name }}
+                        <span class="text-[0.625rem] text-muted ml-1">{{ resident.occupation }}</span>
+                      </p>
+                      <p class="text-[0.625rem] text-muted mt-0.5 truncate">
+                        {{ getRandomNpcLongStayRouteLabel(resident.route) }} · {{ resident.origin }} · {{ getRandomNpcRelationshipLabel(resident.relationshipTag) }}
                       </p>
                     </div>
-                    <p class="text-[0.625rem] text-muted leading-4 mt-1">
-                      仅写入本地孩子训练记录；同一孩子、NPC 与兴趣方向最多 3 段，每日限推进 1 段，最近事件最多保留 4 条。
-                    </p>
+                    <span class="text-[0.625rem] text-success shrink-0">阶段 {{ resident.relationshipEventStage }}/3</span>
                   </div>
-                  <div v-if="getRecentRandomNpcFamilyBusinessHistory(resident).length > 0" class="mt-2 space-y-1">
-                    <p
-                      v-for="entry in getRecentRandomNpcFamilyBusinessHistory(resident)"
-                      :key="entry.id"
-                      class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    <span
+                      v-for="tag in resident.personalityTags"
+                      :key="`${resident.residentId}-${tag}`"
+                      class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
                     >
-                      {{ entry.dayTag }} · 阶段 {{ entry.stage }}/3：{{ entry.summary }}<span v-if="entry.rewardSummary">（{{ entry.rewardSummary }}）</span>（评价{{ entry.reputationDelta >= 0 ? '+' : '' }}{{ entry.reputationDelta }}）
-                    </p>
+                      {{ tag }}
+                    </span>
+                    <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ resident.plotHook }}</span>
                   </div>
-                </div>
-                <div v-if="getRecentRandomNpcFamilyReviews(resident).length > 0" class="mt-2 space-y-1">
-                  <p
-                    v-for="review in getRecentRandomNpcFamilyReviews(resident)"
-                    :key="review.id"
-                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    {{ review.dayTag }} · {{ getRandomNpcFamilyReviewTypeLabel(review.type) }}：{{ review.summary }}（评价{{ review.reputationDelta >= 0 ? '+' : '' }}{{ review.reputationDelta }}）
-                  </p>
-                </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[0.625rem] text-muted">长住文游记录</p>
-                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
-                <div v-if="getRecentRandomNpcDialogueMemories(resident.dialogueMemories).length > 0" class="mt-1 space-y-1">
-                  <div
-                    v-for="memory in getRecentRandomNpcDialogueMemories(resident.dialogueMemories)"
-                    :key="memory.id"
-                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
-                    <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
-                    <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
-                  </div>
-                </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[0.625rem] text-muted">关系线</p>
-                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcRelationLineLabel(resident.relationshipLine.kind) }}</span>
-                </div>
-                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ resident.relationshipLine.note }}</p>
-                <p
-                  v-if="resident.relationshipLine.commitmentStatus !== 'none'"
-                  class="text-[0.625rem] text-success/90 leading-4 mt-0.5"
-                >
-                  {{ getRandomNpcCommitmentStatusText(resident) }}
-                </p>
-                <p
-                  v-if="resident.relationshipLine.commitmentStatus === 'married'"
-                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
-                >
-                  婚后日常：{{ resident.relationshipLine.homeLifeNote }}
-                </p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(resident) }}</p>
-                <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${resident.residentId}`">
-                  <p class="text-[0.625rem] text-muted">日常长出关系线</p>
-                  <div class="mt-1 space-y-1">
-                    <div
-                      v-for="beat in getRandomNpcResidentGrowthPreview(resident)"
-                      :key="`${resident.residentId}-${beat.id}`"
-                      class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1 line-clamp-2">{{ resident.residenceReason }}</p>
+                  <p class="text-[0.625rem] text-accent/90 leading-4 mt-1 truncate">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
+                  <p class="text-[0.625rem] text-success/80 leading-4 mt-1 line-clamp-2">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
+                  <div class="flex items-center justify-end mt-2">
+                    <Button
+                      class="justify-center !px-2 !py-1"
+                      :icon="PanelRightOpen"
+                      :data-testid="`random-npc-card-open-resident-${resident.residentId}`"
+                      @click="openRandomNpcDetail('resident', resident.residentId, 'overview')"
                     >
-                      <div class="flex items-center justify-between gap-2">
-                        <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
-                        <span class="text-muted">{{ beat.progressLabel }}</span>
-                      </div>
-                      <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
-                      <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
-                    </div>
+                      详情
+                    </Button>
                   </div>
-                </div>
-                <div v-if="getRecentRandomNpcRelationLineHistory(resident).length > 0" class="mt-1 space-y-1">
-                  <p
-                    v-for="event in getRecentRandomNpcRelationLineHistory(resident)"
-                    :key="event.id"
-                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
-                  >
-                    {{ event.dayTag }} · {{ getRandomNpcRelationLineLabel(event.kind) }}：{{ event.summary }}
-                  </p>
-                </div>
-                <div class="grid grid-cols-2 gap-1 mt-2">
-                  <Button
-                    v-for="kind in randomNpcRelationLineActions"
-                    :key="`${resident.residentId}-${kind}`"
-                    class="justify-center !px-2 !py-1"
-                    :disabled="!canStartRandomNpcRelationLine(resident, kind).success"
-                    @click="handleStartRandomNpcRelationLine(resident.residentId, kind)"
-                  >
-                    {{ getRandomNpcRelationLineButtonText(resident, kind) }}
-                  </Button>
-                </div>
-                <Button
-                  v-if="resident.relationshipLine.stage > 0"
-                  class="w-full justify-center !px-2 !py-1 mt-1 text-danger border-danger/40"
-                  @click="handleSeverRandomNpcRelationLine(resident.residentId)"
-                >
-                  断缘
-                </Button>
-                <div
-                  v-if="resident.relationshipLine.kind === 'romance' && resident.relationshipLine.stage > 0"
-                  class="grid grid-cols-3 gap-1 mt-1"
-                >
-                  <Button
-                    class="justify-center !px-2 !py-1"
-                    :disabled="!canEngageRandomNpcRelationLine(resident).success"
-                    @click="handleEngageRandomNpcRelationLine(resident.residentId)"
-                  >
-                    订婚
-                  </Button>
-                  <Button
-                    class="justify-center !px-2 !py-1"
-                    :disabled="!canMarryRandomNpcRelationLine(resident).success"
-                    @click="handleMarryRandomNpcRelationLine(resident.residentId)"
-                  >
-                    成婚
-                  </Button>
-                  <Button
-                    class="justify-center !px-2 !py-1"
-                    :disabled="resident.relationshipLine.commitmentStatus !== 'married'"
-                    @click="handleRecordRandomNpcMarriedLife(resident.residentId)"
-                  >
-                    日常
-                  </Button>
-                </div>
-              </div>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[0.625rem] text-accent">{{ resident.smallOrder.title }}</p>
-                  <span class="text-[0.625rem]" :class="resident.smallOrderCompleted ? 'text-success' : 'text-muted'">
-                    {{ resident.smallOrderCompleted ? '已交付' : '待交付' }}
-                  </span>
-                </div>
-                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ resident.smallOrder.summary }}</p>
-                <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(resident.smallOrder) }}</p>
-                <Button
-                  class="w-full justify-center !px-2 !py-1 mt-2"
-                  :icon="Package"
-                  :disabled="resident.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(resident.smallOrder)"
-                  :data-testid="`random-npc-long-stay-small-order-${resident.sourceVisitorId}`"
-                  @click="handleFulfillRandomNpcSmallOrder(resident.sourceVisitorId)"
-                >
-                  {{ resident.smallOrderCompleted ? '已交付' : '交付长住小订单' }}
-                </Button>
-              </div>
-              <p class="text-[0.625rem] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
-              <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[0.625rem] text-accent">今日节会同行</p>
-                  <span class="text-[0.625rem] text-muted">{{ randomNpcFestivalReunionEventName }}</span>
-                </div>
-                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcFestivalCompanionHint(resident) }}</p>
-                <Button
-                  class="w-full justify-center !px-2 !py-1 mt-2"
-                  :icon="Sparkles"
-                  :disabled="!canProgressRandomNpcFestivalCompanion(resident).success"
-                  :data-testid="`random-npc-festival-companion-${resident.residentId}`"
-                  @click="handleProgressRandomNpcFestivalCompanion(resident.residentId)"
-                >
-                  节会同行
-                </Button>
-              </div>
-              <div v-if="getRandomNpcLongStayStoryEvent(resident)" class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[0.625rem] text-accent">{{ getRandomNpcLongStayStoryEvent(resident)?.title }}</p>
-                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcLongStayStoryEvent(resident)?.opening }}</p>
-                <div class="mt-2 space-y-1">
-                  <Button
-                    v-for="choice in getRandomNpcLongStayStoryChoices(resident)"
-                    :key="`${resident.residentId}-${choice.id}`"
-                    class="w-full justify-start !px-2 !py-1 text-left"
-                    :disabled="resident.lastStoryDayTag === currentNpcDayTag"
-                    @click="handleProgressRandomNpcLongStayStory(resident.residentId, choice.id)"
-                  >
-                    {{ choice.text }}
-                  </Button>
                 </div>
               </div>
             </div>
@@ -1020,6 +484,14 @@
                 <p class="text-muted leading-4 mt-0.5">{{ summary.summary }}</p>
               </div>
               <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 md:flex md:shrink-0 md:flex-wrap md:items-center md:justify-end">
+                <Button
+                  class="w-full justify-center !px-2 !py-1 md:w-auto"
+                  :icon="PanelRightOpen"
+                  :data-testid="`random-npc-card-open-archive-${summary.visitorId}`"
+                  @click="openRandomNpcDetail('archive', summary.visitorId, 'overview')"
+                >
+                  详情
+                </Button>
                 <Button
                   class="w-full justify-center !px-2 !py-1 md:w-auto"
                   :icon="Star"
@@ -1074,6 +546,742 @@
           </div>
         </div>
       </div>
+
+      <OnlineBottomSheet
+        :open="hasSelectedRandomNpcDetail"
+        :title="randomNpcDetailTitle"
+        :description="randomNpcDetailDescription"
+        :side="randomNpcDetailSheetSide"
+        initial-focus="[data-testid='random-npc-detail-primary-action']"
+        @close="closeRandomNpcDetail"
+      >
+        <!-- Guard anchors: getRecentRandomNpcDialogueMemories(visitor.dialogueMemories); getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories); getRecentRandomNpcDialogueMemories(resident.dialogueMemories); getRecentRandomNpcFamilyReviews(resident); getRecentRandomNpcFamilySpecialEvents(resident). -->
+        <div data-testid="random-npc-detail-sheet" class="space-y-3">
+          <div class="grid grid-cols-4 gap-1">
+            <Button
+              v-for="tab in randomNpcDetailTabs"
+              :key="tab.id"
+              class="justify-center !px-2 !py-1"
+              :class="{ '!bg-accent !text-bg': randomNpcDetailTab === tab.id }"
+              :data-testid="`random-npc-detail-tab-${tab.id}`"
+              @click="randomNpcDetailTab = tab.id"
+            >
+              {{ tab.label }}
+            </Button>
+          </div>
+
+          <div v-if="selectedRandomNpcVisitor" class="space-y-2">
+            <div v-show="randomNpcDetailTab === 'overview'" class="space-y-2">
+              <div class="flex items-start gap-2 border border-accent/10 rounded-xs p-2 bg-bg/10">
+                <NpcPortrait
+                  class="shrink-0"
+                  :id="selectedRandomNpcVisitor.id"
+                  :name="selectedRandomNpcVisitor.name"
+                  :display-name="selectedRandomNpcVisitor.occupation"
+                  :template-id="selectedRandomNpcVisitor.templateId"
+                  :fallback-text="selectedRandomNpcVisitor.name"
+                  size="sm"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs text-accent truncate">{{ selectedRandomNpcVisitor.name }} · {{ selectedRandomNpcVisitor.occupation }}</p>
+                  <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ selectedRandomNpcVisitor.origin }} · {{ getRandomNpcAgeBandLabel(selectedRandomNpcVisitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(selectedRandomNpcVisitor.relationshipTag) }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcVisitor.dialogueOpening }}</p>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 text-[0.625rem]">
+                <p class="text-muted">人物卡</p>
+                <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ selectedRandomNpcVisitor.appearanceKeywords.join('、') }}</p>
+                <p class="text-muted leading-4 mt-0.5">来村目的：{{ selectedRandomNpcVisitor.villagePurpose }}</p>
+                <p class="text-muted leading-4 mt-0.5">恋爱观：{{ selectedRandomNpcVisitor.romanceView }}</p>
+                <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(selectedRandomNpcVisitor.developmentRoutes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(selectedRandomNpcVisitor.dialogueScenes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(selectedRandomNpcVisitor.preferences.bindings) }}</p>
+              </div>
+              <div class="grid grid-cols-2 gap-1 text-[0.625rem]">
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">好感</span>
+                  <p class="text-accent mt-0.5">{{ selectedRandomNpcVisitor.affinity }}/100</p>
+                </div>
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">忌讳</span>
+                  <p class="text-muted mt-0.5">{{ selectedRandomNpcVisitor.taboo }}</p>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 text-[0.625rem]">
+                <p class="text-muted">偏好</p>
+                <p class="text-accent/90 leading-4 mt-0.5">
+                  最爱 {{ getRandomNpcPreferenceNames(selectedRandomNpcVisitor.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(selectedRandomNpcVisitor.preferences.liked) }}
+                </p>
+                <p class="text-muted leading-4 mt-0.5">禁忌：{{ selectedRandomNpcVisitor.taboo }}</p>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'story'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2">
+                <p class="text-[0.625rem] text-muted">文游关键记录</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(selectedRandomNpcVisitor.relationshipSignals) }}</p>
+                <div v-if="getRecentRandomNpcDialogueMemories(selectedRandomNpcVisitor.dialogueMemories).length > 0" class="mt-1 space-y-1">
+                  <div
+                    v-for="memory in getRecentRandomNpcDialogueMemories(selectedRandomNpcVisitor.dialogueMemories)"
+                    :key="memory.id"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    :data-testid="`random-npc-dialogue-memory-${selectedRandomNpcVisitor.id}-${memory.choiceId}`"
+                  >
+                    <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
+                    <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                    <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-1">
+                <Button
+                  v-for="choice in selectedRandomNpcVisitor.dialogueChoices"
+                  :key="`${selectedRandomNpcVisitor.id}-${choice.id}`"
+                  class="w-full justify-start !px-2 !py-1 text-left"
+                  :icon="MessageCircle"
+                  :disabled="selectedRandomNpcVisitor.talkedToday"
+                  :data-testid="`random-npc-choice-${selectedRandomNpcVisitor.id}-${choice.id}`"
+                  @click="handleRandomVisitorTalk(selectedRandomNpcVisitor.id, choice.id)"
+                >
+                  {{ choice.text }}
+                </Button>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'relationship'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2" :data-testid="`random-npc-growth-preview-${selectedRandomNpcVisitor.id}`">
+                <p class="text-[0.625rem] text-muted">自然成长</p>
+                <div class="mt-1 space-y-1">
+                  <div
+                    v-for="beat in getRandomNpcVisitorGrowthPreview(selectedRandomNpcVisitor)"
+                    :key="`${selectedRandomNpcVisitor.id}-${beat.id}`"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
+                      <span class="text-muted">{{ beat.progressLabel }}</span>
+                    </div>
+                    <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
+                    <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted">短线恋爱</p>
+                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcShortRomanceStatusText(selectedRandomNpcVisitor.shortRomance) }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcVisitor.shortRomance.note }}</p>
+                <div v-if="getRecentRandomNpcShortRomanceHistory(selectedRandomNpcVisitor.shortRomance).length > 0" class="mt-1 space-y-1">
+                  <p
+                    v-for="event in getRecentRandomNpcShortRomanceHistory(selectedRandomNpcVisitor.shortRomance)"
+                    :key="event.id"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ event.dayTag }} · {{ event.summary }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canStartRandomNpcShortRomance(selectedRandomNpcVisitor.id).success"
+                    :data-testid="`random-npc-short-romance-${selectedRandomNpcVisitor.id}`"
+                    @click="handleStartRandomNpcShortRomance(selectedRandomNpcVisitor.id)"
+                  >
+                    暧昧邀约
+                  </Button>
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="selectedRandomNpcVisitor.shortRomance.status !== 'invited'"
+                    @click="handleEndRandomNpcShortRomance(selectedRandomNpcVisitor.id)"
+                  >
+                    收束
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'order'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2">
+                <p class="text-[0.625rem] text-muted">小订单：{{ selectedRandomNpcVisitor.smallOrder.title }}</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ selectedRandomNpcVisitor.smallOrder.summary }}</p>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  <span
+                    v-for="item in selectedRandomNpcVisitor.smallOrder.requestedItems"
+                    :key="`${selectedRandomNpcVisitor.id}-${item.itemId}`"
+                    class="text-[0.625rem] border border-accent/15 rounded-xs px-1 py-0.5"
+                  >
+                    {{ getItemById(item.itemId)?.name ?? item.itemId }}×{{ item.quantity }}
+                  </span>
+                </div>
+                <p class="text-[0.625rem] text-success/80 mt-1">{{ selectedRandomNpcVisitor.smallOrder.rewardSummary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(selectedRandomNpcVisitor.smallOrder) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Package"
+                  :disabled="selectedRandomNpcVisitor.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(selectedRandomNpcVisitor.smallOrder)"
+                  :data-testid="`random-npc-small-order-${selectedRandomNpcVisitor.id}`"
+                  @click="handleFulfillRandomNpcSmallOrder(selectedRandomNpcVisitor.id)"
+                >
+                  {{ selectedRandomNpcVisitor.smallOrderCompleted ? '已交付' : '交付小订单' }}
+                </Button>
+              </div>
+              <div class="grid grid-cols-1 gap-1">
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="Star"
+                  :class="{ '!bg-warning !text-bg': selectedRandomNpcVisitor.locked }"
+                  :disabled="!selectedRandomNpcVisitor.locked && !canLockMoreRandomNpc(selectedRandomNpcVisitor.id)"
+                  :data-testid="`random-npc-lock-${selectedRandomNpcVisitor.id}`"
+                  @click="handleToggleRandomNpcLock(selectedRandomNpcVisitor.id, !selectedRandomNpcVisitor.locked)"
+                >
+                  {{ selectedRandomNpcVisitor.locked ? '已锁定' : '锁定' }}
+                </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :class="{ '!bg-accent !text-bg': selectedRandomNpcVisitor.affinity >= randomNpcAcquaintanceThreshold }"
+                  :disabled="selectedRandomNpcVisitor.affinity < randomNpcAcquaintanceThreshold || selectedRandomNpcVisitor.tier !== 'short_visit'"
+                  @click="handleAddRandomVisitorToAcquaintance(selectedRandomNpcVisitor.id)"
+                >
+                  {{ selectedRandomNpcVisitor.tier === 'short_visit' ? '记入熟人册' : '已记录' }}
+                </Button>
+                <Button
+                  v-if="selectedRandomNpcVisitor.tier === 'acquaintance'"
+                  class="justify-center !px-2 !py-1"
+                  :class="{ '!bg-success !text-bg': selectedRandomNpcVisitor.affinity >= randomNpcLongStayThreshold }"
+                  :disabled="selectedRandomNpcVisitor.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(selectedRandomNpcVisitor.id)"
+                  @click="handlePromoteRandomNpcToLongStay(selectedRandomNpcVisitor.id)"
+                >
+                  {{ isRandomNpcLongStay(selectedRandomNpcVisitor.id) ? '已长住' : '邀长住' }}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedRandomNpcAcquaintance" class="space-y-2">
+            <div v-show="randomNpcDetailTab === 'overview'" class="space-y-2">
+              <div class="flex items-start gap-2 border border-accent/10 rounded-xs p-2 bg-bg/10">
+                <NpcPortrait
+                  class="shrink-0"
+                  :id="selectedRandomNpcAcquaintance.visitorId"
+                  :name="selectedRandomNpcAcquaintance.name"
+                  :display-name="selectedRandomNpcAcquaintance.occupation"
+                  :template-id="selectedRandomNpcAcquaintance.templateId"
+                  :fallback-text="selectedRandomNpcAcquaintance.name"
+                  size="sm"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs text-accent truncate">{{ selectedRandomNpcAcquaintance.name }} · {{ selectedRandomNpcAcquaintance.occupation }}</p>
+                  <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ selectedRandomNpcAcquaintance.origin }} · {{ getRandomNpcAgeBandLabel(selectedRandomNpcAcquaintance.ageBand) }} · {{ getRandomNpcRelationshipLabel(selectedRandomNpcAcquaintance.relationshipTag) }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getLastRandomNpcAcquaintanceEvent(selectedRandomNpcAcquaintance) }}</p>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 text-[0.625rem]">
+                <p class="text-muted">人物卡</p>
+                <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ selectedRandomNpcAcquaintance.appearanceKeywords.join('、') }}</p>
+                <p class="text-muted leading-4 mt-0.5">来村目的：{{ selectedRandomNpcAcquaintance.villagePurpose }}</p>
+                <p class="text-muted leading-4 mt-0.5">恋爱观：{{ selectedRandomNpcAcquaintance.romanceView }}</p>
+                <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(selectedRandomNpcAcquaintance.developmentRoutes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(selectedRandomNpcAcquaintance.dialogueScenes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(selectedRandomNpcAcquaintance.preferences.bindings) }}</p>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 text-[0.625rem]">
+                <p class="text-muted">偏好</p>
+                <p class="text-accent/90 leading-4 mt-0.5">
+                  最爱 {{ getRandomNpcPreferenceNames(selectedRandomNpcAcquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(selectedRandomNpcAcquaintance.preferences.liked) }}
+                </p>
+                <p class="text-accent/90 leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(selectedRandomNpcAcquaintance.preferences.bindings) }}</p>
+                <p class="text-muted leading-4 mt-0.5">家庭线索：{{ selectedRandomNpcAcquaintance.familySeed }}</p>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'story'" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-[0.625rem] text-muted">文游关键记录</p>
+              <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(selectedRandomNpcAcquaintance.relationshipSignals) }}</p>
+              <div v-if="getRecentRandomNpcDialogueMemories(selectedRandomNpcAcquaintance.dialogueMemories).length > 0" class="mt-1 space-y-1">
+                <div
+                  v-for="memory in getRecentRandomNpcDialogueMemories(selectedRandomNpcAcquaintance.dialogueMemories)"
+                  :key="memory.id"
+                  class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                >
+                  <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }}</p>
+                  <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                  <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'relationship'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2" :data-testid="`random-npc-growth-preview-${selectedRandomNpcAcquaintance.visitorId}`">
+                <p class="text-[0.625rem] text-muted">自然成长</p>
+                <div class="mt-1 space-y-1">
+                  <div
+                    v-for="beat in getRandomNpcAcquaintanceGrowthPreview(selectedRandomNpcAcquaintance)"
+                    :key="`${selectedRandomNpcAcquaintance.visitorId}-${beat.id}`"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
+                      <span class="text-muted">{{ beat.progressLabel }}</span>
+                    </div>
+                    <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
+                    <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted">短线恋爱</p>
+                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcShortRomanceStatusText(selectedRandomNpcAcquaintance.shortRomance) }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcAcquaintance.shortRomance.note }}</p>
+                <div v-if="getRecentRandomNpcShortRomanceHistory(selectedRandomNpcAcquaintance.shortRomance).length > 0" class="mt-1 space-y-1">
+                  <p
+                    v-for="event in getRecentRandomNpcShortRomanceHistory(selectedRandomNpcAcquaintance.shortRomance)"
+                    :key="event.id"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ event.dayTag }} · {{ event.summary }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canStartRandomNpcShortRomance(selectedRandomNpcAcquaintance.visitorId).success"
+                    :data-testid="`random-npc-acquaintance-short-romance-${selectedRandomNpcAcquaintance.visitorId}`"
+                    @click="handleStartRandomNpcShortRomance(selectedRandomNpcAcquaintance.visitorId)"
+                  >
+                    暧昧邀约
+                  </Button>
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="selectedRandomNpcAcquaintance.shortRomance.status !== 'invited'"
+                    @click="handleEndRandomNpcShortRomance(selectedRandomNpcAcquaintance.visitorId)"
+                  >
+                    收束
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'order'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2">
+                <p class="text-[0.625rem] text-muted">小订单：{{ selectedRandomNpcAcquaintance.smallOrder.title }}</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ selectedRandomNpcAcquaintance.smallOrder.summary }}</p>
+                <p class="text-[0.625rem] text-success/80 mt-1">{{ selectedRandomNpcAcquaintance.smallOrder.rewardSummary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(selectedRandomNpcAcquaintance.smallOrder) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Package"
+                  :disabled="selectedRandomNpcAcquaintance.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(selectedRandomNpcAcquaintance.smallOrder)"
+                  :data-testid="`random-npc-acquaintance-small-order-${selectedRandomNpcAcquaintance.visitorId}`"
+                  @click="handleFulfillRandomNpcSmallOrder(selectedRandomNpcAcquaintance.visitorId)"
+                >
+                  {{ selectedRandomNpcAcquaintance.smallOrderCompleted ? '已交付' : '交付小订单' }}
+                </Button>
+              </div>
+              <Button
+                class="w-full justify-center !px-2 !py-1"
+                :class="{ '!bg-success !text-bg': selectedRandomNpcAcquaintance.affinity >= randomNpcLongStayThreshold }"
+                :disabled="selectedRandomNpcAcquaintance.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(selectedRandomNpcAcquaintance.visitorId)"
+                @click="handlePromoteRandomNpcToLongStay(selectedRandomNpcAcquaintance.visitorId)"
+              >
+                {{ isRandomNpcLongStay(selectedRandomNpcAcquaintance.visitorId) ? '已长住' : '邀为长住' }}
+              </Button>
+            </div>
+          </div>
+
+          <div v-if="selectedRandomNpcResident" class="space-y-2">
+            <div v-show="randomNpcDetailTab === 'overview'" class="space-y-2">
+              <div class="flex items-start gap-2 border border-accent/10 rounded-xs p-2 bg-bg/10">
+                <NpcPortrait
+                  class="shrink-0"
+                  :id="selectedRandomNpcResident.residentId"
+                  :name="selectedRandomNpcResident.name"
+                  :display-name="selectedRandomNpcResident.occupation"
+                  :template-id="selectedRandomNpcResident.templateId"
+                  :fallback-text="selectedRandomNpcResident.name"
+                  size="sm"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs text-accent truncate">{{ selectedRandomNpcResident.name }} · {{ selectedRandomNpcResident.occupation }}</p>
+                  <p class="text-[0.625rem] text-muted mt-0.5 leading-4">
+                    {{ getRandomNpcLongStayRouteLabel(selectedRandomNpcResident.route) }} · {{ selectedRandomNpcResident.origin }} · {{ getRandomNpcRelationshipLabel(selectedRandomNpcResident.relationshipTag) }} · {{ selectedRandomNpcResident.plotHook }}
+                  </p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcResident.residenceReason }}</p>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-1 text-[0.625rem]">
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">目标</span>
+                  <p class="text-accent mt-0.5">{{ selectedRandomNpcResident.lifeGoal }}</p>
+                </div>
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">忌讳</span>
+                  <p class="text-muted mt-0.5">{{ selectedRandomNpcResident.taboo }}</p>
+                </div>
+              </div>
+              <p class="text-[0.625rem] text-muted leading-4">说话方式：{{ selectedRandomNpcResident.speechStyle }}</p>
+              <p class="text-[0.625rem] text-muted leading-4">家庭背景：{{ selectedRandomNpcResident.familySeed }}</p>
+              <div class="border border-accent/10 rounded-xs p-2 text-[0.625rem]">
+                <p class="text-muted">人物卡</p>
+                <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ selectedRandomNpcResident.appearanceKeywords.join('、') }}</p>
+                <p class="text-muted leading-4 mt-0.5">来村目的：{{ selectedRandomNpcResident.villagePurpose }}</p>
+                <p class="text-muted leading-4 mt-0.5">恋爱观：{{ selectedRandomNpcResident.romanceView }}</p>
+                <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(selectedRandomNpcResident.developmentRoutes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(selectedRandomNpcResident.dialogueScenes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(selectedRandomNpcResident.preferences.bindings) }}</p>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'story'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2">
+                <p class="text-[0.625rem] text-muted">长住文游记录</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(selectedRandomNpcResident.relationshipSignals) }}</p>
+                <div v-if="getRecentRandomNpcDialogueMemories(selectedRandomNpcResident.dialogueMemories).length > 0" class="mt-1 space-y-1">
+                  <div
+                    v-for="memory in getRecentRandomNpcDialogueMemories(selectedRandomNpcResident.dialogueMemories)"
+                    :key="memory.id"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
+                    <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                    <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
+                  </div>
+                </div>
+              </div>
+              <div v-if="getRandomNpcLongStayStoryEvent(selectedRandomNpcResident)" class="border border-accent/10 rounded-xs p-2">
+                <p class="text-[0.625rem] text-accent">{{ getRandomNpcLongStayStoryEvent(selectedRandomNpcResident)?.title }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcLongStayStoryEvent(selectedRandomNpcResident)?.opening }}</p>
+                <div class="mt-2 space-y-1">
+                  <Button
+                    v-for="choice in getRandomNpcLongStayStoryChoices(selectedRandomNpcResident)"
+                    :key="`${selectedRandomNpcResident.residentId}-${choice.id}`"
+                    class="w-full justify-start !px-2 !py-1 text-left"
+                    :disabled="selectedRandomNpcResident.lastStoryDayTag === currentNpcDayTag"
+                    @click="handleProgressRandomNpcLongStayStory(selectedRandomNpcResident.residentId, choice.id)"
+                  >
+                    {{ choice.text }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'relationship'" class="space-y-2">
+              <div v-if="selectedRandomNpcResident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted">家族节点</p>
+                  <span class="text-[0.625rem] text-accent">本地 {{ selectedRandomNpcResident.familyTies.length }}/4</span>
+                </div>
+                <div class="mt-1 space-y-1">
+                  <div
+                    v-for="tie in selectedRandomNpcResident.familyTies"
+                    :key="`${selectedRandomNpcResident.residentId}-${tie.id}`"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <p class="text-accent">{{ getRandomNpcFamilyTieKindLabel(tie.kind) }} · {{ tie.relation }} · {{ tie.name }}</p>
+                    <p class="text-muted leading-4">{{ tie.summary }}（{{ getRandomNpcFamilyTieAttitudeLabel(tie.attitude) }}）</p>
+                  </div>
+                </div>
+              </div>
+              <div v-if="selectedRandomNpcResident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted">见家人与家族评价</p>
+                  <span class="text-[0.625rem] text-accent">评价 {{ selectedRandomNpcResident.familyLine.reputation }}/100</span>
+                </div>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-1">{{ selectedRandomNpcResident.familyLine.lastReview }}</p>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    v-for="tie in selectedRandomNpcResident.familyTies"
+                    :key="`${selectedRandomNpcResident.residentId}-${tie.id}-meeting`"
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canMeetRandomNpcFamilyTie(selectedRandomNpcResident, tie.id).success"
+                    @click="handleMeetRandomNpcFamilyTie(selectedRandomNpcResident.residentId, tie.id)"
+                  >
+                    {{ getRandomNpcFamilyMeetingButtonText(selectedRandomNpcResident, tie.id, tie.relation) }}
+                  </Button>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">
+                  每个家族节点最多推进 3 轮见面；同一节点每日只推进 1 轮，记录仍保留在本地随机 NPC 存档。
+                </p>
+                <div v-if="getSpecialFamilyTies(selectedRandomNpcResident).length > 0" class="border-t border-accent/10 mt-2 pt-2">
+                  <p class="text-[0.625rem] text-accent">核心家族深线</p>
+                  <div class="grid grid-cols-1 gap-1 mt-1">
+                    <Button
+                      v-for="tie in getSpecialFamilyTies(selectedRandomNpcResident)"
+                      :key="`${selectedRandomNpcResident.residentId}-${tie.id}-special`"
+                      class="justify-center !px-2 !py-1"
+                      :disabled="!canProgressRandomNpcFamilySpecialEvent(selectedRandomNpcResident, tie.id).success"
+                      :data-testid="`random-npc-family-special-${selectedRandomNpcResident.residentId}-${tie.id}`"
+                      @click="handleProgressRandomNpcFamilySpecialEvent(selectedRandomNpcResident.residentId, tie.id)"
+                    >
+                      {{ getRandomNpcFamilySpecialButtonText(selectedRandomNpcResident, tie.id, tie.relation) }}
+                    </Button>
+                  </div>
+                  <div v-if="getRecentRandomNpcFamilySpecialEvents(selectedRandomNpcResident).length > 0" class="mt-1 space-y-1">
+                    <p
+                      v-for="event in getRecentRandomNpcFamilySpecialEvents(selectedRandomNpcResident)"
+                      :key="event.id"
+                      class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    >
+                      {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}<span v-if="event.rewardSummary">（{{ event.rewardSummary }}）</span>
+                    </p>
+                  </div>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">
+                    核心家族节点各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
+                  </p>
+                </div>
+                <div v-if="getRecentRandomNpcFamilyReviews(selectedRandomNpcResident).length > 0" class="mt-2 space-y-1">
+                  <p
+                    v-for="review in getRecentRandomNpcFamilyReviews(selectedRandomNpcResident)"
+                    :key="review.id"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ review.dayTag }} · {{ getRandomNpcFamilyReviewTypeLabel(review.type) }}：{{ review.summary }}（评价{{ review.reputationDelta >= 0 ? '+' : '' }}{{ review.reputationDelta }}）
+                  </p>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted">关系线</p>
+                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcRelationLineLabel(selectedRandomNpcResident.relationshipLine.kind) }}</span>
+                </div>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ selectedRandomNpcResident.relationshipLine.note }}</p>
+                <p v-if="selectedRandomNpcResident.relationshipLine.commitmentStatus !== 'none'" class="text-[0.625rem] text-success/90 leading-4 mt-0.5">
+                  {{ getRandomNpcCommitmentStatusText(selectedRandomNpcResident) }}
+                </p>
+                <p v-if="selectedRandomNpcResident.relationshipLine.commitmentStatus === 'married'" class="text-[0.625rem] text-muted leading-4 mt-0.5">
+                  婚后日常：{{ selectedRandomNpcResident.relationshipLine.homeLifeNote }}
+                </p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(selectedRandomNpcResident) }}</p>
+                <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${selectedRandomNpcResident.residentId}`">
+                  <p class="text-[0.625rem] text-muted">日常长出关系线</p>
+                  <div class="mt-1 space-y-1">
+                    <div
+                      v-for="beat in getRandomNpcResidentGrowthPreview(selectedRandomNpcResident)"
+                      :key="`${selectedRandomNpcResident.residentId}-${beat.id}`"
+                      class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
+                        <span class="text-muted">{{ beat.progressLabel }}</span>
+                      </div>
+                      <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
+                      <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="getRecentRandomNpcRelationLineHistory(selectedRandomNpcResident).length > 0" class="mt-1 space-y-1">
+                  <p
+                    v-for="event in getRecentRandomNpcRelationLineHistory(selectedRandomNpcResident)"
+                    :key="event.id"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ event.dayTag }} · {{ getRandomNpcRelationLineLabel(event.kind) }}：{{ event.summary }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    v-for="kind in randomNpcRelationLineActions"
+                    :key="`${selectedRandomNpcResident.residentId}-${kind}`"
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canStartRandomNpcRelationLine(selectedRandomNpcResident, kind).success"
+                    @click="handleStartRandomNpcRelationLine(selectedRandomNpcResident.residentId, kind)"
+                  >
+                    {{ getRandomNpcRelationLineButtonText(selectedRandomNpcResident, kind) }}
+                  </Button>
+                </div>
+                <Button
+                  v-if="selectedRandomNpcResident.relationshipLine.stage > 0"
+                  class="w-full justify-center !px-2 !py-1 mt-1 text-danger border-danger/40"
+                  @click="handleSeverRandomNpcRelationLine(selectedRandomNpcResident.residentId)"
+                >
+                  断缘
+                </Button>
+                <div v-if="selectedRandomNpcResident.relationshipLine.kind === 'romance' && selectedRandomNpcResident.relationshipLine.stage > 0" class="grid grid-cols-3 gap-1 mt-1">
+                  <Button class="justify-center !px-2 !py-1" :disabled="!canEngageRandomNpcRelationLine(selectedRandomNpcResident).success" @click="handleEngageRandomNpcRelationLine(selectedRandomNpcResident.residentId)">订婚</Button>
+                  <Button class="justify-center !px-2 !py-1" :disabled="!canMarryRandomNpcRelationLine(selectedRandomNpcResident).success" @click="handleMarryRandomNpcRelationLine(selectedRandomNpcResident.residentId)">成婚</Button>
+                  <Button class="justify-center !px-2 !py-1" :disabled="selectedRandomNpcResident.relationshipLine.commitmentStatus !== 'married'" @click="handleRecordRandomNpcMarriedLife(selectedRandomNpcResident.residentId)">日常</Button>
+                </div>
+              </div>
+            </div>
+
+            <div v-show="randomNpcDetailTab === 'order'" class="space-y-2">
+              <div class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-accent">{{ selectedRandomNpcResident.smallOrder.title }}</p>
+                  <span class="text-[0.625rem]" :class="selectedRandomNpcResident.smallOrderCompleted ? 'text-success' : 'text-muted'">
+                    {{ selectedRandomNpcResident.smallOrderCompleted ? '已交付' : '待交付' }}
+                  </span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcResident.smallOrder.summary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(selectedRandomNpcResident.smallOrder) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Package"
+                  :disabled="selectedRandomNpcResident.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(selectedRandomNpcResident.smallOrder)"
+                  :data-testid="`random-npc-long-stay-small-order-${selectedRandomNpcResident.sourceVisitorId}`"
+                  @click="handleFulfillRandomNpcSmallOrder(selectedRandomNpcResident.sourceVisitorId)"
+                >
+                  {{ selectedRandomNpcResident.smallOrderCompleted ? '已交付' : '交付长住小订单' }}
+                </Button>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-accent">今日节会同行</p>
+                  <span class="text-[0.625rem] text-muted">{{ randomNpcFestivalReunionEventName }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcFestivalCompanionHint(selectedRandomNpcResident) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Sparkles"
+                  :disabled="!canProgressRandomNpcFestivalCompanion(selectedRandomNpcResident).success"
+                  :data-testid="`random-npc-festival-companion-${selectedRandomNpcResident.residentId}`"
+                  @click="handleProgressRandomNpcFestivalCompanion(selectedRandomNpcResident.residentId)"
+                >
+                  节会同行
+                </Button>
+              </div>
+              <div v-if="getRandomNpcFamilyCommission(selectedRandomNpcResident)" class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-accent">{{ getRandomNpcFamilyCommission(selectedRandomNpcResident)?.title }}</p>
+                  <span class="text-[0.625rem]" :class="isRandomNpcFamilyCommissionCompleted(selectedRandomNpcResident) ? 'text-success' : 'text-muted'">
+                    {{ isRandomNpcFamilyCommissionCompleted(selectedRandomNpcResident) ? '已评价' : '待交付' }}
+                  </span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcFamilyCommission(selectedRandomNpcResident)?.summary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcFamilyCommissionProgressText(selectedRandomNpcResident) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Package"
+                  :disabled="!canFulfillRandomNpcFamilyCommission(selectedRandomNpcResident)"
+                  :data-testid="`random-npc-family-commission-${selectedRandomNpcResident.residentId}`"
+                  @click="handleFulfillRandomNpcFamilyCommission(selectedRandomNpcResident.residentId)"
+                >
+                  {{ getRandomNpcFamilyCommissionButtonText(selectedRandomNpcResident) }}
+                </Button>
+              </div>
+              <div v-if="selectedRandomNpcResident.relationshipLine.commitmentStatus === 'married'" class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-accent">婚后家业线</p>
+                  <span class="text-[0.625rem] text-muted">阶段 {{ selectedRandomNpcResident.familyLine.familyBusinessStage }}/3</span>
+                </div>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcResident.familyLine.familyBusinessNote }}</p>
+                <Button class="w-full justify-center !px-2 !py-1 mt-2" :disabled="!canDevelopRandomNpcFamilyBusiness(selectedRandomNpcResident).success" @click="handleDevelopRandomNpcFamilyBusiness(selectedRandomNpcResident.residentId)">
+                  推进婚后家业
+                </Button>
+                <div v-if="npcStore.children.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
+                  <p class="text-[0.625rem] text-muted">孩子兴趣影响</p>
+                  <div class="grid grid-cols-1 gap-1 mt-1">
+                    <Button
+                      v-for="child in npcStore.children"
+                      :key="`${selectedRandomNpcResident.residentId}-child-influence-${child.id}`"
+                      class="justify-center !px-2 !py-1"
+                      :disabled="!canApplyRandomNpcFamilyInfluenceToChild(child.id, selectedRandomNpcResident).success"
+                      :data-testid="`random-npc-child-family-influence-${selectedRandomNpcResident.residentId}-${child.id}`"
+                      @click="handleApplyRandomNpcFamilyInfluenceToChild(child.id, selectedRandomNpcResident.residentId)"
+                    >
+                      {{ child.name }}：{{ getChildFamilyInfluenceButtonText(child, selectedRandomNpcResident) }}
+                    </Button>
+                    <Button
+                      v-for="child in npcStore.children"
+                      :key="`${selectedRandomNpcResident.residentId}-child-family-event-${child.id}`"
+                      class="justify-center !px-2 !py-1"
+                      :disabled="!canProgressRandomNpcChildFamilyEvent(child.id, selectedRandomNpcResident).success"
+                      :data-testid="`random-npc-child-family-event-${selectedRandomNpcResident.residentId}-${child.id}`"
+                      @click="handleProgressRandomNpcChildFamilyEvent(child.id, selectedRandomNpcResident.residentId)"
+                    >
+                      {{ child.name }}：{{ getChildFamilyEventButtonText(child, selectedRandomNpcResident) }}
+                    </Button>
+                  </div>
+                  <div v-for="child in npcStore.children" :key="`${selectedRandomNpcResident.residentId}-child-family-event-history-${child.id}`" class="mt-1 space-y-1">
+                    <p
+                      v-for="event in getRecentChildFamilyEvents(child, selectedRandomNpcResident)"
+                      :key="event.id"
+                      class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    >
+                      {{ child.name }} · {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}
+                    </p>
+                  </div>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">
+                    仅写入本地孩子训练记录；同一孩子、NPC 与兴趣方向最多 3 段，每日限推进 1 段，最近事件最多保留 4 条。
+                  </p>
+                </div>
+                <div v-if="getRecentRandomNpcFamilyBusinessHistory(selectedRandomNpcResident).length > 0" class="mt-2 space-y-1">
+                  <p
+                    v-for="entry in getRecentRandomNpcFamilyBusinessHistory(selectedRandomNpcResident)"
+                    :key="entry.id"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ entry.dayTag }} · 阶段 {{ entry.stage }}/3：{{ entry.summary }}<span v-if="entry.rewardSummary">（{{ entry.rewardSummary }}）</span>（评价{{ entry.reputationDelta >= 0 ? '+' : '' }}{{ entry.reputationDelta }}）
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedRandomNpcArchive" class="space-y-2">
+            <div v-show="randomNpcDetailTab === 'overview'" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-xs text-accent">{{ selectedRandomNpcArchive.name }} · {{ selectedRandomNpcArchive.occupation }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcArchive.summary }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">旧档接续：{{ selectedRandomNpcArchive.archivedTier === 'long_stay' ? '长住旧档' : '短访旧档' }} · 好感 {{ selectedRandomNpcArchive.affinity }}</p>
+            </div>
+            <div v-show="randomNpcDetailTab === 'story'" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-[0.625rem] text-muted">旧日记忆</p>
+              <div class="mt-1 space-y-1">
+                <p
+                  v-for="event in selectedRandomNpcArchive.keyEvents"
+                  :key="event"
+                  class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                >
+                  {{ event }}
+                </p>
+              </div>
+            </div>
+            <div v-show="randomNpcDetailTab === 'relationship'" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-[0.625rem] text-muted">关系摘要</p>
+              <p class="text-[0.625rem] text-accent/90 leading-4 mt-1">{{ getRandomNpcRelationshipLabel(selectedRandomNpcArchive.relationshipTag) }} · 好感 {{ selectedRandomNpcArchive.affinity }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedRandomNpcArchive.locked ? '已锁定，会保留在旧档中。' : '未锁定，后续旧档轮转可能归档更早记录。' }}</p>
+            </div>
+            <div v-show="randomNpcDetailTab === 'order'" class="grid grid-cols-2 gap-1">
+              <Button
+                class="justify-center !px-2 !py-1"
+                :icon="Star"
+                :class="{ '!bg-warning !text-bg': selectedRandomNpcArchive.locked }"
+                :disabled="!selectedRandomNpcArchive.locked && !canLockMoreRandomNpc(selectedRandomNpcArchive.visitorId)"
+                :data-testid="`random-npc-archive-detail-lock-${selectedRandomNpcArchive.visitorId}`"
+                @click="handleToggleRandomNpcLock(selectedRandomNpcArchive.visitorId, !selectedRandomNpcArchive.locked)"
+              >
+                {{ selectedRandomNpcArchive.locked ? '取消锁定' : '锁定旧档' }}
+              </Button>
+              <Button class="justify-center !px-2 !py-1" :icon="RotateCcw" :disabled="!canRecallRandomNpcArchive(selectedRandomNpcArchive)" @click="handleRecallRandomNpcArchive(selectedRandomNpcArchive.visitorId)">召回</Button>
+              <Button class="justify-center !px-2 !py-1" :icon="Mail" :disabled="!canRecallRandomNpcArchiveByOldLetter(selectedRandomNpcArchive)" @click="handleRecallRandomNpcArchiveByOldLetter(selectedRandomNpcArchive.visitorId)">寄旧信</Button>
+              <Button class="justify-center !px-2 !py-1" :icon="Package" :disabled="!canRecallRandomNpcArchiveByOldKeepsake(selectedRandomNpcArchive)" @click="handleRecallRandomNpcArchiveByOldKeepsake(selectedRandomNpcArchive.visitorId)">托旧物</Button>
+              <Button class="col-span-2 justify-center !px-2 !py-1" :icon="Sparkles" :disabled="!canRecallRandomNpcArchiveByFestivalReunion(selectedRandomNpcArchive)" @click="handleRecallRandomNpcArchiveByFestivalReunion(selectedRandomNpcArchive.visitorId)">节会重逢</Button>
+              <p class="col-span-2 text-[0.625rem] text-muted leading-4">
+                旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}；节会重逢需今日有节会（{{ randomNpcFestivalReunionEventName }}）。
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="space-y-1">
+            <Button
+              class="w-full justify-center !px-2 !py-1"
+              :icon="randomNpcDetailPrimaryAction.icon"
+              :disabled="randomNpcDetailPrimaryAction.disabled"
+              data-testid="random-npc-detail-primary-action"
+              @click="handleRandomNpcDetailPrimaryAction"
+            >
+              {{ randomNpcDetailPrimaryAction.label }}
+            </Button>
+            <p v-if="randomNpcDetailPrimaryAction.hint" class="text-[0.625rem] text-muted leading-4">
+              {{ randomNpcDetailPrimaryAction.hint }}
+            </p>
+          </div>
+        </template>
+      </OnlineBottomSheet>
 
       <div class="border border-accent/20 rounded-xs p-2 mt-3">
         <div class="flex items-center justify-between mb-2">
@@ -1942,9 +2150,9 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, type Component } from 'vue'
+  import { ref, computed, onBeforeUnmount, onMounted, type Component } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail, Clock } from 'lucide-vue-next'
+  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail, Clock, PanelRightOpen } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -2006,6 +2214,7 @@
   import NpcPortraitVariantPicker from '@/components/game/NpcPortraitVariantPicker.vue'
   import HiddenNpcModal from '@/components/game/HiddenNpcModal.vue'
   import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
+  import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
   import type { DiscoveryStep } from '@/types/hiddenNpc'
   import type { DiscoveryCondition } from '@/types/hiddenNpc'
 
@@ -2023,6 +2232,25 @@
 
   const activeTab = ref<'villager' | 'spirit'>('villager')
   const selectedHiddenNpc = ref<string | null>(null)
+  type RandomNpcDetailKind = 'visitor' | 'acquaintance' | 'resident' | 'archive'
+  type RandomNpcDetailTabId = 'overview' | 'story' | 'relationship' | 'order'
+  type RandomNpcDetailPrimaryAction = {
+    label: string
+    tab: RandomNpcDetailTabId
+    icon: Component
+    disabled: boolean
+    hint: string
+  }
+
+  const randomNpcDetailTabs: Array<{ id: RandomNpcDetailTabId; label: string }> = [
+    { id: 'overview', label: '总览' },
+    { id: 'story', label: '记忆' },
+    { id: 'relationship', label: '关系线' },
+    { id: 'order', label: '行动' }
+  ]
+  const selectedRandomNpcDetail = ref<{ kind: RandomNpcDetailKind; id: string } | null>(null)
+  const randomNpcDetailTab = ref<RandomNpcDetailTabId>('overview')
+  const randomNpcDetailDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const relationshipDebugSnapshot = computed(() => npcStore.getRelationshipDebugSnapshot())
   const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
   const activeFamilyWishDef = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
@@ -2046,6 +2274,95 @@
   const randomNpcOldKeepsakeCostQuantity = 1
   const randomNpcOldKeepsakeItemName = computed(() => getItemById(randomNpcOldKeepsakeItemId)?.name ?? '丝帕')
   const randomNpcOldKeepsakeCount = computed(() => inventoryStore.getTotalItemCount(randomNpcOldKeepsakeItemId))
+  const selectedRandomNpcVisitor = computed(() =>
+    selectedRandomNpcDetail.value?.kind === 'visitor'
+      ? randomNpcBoard.value.activeVisitors.find(visitor => visitor.id === selectedRandomNpcDetail.value?.id) ?? null
+      : null
+  )
+  const selectedRandomNpcAcquaintance = computed(() =>
+    selectedRandomNpcDetail.value?.kind === 'acquaintance'
+      ? randomNpcBoard.value.acquaintances.find(acquaintance => acquaintance.visitorId === selectedRandomNpcDetail.value?.id) ?? null
+      : null
+  )
+  const selectedRandomNpcResident = computed(() =>
+    selectedRandomNpcDetail.value?.kind === 'resident'
+      ? randomNpcBoard.value.longStayResidents.find(resident => resident.residentId === selectedRandomNpcDetail.value?.id) ?? null
+      : null
+  )
+  const selectedRandomNpcArchive = computed(() =>
+    selectedRandomNpcDetail.value?.kind === 'archive'
+      ? randomNpcBoard.value.recentSummaries.find(summary => summary.visitorId === selectedRandomNpcDetail.value?.id) ?? null
+      : null
+  )
+  const hasSelectedRandomNpcDetail = computed(() =>
+    Boolean(selectedRandomNpcVisitor.value || selectedRandomNpcAcquaintance.value || selectedRandomNpcResident.value || selectedRandomNpcArchive.value)
+  )
+  const randomNpcDetailSheetSide = computed<'bottom' | 'right'>(() => (randomNpcDetailDesktop.value ? 'right' : 'bottom'))
+  const randomNpcDetailTitle = computed(() => {
+    const entry = selectedRandomNpcVisitor.value ?? selectedRandomNpcAcquaintance.value ?? selectedRandomNpcResident.value ?? selectedRandomNpcArchive.value
+    return entry ? `${entry.name} · ${entry.occupation}` : '随机 NPC'
+  })
+  const randomNpcDetailDescription = computed(() => {
+    const visitor = selectedRandomNpcVisitor.value
+    if (visitor) return `${visitor.origin} · ${getRandomNpcVisitTierLabel(visitor.tier)} · 好感 ${visitor.affinity}`
+    const acquaintance = selectedRandomNpcAcquaintance.value
+    if (acquaintance) return `${acquaintance.origin} · 熟人册 · 好感 ${acquaintance.affinity}`
+    const resident = selectedRandomNpcResident.value
+    if (resident) return `${getRandomNpcLongStayRouteLabel(resident.route)} · 长住阶段 ${resident.relationshipEventStage}/3 · 好感 ${resident.affinity}`
+    const archive = selectedRandomNpcArchive.value
+    if (archive) return `旧日来客 · ${getRandomNpcRelationshipLabel(archive.relationshipTag)} · 好感 ${archive.affinity}`
+    return ''
+  })
+  const randomNpcDetailPrimaryAction = computed<RandomNpcDetailPrimaryAction>(() => {
+    const visitor = selectedRandomNpcVisitor.value
+    if (visitor) {
+      if (!visitor.talkedToday) return { label: '去对话选择', tab: 'story', icon: MessageCircle, disabled: false, hint: '' }
+      if (!visitor.smallOrderCompleted) return { label: '查看小订单', tab: 'order', icon: Package, disabled: false, hint: '今日已对话，仍可查看订单、锁定或后续关系动作。' }
+      return { label: '查看关系推进', tab: 'relationship', icon: Heart, disabled: false, hint: '今日对话与订单都已处理，可看自然成长和短线恋爱。' }
+    }
+
+    const acquaintance = selectedRandomNpcAcquaintance.value
+    if (acquaintance) {
+      if (!acquaintance.smallOrderCompleted) return { label: '查看小订单', tab: 'order', icon: Package, disabled: false, hint: '' }
+      if (!isRandomNpcLongStay(acquaintance.visitorId)) return { label: '查看长住邀请', tab: 'order', icon: Users, disabled: false, hint: '好感未达标时，按钮会在行动页显示不可用。' }
+      return { label: '查看关系成长', tab: 'relationship', icon: Heart, disabled: false, hint: '已转入长住或订单已处理，可查看关系与自然成长。' }
+    }
+
+    const resident = selectedRandomNpcResident.value
+    if (resident) {
+      if (getRandomNpcLongStayStoryEvent(resident)) return { label: '去文游事件', tab: 'story', icon: MessageCircle, disabled: false, hint: '' }
+      if (!resident.smallOrderCompleted) return { label: '查看长住订单', tab: 'order', icon: Package, disabled: false, hint: '' }
+      if (resident.familyTies.length > 0) return { label: '查看关系推进', tab: 'relationship', icon: Heart, disabled: false, hint: '' }
+      return { label: '查看行动', tab: 'order', icon: Sparkles, disabled: false, hint: '节会同行和家族委托会在可用时点亮。' }
+    }
+
+    if (selectedRandomNpcArchive.value) {
+      return { label: '查看旧档接续', tab: 'order', icon: RotateCcw, disabled: false, hint: '召回、旧信、旧物和节会重逢仍受名额与材料限制。' }
+    }
+
+    return { label: '暂无可用动作', tab: 'overview', icon: PanelRightOpen, disabled: true, hint: '先从随机 NPC 列表中打开一个人物。' }
+  })
+  const syncRandomNpcDetailViewport = () => {
+    randomNpcDetailDesktop.value = typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  }
+  const openRandomNpcDetail = (kind: RandomNpcDetailKind, id: string, tab: RandomNpcDetailTabId = 'overview') => {
+    selectedRandomNpcDetail.value = { kind, id }
+    randomNpcDetailTab.value = tab
+  }
+  const closeRandomNpcDetail = () => {
+    selectedRandomNpcDetail.value = null
+  }
+  const handleRandomNpcDetailPrimaryAction = () => {
+    if (randomNpcDetailPrimaryAction.value.disabled) return
+    randomNpcDetailTab.value = randomNpcDetailPrimaryAction.value.tab
+  }
+  onMounted(() => {
+    syncRandomNpcDetailViewport()
+    window.addEventListener('resize', syncRandomNpcDetailViewport)
+  })
+  onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') window.removeEventListener('resize', syncRandomNpcDetailViewport)
+  })
   const randomNpcLockedArchiveCount = computed(() => {
     const lockedIds = new Set<string>()
     randomNpcBoard.value.activeVisitors.forEach(visitor => {
