@@ -347,55 +347,62 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showPresetModal = false"
       >
-        <div class="game-panel max-w-xs w-full relative">
+        <div class="game-panel relative flex max-h-[82vh] w-full max-w-md flex-col">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showPresetModal = false">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">装备方案</p>
-          <div v-if="inventoryStore.equipmentPresets.length > 0" class="flex flex-col space-y-1.5 mb-3 max-h-60 overflow-y-auto">
+          <p class="mb-3 pr-6 text-sm text-accent">装备方案</p>
+          <div
+            v-if="inventoryStore.equipmentPresets.length > 0"
+            class="mb-3 flex min-h-0 flex-1 flex-col space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
+          >
             <div
               v-for="preset in inventoryStore.equipmentPresets"
               :key="preset.id"
-              class="border rounded-xs p-2"
+              class="border rounded-xs p-3"
               :class="activePresetId === preset.id ? 'border-accent/40' : 'border-accent/10'"
             >
-              <div class="flex items-center justify-between mb-1">
+              <div class="mb-2 flex items-center justify-between gap-2">
                 <template v-if="renamingPresetId === preset.id">
                   <input
                     v-model="renameValue"
-                    class="bg-transparent border border-accent/30 rounded-xs px-1 py-0.5 text-xs text-text w-full mr-2 outline-none"
+                    class="mr-2 w-full rounded-xs border border-accent/30 bg-transparent px-2 py-1 text-xs text-text outline-none"
                     @keyup.enter="confirmRename(preset.id)"
                     @blur="confirmRename(preset.id)"
                   />
                 </template>
                 <template v-else>
-                  <span class="text-xs text-accent truncate">{{ preset.name }}</span>
+                  <span class="truncate text-xs text-accent">{{ preset.name }}</span>
                 </template>
                 <span v-if="activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
-              <div class="flex space-x-1">
+              <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 <Button
-                  class="py-0 px-1.5 flex-1 justify-center"
+                  class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap"
                   :disabled="activePresetId === preset.id"
                   @click="handleApplyPreset(preset.id)"
                 >
                   使用
                 </Button>
-                <Button class="py-0 px-1.5 flex-1 justify-center" @click="handleSaveToPreset(preset.id)">保存</Button>
-                <Button class="py-0 px-1.5" @click="startRename(preset)">改名</Button>
-                <Button class="py-0 px-1.5 text-danger" :disabled="activePresetId === preset.id" @click="handleDeletePreset(preset.id)">
+                <Button class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap" @click="handleSaveToPreset(preset.id)">保存</Button>
+                <Button class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap" @click="startRename(preset)">改名</Button>
+                <Button
+                  class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap text-danger"
+                  :disabled="activePresetId === preset.id"
+                  @click="handleDeletePreset(preset.id)"
+                >
                   删除
                 </Button>
               </div>
             </div>
           </div>
-          <div v-else class="flex flex-col items-center justify-center py-6 mb-3">
+          <div v-else class="mb-3 flex flex-col items-center justify-center py-6">
             <BookMarked :size="24" class="text-muted/30" />
             <p class="text-xs text-muted mt-1">暂无方案</p>
             <p class="text-[0.625rem] text-muted/60 mt-0.5">创建方案后可快速切换装备配置</p>
           </div>
           <Button
-            class="w-full justify-center"
+            class="w-full shrink-0 justify-center"
             :disabled="inventoryStore.equipmentPresets.length >= inventoryStore.MAX_EQUIPMENT_PRESETS"
             @click="handleCreatePreset"
           >
