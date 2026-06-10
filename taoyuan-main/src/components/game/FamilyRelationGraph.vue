@@ -80,13 +80,32 @@
               <p class="text-xs text-accent truncate">{{ selectedNode.name }}</p>
               <p class="text-[0.625rem] text-muted mt-0.5">{{ selectedNode.relationLabel }} · {{ selectedNode.groupLabel }}</p>
             </div>
-            <Button
-              v-if="selectedNode.selectableNpcId"
-              class="shrink-0 justify-center !px-2 !py-1"
-              @click="$emit('selectNpc', selectedNode.selectableNpcId)"
-            >
-              查看人物
-            </Button>
+            <div v-if="selectedNode.selectableNpcId" class="shrink-0 flex flex-wrap justify-end gap-1">
+              <Button
+                class="justify-center !px-2 !py-1"
+                @click="$emit('selectNpc', selectedNode.selectableNpcId)"
+              >
+                查看人物
+              </Button>
+              <Button
+                class="justify-center !px-2 !py-1"
+                :icon="MessageCircle"
+                :icon-size="10"
+                :data-testid="`family-relation-quick-talk-${selectedNode.selectableNpcId}`"
+                @click="$emit('quick-talk-npc', selectedNode.selectableNpcId)"
+              >
+                聊天
+              </Button>
+              <Button
+                class="justify-center !px-2 !py-1"
+                :icon="Gift"
+                :icon-size="10"
+                :data-testid="`family-relation-quick-gift-${selectedNode.selectableNpcId}`"
+                @click="$emit('quick-gift-npc', selectedNode.selectableNpcId)"
+              >
+                送礼
+              </Button>
+            </div>
           </div>
           <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
             <div class="border border-accent/10 rounded-xs px-1.5 py-1">
@@ -124,6 +143,7 @@
 
 <script setup lang="ts">
   import { computed, ref, watch } from 'vue'
+  import { Gift, MessageCircle } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { NPCS, getHeartEventById, getItemById } from '@/data'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
@@ -135,6 +155,8 @@
 
   defineEmits<{
     (event: 'selectNpc', npcId: string): void
+    (event: 'quick-talk-npc', npcId: string): void
+    (event: 'quick-gift-npc', npcId: string): void
   }>()
 
   type RelationNodeGroup = 'self' | 'family' | 'pet' | 'visitor' | 'acquaintance' | 'resident' | 'archive' | 'villager' | 'spirit' | 'kin'

@@ -48,6 +48,7 @@
     "qa:reward-delivery-control": "node scripts/qa-reward-delivery-control.mjs",
     "qa:random-npc-save-guard": "node scripts/qa-random-npc-save-guard.mjs",
     "qa:random-npc-content-guard": "node scripts/qa-random-npc-content-guard.mjs",
+    "qa:npc-mobile-interactions": "node scripts/qa-npc-mobile-interactions.mjs",
     "qa:font-size-scaling": "node scripts/qa-font-size-scaling.mjs",
     "qa:ai-assistant-dynamic-quick-questions": "node scripts/qa-ai-assistant-dynamic-quick-questions.mjs",
     "qa:ai-assistant-safe-actions": "node scripts/qa-ai-assistant-safe-actions.mjs",

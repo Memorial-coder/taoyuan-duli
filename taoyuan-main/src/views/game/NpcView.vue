@@ -1001,20 +1001,27 @@
           </div>
         </div>
         <div v-if="randomNpcBoard.recentSummaries.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <div class="flex items-center justify-between gap-2 mb-1">
+          <div class="flex flex-wrap items-center justify-between gap-1.5 mb-1">
             <p class="text-[0.625rem] text-muted">旧日来客摘要</p>
             <span class="text-[0.625rem] text-muted">最多 {{ randomNpcMaxRecentSummaries }} 条，锁定 {{ randomNpcMaxLockedArchives }} 条</span>
           </div>
-          <div v-for="summary in randomNpcBoard.recentSummaries" :key="summary.visitorId" class="text-[0.625rem] border-t border-accent/10 py-1 first:border-t-0 first:pt-0 last:pb-0">
-            <div class="flex items-start justify-between gap-2">
-              <p class="text-accent min-w-0">
-                {{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}
-                <span v-if="summary.archivedTier === 'long_stay'" class="text-accent">· 长住旧档</span>
-                <span v-if="summary.locked" class="text-warning">· 已锁定</span>
-              </p>
-              <div class="flex shrink-0 items-center gap-1">
+          <div
+            v-for="summary in randomNpcBoard.recentSummaries"
+            :key="summary.visitorId"
+            class="text-[0.625rem] border-t border-accent/10 py-2 first:border-t-0 first:pt-0 last:pb-0"
+          >
+            <div class="flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-2">
+              <div class="min-w-0 md:flex-1">
+                <p class="text-accent leading-4">
+                  {{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}
+                  <span v-if="summary.archivedTier === 'long_stay'" class="text-accent">· 长住旧档</span>
+                  <span v-if="summary.locked" class="text-warning">· 已锁定</span>
+                </p>
+                <p class="text-muted leading-4 mt-0.5">{{ summary.summary }}</p>
+              </div>
+              <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 md:flex md:shrink-0 md:flex-wrap md:items-center md:justify-end">
                 <Button
-                  class="justify-center !px-2 !py-1"
+                  class="w-full justify-center !px-2 !py-1 md:w-auto"
                   :icon="Star"
                   :class="{ '!bg-warning !text-bg': summary.locked }"
                   :disabled="!summary.locked && !canLockMoreRandomNpc(summary.visitorId)"
@@ -1024,7 +1031,7 @@
                   {{ summary.locked ? '取消' : '锁定' }}
                 </Button>
                 <Button
-                  class="justify-center !px-2 !py-1"
+                  class="w-full justify-center !px-2 !py-1 md:w-auto"
                   :icon="RotateCcw"
                   :disabled="!canRecallRandomNpcArchive(summary)"
                   :data-testid="`random-npc-archive-recall-${summary.visitorId}`"
@@ -1033,7 +1040,7 @@
                   召回
                 </Button>
                 <Button
-                  class="justify-center !px-2 !py-1"
+                  class="w-full justify-center !px-2 !py-1 md:w-auto"
                   :icon="Mail"
                   :disabled="!canRecallRandomNpcArchiveByOldLetter(summary)"
                   :data-testid="`random-npc-archive-old-letter-${summary.visitorId}`"
@@ -1042,7 +1049,7 @@
                   寄旧信
                 </Button>
                 <Button
-                  class="justify-center !px-2 !py-1"
+                  class="w-full justify-center !px-2 !py-1 md:w-auto"
                   :icon="Package"
                   :disabled="!canRecallRandomNpcArchiveByOldKeepsake(summary)"
                   :data-testid="`random-npc-archive-old-keepsake-${summary.visitorId}`"
@@ -1051,7 +1058,7 @@
                   托旧物
                 </Button>
                 <Button
-                  class="justify-center !px-2 !py-1"
+                  class="col-span-2 w-full justify-center !px-2 !py-1 sm:col-span-1 md:w-auto"
                   :icon="Sparkles"
                   :disabled="!canRecallRandomNpcArchiveByFestivalReunion(summary)"
                   :data-testid="`random-npc-archive-festival-reunion-${summary.visitorId}`"
@@ -1060,9 +1067,7 @@
                   节会重逢
                 </Button>
               </div>
-
             </div>
-            <p class="text-muted leading-4">{{ summary.summary }}</p>
             <p class="text-[0.625rem] text-muted leading-4 mt-0.5">
               旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}；节会重逢需今日有节会（{{ randomNpcFestivalReunionEventName }}），仍受本周短访 / 长住名额上限约束。
             </p>
@@ -1495,361 +1500,394 @@
             </div>
           </div>
 
-          <!-- 今日行程 / 节日存在感 -->
-          <div v-if="selectedScheduleStatus" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div class="flex items-center justify-between mb-1">
-              <p class="text-xs text-muted">今日行程</p>
-              <span class="text-[0.625rem]" :class="selectedScheduleStatus.available ? 'text-success' : 'text-muted/50'">
-                {{ selectedScheduleStatus.available ? '可遇见' : '暂时不在' }}
+          <div class="grid grid-cols-4 gap-1.5 mb-3 md:hidden" data-testid="npc-detail-tabbar" role="tablist" aria-label="村民详情">
+            <button
+              v-for="tab in npcDetailTabs"
+              :key="tab.id"
+              type="button"
+              role="tab"
+              class="rounded-xs border px-2 py-2 text-xs transition-colors"
+              :class="
+                selectedNpcDetailTab === tab.id
+                  ? 'border-accent/40 bg-accent/10 text-accent'
+                  : 'border-accent/10 bg-bg/10 text-muted hover:bg-accent/5'
+              "
+              :aria-selected="selectedNpcDetailTab === tab.id"
+              :data-testid="`npc-detail-tab-${tab.id}`"
+              @click="selectedNpcDetailTab = tab.id"
+            >
+              <span class="flex items-center justify-center gap-1">
+                <component :is="tab.icon" :size="12" />
+                <span>{{ tab.label }}</span>
               </span>
-            </div>
-            <p v-if="todayEvent" class="text-[0.625rem] text-danger mb-1">今日节日：{{ todayEvent.name }}</p>
-            <p v-if="todayEvent?.variantNotes?.dialogueNotes?.[0]" class="text-[0.625rem] text-warning mb-1">
-              台词变化提示：{{ todayEvent.variantNotes.dialogueNotes[0] }}
-            </p>
-            <p class="text-xs text-accent">{{ selectedScheduleStatus.location }}</p>
-            <p class="text-[0.625rem] text-muted mt-0.5">{{ selectedScheduleStatus.summary }}</p>
-            <p v-if="selectedScheduleStatus.reason" class="text-[0.625rem] text-warning mt-1">{{ selectedScheduleStatus.reason }}</p>
-            <p v-if="selectedScheduleStatus.specialDialogue" class="text-[0.625rem] text-danger mt-1">节日台词：{{ selectedScheduleStatus.specialDialogue }}</p>
-            <p v-if="selectedNextScheduleText" class="text-[0.625rem] text-accent/80 mt-1">下一步：{{ selectedNextScheduleText }}</p>
+            </button>
+          </div>
 
-            <div v-if="selectedScheduleTimeline.length > 0" class="mt-2 border-t border-accent/10 pt-2 space-y-1">
-              <p class="text-[0.625rem] text-muted">今日时间线</p>
+          <div class="flex flex-col gap-3">
+            <section data-testid="npc-detail-section-interact" :class="npcDetailSectionClass('interact')">
+              <!-- 对话 -->
+              <div class="mb-3 flex space-y-2 flex-wrap">
+                <Button class="w-full" :icon="MessageCircle" :disabled="selectedNpcState?.talkedToday || !canInteractWithSelectedNpc" @click="handleTalk">
+                  {{ selectedNpcState?.talkedToday ? '今天已聊过' : '聊天' }}
+                </Button>
+                <!-- 每日提示按钮 -->
+                <Button
+                  v-if="selectedNpc && npcStore.hasDailyTip(selectedNpc)"
+                  class="w-full text-success border-success/40"
+                  :icon="Lightbulb"
+                  :disabled="!!(selectedNpc && npcStore.isTipGivenToday(selectedNpc)) || !canInteractWithSelectedNpc"
+                  @click="handleDailyTip"
+                >
+                  {{ selectedNpc && npcStore.isTipGivenToday(selectedNpc) ? '今天已提示' : TIP_NPC_LABELS[selectedNpc as TipNpcId] }}
+                </Button>
+                <!-- 离婚按钮 -->
+                <Button v-if="selectedNpcState?.married" class="w-full text-danger border-danger/40" @click="showDivorceConfirm = true">
+                  休书
+                </Button>
+                <p v-if="!canInteractWithSelectedNpc && unavailableInteractionReason" class="text-[0.625rem] text-warning w-full">
+                  {{ unavailableInteractionReason }}
+                </p>
+              </div>
+
+              <!-- 婚礼倒计时 -->
+              <p v-if="npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc" class="text-xs text-accent mb-3">
+                婚礼将在 {{ npcStore.weddingCountdown }} 天后举行！
+              </p>
+
+              <!-- 恋爱/求婚面板 -->
               <div
-                v-for="entry in selectedScheduleTimeline"
-                :key="entry.key"
-                class="rounded-xs border px-2 py-1"
-                :class="entry.active ? 'border-success/30 bg-success/5' : 'border-accent/10'"
+                v-if="selectedNpcDef?.marriageable && !selectedNpcState?.married && npcStore.canPursueMarriageWithNpc(selectedNpc)"
+                class="border border-danger/20 rounded-xs p-2 mb-3"
               >
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-[0.625rem]" :class="entry.active ? 'text-success' : 'text-muted/70'">{{ entry.label }}</span>
-                  <div v-if="entry.tags.length > 0" class="flex flex-wrap justify-end gap-1">
-                    <span v-for="tag in entry.tags" :key="tag" class="text-[0.625rem] px-1 rounded-xs border border-accent/15 text-accent/80">
-                      {{ tag }}
+                <p class="text-xs text-danger/80 mb-1.5 flex items-center space-x-1">
+                  <Heart :size="12" />
+                  <span>姻缘</span>
+                </p>
+                <template v-if="selectedNpcState?.zhiji">
+                  <p class="text-[0.625rem] text-muted/70 mb-1.5">你们当前是知己关系。若想发展婚缘，请先在下方知己面板中断缘，再回来赠帕开始约会。</p>
+                </template>
+                <template v-else-if="!selectedNpcState?.dating && !(npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc)">
+                  <p v-if="npcStore.npcStates.some(s => s.married)" class="text-[0.625rem] text-muted/50 mb-1">你已有伴侣，无法再赠帕。</p>
+                  <template v-else>
+                    <div class="flex flex-col space-y-0.5 mb-1.5">
+                      <span
+                        class="text-[0.625rem] flex items-center space-x-1"
+                        :class="(selectedNpcState?.friendship ?? 0) >= 2000 ? 'text-success' : 'text-muted/50'"
+                      >
+                        <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2000" :size="10" />
+                        <Circle v-else :size="10" />
+                        <span>好感≥2000（8心）</span>
+                        <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
+                      </span>
+                      <span
+                        class="text-[0.625rem] flex items-center space-x-1"
+                        :class="inventoryStore.hasItem('silk_ribbon') ? 'text-success' : 'text-muted/50'"
+                      >
+                        <CircleCheck v-if="inventoryStore.hasItem('silk_ribbon')" :size="10" />
+                        <Circle v-else :size="10" />
+                        <span>持有丝帕</span>
+                        <span class="text-muted/40">— 绸缎庄有售</span>
+                      </span>
+                    </div>
+                    <Button class="w-full text-danger border-danger/40" :icon="Heart" :disabled="!canInteractWithSelectedNpc || !canStartDating" @click="handleStartDating">
+                      赠帕（开始约会）
+                    </Button>
+                  </template>
+                </template>
+                <template v-else-if="selectedNpcState?.dating">
+                  <p class="text-[0.625rem] text-danger/60 mb-1">
+                    约会中
+                    <Heart :size="10" class="inline" />
+                  </p>
+                  <div class="flex flex-col space-y-0.5 mb-1.5">
+                    <span
+                      class="text-[0.625rem] flex items-center space-x-0.5"
+                      :class="(selectedNpcState?.friendship ?? 0) >= 2500 ? 'text-success' : 'text-muted/50'"
+                    >
+                      <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2500" :size="10" />
+                      <Circle v-else :size="10" />
+                      好感≥2500（10心）
+                      <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
+                    </span>
+                    <span
+                      class="text-[0.625rem] flex items-center space-x-0.5"
+                      :class="inventoryStore.hasItem('jade_ring') ? 'text-success' : 'text-muted/50'"
+                    >
+                      <CircleCheck v-if="inventoryStore.hasItem('jade_ring')" :size="10" />
+                      <Circle v-else :size="10" />
+                      持有翡翠戒指
+                      <span class="text-muted/40">— 绸缎庄有售</span>
+                    </span>
+                  </div>
+                  <Button class="w-full text-danger border-danger/40" :icon="Heart" :disabled="!canInteractWithSelectedNpc || !canPropose" @click="handlePropose">求婚</Button>
+                </template>
+              </div>
+
+              <!-- 知己面板（同性可婚NPC，未约会/未结婚） -->
+              <div
+                v-if="
+                  selectedNpcDef?.marriageable &&
+                  !selectedNpcState?.married &&
+                  !selectedNpcState?.dating &&
+                  selectedNpcDef.gender === playerStore.gender
+                "
+                class="border border-accent/20 rounded-xs p-2 mb-3"
+              >
+                <p class="text-xs text-accent/80 mb-1.5 flex items-center space-x-1">
+                  <Heart :size="12" />
+                  <span>知己</span>
+                </p>
+                <template v-if="selectedNpcState?.zhiji">
+                  <p class="text-[0.625rem] text-accent/60 mb-1">{{ selectedNpcDef.gender === 'male' ? '蓝颜知己' : '红颜知己' }} ♦</p>
+                  <Button class="w-full text-danger border-danger/40" @click="showZhijiDissolveConfirm = true">断缘</Button>
+                </template>
+                <template v-else-if="npcStore.npcStates.some(s => s.zhiji)">
+                  <p class="text-[0.625rem] text-muted/50">你已有知己，无法再结缘。</p>
+                </template>
+                <template v-else>
+                  <div class="flex flex-col space-y-0.5 mb-1.5">
+                    <span
+                      class="text-[0.625rem] flex items-center space-x-0.5"
+                      :class="(selectedNpcState?.friendship ?? 0) >= 2000 ? 'text-success' : 'text-muted/50'"
+                    >
+                      <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2000" :size="10" />
+                      <Circle v-else :size="10" />
+                      好感≥2000（8心）
+                      <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
+                    </span>
+                    <span
+                      class="text-[0.625rem] flex items-center space-x-0.5"
+                      :class="inventoryStore.hasItem('zhiji_jade') ? 'text-success' : 'text-muted/50'"
+                    >
+                      <CircleCheck v-if="inventoryStore.hasItem('zhiji_jade')" :size="10" />
+                      <Circle v-else :size="10" />
+                      持有知己玉佩
+                      <span class="text-muted/40">— 绸缎庄有售</span>
+                    </span>
+                  </div>
+                  <Button class="w-full text-accent border-accent/40" :icon="Heart" :disabled="!canInteractWithSelectedNpc || !canBecomeZhiji" @click="handleBecomeZhiji">
+                    赠玉（结为知己）
+                  </Button>
+                </template>
+              </div>
+
+              <!-- 断缘确认 -->
+              <div v-if="showZhijiDissolveConfirm" class="game-panel mb-3 border-accent/40">
+                <p class="text-xs text-danger mb-2">确定要与{{ selectedNpcDef?.name }}断缘吗？（花费10000文）</p>
+                <div class="flex space-x-2">
+                  <Button class="text-danger" @click="handleDissolveZhiji">确认</Button>
+                  <Button @click="showZhijiDissolveConfirm = false">取消</Button>
+                </div>
+              </div>
+
+              <!-- 离婚确认 -->
+              <div v-if="showDivorceConfirm" class="game-panel mb-3 border-danger/40">
+                <p class="text-xs text-danger mb-2">确定要与{{ selectedNpcDef?.name }}和离吗？（花费30000文）</p>
+                <div class="flex space-x-2">
+                  <Button class="text-danger" @click="handleDivorce">确认</Button>
+                  <Button @click="showDivorceConfirm = false">取消</Button>
+                </div>
+              </div>
+
+              <!-- 对话内容 -->
+              <div v-if="dialogueText" class="game-panel mb-3 text-xs">
+                <p class="text-accent mb-1">「{{ selectedNpcDef?.name }}」</p>
+                <p>{{ dialogueText }}</p>
+              </div>
+            </section>
+
+            <section data-testid="npc-detail-section-gift" :class="npcDetailSectionClass('gift')">
+              <!-- 送礼 -->
+              <div>
+                <p class="text-xs text-muted mb-2">
+                  送礼（选择背包中的物品）
+                  <span v-if="npcStore.isBirthday(selectedNpc!)" class="text-danger">— 生日加成中!</span>
+                </p>
+                <template v-if="selectedNpcState?.giftedToday">
+                  <div class="flex flex-col items-center justify-center py-6 text-muted">
+                    <Gift :size="32" class="mb-2" />
+                    <p class="text-xs">今天已送过礼物了。</p>
+                  </div>
+                </template>
+                <template v-else-if="(selectedNpcState?.giftsThisWeek ?? 0) >= 2">
+                  <div class="flex flex-col items-center justify-center py-6 text-muted">
+                    <Gift :size="32" class="mb-2" />
+                    <p class="text-xs">本周已送过2次礼物了。</p>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="flex flex-col space-y-1 max-h-40 overflow-y-auto">
+                    <div
+                      v-for="item in giftableItems"
+                      :key="`${item.itemId}_${item.quality ?? 'normal'}`"
+                      class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5 mr-1"
+                      @click="activeGiftKey = item.itemId + ':' + item.quality"
+                    >
+                      <span class="flex items-center space-x-1">
+                        <span class="text-xs" :class="qualityTextClass(item.quality)">
+                          {{ getItemById(item.itemId)?.name }}
+                        </span>
+                        <span
+                          v-if="getGiftPreference(item.itemId) !== 'unknown'"
+                          class="text-[0.625rem]"
+                          :class="GIFT_PREF_CLASS[getGiftPreference(item.itemId)]"
+                        >
+                          {{ GIFT_PREF_LABELS[getGiftPreference(item.itemId)] }}
+                        </span>
+                      </span>
+                      <Gift :size="12" class="text-muted" />
+                    </div>
+                  </div>
+                  <div v-if="giftableItems.length === 0" class="flex flex-col items-center justify-center py-6 text-muted">
+                    <Package :size="32" class="mb-2" />
+                    <p class="text-xs">背包为空</p>
+                  </div>
+                </template>
+              </div>
+            </section>
+
+            <section data-testid="npc-detail-section-relationship" :class="npcDetailSectionClass('relationship')">
+              <!-- 村中商业话题 -->
+              <div v-if="selectedNpcCommerceFeedbackLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <p class="text-xs text-muted">村中话题反馈</p>
+                  <span class="text-[0.625rem] text-accent">商圈 / 节庆 / 修复</span>
+                </div>
+                <p
+                  v-for="line in selectedNpcCommerceFeedbackLines"
+                  :key="`selected-npc-commerce-${line}`"
+                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
+                >
+                  - {{ line }}
+                </p>
+              </div>
+
+              <!-- 关系收益 -->
+              <div class="border border-accent/10 rounded-xs p-2 mb-2">
+                <p class="text-xs text-muted mb-1">当前关系收益</p>
+                <div v-if="selectedRelationshipFocusLabels.length > 0" class="mb-2">
+                  <p class="text-[0.625rem] text-muted mb-1">职业侧重</p>
+                  <div class="flex flex-wrap gap-1">
+                    <span
+                      v-for="focus in selectedRelationshipFocusLabels"
+                      :key="focus"
+                      class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                    >
+                      {{ focus }}
                     </span>
                   </div>
                 </div>
-                <p class="text-[0.625rem] text-accent mt-0.5">{{ entry.location }}</p>
-                <p class="text-[0.625rem] text-muted/70 leading-4">{{ entry.summary }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- 村中商业话题 -->
-          <div v-if="selectedNpcCommerceFeedbackLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <p class="text-xs text-muted">村中话题反馈</p>
-              <span class="text-[0.625rem] text-accent">商圈 / 节庆 / 修复</span>
-            </div>
-            <p
-              v-for="line in selectedNpcCommerceFeedbackLines"
-              :key="`selected-npc-commerce-${line}`"
-              class="text-[0.625rem] text-muted leading-4 mt-0.5"
-            >
-              - {{ line }}
-            </p>
-          </div>
-
-          <!-- 关系收益 -->
-          <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-xs text-muted mb-1">当前关系收益</p>
-            <div v-if="selectedRelationshipFocusLabels.length > 0" class="mb-2">
-              <p class="text-[0.625rem] text-muted mb-1">职业侧重</p>
-              <div class="flex flex-wrap gap-1">
-                <span
-                  v-for="focus in selectedRelationshipFocusLabels"
-                  :key="focus"
-                  class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
-                >
-                  {{ focus }}
-                </span>
-              </div>
-            </div>
-            <div v-if="selectedRelationshipBenefits.length > 0" class="flex flex-wrap gap-1">
-              <span v-for="benefit in selectedRelationshipBenefits" :key="benefit" class="text-[0.625rem] border border-success/20 text-success rounded-xs px-1 py-0.5">
-                {{ benefit }}
-              </span>
-            </div>
-            <p v-else class="text-[0.625rem] text-muted/60">继续互动后会解锁折扣、回礼、专属委托和线索。</p>
-
-            <div v-if="selectedGiftReturnSummaries.length > 0" class="mt-2">
-              <p class="text-[0.625rem] text-muted mb-1">可能回礼</p>
-              <div class="flex flex-wrap gap-1">
-                <span
-                  v-for="giftSummary in selectedGiftReturnSummaries"
-                  :key="giftSummary"
-                  class="text-[0.625rem] border border-accent/20 text-accent rounded-xs px-1 py-0.5"
-                >
-                  {{ giftSummary }}
-                </span>
-              </div>
-            </div>
-
-            <div v-if="selectedNextRelationshipBenefits.length > 0" class="mt-2">
-              <p class="text-[0.625rem] text-muted mb-1">下一阶段可解锁</p>
-              <div class="flex flex-wrap gap-1">
-                <span
-                  v-for="benefit in selectedNextRelationshipBenefits"
-                  :key="benefit"
-                  class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5"
-                >
-                  {{ benefit }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="selectedRelationshipClues.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div class="flex items-start justify-between gap-2 mb-1">
-              <div>
-                <p class="text-xs text-muted mb-1">已获得线索</p>
-                <p class="text-[0.625rem] text-muted/70 mt-0.5">{{ selectedGiftKnowledgeStageText }}</p>
-              </div>
-              <div class="flex flex-wrap justify-end gap-1 text-[0.625rem]">
-                <span class="border border-warning/20 text-warning rounded-xs px-1 py-0.5">模糊 {{ selectedGiftKnowledgeSummary.hintCount }}</span>
-                <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">明确 {{ selectedGiftKnowledgeSummary.exactCount }}</span>
-                <span class="border border-success/20 text-success rounded-xs px-1 py-0.5">验证 {{ selectedGiftKnowledgeSummary.confirmedCount }}</span>
-              </div>
-            </div>
-            <div class="space-y-1">
-              <div v-for="clue in selectedRelationshipClues" :key="clue.clueId" class="border border-accent/10 rounded-xs px-2 py-1.5">
-                <div class="flex flex-wrap items-center gap-1 mb-1 text-[0.625rem]">
-                  <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">{{ CLUE_KIND_LABELS[clue.kind] }}</span>
-                  <span class="border rounded-xs px-1 py-0.5" :class="CLUE_PRECISION_CLASS[clue.precision]">{{ CLUE_PRECISION_LABELS[clue.precision] }}</span>
-                  <span class="text-muted/70">{{ CLUE_SOURCE_LABELS[clue.source] }}</span>
-                  <span v-if="clue.discoveredDayTag" class="text-muted/50">{{ clue.discoveredDayTag }}</span>
-                </div>
-                <p class="text-[0.625rem] text-accent/90 leading-4">{{ clue.text }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- 已触发的心事件 -->
-          <div v-if="selectedNpcState && selectedNpcState.triggeredHeartEvents.length > 0" class="mb-3">
-            <p class="text-xs text-muted mb-1">回忆：</p>
-            <div class="flex space-x-1 flex-wrap">
-              <span v-for="eid in selectedNpcState.triggeredHeartEvents" :key="eid" class="text-xs border border-accent/20 rounded-xs px-1">
-                {{ getHeartEventTitle(eid) }}
-              </span>
-            </div>
-          </div>
-
-          <!-- 对话 -->
-          <div class="mb-3 flex space-y-2 flex-wrap">
-            <Button class="w-full" :icon="MessageCircle" :disabled="selectedNpcState?.talkedToday || !canInteractWithSelectedNpc" @click="handleTalk">
-              {{ selectedNpcState?.talkedToday ? '今天已聊过' : '聊天' }}
-            </Button>
-            <!-- 每日提示按钮 -->
-            <Button
-              v-if="selectedNpc && npcStore.hasDailyTip(selectedNpc)"
-              class="w-full text-success border-success/40"
-              :icon="Lightbulb"
-              :disabled="!!(selectedNpc && npcStore.isTipGivenToday(selectedNpc)) || !canInteractWithSelectedNpc"
-              @click="handleDailyTip"
-            >
-              {{ selectedNpc && npcStore.isTipGivenToday(selectedNpc) ? '今天已提示' : TIP_NPC_LABELS[selectedNpc as TipNpcId] }}
-            </Button>
-            <!-- 离婚按钮 -->
-            <Button v-if="selectedNpcState?.married" class="w-full text-danger border-danger/40" @click="showDivorceConfirm = true">
-              休书
-            </Button>
-            <p v-if="!canInteractWithSelectedNpc && unavailableInteractionReason" class="text-[0.625rem] text-warning w-full">
-              {{ unavailableInteractionReason }}
-            </p>
-          </div>
-
-          <!-- 婚礼倒计时 -->
-          <p v-if="npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc" class="text-xs text-accent mb-3">
-            婚礼将在 {{ npcStore.weddingCountdown }} 天后举行！
-          </p>
-
-          <!-- 恋爱/求婚面板 -->
-          <div
-            v-if="selectedNpcDef?.marriageable && !selectedNpcState?.married && npcStore.canPursueMarriageWithNpc(selectedNpc)"
-            class="border border-danger/20 rounded-xs p-2 mb-3"
-          >
-            <p class="text-xs text-danger/80 mb-1.5 flex items-center space-x-1">
-              <Heart :size="12" />
-              <span>姻缘</span>
-            </p>
-            <template v-if="selectedNpcState?.zhiji">
-              <p class="text-[0.625rem] text-muted/70 mb-1.5">你们当前是知己关系。若想发展婚缘，请先在下方知己面板中断缘，再回来赠帕开始约会。</p>
-            </template>
-            <template v-else-if="!selectedNpcState?.dating && !(npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc)">
-              <p v-if="npcStore.npcStates.some(s => s.married)" class="text-[0.625rem] text-muted/50 mb-1">你已有伴侣，无法再赠帕。</p>
-              <template v-else>
-                <div class="flex flex-col space-y-0.5 mb-1.5">
-                  <span
-                    class="text-[0.625rem] flex items-center space-x-1"
-                    :class="(selectedNpcState?.friendship ?? 0) >= 2000 ? 'text-success' : 'text-muted/50'"
-                  >
-                    <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2000" :size="10" />
-                    <Circle v-else :size="10" />
-                    <span>好感≥2000（8心）</span>
-                    <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
-                  </span>
-                  <span
-                    class="text-[0.625rem] flex items-center space-x-1"
-                    :class="inventoryStore.hasItem('silk_ribbon') ? 'text-success' : 'text-muted/50'"
-                  >
-                    <CircleCheck v-if="inventoryStore.hasItem('silk_ribbon')" :size="10" />
-                    <Circle v-else :size="10" />
-                    <span>持有丝帕</span>
-                    <span class="text-muted/40">— 绸缎庄有售</span>
+                <div v-if="selectedRelationshipBenefits.length > 0" class="flex flex-wrap gap-1">
+                  <span v-for="benefit in selectedRelationshipBenefits" :key="benefit" class="text-[0.625rem] border border-success/20 text-success rounded-xs px-1 py-0.5">
+                    {{ benefit }}
                   </span>
                 </div>
-                <Button class="w-full text-danger border-danger/40" :icon="Heart" :disabled="!canInteractWithSelectedNpc || !canStartDating" @click="handleStartDating">
-                  赠帕（开始约会）
-                </Button>
-              </template>
-            </template>
-            <template v-else-if="selectedNpcState?.dating">
-              <p class="text-[0.625rem] text-danger/60 mb-1">
-                约会中
-                <Heart :size="10" class="inline" />
-              </p>
-              <div class="flex flex-col space-y-0.5 mb-1.5">
-                <span
-                  class="text-[0.625rem] flex items-center space-x-0.5"
-                  :class="(selectedNpcState?.friendship ?? 0) >= 2500 ? 'text-success' : 'text-muted/50'"
-                >
-                  <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2500" :size="10" />
-                  <Circle v-else :size="10" />
-                  好感≥2500（10心）
-                  <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
-                </span>
-                <span
-                  class="text-[0.625rem] flex items-center space-x-0.5"
-                  :class="inventoryStore.hasItem('jade_ring') ? 'text-success' : 'text-muted/50'"
-                >
-                  <CircleCheck v-if="inventoryStore.hasItem('jade_ring')" :size="10" />
-                  <Circle v-else :size="10" />
-                  持有翡翠戒指
-                  <span class="text-muted/40">— 绸缎庄有售</span>
-                </span>
-              </div>
-              <Button class="w-full text-danger border-danger/40" :icon="Heart" :disabled="!canInteractWithSelectedNpc || !canPropose" @click="handlePropose">求婚</Button>
-            </template>
-          </div>
+                <p v-else class="text-[0.625rem] text-muted/60">继续互动后会解锁折扣、回礼、专属委托和线索。</p>
 
-          <!-- 知己面板（同性可婚NPC，未约会/未结婚） -->
-          <div
-            v-if="
-              selectedNpcDef?.marriageable &&
-              !selectedNpcState?.married &&
-              !selectedNpcState?.dating &&
-              selectedNpcDef.gender === playerStore.gender
-            "
-            class="border border-accent/20 rounded-xs p-2 mb-3"
-          >
-            <p class="text-xs text-accent/80 mb-1.5 flex items-center space-x-1">
-              <Heart :size="12" />
-              <span>知己</span>
-            </p>
-            <template v-if="selectedNpcState?.zhiji">
-              <p class="text-[0.625rem] text-accent/60 mb-1">{{ selectedNpcDef.gender === 'male' ? '蓝颜知己' : '红颜知己' }} ♦</p>
-              <Button class="w-full text-danger border-danger/40" @click="showZhijiDissolveConfirm = true">断缘</Button>
-            </template>
-            <template v-else-if="npcStore.npcStates.some(s => s.zhiji)">
-              <p class="text-[0.625rem] text-muted/50">你已有知己，无法再结缘。</p>
-            </template>
-            <template v-else>
-              <div class="flex flex-col space-y-0.5 mb-1.5">
-                <span
-                  class="text-[0.625rem] flex items-center space-x-0.5"
-                  :class="(selectedNpcState?.friendship ?? 0) >= 2000 ? 'text-success' : 'text-muted/50'"
-                >
-                  <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2000" :size="10" />
-                  <Circle v-else :size="10" />
-                  好感≥2000（8心）
-                  <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
-                </span>
-                <span
-                  class="text-[0.625rem] flex items-center space-x-0.5"
-                  :class="inventoryStore.hasItem('zhiji_jade') ? 'text-success' : 'text-muted/50'"
-                >
-                  <CircleCheck v-if="inventoryStore.hasItem('zhiji_jade')" :size="10" />
-                  <Circle v-else :size="10" />
-                  持有知己玉佩
-                  <span class="text-muted/40">— 绸缎庄有售</span>
-                </span>
-              </div>
-              <Button class="w-full text-accent border-accent/40" :icon="Heart" :disabled="!canInteractWithSelectedNpc || !canBecomeZhiji" @click="handleBecomeZhiji">
-                赠玉（结为知己）
-              </Button>
-            </template>
-          </div>
-
-          <!-- 断缘确认 -->
-          <div v-if="showZhijiDissolveConfirm" class="game-panel mb-3 border-accent/40">
-            <p class="text-xs text-danger mb-2">确定要与{{ selectedNpcDef?.name }}断缘吗？（花费10000文）</p>
-            <div class="flex space-x-2">
-              <Button class="text-danger" @click="handleDissolveZhiji">确认</Button>
-              <Button @click="showZhijiDissolveConfirm = false">取消</Button>
-            </div>
-          </div>
-
-          <!-- 离婚确认 -->
-          <div v-if="showDivorceConfirm" class="game-panel mb-3 border-danger/40">
-            <p class="text-xs text-danger mb-2">确定要与{{ selectedNpcDef?.name }}和离吗？（花费30000文）</p>
-            <div class="flex space-x-2">
-              <Button class="text-danger" @click="handleDivorce">确认</Button>
-              <Button @click="showDivorceConfirm = false">取消</Button>
-            </div>
-          </div>
-
-          <!-- 对话内容 -->
-          <div v-if="dialogueText" class="game-panel mb-3 text-xs">
-            <p class="text-accent mb-1">「{{ selectedNpcDef?.name }}」</p>
-            <p>{{ dialogueText }}</p>
-          </div>
-
-          <!-- 送礼 -->
-          <div>
-            <p class="text-xs text-muted mb-2">
-              送礼（选择背包中的物品）
-              <span v-if="npcStore.isBirthday(selectedNpc!)" class="text-danger">— 生日加成中!</span>
-            </p>
-            <template v-if="selectedNpcState?.giftedToday">
-              <div class="flex flex-col items-center justify-center py-6 text-muted">
-                <Gift :size="32" class="mb-2" />
-                <p class="text-xs">今天已送过礼物了。</p>
-              </div>
-            </template>
-            <template v-else-if="(selectedNpcState?.giftsThisWeek ?? 0) >= 2">
-              <div class="flex flex-col items-center justify-center py-6 text-muted">
-                <Gift :size="32" class="mb-2" />
-                <p class="text-xs">本周已送过2次礼物了。</p>
-              </div>
-            </template>
-            <template v-else>
-              <div class="flex flex-col space-y-1 max-h-40 overflow-y-auto">
-                <div
-                  v-for="item in giftableItems"
-                  :key="`${item.itemId}_${item.quality ?? 'normal'}`"
-                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5 mr-1"
-                  @click="activeGiftKey = item.itemId + ':' + item.quality"
-                >
-                  <span class="flex items-center space-x-1">
-                    <span class="text-xs" :class="qualityTextClass(item.quality)">
-                      {{ getItemById(item.itemId)?.name }}
-                    </span>
+                <div v-if="selectedGiftReturnSummaries.length > 0" class="mt-2">
+                  <p class="text-[0.625rem] text-muted mb-1">可能回礼</p>
+                  <div class="flex flex-wrap gap-1">
                     <span
-                      v-if="getGiftPreference(item.itemId) !== 'unknown'"
-                      class="text-[0.625rem]"
-                      :class="GIFT_PREF_CLASS[getGiftPreference(item.itemId)]"
+                      v-for="giftSummary in selectedGiftReturnSummaries"
+                      :key="giftSummary"
+                      class="text-[0.625rem] border border-accent/20 text-accent rounded-xs px-1 py-0.5"
                     >
-                      {{ GIFT_PREF_LABELS[getGiftPreference(item.itemId)] }}
+                      {{ giftSummary }}
                     </span>
-                  </span>
-                  <Gift :size="12" class="text-muted" />
+                  </div>
+                </div>
+
+                <div v-if="selectedNextRelationshipBenefits.length > 0" class="mt-2">
+                  <p class="text-[0.625rem] text-muted mb-1">下一阶段可解锁</p>
+                  <div class="flex flex-wrap gap-1">
+                    <span
+                      v-for="benefit in selectedNextRelationshipBenefits"
+                      :key="benefit"
+                      class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5"
+                    >
+                      {{ benefit }}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <div v-if="giftableItems.length === 0" class="flex flex-col items-center justify-center py-6 text-muted">
-                <Package :size="32" class="mb-2" />
-                <p class="text-xs">背包为空</p>
+
+              <div v-if="selectedRelationshipClues.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+                <div class="flex items-start justify-between gap-2 mb-1">
+                  <div>
+                    <p class="text-xs text-muted mb-1">已获得线索</p>
+                    <p class="text-[0.625rem] text-muted/70 mt-0.5">{{ selectedGiftKnowledgeStageText }}</p>
+                  </div>
+                  <div class="flex flex-wrap justify-end gap-1 text-[0.625rem]">
+                    <span class="border border-warning/20 text-warning rounded-xs px-1 py-0.5">模糊 {{ selectedGiftKnowledgeSummary.hintCount }}</span>
+                    <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">明确 {{ selectedGiftKnowledgeSummary.exactCount }}</span>
+                    <span class="border border-success/20 text-success rounded-xs px-1 py-0.5">验证 {{ selectedGiftKnowledgeSummary.confirmedCount }}</span>
+                  </div>
+                </div>
+                <div class="space-y-1">
+                  <div v-for="clue in selectedRelationshipClues" :key="clue.clueId" class="border border-accent/10 rounded-xs px-2 py-1.5">
+                    <div class="flex flex-wrap items-center gap-1 mb-1 text-[0.625rem]">
+                      <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">{{ CLUE_KIND_LABELS[clue.kind] }}</span>
+                      <span class="border rounded-xs px-1 py-0.5" :class="CLUE_PRECISION_CLASS[clue.precision]">{{ CLUE_PRECISION_LABELS[clue.precision] }}</span>
+                      <span class="text-muted/70">{{ CLUE_SOURCE_LABELS[clue.source] }}</span>
+                      <span v-if="clue.discoveredDayTag" class="text-muted/50">{{ clue.discoveredDayTag }}</span>
+                    </div>
+                    <p class="text-[0.625rem] text-accent/90 leading-4">{{ clue.text }}</p>
+                  </div>
+                </div>
               </div>
-            </template>
+
+              <!-- 已触发的心事件 -->
+              <div v-if="selectedNpcState && selectedNpcState.triggeredHeartEvents.length > 0" class="mb-3">
+                <p class="text-xs text-muted mb-1">回忆：</p>
+                <div class="flex space-x-1 flex-wrap">
+                  <span v-for="eid in selectedNpcState.triggeredHeartEvents" :key="eid" class="text-xs border border-accent/20 rounded-xs px-1">
+                    {{ getHeartEventTitle(eid) }}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section data-testid="npc-detail-section-schedule" :class="npcDetailSectionClass('schedule')">
+              <!-- 今日行程 / 节日存在感 -->
+              <div v-if="selectedScheduleStatus" class="border border-accent/10 rounded-xs p-2 mb-2">
+                <div class="flex items-center justify-between mb-1">
+                  <p class="text-xs text-muted">今日行程</p>
+                  <span class="text-[0.625rem]" :class="selectedScheduleStatus.available ? 'text-success' : 'text-muted/50'">
+                    {{ selectedScheduleStatus.available ? '可遇见' : '暂时不在' }}
+                  </span>
+                </div>
+                <p v-if="todayEvent" class="text-[0.625rem] text-danger mb-1">今日节日：{{ todayEvent.name }}</p>
+                <p v-if="todayEvent?.variantNotes?.dialogueNotes?.[0]" class="text-[0.625rem] text-warning mb-1">
+                  台词变化提示：{{ todayEvent.variantNotes.dialogueNotes[0] }}
+                </p>
+                <p class="text-xs text-accent">{{ selectedScheduleStatus.location }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5">{{ selectedScheduleStatus.summary }}</p>
+                <p v-if="selectedScheduleStatus.reason" class="text-[0.625rem] text-warning mt-1">{{ selectedScheduleStatus.reason }}</p>
+                <p v-if="selectedScheduleStatus.specialDialogue" class="text-[0.625rem] text-danger mt-1">节日台词：{{ selectedScheduleStatus.specialDialogue }}</p>
+                <p v-if="selectedNextScheduleText" class="text-[0.625rem] text-accent/80 mt-1">下一步：{{ selectedNextScheduleText }}</p>
+
+                <div v-if="selectedScheduleTimeline.length > 0" class="mt-2 border-t border-accent/10 pt-2 space-y-1">
+                  <p class="text-[0.625rem] text-muted">今日时间线</p>
+                  <div
+                    v-for="entry in selectedScheduleTimeline"
+                    :key="entry.key"
+                    class="rounded-xs border px-2 py-1"
+                    :class="entry.active ? 'border-success/30 bg-success/5' : 'border-accent/10'"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[0.625rem]" :class="entry.active ? 'text-success' : 'text-muted/70'">{{ entry.label }}</span>
+                      <div v-if="entry.tags.length > 0" class="flex flex-wrap justify-end gap-1">
+                        <span v-for="tag in entry.tags" :key="tag" class="text-[0.625rem] px-1 rounded-xs border border-accent/15 text-accent/80">
+                          {{ tag }}
+                        </span>
+                      </div>
+                    </div>
+                    <p class="text-[0.625rem] text-accent mt-0.5">{{ entry.location }}</p>
+                    <p class="text-[0.625rem] text-muted/70 leading-4">{{ entry.summary }}</p>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
 
           <!-- 送礼物品详情弹窗 -->
@@ -1904,9 +1942,9 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
+  import { ref, computed, type Component } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail } from 'lucide-vue-next'
+  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail, Clock } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -2758,7 +2796,17 @@
 
   const reviewingRumorStep = ref<{ npcId: string; step: DiscoveryStep } | null>(null)
 
+  type NpcDetailTabId = 'interact' | 'gift' | 'relationship' | 'schedule'
+
+  const npcDetailTabs: Array<{ id: NpcDetailTabId; label: string; icon: Component }> = [
+    { id: 'interact', label: '互动', icon: MessageCircle },
+    { id: 'gift', label: '送礼', icon: Gift },
+    { id: 'relationship', label: '关系', icon: Heart },
+    { id: 'schedule', label: '行程', icon: Clock }
+  ]
+
   const selectedNpc = ref<string | null>(null)
+  const selectedNpcDetailTab = ref<NpcDetailTabId>('interact')
   const dialogueText = ref<string | null>(null)
   const showSelectedNpcPortraitPicker = ref(false)
   const showDivorceConfirm = ref(false)
@@ -2813,32 +2861,48 @@
   })
   const todayEvent = computed(() => getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()) ?? null)
   const randomNpcFestivalReunionEventName = computed(() => todayEvent.value?.name ?? '无节会')
-  const canInteractWithSelectedNpc = computed(() => {
-    if (!selectedNpc.value) return false
-    if (selectedNpcState.value?.married) return true
-    return selectedScheduleStatus.value?.available ?? true
-  })
-  const unavailableInteractionReason = computed(() => {
-    if (!selectedScheduleStatus.value || selectedScheduleStatus.value.available) return ''
-    return selectedScheduleStatus.value.reason || `现在不在${selectedScheduleStatus.value.location}。`
-  })
 
-  const npcAvailable = (npcId: string): boolean => {
+  const canInteractWithNpc = (npcId: string): boolean => {
     const state = npcStore.getNpcState(npcId)
     if (state?.married) return true
     return npcStore.getScheduleStatus(npcId).available
   }
 
-  const handleSelectNpc = (npcId: string) => {
+  const getNpcUnavailableReason = (npcId: string): string => {
+    if (npcStore.getNpcState(npcId)?.married) return ''
+    const scheduleStatus = npcStore.getScheduleStatus(npcId)
+    if (scheduleStatus.available) return ''
+    return scheduleStatus.reason || `现在不在${scheduleStatus.location}。`
+  }
+
+  const canInteractWithSelectedNpc = computed(() => (selectedNpc.value ? canInteractWithNpc(selectedNpc.value) : false))
+  const unavailableInteractionReason = computed(() => (selectedNpc.value ? getNpcUnavailableReason(selectedNpc.value) : ''))
+  const npcAvailable = (npcId: string): boolean => canInteractWithNpc(npcId)
+  const canQuickTalkWithNpc = (npcId: string): boolean => canInteractWithNpc(npcId) && !npcStore.getNpcState(npcId)?.talkedToday
+  const canQuickGiftWithNpc = (npcId: string): boolean => canInteractWithNpc(npcId)
+  const npcDetailSectionClass = (tab: NpcDetailTabId): string => (selectedNpcDetailTab.value === tab ? 'block' : 'hidden md:block')
+
+  const openNpcPanel = (npcId: string, tab: NpcDetailTabId = 'interact') => {
     selectedNpc.value = npcId
+    selectedNpcDetailTab.value = tab
     dialogueText.value = null
     showSelectedNpcPortraitPicker.value = false
     showDivorceConfirm.value = false
     showZhijiDissolveConfirm.value = false
+    activeGiftKey.value = null
+  }
+
+  const handleSelectNpc = (npcId: string) => {
+    openNpcPanel(npcId, 'interact')
+  }
+
+  const handleQuickGiftNpc = (npcId: string) => {
+    openNpcPanel(npcId, 'gift')
   }
 
   const closeSelectedNpc = () => {
     showSelectedNpcPortraitPicker.value = false
+    selectedNpcDetailTab.value = 'interact'
     selectedNpc.value = null
   }
 
@@ -3035,10 +3099,15 @@
     return getHeartEventById(eventId)?.title ?? eventId
   }
 
-  const handleTalk = () => {
-    if (!selectedNpc.value) return
-    if (!canInteractWithSelectedNpc.value) {
-      addLog(unavailableInteractionReason.value || '现在没找到对方。')
+  const performTalkWithNpc = (npcId: string) => {
+    const npcName = getNpcById(npcId)?.name ?? '对方'
+    const state = npcStore.getNpcState(npcId)
+    if (!canInteractWithNpc(npcId)) {
+      addLog(getNpcUnavailableReason(npcId) || '现在没找到对方。')
+      return
+    }
+    if (state?.talkedToday) {
+      addLog(`今天已经和${npcName}聊过了。`)
       return
     }
     if (gameStore.isPastBedtime) {
@@ -3046,10 +3115,10 @@
       handleEndDay()
       return
     }
-    const result = npcStore.talkTo(selectedNpc.value)
+    const result = npcStore.talkTo(npcId)
     if (result) {
       dialogueText.value = result.message
-      addLog(`与${selectedNpcDef.value?.name}聊天。(+${result.friendshipGain}好感)`)
+      addLog(`与${npcName}聊天。(+${result.friendshipGain}好感)`)
       result.unlockedMessages?.forEach(message => addLog(message))
 
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.talk)
@@ -3060,11 +3129,21 @@
       }
 
       // 检查心事件触发
-      const heartEvent = npcStore.checkHeartEvent(selectedNpc.value)
+      const heartEvent = npcStore.checkHeartEvent(npcId)
       if (heartEvent) {
         triggerHeartEvent(heartEvent)
       }
     }
+  }
+
+  const handleQuickTalkNpc = (npcId: string) => {
+    openNpcPanel(npcId, 'interact')
+    performTalkWithNpc(npcId)
+  }
+
+  const handleTalk = () => {
+    if (!selectedNpc.value) return
+    performTalkWithNpc(selectedNpc.value)
   }
 
   const handleDailyTip = () => {

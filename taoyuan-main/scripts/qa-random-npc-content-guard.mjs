@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
 
-const readProjectSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
+const readProjectSource = async relativePath => (await readFile(path.join(projectRoot, relativePath), 'utf8')).replace(/\r\n/g, '\n')
 
 const [randomNpcs, npcTypes, npcView, useNpcStore, useFestivalRoomStore, familyRelationGraph] = await Promise.all([
   readProjectSource('src/data/randomNpcs.ts'),
