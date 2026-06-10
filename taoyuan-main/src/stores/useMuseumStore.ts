@@ -47,6 +47,8 @@ import { useVillageProjectStore } from './useVillageProjectStore'
 
 const HALL_ZONE_IDS = [...new Set(MUSEUM_HALL_LEVELS.map(level => level.hallZoneId))] as MuseumHallZoneId[]
 const ALL_MUSEUM_SCHOLAR_COMMISSIONS = [...MUSEUM_SCHOLAR_COMMISSIONS, ...WS14_MUSEUM_SCHOLAR_COMMISSIONS]
+const ANCIENT_SEED_ITEM_ID = 'ancient_seed'
+const ANCIENT_SEED_DONATION_REWARD_ITEMS = [{ itemId: ANCIENT_SEED_ITEM_ID, quantity: 1, quality: 'normal' as const }]
 
 const getMuseumItemDef = (itemId: string) => MUSEUM_ITEMS.find(item => item.id === itemId)
 const DEFAULT_VISITOR_FLOW_BAND = MUSEUM_VISITOR_FLOW_BANDS[0]!
@@ -677,12 +679,19 @@ export const useMuseumStore = defineStore('museum', () => {
       const removed = inventoryStore.removeItem(itemId, 1)
       if (!removed) return false
       donatedItems.value.push(itemId)
-      addLog(`【博物馆】已捐赠 ${getMuseumItemDef(itemId)?.name ?? itemId}。`, {
+      const rewardItems = itemId === ANCIENT_SEED_ITEM_ID ? ANCIENT_SEED_DONATION_REWARD_ITEMS : []
+      if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
+        throw new Error('museum donation reward delivery failed')
+      }
+      const rewardSummary = rewardItems.length > 0 ? '馆方返还远古种子×1，并记录了远古水果制种配方。' : ''
+      addLog(`【博物馆】已捐赠 ${getMuseumItemDef(itemId)?.name ?? itemId}。${rewardSummary}`, {
         category: 'museum',
         tags: ['late_game_cycle'],
         meta: {
           itemId,
-          donatedCount: donatedItems.value.length
+          donatedCount: donatedItems.value.length,
+          rewardItems: rewardItems.map(item => `${item.itemId}x${item.quantity}`).join(' | '),
+          unlockedRecipeId: itemId === ANCIENT_SEED_ITEM_ID ? 'seed_from_ancient_fruit' : ''
         }
       })
       return true
