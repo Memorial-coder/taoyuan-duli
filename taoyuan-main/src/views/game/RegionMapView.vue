@@ -41,6 +41,24 @@
     </div>
 
     <template v-else>
+      <div class="mb-3 border border-accent/20 rounded-xs p-1 bg-bg/70" data-testid="region-map-tabs">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-1">
+          <button
+            v-for="tab in regionMapTabs"
+            :key="tab.id"
+            class="min-h-[52px] rounded-xs px-3 py-2 text-left transition-colors"
+            :class="activeRegionMapTab === tab.id ? 'bg-accent/10 text-accent border border-accent/30' : 'text-muted hover:bg-accent/5 border border-transparent'"
+            :aria-pressed="activeRegionMapTab === tab.id"
+            :data-testid="`region-map-tab-${tab.id}`"
+            @click="setRegionMapTab(tab.id)"
+          >
+            <span class="block text-xs">{{ tab.label }}</span>
+            <span class="block text-[0.625rem] leading-4 mt-1">{{ tab.summary }}</span>
+          </button>
+        </div>
+      </div>
+
+      <section v-show="activeRegionMapTab === 'today'" class="space-y-3">
       <div v-if="!isCompactMobile" class="border border-accent/20 rounded-xs p-2 mb-3">
         <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
           <div class="flex items-center justify-between">
@@ -150,7 +168,7 @@
           </div>
           <span class="text-[0.625rem] text-muted shrink-0">{{ frontierWorldSignalCards.length }} 条</span>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
           <div
             v-for="state in frontierMapAdvancedStates"
             :key="state.id"
@@ -275,6 +293,26 @@
       </div>
 
       <div
+        v-if="latestJourneyAftermathSummary && hasPendingLatestAftermathAction"
+        class="border border-success/20 rounded-xs p-3 mb-3 bg-success/5"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-success">回城事项待处理</p>
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">最新远征已经回城，先处理旅后去向能减少资源和后续动作散落。</p>
+          </div>
+          <button
+            class="border border-success/30 rounded-xs px-3 py-2 text-xs text-success hover:bg-success/10 shrink-0"
+            @click="openAftermathTab"
+          >
+            处理回城事项
+          </button>
+        </div>
+      </div>
+      </section>
+
+      <section v-show="activeRegionMapTab === 'map'" class="space-y-3">
+      <div
         class="border border-accent/20 rounded-xs p-4 mb-3"
         style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(36, 39, 56, 0.72));"
       >
@@ -290,7 +328,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <button
             v-for="region in regionMapStore.regionSummaries"
             :key="`region-filter-${region.id}`"
@@ -1027,240 +1065,9 @@
         </div>
       </div>
 
-      <div v-if="currentSession && false" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-xs text-accent">进行中远征：{{ currentSession.targetName }}</p>
-            <p class="text-[0.625rem] text-muted mt-1 leading-4">
-              {{ currentSessionRegionLabel }} / {{ currentSession.mode === 'boss' ? '首领远征' : '路线远征' }} / {{ currentSessionStatusLabel }}
-            </p>
-          </div>
-          <span class="text-[0.625rem] shrink-0" :class="currentSession.status === 'failure' ? 'text-danger' : currentSession.status === 'ready_to_settle' ? 'text-success' : 'text-accent'">
-            {{ currentSession.progressStep }}/{{ currentSession.totalSteps }}
-          </span>
-        </div>
+      </section>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 text-[0.625rem] mt-3">
-          <div class="flex items-center justify-between"><span class="text-muted">生命</span><span>{{ playerStore.hp }}/{{ playerStore.getMaxHp() }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">士气</span><span>{{ currentSession.morale }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">风险</span><span>{{ currentSession.danger }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">视野</span><span>{{ currentSession.visibility }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">负重</span><span>{{ currentSession.carryLoad }}/{{ currentSession.maxCarryLoad }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">发现</span><span>{{ currentSession.findings }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">口粮</span><span>{{ currentSession.supplies.rations }}</span></div>
-          <div class="flex items-center justify-between"><span class="text-muted">药剂 / 器具</span><span>{{ currentSession.supplies.medicine }} / {{ currentSession.supplies.utility }}</span></div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-          <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-[0.625rem] text-muted">前线态势</p>
-              <span class="text-[0.625rem] text-accent">准备 {{ currentSession.frontlinePrep }}</span>
-            </div>
-            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.625rem] mt-2">
-              <div class="flex items-center justify-between">
-                <span class="text-muted">天气</span>
-                <span :class="getWeatherToneClass(currentSession.riskState.weather)">{{ getWeatherLabel(currentSession.riskState.weather) }}</span>
-              </div>
-              <div class="flex items-center justify-between"><span class="text-muted">污染</span><span>{{ currentSession.riskState.pollution }}</span></div>
-              <div class="flex items-center justify-between"><span class="text-muted">警戒</span><span>{{ currentSession.riskState.alertness }}</span></div>
-              <div class="flex items-center justify-between"><span class="text-muted">异变</span><span>{{ currentSession.riskState.anomaly }}</span></div>
-            </div>
-          </div>
-
-          <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-[0.625rem] text-muted">携带层</p>
-              <span class="text-[0.625rem]" :class="currentSession.carryItems.length > 0 ? 'text-accent' : 'text-muted'">{{ currentSession.carryItems.length }} 项</span>
-            </div>
-            <div v-if="currentSession.carryItems.length > 0" class="space-y-1 mt-2">
-              <p v-for="item in currentSession.carryItems" :key="item.id" class="text-[0.625rem] leading-4">
-                <span class="text-accent">{{ item.label }} x{{ item.quantity }}</span>
-                <span class="text-muted"> · {{ getCarryCategoryLabel(item.category) }} · 负重 {{ item.burden }}</span>
-              </p>
-            </div>
-            <p v-else class="text-[0.625rem] text-muted mt-2 leading-4">当前没有额外途中携带物。</p>
-          </div>
-        </div>
-
-        <div class="mt-3 border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-[0.625rem] text-muted">事件链留痕</p>
-            <span class="text-[0.625rem]" :class="currentSession.queuedEncounterKind ? 'text-warning' : 'text-muted'">
-              {{ currentSession.queuedEncounterKind ? `后续指向 ${getEncounterKindLabel(currentSession.queuedEncounterKind)}` : '暂无强制后续' }}
-            </span>
-          </div>
-          <div v-if="currentSessionEncounterTrail.length > 0" class="space-y-1 mt-2">
-            <p v-for="entry in currentSessionEncounterTrail" :key="entry.id" class="text-[0.625rem] leading-4">
-              <span class="text-accent">{{ getEncounterKindLabel(entry.kind) }}</span>
-              <span class="text-muted"> · {{ entry.summary }}</span>
-              <span v-if="entry.nextKind" class="text-warning"> · 后续 {{ getEncounterKindLabel(entry.nextKind) }}</span>
-            </p>
-          </div>
-          <p v-else class="text-[0.625rem] text-muted mt-2 leading-4">当前还没有形成可追踪的遭遇留痕。</p>
-        </div>
-
-        <div v-if="currentSessionShortcutSummary" class="mt-3 border border-accent/10 rounded-xs px-3 py-2">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-[0.625rem] text-muted">熟路态势</p>
-            <span class="text-[0.625rem]" :class="currentSessionShortcutSummary.toneClass">{{ currentSessionShortcutSummary.label }}</span>
-          </div>
-          <p class="text-[0.625rem] mt-2 leading-4" :class="currentSessionShortcutSummary.level === 'none' ? 'text-muted' : 'text-accent'">
-            {{ currentSessionShortcutSummary.headline }}
-          </p>
-          <p class="text-[0.625rem] mt-1 leading-4" :class="currentSessionShortcutSummary.level === 'none' ? 'text-muted' : 'text-success'">
-            {{ currentSessionShortcutSummary.benefitSummary }}
-          </p>
-        </div>
-
-        <div class="mt-3 border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-[0.625rem] text-muted">当前旅程节点</p>
-            <span class="text-[0.625rem] text-accent">{{ currentSessionNodeHeadline }}</span>
-          </div>
-          <div class="flex flex-wrap gap-2 mt-2">
-            <span
-              v-for="entry in currentSession.nodeHistory"
-              :key="entry.id"
-              class="border rounded-xs px-2 py-1 text-[0.625rem]"
-              :class="entry.lane === 'camp' ? 'border-success/20 text-success' : entry.lane === 'branch' ? 'border-warning/20 text-warning' : entry.lane === 'deep' || entry.lane === 'boss' ? 'border-danger/20 text-danger' : 'border-accent/20 text-accent'"
-            >
-              {{ entry.step > 0 ? `第 ${entry.step} 节点` : '出发' }} · {{ entry.label }}
-            </span>
-          </div>
-        </div>
-
-        <div
-          v-if="currentSession.status === 'ongoing' && currentSessionNodeChoices.length > 0 && !currentSession.pendingEncounter && !currentSession.campState"
-          class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/50"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-[0.625rem] text-muted">下一节点选择</p>
-              <p class="text-[0.625rem] text-accent mt-1">这一段不再是纯步数推进，你可以先定这一步往主线还是侧线走。</p>
-            </div>
-            <span class="text-[0.625rem] text-muted shrink-0">{{ currentSession.progressStep + 1 }}/{{ currentSession.totalSteps }}</span>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-            <button
-              v-for="choice in currentSessionNodeChoices"
-              :key="`${currentSession.sessionId}-${choice.id}`"
-              class="border rounded-xs px-3 py-3 text-left hover:bg-accent/5"
-              :class="choice.lane === 'branch' ? 'border-warning/20' : choice.lane === 'deep' || choice.lane === 'boss' ? 'border-danger/20' : 'border-accent/20'"
-              @click="handleAdvanceExpedition(choice.id)"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <p
-                  class="text-[0.625rem]"
-                  :class="choice.lane === 'branch' ? 'text-warning' : choice.lane === 'deep' || choice.lane === 'boss' ? 'text-danger' : 'text-accent'"
-                >
-                  {{ choice.label }}
-                </p>
-                <span class="text-[0.625rem] text-muted shrink-0">{{ getNodeLaneSummary(choice.lane) }}</span>
-              </div>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ choice.summary }}</p>
-            </button>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap gap-2 mt-3">
-          <button
-            class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-            :disabled="currentSession.status !== 'ongoing' || currentSession.campUsed || Boolean(currentSession.pendingEncounter) || Boolean(currentSession.campState)"
-            @click="handleCampExpedition"
-          >
-            搭前线营地
-          </button>
-          <button
-            class="border border-danger/20 rounded-xs px-2 py-1 text-[0.625rem] text-danger hover:bg-danger/5"
-            :disabled="currentSession.status !== 'ongoing'"
-            @click="handleRetreatExpedition"
-          >
-            主动撤退
-          </button>
-          <button
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-            :disabled="currentSession.status === 'ongoing'"
-            @click="handleSettleExpedition"
-          >
-            结算收束
-          </button>
-        </div>
-
-        <div v-if="currentSession.campState" class="mt-3 border border-success/20 rounded-xs px-3 py-3 bg-success/5">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-xs text-accent">前线营地</p>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ currentSession.campState.nightEventHint }}</p>
-            </div>
-            <span class="text-[0.625rem] text-success shrink-0">已扎营</span>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-            <button
-              v-for="actionId in currentSession.campState.availableActionIds"
-              :key="`${currentSession.sessionId}-camp-${actionId}`"
-              class="border rounded-xs px-3 py-3 text-left hover:bg-bg/40"
-              :class="actionId === 'rest' || actionId === 'mark' ? 'border-success/20' : actionId === 'scout' ? 'border-warning/20' : 'border-accent/20'"
-              @click="handleResolveCampAction(actionId)"
-            >
-              <p class="text-[0.625rem]" :class="CAMP_ACTION_META[actionId]?.toneClass ?? 'text-accent'">{{ CAMP_ACTION_META[actionId]?.label ?? actionId }}</p>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId]?.summary ?? '' }}</p>
-            </button>
-          </div>
-          <p class="text-[0.625rem] text-muted mt-2 leading-4">营地动作完成后，才会继续回到节点选择；若预设为“扎营后收束”，则会在动作完成后直接返程。</p>
-        </div>
-
-        <div v-if="currentSession.pendingEncounter" class="mt-3 border border-warning/20 rounded-xs px-3 py-3 bg-warning/5">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-xs text-accent">途中遭遇：{{ currentSession.pendingEncounter.title }}</p>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ currentSession.pendingEncounter.summary }}</p>
-            </div>
-            <span class="text-[0.625rem] shrink-0" :class="currentSession.pendingEncounter.risk === 'high' ? 'text-danger' : currentSession.pendingEncounter.risk === 'medium' ? 'text-warning' : 'text-success'">
-              {{ currentSession.pendingEncounter.risk === 'high' ? '高风险' : currentSession.pendingEncounter.risk === 'medium' ? '中风险' : '低风险' }}
-            </span>
-          </div>
-          <div v-if="currentSession.pendingEncounter.detailLines.length > 0" class="mt-2 space-y-1">
-            <p v-for="line in currentSession.pendingEncounter.detailLines" :key="`${currentSession.pendingEncounter.id}-${line}`" class="text-[0.625rem] text-muted leading-4">- {{ line }}</p>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
-            <button
-              v-for="option in currentSession.pendingEncounter.options"
-              :key="`${currentSession.pendingEncounter.id}-${option.id}`"
-              class="border rounded-xs px-2 py-2 text-left hover:bg-accent/5"
-              :class="option.tone === 'danger' ? 'border-danger/20' : option.tone === 'success' ? 'border-success/20' : 'border-accent/20'"
-              @click="handleResolveEncounter(option.id)"
-            >
-              <p class="text-[0.625rem]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">{{ option.label }}</p>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ option.summary }}</p>
-            </button>
-          </div>
-        </div>
-
-        <div class="mt-3 border border-accent/10 rounded-xs px-3 py-2">
-          <p class="text-[0.625rem] text-muted mb-2">旅程日志</p>
-          <div class="space-y-2" v-if="currentSession.journal.length > 0">
-            <div
-              v-for="entry in currentSession.journal.slice().reverse()"
-              :key="entry.id"
-              class="border rounded-xs px-2 py-2"
-              :class="entry.tone === 'danger' ? 'border-danger/20' : entry.tone === 'success' ? 'border-success/20' : 'border-accent/10'"
-            >
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-[0.625rem]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
-                  {{ entry.title }}
-                </p>
-                <span class="text-[0.625rem] text-muted">{{ entry.step > 0 ? `第 ${entry.step} 节点` : '出发' }}</span>
-              </div>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
-              <div v-if="entry.effects.length > 0" class="mt-1 space-y-1">
-                <p v-for="effect in entry.effects" :key="`${entry.id}-${effect}`" class="text-[0.625rem] text-muted leading-4">- {{ effect }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      <section v-show="activeRegionMapTab === 'today'" class="space-y-3">
       <div v-if="currentSession" ref="stagePanelAnchor">
         <RegionExpeditionStagePanel
           :session="currentSession"
@@ -1285,633 +1092,64 @@
           @resolve-encounter="handleResolveEncounter"
         />
       </div>
+      </section>
 
-      <div v-if="latestJourneyAftermathSummary" ref="latestAftermathAnchor" class="border border-accent/20 rounded-xs p-3 mb-3">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-xs text-accent">回城办事单：{{ latestJourneyAftermathSummary.entry.targetName }}</p>
-            <p class="text-xs text-muted mt-1 leading-5">
-              {{ latestJourneyAftermathSummary.regionName }} / {{ latestJourneyAftermathSummary.entry.mode === 'boss' ? '首领远征' : '路线远征' }} / 最近一次回城结果
-            </p>
-            <div v-if="latestJourneyAftermathSummary.actions.length > 0" class="flex flex-wrap gap-2 mt-2">
-              <span
-                v-for="action in latestJourneyAftermathSummary.actions"
-                :key="`latest-activated-${latestJourneyAftermathSummary.entry.id}-${action.key}`"
-                class="border rounded-xs px-2 py-0.5 text-[0.625rem]"
-                :class="getJourneyActionTagMeta(latestJourneyAftermathSummary.entry.id, action.key).className"
-              >
-                {{ getJourneyActionTagMeta(latestJourneyAftermathSummary.entry.id, action.key).labelPrefix }} {{ action.label }}
-              </span>
-            </div>
-          </div>
-          <div class="shrink-0 text-right">
-            <span class="text-[0.625rem]" :class="latestJourneyAftermathSummary.toneClass">
-              {{ getArchiveOutcomeLabel(latestJourneyAftermathSummary.entry.outcome) }}
-            </span>
-            <button
-              v-if="isCompactMobile"
-              class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-              @click="mobileLatestAftermathExpanded = !mobileLatestAftermathExpanded"
-            >
-              {{ mobileLatestAftermathExpanded ? '收起' : '展开' }}
-            </button>
-          </div>
+      <section v-show="activeRegionMapTab === 'aftermath'" ref="latestAftermathAnchor" class="space-y-3">
+        <RegionJourneyAftermathPanel
+          :latest-summary="latestJourneyAftermathSummary"
+          :pinned-summary="pinnedJourneyAftermathSummary"
+          :visible-history-entries="visibleJourneyHistoryEntries"
+          :journey-history-overflow-entries="journeyHistoryOverflowEntries"
+          :has-more-journey-history-entries="hasMoreJourneyHistoryEntries"
+          :mobile-history-collapsed-summary="mobileHistoryCollapsedSummary"
+          :is-compact-mobile="isCompactMobile"
+          v-model:mobile-latest-expanded="mobileLatestAftermathExpanded"
+          v-model:mobile-selected-expanded="mobileSelectedAftermathExpanded"
+          v-model:mobile-history-expanded="mobileHistoryExpanded"
+          v-model:mobile-history-section-expanded="mobileHistorySectionExpanded"
+          :has-resource-ledger-entries="hasResourceLedgerEntries"
+          :get-journey-action-tag-meta="getJourneyActionTagMeta"
+          :get-archive-outcome-label="getArchiveOutcomeLabel"
+          :get-journey-action-status="getJourneyActionStatus"
+          :is-journey-action-processed="isJourneyActionProcessed"
+          :get-journey-action-button-meta="getJourneyActionButtonMeta"
+          :get-region-name="getRegionName"
+          :format-carry-manifest="formatCarryManifest"
+          :get-archive-aftermath-summary="getArchiveAftermathSummary"
+          @navigate="handleJourneyActionNavigate"
+          @scroll-resource="scrollToResourceLedger"
+          @clear-selected="clearSelectedJourneyAftermath"
+          @select-aftermath="handleSelectJourneyAftermath"
+          @open-aftermath="handleOpenJourneyAftermath"
+        />
+      </section>
+
+      <section v-show="activeRegionMapTab === 'resource'" class="space-y-3">
+        <div ref="resourceLedgerAnchor">
+          <RegionResourcePrepPanel
+            :is-compact-mobile="isCompactMobile"
+            v-model:mobile-ledger-expanded="mobileLedgerExpanded"
+            :resource-ledger-entries="regionMapStore.resourceLedgerEntries"
+            :resource-feature-enabled="regionMapStore.resourceFeatureEnabled"
+            :visible-journey-crafting-entries="visibleJourneyCraftingEntries"
+            :visible-journey-awakening-entries="visibleJourneyAwakeningEntries"
+            :visible-journey-camp-module-entries="visibleJourneyCampModuleEntries"
+            :visible-journey-route-permit-entries="visibleJourneyRoutePermitEntries"
+            :get-journey-recipe-status="getJourneyRecipeStatus"
+            :format-journey-recipe-materials="formatJourneyRecipeMaterials"
+            :can-unlock-journey-awakening="canUnlockJourneyAwakening"
+            :can-unlock-journey-camp-module="canUnlockJourneyCampModule"
+            :can-unlock-journey-route-permit="canUnlockJourneyRoutePermit"
+            :get-resource-family-label="getResourceFamilyLabel"
+            @navigate="handleNavigate"
+            @turn-in="handlePublicResourceTurnIn"
+            @craft="handleCraftJourneyRecipe"
+            @unlock-awakening="handleUnlockJourneyAwakening"
+            @unlock-camp-module="handleUnlockJourneyCampModule"
+            @unlock-route-permit="handleUnlockJourneyRoutePermit"
+          />
         </div>
-
-        <div v-if="!isCompactMobile || mobileLatestAftermathExpanded" class="space-y-3 mt-3">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="border border-accent/10 rounded-xs px-3 py-2">
-            <p class="text-[0.625rem] text-muted mb-2">旅程回顾</p>
-            <div class="space-y-1">
-              <p
-                v-for="line in latestJourneyAftermathSummary.journeyLines"
-                :key="`latest-journey-${latestJourneyAftermathSummary.entry.id}-${line}`"
-                class="text-[0.625rem] text-muted leading-4"
-              >
-                · {{ line }}
-              </p>
-            </div>
-          </div>
-
-          <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
-            <p class="text-[0.625rem] text-muted mb-2">回流分发</p>
-            <div class="space-y-1">
-              <p
-                v-for="line in latestJourneyAftermathSummary.rewardLines"
-                :key="`latest-reward-${latestJourneyAftermathSummary.entry.id}-${line}`"
-                class="text-[0.625rem] leading-4"
-                :class="line.includes('物品') || line.includes('资源') || line.includes('发放') || line.includes('返还') ? 'text-success' : 'text-muted'"
-              >
-                · {{ line }}
-              </p>
-            </div>
-          </div>
-
-          <div class="border border-accent/10 rounded-xs px-3 py-2">
-            <p class="text-[0.625rem] text-muted mb-2">后续去向</p>
-            <div class="space-y-1">
-              <p
-                v-for="line in latestJourneyAftermathSummary.aftermathLines"
-                :key="`latest-aftermath-${latestJourneyAftermathSummary.entry.id}-${line}`"
-                class="text-[0.625rem] text-muted leading-4"
-              >
-                · {{ line }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="latestJourneyAftermathSummary.handoffBoard" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-accent/5">
-          <p class="text-[0.625rem] text-muted">回城办事入口</p>
-          <p class="text-xs text-accent mt-1">{{ latestJourneyAftermathSummary.handoffBoard.headline }}</p>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[0.625rem] text-muted mb-2">资源去向</p>
-              <div v-if="isCompactMobile && hasResourceLedgerEntries" class="space-y-2">
-                <p class="text-xs text-muted leading-5">这趟带回的区域资源已经并到下方“资源家族总览”，库存和交付以下方总览为准。</p>
-                <button
-                  class="w-full border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
-                  @click="scrollToResourceLedger"
-                >
-                  去看资源总览
-                </button>
-              </div>
-              <div v-else class="space-y-1">
-                <p
-                  v-for="line in latestJourneyAftermathSummary.handoffBoard.resourceLines"
-                  :key="`latest-resource-flow-${latestJourneyAftermathSummary.entry.id}-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
-            </div>
-
-            <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
-              <p class="text-[0.625rem] text-muted mb-2">推荐动作</p>
-              <div class="space-y-2">
-                <div
-                  v-for="action in latestJourneyAftermathSummary.handoffBoard.actionCards"
-                  :key="`latest-action-card-${latestJourneyAftermathSummary.entry.id}-${action.key}`"
-                  class="border border-success/20 rounded-xs px-2 py-2 bg-bg/70"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div class="flex items-center justify-between gap-2">
-                        <p class="text-[0.625rem] text-accent">去{{ action.label }}</p>
-                        <span
-                          class="text-[0.625rem] shrink-0"
-                          :class="getJourneyActionStatus(latestJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusToneClass"
-                        >
-                          {{ getJourneyActionStatus(latestJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusLabel }}
-                        </span>
-                      </div>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ action.summary }}</p>
-                      <p class="text-[0.625rem] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
-                    </div>
-                    <button
-                      class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5 shrink-0"
-                      @click="handleJourneyActionNavigate(latestJourneyAftermathSummary.entry.id, action.key)"
-                    >
-                      {{ isJourneyActionProcessed(latestJourneyAftermathSummary.entry.id, action.key) ? '再次前往' : '前往' }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[0.625rem] text-muted mb-2">为什么现在去</p>
-              <div class="space-y-1">
-                <p
-                  v-for="line in latestJourneyAftermathSummary.handoffBoard.whyNowLines"
-                  :key="`latest-why-now-${latestJourneyAftermathSummary.entry.id}-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="latestJourneyAftermathSummary.handoffBoard.receiptSections.length > 0" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div
-              v-for="section in latestJourneyAftermathSummary.handoffBoard.receiptSections"
-              :key="`latest-receipt-${latestJourneyAftermathSummary.entry.id}-${section.title}`"
-              class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
-            >
-              <div class="flex items-center justify-between gap-2 mb-2">
-                <p class="text-[0.625rem] text-muted">{{ section.title }}</p>
-                <span class="text-[0.625rem] shrink-0" :class="section.statusToneClass">{{ section.statusLabel }}</span>
-              </div>
-              <div class="space-y-1">
-                <p
-                  v-for="line in section.lines"
-                  :key="`latest-receipt-line-${latestJourneyAftermathSummary.entry.id}-${section.title}-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="latestJourneyAftermathSummary.actions.length > 0" class="mt-3 flex flex-wrap gap-2">
-          <button
-            v-for="action in latestJourneyAftermathSummary.actions"
-            :key="`latest-journey-action-${action.key}`"
-            class="border rounded-xs px-2 py-1 text-[0.625rem]"
-            :class="getJourneyActionButtonMeta(latestJourneyAftermathSummary.entry.id, action.key, action.label).className"
-            @click="handleJourneyActionNavigate(latestJourneyAftermathSummary.entry.id, action.key)"
-          >
-            {{ getJourneyActionButtonMeta(latestJourneyAftermathSummary.entry.id, action.key, action.label).label }}
-          </button>
-        </div>
-        </div>
-      </div>
-
-      <div v-if="visibleJourneyHistoryEntries.length > 0" class="border border-accent/20 rounded-xs p-3 mb-3">
-        <div class="flex items-start justify-between gap-3 mb-2">
-          <div class="min-w-0">
-            <p class="text-xs text-muted">最近远征记录</p>
-            <p class="text-xs text-muted mt-1 leading-5">最新一条回城办事单已单独置顶，这里只保留更早的记录，默认看最近 2 条。</p>
-          </div>
-          <button
-            v-if="isCompactMobile"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5 shrink-0"
-            @click="mobileHistorySectionExpanded = !mobileHistorySectionExpanded"
-          >
-            {{ mobileHistorySectionExpanded ? '收起历史' : `展开 ${journeyHistoryOverflowEntries.length} 条` }}
-          </button>
-          <button
-            v-else-if="hasMoreJourneyHistoryEntries"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5 shrink-0"
-            @click="mobileHistoryExpanded = !mobileHistoryExpanded"
-          >
-            {{ mobileHistoryExpanded ? '只看最近 2 条' : `展开全部 ${journeyHistoryOverflowEntries.length} 条` }}
-          </button>
-        </div>
-        <p v-if="isCompactMobile && !mobileHistorySectionExpanded" class="text-xs text-muted leading-5">
-          {{ mobileHistoryCollapsedSummary }}
-        </p>
-        <div v-else class="space-y-2">
-          <div v-for="entry in visibleJourneyHistoryEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-xs text-accent">{{ entry.targetName }}</p>
-                <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ getRegionName(entry.regionId) }} / {{ entry.mode === 'boss' ? '首领远征' : '路线远征' }} / {{ getArchiveOutcomeLabel(entry.outcome) }}</p>
-              </div>
-              <span class="text-[0.625rem] text-muted shrink-0">{{ entry.endedAtDayTag || entry.startedAtDayTag }}</span>
-            </div>
-            <div class="mt-2 space-y-1">
-              <p v-for="line in entry.summaryLines" :key="`${entry.id}-${line}`" class="text-[0.625rem] text-muted leading-4">- {{ line }}</p>
-            </div>
-            <p v-if="entry.carryItems.length > 0" class="text-[0.625rem] text-muted mt-2 leading-4">
-              携带清单：{{ formatCarryManifest(entry.carryItems, 4) }}
-            </p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button
-                class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                @click="handleSelectJourneyAftermath(entry)"
-              >
-                设为当前回看
-              </button>
-              <button
-                class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-                @click="handleOpenJourneyAftermath(entry)"
-              >
-                查看旅后处理
-              </button>
-              <button
-                v-for="action in getArchiveAftermathSummary(entry).actions.slice(0, 3)"
-                :key="`${entry.id}-action-${action.key}`"
-                class="border rounded-xs px-2 py-1 text-[0.625rem]"
-                :class="getJourneyActionButtonMeta(entry.id, action.key, action.label).className"
-                @click="handleJourneyActionNavigate(entry.id, action.key)"
-              >
-                {{ getJourneyActionButtonMeta(entry.id, action.key, action.label).label }}
-              </button>
-            </div>
-          </div>
-          <button
-            v-if="isCompactMobile && hasMoreJourneyHistoryEntries"
-            class="w-full border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-            @click="mobileHistoryExpanded = !mobileHistoryExpanded"
-          >
-            {{ mobileHistoryExpanded ? '只看最近 2 条' : `展开全部 ${journeyHistoryOverflowEntries.length} 条` }}
-          </button>
-        </div>
-      </div>
-
-      <div v-if="pinnedJourneyAftermathSummary" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-xs text-accent">旅后处理台账：{{ pinnedJourneyAftermathSummary.entry.targetName }}</p>
-            <p class="text-[0.625rem] text-muted mt-1 leading-4">
-              {{ pinnedJourneyAftermathSummary.regionName }} / {{ pinnedJourneyAftermathSummary.entry.mode === 'boss' ? '首领远征' : '路线远征' }} / 常驻页内回看
-            </p>
-            <div v-if="pinnedJourneyAftermathSummary.actions.length > 0" class="flex flex-wrap gap-2 mt-2">
-              <span
-                v-for="action in pinnedJourneyAftermathSummary.actions"
-                :key="`selected-activated-${pinnedJourneyAftermathSummary.entry.id}-${action.key}`"
-                class="border rounded-xs px-2 py-0.5 text-[0.625rem]"
-                :class="getJourneyActionTagMeta(pinnedJourneyAftermathSummary.entry.id, action.key).className"
-              >
-                {{ getJourneyActionTagMeta(pinnedJourneyAftermathSummary.entry.id, action.key).labelPrefix }} {{ action.label }}
-              </span>
-            </div>
-          </div>
-          <div class="shrink-0 text-right">
-            <span class="text-[0.625rem]" :class="pinnedJourneyAftermathSummary.toneClass">
-              {{ getArchiveOutcomeLabel(pinnedJourneyAftermathSummary.entry.outcome) }}
-            </span>
-            <p class="text-[0.625rem] text-muted mt-1">{{ pinnedJourneyAftermathSummary.entry.endedAtDayTag || pinnedJourneyAftermathSummary.entry.startedAtDayTag }}</p>
-            <button
-              v-if="isCompactMobile"
-              class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-              @click="mobileSelectedAftermathExpanded = !mobileSelectedAftermathExpanded"
-            >
-              {{ mobileSelectedAftermathExpanded ? '收起' : '展开' }}
-            </button>
-            <button
-              class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-              @click="clearSelectedJourneyAftermath"
-            >
-              结束回看
-            </button>
-          </div>
-        </div>
-
-        <div v-if="!isCompactMobile || mobileSelectedAftermathExpanded" class="space-y-3 mt-3">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-            <p class="text-[0.625rem] text-muted mb-2">旅程回顾</p>
-            <div class="space-y-1">
-              <p
-                v-for="line in pinnedJourneyAftermathSummary.journeyLines"
-                :key="`selected-journey-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
-                class="text-[0.625rem] text-muted leading-4"
-              >
-                · {{ line }}
-              </p>
-            </div>
-          </div>
-
-          <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
-            <p class="text-[0.625rem] text-muted mb-2">回流分发</p>
-            <div class="space-y-1">
-              <p
-                v-for="line in pinnedJourneyAftermathSummary.rewardLines"
-                :key="`selected-reward-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
-                class="text-[0.625rem] leading-4"
-                :class="line.includes('物品') || line.includes('资源') || line.includes('发放') || line.includes('返还') ? 'text-success' : 'text-muted'"
-              >
-                · {{ line }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="pinnedJourneyAftermathSummary.handoffBoard" class="mt-3 space-y-3">
-          <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
-            <p class="text-[0.625rem] text-muted">后续去向</p>
-            <p class="text-xs text-accent mt-1">{{ pinnedJourneyAftermathSummary.handoffBoard.headline }}</p>
-            <div class="space-y-1 mt-2">
-              <p
-                v-for="line in pinnedJourneyAftermathSummary.aftermathLines"
-                :key="`selected-aftermath-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
-                class="text-[0.625rem] text-muted leading-4"
-              >
-                · {{ line }}
-              </p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[0.625rem] text-muted mb-2">资源去向</p>
-              <div v-if="isCompactMobile && hasResourceLedgerEntries" class="space-y-2">
-                <p class="text-xs text-muted leading-5">这趟带回的区域资源已经并到下方“资源家族总览”，回看时不用再把同一批库存重新读一遍。</p>
-                <button
-                  class="w-full border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
-                  @click="scrollToResourceLedger"
-                >
-                  去看资源总览
-                </button>
-              </div>
-              <div v-else class="space-y-1">
-                <p
-                  v-for="line in pinnedJourneyAftermathSummary.handoffBoard.resourceLines"
-                  :key="`selected-resource-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
-            </div>
-
-              <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
-                <p class="text-[0.625rem] text-muted mb-2">推荐动作</p>
-                <div class="space-y-2">
-                  <div
-                    v-for="action in pinnedJourneyAftermathSummary.handoffBoard.actionCards"
-                    :key="`selected-action-card-${pinnedJourneyAftermathSummary.entry.id}-${action.key}`"
-                    class="border border-success/20 rounded-xs px-2 py-2 bg-bg/70"
-                  >
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <div class="flex items-center justify-between gap-2">
-                        <p class="text-[0.625rem] text-accent">去{{ action.label }}</p>
-                          <span
-                            class="text-[0.625rem] shrink-0"
-                            :class="getJourneyActionStatus(pinnedJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusToneClass"
-                          >
-                            {{ getJourneyActionStatus(pinnedJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusLabel }}
-                          </span>
-                        </div>
-                        <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ action.summary }}</p>
-                        <p class="text-[0.625rem] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
-                      </div>
-                      <button
-                        class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5 shrink-0"
-                        @click="handleJourneyActionNavigate(pinnedJourneyAftermathSummary.entry.id, action.key)"
-                      >
-                        {{ isJourneyActionProcessed(pinnedJourneyAftermathSummary.entry.id, action.key) ? '再次前往' : '前往' }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[0.625rem] text-muted mb-2">为什么现在去</p>
-              <div class="space-y-1">
-                <p
-                  v-for="line in pinnedJourneyAftermathSummary.handoffBoard.whyNowLines"
-                  :key="`selected-why-now-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="pinnedJourneyAftermathSummary.handoffBoard.receiptSections.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div
-              v-for="section in pinnedJourneyAftermathSummary.handoffBoard.receiptSections"
-              :key="`selected-receipt-${pinnedJourneyAftermathSummary.entry.id}-${section.title}`"
-              class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
-            >
-              <div class="flex items-center justify-between gap-2 mb-2">
-                <p class="text-[0.625rem] text-muted">{{ section.title }}</p>
-                <span class="text-[0.625rem] shrink-0" :class="section.statusToneClass">{{ section.statusLabel }}</span>
-              </div>
-              <div class="space-y-1">
-                <p
-                  v-for="line in section.lines"
-                  :key="`selected-receipt-line-${pinnedJourneyAftermathSummary.entry.id}-${section.title}-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="pinnedJourneyAftermathSummary.actions.length > 0" class="mt-3 flex flex-wrap gap-2">
-          <button
-            v-for="action in pinnedJourneyAftermathSummary.actions"
-            :key="`selected-journey-action-${pinnedJourneyAftermathSummary.entry.id}-${action.key}`"
-            class="border rounded-xs px-2 py-1 text-[0.625rem]"
-            :class="getJourneyActionButtonMeta(pinnedJourneyAftermathSummary.entry.id, action.key, action.label).className"
-            @click="handleJourneyActionNavigate(pinnedJourneyAftermathSummary.entry.id, action.key)"
-          >
-            {{ getJourneyActionButtonMeta(pinnedJourneyAftermathSummary.entry.id, action.key, action.label).label }}
-          </button>
-        </div>
-        </div>
-      </div>
-
-      <div ref="resourceLedgerAnchor" class="border border-accent/20 rounded-xs p-3">
-        <div class="flex items-start justify-between gap-3 mb-2">
-          <div class="min-w-0">
-            <p class="text-xs text-muted">资源家族总览</p>
-            <p class="text-[0.625rem] text-muted mt-1 leading-4">把远征回流带来的库存集中看，避免首屏堆太多资源说明。</p>
-          </div>
-          <button
-            v-if="isCompactMobile"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5 shrink-0"
-            @click="mobileLedgerExpanded = !mobileLedgerExpanded"
-          >
-            {{ mobileLedgerExpanded ? '收起' : `展开 ${regionMapStore.resourceLedgerEntries.length} 组` }}
-          </button>
-        </div>
-        <div v-if="!isCompactMobile || mobileLedgerExpanded" class="space-y-2">
-          <div v-for="entry in regionMapStore.resourceLedgerEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
-            <div class="flex items-center justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-xs text-accent">{{ entry.label }}</p>
-                <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ entry.description }}</p>
-              </div>
-              <span class="text-xs shrink-0">{{ entry.quantity }}</span>
-            </div>
-            <div class="flex flex-wrap gap-2 mt-2">
-              <button
-                class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                :disabled="entry.quantity <= 0 || !regionMapStore.resourceFeatureEnabled"
-                @click="handlePublicResourceTurnIn(entry.id)"
-              >
-                交付 1 份
-              </button>
-            </div>
-          </div>
-
-          <div v-if="visibleJourneyCraftingEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
-            <div class="flex items-center justify-between gap-3 mb-2">
-              <div class="min-w-0">
-                <p class="text-xs text-accent">旅程锻造</p>
-                <p class="text-[0.625rem] text-muted mt-1 leading-4">区域素材与首领解锁会在这里汇总成旅装、武器与套装件。</p>
-              </div>
-              <button class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5" @click="handleNavigate('inventory')">
-                去背包
-              </button>
-            </div>
-            <div class="space-y-2">
-              <div v-for="recipe in visibleJourneyCraftingEntries" :key="recipe.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-xs text-accent">{{ recipe.name }}</p>
-                    <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ recipe.description }}</p>
-                    <p class="text-[0.625rem] text-muted mt-1 leading-4">材料：{{ formatJourneyRecipeMaterials(recipe) }}</p>
-                    <p class="text-[0.625rem] text-muted mt-1 leading-4">铜钱：{{ recipe.requiredMoney }}</p>
-                    <p v-if="!getJourneyRecipeStatus(recipe.id).ok" class="text-[0.625rem] text-warning mt-1 leading-4">
-                      {{ getJourneyRecipeStatus(recipe.id).reason }}
-                    </p>
-                  </div>
-                  <span class="text-[0.625rem] shrink-0" :class="recipe.crafted ? 'text-success' : 'text-muted'">
-                    {{ recipe.crafted ? '已完成' : '可锻造' }}
-                  </span>
-                </div>
-                <div class="flex flex-wrap gap-2 mt-2">
-                  <button
-                    class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                    :disabled="recipe.crafted || !getJourneyRecipeStatus(recipe.id).ok"
-                    @click="handleCraftJourneyRecipe(recipe.id)"
-                  >
-                    {{ recipe.crafted ? '已锻造' : '执行锻造' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="visibleJourneyAwakeningEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
-            <div class="flex items-center justify-between gap-3 mb-2">
-              <div class="min-w-0">
-                <p class="text-xs text-accent">技能觉醒</p>
-                <p class="text-[0.625rem] text-muted mt-1 leading-4">区域账本会反哺现有五技能，不额外切出第六基础技能。</p>
-              </div>
-              <button class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5" @click="handleNavigate('skills')">
-                去技能
-              </button>
-            </div>
-            <div class="space-y-2">
-              <div v-for="entry in visibleJourneyAwakeningEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-xs text-accent">{{ entry.name }}</p>
-                    <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.description }}</p>
-                    <p class="text-[0.625rem] text-muted mt-1 leading-4">需要 {{ entry.requiredFamilyAmount }} 份{{ getResourceFamilyLabel(entry.requiredFamilyId) }} / {{ entry.requiredRouteCompletions }} 条区域路线。</p>
-                    <p v-if="!canUnlockJourneyAwakening(entry).ok" class="text-[0.625rem] text-warning mt-1 leading-4">
-                      {{ canUnlockJourneyAwakening(entry).reason }}
-                    </p>
-                  </div>
-                  <span class="text-[0.625rem] shrink-0" :class="entry.unlocked ? 'text-success' : 'text-muted'">
-                    {{ entry.unlocked ? '已激活' : '待激活' }}
-                  </span>
-                </div>
-                <div class="flex flex-wrap gap-2 mt-2">
-                  <button
-                    class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                    :disabled="entry.unlocked || !canUnlockJourneyAwakening(entry).ok"
-                    @click="handleUnlockJourneyAwakening(entry.id)"
-                  >
-                    {{ entry.unlocked ? '已激活' : '激活觉醒' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="visibleJourneyCampModuleEntries.length > 0 || visibleJourneyRoutePermitEntries.length > 0" class="grid grid-cols-1 xl:grid-cols-2 gap-3">
-            <div v-if="visibleJourneyCampModuleEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
-              <p class="text-xs text-accent">营地模组</p>
-              <p class="text-[0.625rem] text-muted mt-1 mb-2 leading-4">把区域账本继续沉淀成前线模组，直接影响扎营与长线推进。</p>
-              <div class="space-y-2">
-                <div v-for="entry in visibleJourneyCampModuleEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="text-xs text-accent">{{ entry.name }}</p>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.description }}</p>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4">需要 {{ entry.requiredFamilyAmount }} 份{{ getResourceFamilyLabel(entry.requiredFamilyId) }}</p>
-                      <p v-if="!canUnlockJourneyCampModule(entry).ok" class="text-[0.625rem] text-warning mt-1 leading-4">
-                        {{ canUnlockJourneyCampModule(entry).reason }}
-                      </p>
-                    </div>
-                    <span class="text-[0.625rem] shrink-0" :class="entry.level > 0 ? 'text-success' : 'text-muted'">
-                      {{ entry.level > 0 ? `Lv.${entry.level}` : '未安装' }}
-                    </span>
-                  </div>
-                  <div class="flex flex-wrap gap-2 mt-2">
-                    <button
-                      class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                      :disabled="entry.level > 0 || !canUnlockJourneyCampModule(entry).ok"
-                      @click="handleUnlockJourneyCampModule(entry.id)"
-                    >
-                      {{ entry.level > 0 ? '已安装' : '安装模组' }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="visibleJourneyRoutePermitEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
-              <p class="text-xs text-accent">许可证与捷径精通</p>
-              <p class="text-[0.625rem] text-muted mt-1 mb-2 leading-4">把区域账本转成路线许可证，强化后续熟路与路线掌控。</p>
-              <div class="space-y-2">
-                <div v-for="entry in visibleJourneyRoutePermitEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="text-xs text-accent">{{ entry.name }}</p>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.description }}</p>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4">需要 {{ entry.requiredFamilyAmount }} 份{{ getResourceFamilyLabel(entry.requiredFamilyId) }}</p>
-                      <p v-if="!canUnlockJourneyRoutePermit(entry).ok" class="text-[0.625rem] text-warning mt-1 leading-4">
-                        {{ canUnlockJourneyRoutePermit(entry).reason }}
-                      </p>
-                    </div>
-                    <span class="text-[0.625rem] shrink-0" :class="entry.level > 0 ? 'text-success' : 'text-muted'">
-                      {{ entry.level > 0 ? `Lv.${entry.level}` : '未签发' }}
-                    </span>
-                  </div>
-                  <div class="flex flex-wrap gap-2 mt-2">
-                    <button
-                      class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                      :disabled="entry.level > 0 || !canUnlockJourneyRoutePermit(entry).ok"
-                      @click="handleUnlockJourneyRoutePermit(entry.id)"
-                    >
-                      {{ entry.level > 0 ? '已签发' : '签发许可证' }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      </section>
 
       <div
         v-if="settlementDialog"
@@ -1984,7 +1222,7 @@
                     <p class="text-[0.625rem] text-muted">戏剧化回流入口</p>
                     <p class="text-[0.6875rem] text-accent mt-1">{{ expeditionSettlementDialog?.handoffBoard?.headline }}</p>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                       <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
                         <p class="text-[0.625rem] text-muted mb-2">资源去向</p>
                         <div class="space-y-1">
@@ -2037,7 +1275,7 @@
                       </div>
                     </div>
 
-                    <div v-if="(expeditionSettlementDialog?.handoffBoard?.receiptSections?.length ?? 0) > 0" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div v-if="(expeditionSettlementDialog?.handoffBoard?.receiptSections?.length ?? 0) > 0" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div
                         v-for="section in expeditionSettlementDialog?.handoffBoard?.receiptSections ?? []"
                         :key="`settlement-receipt-${section.title}`"
@@ -2097,6 +1335,8 @@
   import FishBossImage from '@/components/game/FishBossImage.vue'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
+  import RegionJourneyAftermathPanel from '@/components/game/regionMap/RegionJourneyAftermathPanel.vue'
+  import RegionResourcePrepPanel from '@/components/game/regionMap/RegionResourcePrepPanel.vue'
   import { getRareVisitorsForDay } from '@/data/bookseller'
   import { resolveEnvironmentWindow } from '@/data/environmentWindows'
   import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
@@ -2104,6 +1344,7 @@
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
+  import { useRegionJourneyHandoffModel } from '@/composables/useRegionJourneyHandoffModel'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import { useFishPondStore } from '@/stores/useFishPondStore'
   import { useGameStore } from '@/stores/useGameStore'
@@ -2122,9 +1363,7 @@
     RegionExpeditionApproach,
     RegionExpeditionCarryItem,
     RegionExpeditionCarryItemCategory,
-    RegionExpeditionEncounterKind,
     RegionExpeditionEncounterMemory,
-    RegionExpeditionNodeLane,
     RegionExpeditionRetreatRule,
     RegionExpeditionWeather,
     RegionId,
@@ -2144,6 +1383,21 @@
   const regionMapStore = useRegionMapStore()
   const shopStore = useShopStore()
   const villageProjectStore = useVillageProjectStore()
+  const { buildJourneyHandoffBoard, getRegionHandoffSummary } = useRegionJourneyHandoffModel({
+    regionMapStore,
+    shopStore,
+    hanhaiStore,
+    fishPondStore,
+    museumStore,
+    questStore,
+    goalStore,
+    guildStore,
+    villageProjectStore,
+    buildSettlementActionPanels,
+    getRegionRoutes,
+    isRouteUnlocked,
+    getUnlockSummary
+  })
   const lastActionSummary = ref('')
   const actionTone = ref<'success' | 'danger' | 'accent'>('success')
   const selectedRegionId = ref<RegionId | null>(
@@ -2174,6 +1428,7 @@
     panelKey: PanelKey | null
   }
   type MobileJourneyFlowStepId = 'region' | 'route' | 'prep' | 'session' | 'aftermath'
+  type RegionMapTabId = 'today' | 'map' | 'aftermath' | 'resource'
   type MapVisibilityStage = 'unknown' | 'heard' | 'surveyed' | 'mastered'
   type RegionMapBoardNode = {
     key: string
@@ -2264,6 +1519,7 @@
   const mobileSelectedAftermathExpanded = ref(false)
   const selectedJourneyAftermathPinned = ref(false)
   const journeyTermPrimerDismissed = ref(false)
+  const activeRegionMapTab = ref<RegionMapTabId>('today')
   const compactRegionSectionState = ref<Record<string, boolean>>({})
   const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
@@ -2639,6 +1895,7 @@
   }
   const getDefaultMobileRegionId = () => currentSelectedRegionId.value ?? getPreferredRegionSelectionId()
   const handleSelectRegionFilter = (regionId: RegionId) => {
+    setRegionMapTab('map')
     if (isCompactMobile.value) {
       revealRegionSelection(regionId)
       return
@@ -2688,7 +1945,7 @@
     })
   }
   const scrollToResourceLedger = async () => {
-    mobileLedgerExpanded.value = true
+    setRegionMapTab('resource')
     await scrollAnchorIntoView(resourceLedgerAnchor.value)
   }
   const getApproachLabel = (approach: RegionExpeditionApproach) =>
@@ -2711,30 +1968,10 @@
     const session = currentSession.value
     return session?.nodeHistory[session.nodeHistory.length - 1]?.label ?? '出发营地'
   })
-  const getNodeLaneSummary = (lane: RegionExpeditionNodeLane) =>
-    lane === 'boss' ? '首领压进' : lane === 'deep' ? '深层推进' : lane === 'branch' ? '支线侧探' : lane === 'camp' ? '前线营地' : '主线推进'
   const getWeatherLabel = (weather: RegionExpeditionWeather) =>
     weather === 'storm' ? '风暴' : weather === 'fog' ? '浓雾' : weather === 'wind' ? '劲风' : '晴稳'
-  const getWeatherToneClass = (weather: RegionExpeditionWeather) =>
-    weather === 'storm' ? 'text-danger' : weather === 'fog' ? 'text-warning' : weather === 'wind' ? 'text-accent' : 'text-success'
   const getCarryCategoryLabel = (category: RegionExpeditionCarryItemCategory) =>
     category === 'clue' ? '线索' : category === 'refined' ? '精炼' : category === 'supply' ? '补给' : '资源'
-  const getEncounterKindLabel = (kind: RegionExpeditionEncounterKind | null) =>
-    kind === 'hazard'
-      ? '险段'
-      : kind === 'cache'
-        ? '收获'
-        : kind === 'traveler'
-          ? '旅者'
-          : kind === 'support'
-            ? '支援'
-            : kind === 'anomaly'
-              ? '异变'
-              : kind === 'boss_prep'
-                ? '前夜'
-                : kind === 'weekly_event'
-                  ? '事件'
-                  : '未定'
   const formatCarryManifest = (carryItems: RegionExpeditionCarryItem[], limit = 4) =>
     carryItems
       .slice(0, limit)
@@ -2743,12 +1980,6 @@
   const currentSessionEncounterTrail = computed<RegionExpeditionEncounterMemory[]>(() =>
     currentSession.value ? [...currentSession.value.encounterMemory].slice(-4).reverse() : []
   )
-  const CAMP_ACTION_META: Record<string, { label: string; summary: string; toneClass: string }> = {
-    rest: { label: '休整伤势', summary: '优先回复生命、稳住士气，把营火时间用在恢复。', toneClass: 'text-success' },
-    sort: { label: '整理补给', summary: '压低负重、梳理收获，让下一段推进有更多腾挪空间。', toneClass: 'text-accent' },
-    mark: { label: '标记路线', summary: '把坡口、路标和回撤线重新钉稳，换更低的后续风险。', toneClass: 'text-success' },
-    scout: { label: '观察侦察', summary: '派出夜间观察，提前看清下一个节点的局势。', toneClass: 'text-warning' }
-  }
   const getArchiveJourneyLines = (entry: RegionExpeditionArchiveEntry) => {
     const journalLines = entry.journal
       .map(logEntry => `${logEntry.step > 0 ? `第 ${logEntry.step} 节点` : '出发'} · ${logEntry.title}：${logEntry.summary}`)
@@ -2967,9 +2198,9 @@
     const latestAftermath = latestJourneyAftermathSummary.value
     if (latestAftermath) {
       const handoffActionCard =
-        latestAftermath.handoffBoard?.actionCards.find(action => !isJourneyActionProcessed(latestAftermath.entry.id, action.key)) ?? null
+        latestAftermath.handoffBoard?.actionCards.find((action: any) => !isJourneyActionProcessed(latestAftermath.entry.id, action.key)) ?? null
       const fallbackAction =
-        latestAftermath.actions.find(action => !isJourneyActionProcessed(latestAftermath.entry.id, action.key)) ?? null
+        latestAftermath.actions.find((action: any) => !isJourneyActionProcessed(latestAftermath.entry.id, action.key)) ?? null
       const nextAction = handoffActionCard ?? fallbackAction
 
       if (!nextAction) {
@@ -3026,11 +2257,57 @@
     const latest = latestJourneyAftermathSummary.value
     if (!latest) return false
     const pendingKeys = [
-      ...(latest.handoffBoard?.actionCards.map(action => action.key) ?? []),
-      ...latest.actions.map(action => action.key)
+      ...(latest.handoffBoard?.actionCards.map((action: any) => action.key) ?? []),
+      ...latest.actions.map((action: any) => action.key)
     ]
     return [...new Set(pendingKeys)].some(panelKey => !isJourneyActionProcessed(latest.entry.id, panelKey))
   })
+  const regionMapTabs = computed<Array<{ id: RegionMapTabId; label: string; summary: string }>>(() => [
+    {
+      id: 'today',
+      label: '今日行动',
+      summary: currentSession.value
+        ? `推进 ${currentSession.value.targetName}`
+        : hasPendingLatestAftermathAction.value
+          ? '先处理回城事项'
+          : primaryJourneyActionCard.value.statusLabel
+    },
+    {
+      id: 'map',
+      label: '地图路线',
+      summary: selectedRegionFilterLabel.value
+    },
+    {
+      id: 'aftermath',
+      label: '旅后处理',
+      summary: latestJourneyAftermathSummary.value
+        ? latestJourneyAftermathSummary.value.entry.targetName
+        : `${journeyHistoryOverflowEntries.value.length} 条记录`
+    },
+    {
+      id: 'resource',
+      label: '资源整备',
+      summary: hasResourceLedgerEntries.value
+        ? `${regionMapStore.resourceLedgerEntries.length} 组资源`
+        : '暂无库存'
+    }
+  ])
+  function setRegionMapTab(tabId: RegionMapTabId) {
+    activeRegionMapTab.value = tabId
+    if (tabId === 'aftermath') {
+      mobileLatestAftermathExpanded.value = hasPendingLatestAftermathAction.value
+    }
+    if (tabId === 'resource' && isCompactMobile.value) {
+      mobileLedgerExpanded.value = true
+    }
+  }
+  async function openAftermathTab() {
+    setRegionMapTab('aftermath')
+    if (latestJourneyAftermathSummary.value) {
+      selectedJourneyAftermathId.value = latestJourneyAftermathSummary.value.entry.id
+    }
+    await scrollAnchorIntoView(latestAftermathAnchor.value)
+  }
   watch(
     () => latestJourneyAftermathSummary.value?.entry.id ?? null,
     () => {
@@ -3089,6 +2366,7 @@
   })
   const handleMobileFlowStep = async (stepId: MobileJourneyFlowStepId) => {
     if (stepId === 'region') {
+      setRegionMapTab('map')
       const regionId = getDefaultMobileRegionId()
       if (regionId) {
         revealRegionSelection(regionId)
@@ -3098,6 +2376,7 @@
     }
 
     if (stepId === 'route' || stepId === 'prep') {
+      setRegionMapTab('map')
       const regionId = getDefaultMobileRegionId()
       if (!regionId) return
       revealRegionSelection(regionId)
@@ -3109,13 +2388,13 @@
     }
 
     if (stepId === 'session' && currentSession.value) {
+      setRegionMapTab('today')
       await scrollAnchorIntoView(stagePanelAnchor.value)
       return
     }
 
     if (stepId === 'aftermath' && latestJourneyAftermathSummary.value) {
-      selectedJourneyAftermathId.value = latestJourneyAftermathSummary.value.entry.id
-      await scrollAnchorIntoView(latestAftermathAnchor.value)
+      await openAftermathTab()
     }
   }
 
@@ -3228,366 +2507,6 @@
         return `${itemName} x${item.quantity}`
       })
       .join(' / ')
-  }
-
-  function createStatusChip(ready: boolean, readyLabel = '已满足', pendingLabel = '待推进'): StatusChip {
-    return {
-      statusLabel: ready ? readyLabel : pendingLabel,
-      statusToneClass: ready ? 'text-success' : 'text-muted'
-    }
-  }
-
-  function createJourneyReceiptSection(
-    title: string,
-    lines: string[],
-    ready: boolean,
-    readyLabel = '已形成回执',
-    pendingLabel = '待继续推进'
-  ): JourneyHandoffReceiptSection {
-    return {
-      title,
-      lines: lines.filter(Boolean),
-      ...createStatusChip(ready, readyLabel, pendingLabel)
-    }
-  }
-
-  function buildJourneyReceiptSections(regionId: RegionId | null): JourneyHandoffReceiptSection[] {
-    if (!regionId) return []
-
-    if (regionId === 'ancient_road') {
-      const archiveStock = regionMapStore.getFamilyResourceQuantity('ancient_archive')
-      const shopFocus = shopStore.activityCampaignOfferRecommendations[0]?.name ?? shopStore.recommendedCatalogOffers[0]?.name ?? ''
-      const hanhaiHint = hanhaiStore.crossSystemOverview.recommendedActions[0] ?? ''
-      const specialOrderLabel = questStore.specialOrder?.targetItemName ?? questStore.specialOrder?.description ?? ''
-      const campaignLabel = questStore.currentLimitedTimeQuestCampaign?.label ?? ''
-      const campaignRemainingDays = questStore.currentLimitedTimeQuestRemainingDays ?? 0
-
-      return [
-        createJourneyReceiptSection(
-          '交差回执',
-          [
-            questStore.boardQuests.length > 0
-              ? `任务板：当前告示栏仍有 ${questStore.boardQuests.length} 条委托待接。`
-              : '任务板：当前告示栏暂时没有常规委托堆积。',
-            questStore.activeQuests.length > 0 ? `进行中：你手头还有 ${questStore.activeQuests.length} 条任务可一起承接这趟回城结果。` : ''
-          ],
-          questStore.boardQuests.length > 0 || questStore.activeQuests.length > 0 || archiveStock > 0,
-          '可立刻交差',
-          '待补委托条件'
-        ),
-        createJourneyReceiptSection(
-          '变现回执',
-          [
-            archiveStock > 0 ? `库存确认：古迹残卷 ${archiveStock} 份，可立刻转成交付或后续调查。` : '',
-            shopFocus ? `商圈周转：当前优先货架是「${shopFocus}」，可直接把荒道收益换成下一趟补给。` : '商圈周转：可先把荒道回收物换成补给、口粮和行装。'
-          ],
-          archiveStock > 0 || Boolean(shopFocus),
-          '可立刻变现',
-          '待补可卖收益'
-        ),
-        createJourneyReceiptSection(
-          '解锁后续',
-          [
-            specialOrderLabel ? `特殊订单：当前可继续承接「${specialOrderLabel}」。` : '',
-            campaignLabel ? `活动窗口：${campaignRemainingDays > 0 ? `「${campaignLabel}」剩余 ${campaignRemainingDays} 天。` : `「${campaignLabel}」当前已开启。`}` : '',
-            hanhaiHint ? `瀚海延伸：${hanhaiHint}` : ''
-          ],
-          Boolean(specialOrderLabel) || Boolean(campaignLabel) || Boolean(hanhaiHint),
-          '后续已打开',
-          '待触发后续'
-        )
-      ].filter(section => section.lines.length > 0)
-    }
-
-    if (regionId === 'mirage_marsh') {
-      const specimenStock = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
-      const pondContest = fishPondStore.currentPondContestDef?.label ?? ''
-      const museumFocus = museumStore.featuredScholarCommissionOverview[0]?.title ?? ''
-
-      return [
-        createJourneyReceiptSection(
-          '交差回执',
-          [
-            museumStore.availableScholarCommissionCount > 0
-              ? `博物馆：当前还有 ${museumStore.availableScholarCommissionCount} 条学者委托待接。`
-              : '博物馆：当前暂无堆积中的学者委托。',
-            museumFocus ? `馆务重点：目前优先处理「${museumFocus}」。` : ''
-          ],
-          museumStore.availableScholarCommissionCount > 0 || Boolean(museumFocus),
-          '可立刻交付',
-          '待馆务刷新'
-        ),
-        createJourneyReceiptSection(
-          '变现回执',
-          [
-            specimenStock > 0 ? `样本库存：生态样本 ${specimenStock} 份，可先转展示池或研究交付。` : '',
-            pondContest ? `鱼塘周赛：当前「${pondContest}」能立刻消化这趟泽地收获。` : '鱼塘周赛：本周暂无特别点名的周赛承接。'
-          ],
-          specimenStock > 0 || Boolean(pondContest),
-          '可立刻承接',
-          '待样本回流'
-        ),
-        createJourneyReceiptSection(
-          '解锁后续',
-          [
-            fishPondStore.displayOverview.entryCount > 0
-              ? `展示池：当前已有 ${fishPondStore.displayOverview.entryCount} 条高光样本在展陈。`
-              : '展示池：当前仍可继续把泽地样本推入展示池。',
-            goalStore.currentEventCampaign ? `活动承接：当前「${goalStore.currentEventCampaign.label}」也能接住这批样本。` : ''
-          ],
-          fishPondStore.displayOverview.entryCount > 0 || Boolean(goalStore.currentEventCampaign),
-          '后续已打开',
-          '待继续沉淀'
-        )
-      ].filter(section => section.lines.length > 0)
-    }
-
-    const crystalStock = regionMapStore.getFamilyResourceQuantity('ley_crystal')
-    const projectName = villageProjectStore
-      .getLinkedProjectSummaries('guild')
-      .filter(project => project.available || project.completed)
-      .slice(0, 1)[0]?.name ?? ''
-
-    return [
-      createJourneyReceiptSection(
-        '交差回执',
-        [
-          `公会战备：当前位于 ${guildStore.crossSystemOverview.currentRankBandLabel}。`,
-          villageProjectStore.overviewSummary.availableProjects > 0
-            ? `建设排队：当前仍有 ${villageProjectStore.overviewSummary.availableProjects} 项村庄建设可继续推进。`
-            : '建设排队：当前可见建设项已基本处理完毕。'
-        ],
-        true,
-        '可立刻交差',
-        '待战备提升'
-      ),
-      createJourneyReceiptSection(
-        '变现回执',
-        [
-          crystalStock > 0 ? `灵脉结晶：当前库存 ${crystalStock}，可继续转成战备、建设与高阶准备。` : '',
-          goalStore.currentThemeWeek?.name ? `主题周放大：本周「${goalStore.currentThemeWeek.name}」会提高高地回流价值。` : ''
-        ],
-        crystalStock > 0 || Boolean(goalStore.currentThemeWeek?.name),
-        '可立刻转化',
-        '待形成库存'
-      ),
-      createJourneyReceiptSection(
-        '解锁后续',
-        [
-          projectName ? `建设前置：下一步可继续推进「${projectName}」。` : '',
-          '下一轮：高地成果会优先回灌到公会远征准备与后续建设链。'
-        ],
-        Boolean(projectName) || villageProjectStore.overviewSummary.availableProjects > 0,
-        '建设可继续',
-        '待建设解锁'
-      )
-    ].filter(section => section.lines.length > 0)
-  }
-
-  function buildJourneyHandoffBoard(regionId: RegionId | null): JourneyHandoffBoard | null {
-    if (!regionId) return null
-
-    const allowedKeys = new Set(buildSettlementActionPanels(regionId).map(action => action.key))
-    const createActionCard = (
-      key: PanelKey,
-      label: string,
-      summary: string,
-      reason: string,
-      ready: boolean,
-      readyLabel = '可立刻处理',
-      pendingLabel = '待准备'
-    ): SettlementDialogActionCard => ({
-      key,
-      label,
-      summary,
-      reason,
-      ...createStatusChip(ready, readyLabel, pendingLabel)
-    })
-
-    if (regionId === 'ancient_road') {
-      const archiveStock = regionMapStore.getFamilyResourceQuantity('ancient_archive')
-      const shopFocus = shopStore.activityCampaignOfferRecommendations[0]?.name ?? shopStore.recommendedCatalogOffers[0]?.name ?? ''
-      const hanhaiHint = hanhaiStore.crossSystemOverview.recommendedActions[0] ?? ''
-      const questReady = questStore.boardQuests.length > 0 || questStore.activeQuests.length > 0 || archiveStock > 0
-      const shopReady = archiveStock > 0 || Boolean(shopFocus)
-      const hanhaiReady = Boolean(hanhaiHint)
-      const actionCards = [
-        createActionCard(
-          'quest',
-          '任务板',
-          archiveStock > 0 ? `先把古迹残卷 ${archiveStock} 份转成交付、委托或调查线索。` : '先检查有没有可承接的残卷交付与调查委托。',
-          goalStore.currentEventCampaign
-            ? `当前活动「${goalStore.currentEventCampaign.label}」也能直接接住这趟荒道回流。`
-            : '任务板最容易把本趟荒道见闻立刻变成明确进度。',
-          questReady,
-          '现在就去',
-          '先补委托条件'
-        ),
-        createActionCard(
-          'shop',
-          '商圈',
-          shopFocus ? `围绕「${shopFocus}」补货，把这趟回城收益转成下一趟远行准备。` : '把荒道回收物换成补给、口粮和下一趟远行物资。',
-          shopFocus ? `商圈当前就有「${shopFocus}」这类重点承接。` : '回城后立刻补货，能最快改善下一次出发质量。',
-          shopReady,
-          '随后处理',
-          '待补可卖收益'
-        ),
-        createActionCard(
-          'hanhai',
-          '瀚海',
-          hanhaiHint ? `把荒道带回的路引与线索接进瀚海：${hanhaiHint}` : '把荒道回流继续接成更远的商路、合同或遗迹线。',
-          hanhaiHint ? '瀚海当前已经给出了明确的后续动作。' : '荒道最自然的长线出口，就是把线索继续推向瀚海。',
-          hanhaiReady,
-          '可稍后去',
-          '待触发后续'
-        )
-      ].filter(action => allowedKeys.has(action.key))
-
-      return {
-        headline: '荒道回流会优先拆进任务板、商圈与瀚海。',
-        resourceLines: [
-          archiveStock > 0
-            ? `古迹残卷 ${archiveStock} 份 -> 先交任务板，再延伸成商圈补给与瀚海线索。`
-            : '荒道文书、残卷和路引会优先流向任务板与瀚海合同链。',
-          shopFocus ? `周转物资 -> 商圈优先看「${shopFocus}」，把收益转成补给。` : '补给与周转品可先送去商圈，换成下一趟行囊。'
-        ],
-        actionCards,
-        whyNowLines: getJourneyFollowUpNotes(regionId).slice(0, 4),
-        receiptSections: buildJourneyReceiptSections(regionId)
-      }
-    }
-
-    if (regionId === 'mirage_marsh') {
-      const specimenStock = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
-      const pondContest = fishPondStore.currentPondContestDef?.label ?? ''
-      const museumFocus = museumStore.featuredScholarCommissionOverview[0]?.title ?? ''
-      const fishpondReady = specimenStock > 0 || Boolean(pondContest)
-      const museumReady = museumStore.availableScholarCommissionCount > 0 || Boolean(museumFocus)
-      const actionCards = [
-        createActionCard(
-          'fishpond',
-          '鱼塘',
-          specimenStock > 0 ? `先把生态样本 ${specimenStock} 份转进展示池、周赛养成或素材整理。` : '先看鱼塘周赛和展示池，把泽地回流变成持续收益。',
-          pondContest ? `本周周赛「${pondContest}」正好能消化这趟泽地收获。` : '鱼塘通常是蜃潮泽地样本最先落地的地方。',
-          fishpondReady,
-          '现在就去',
-          '待样本回流'
-        ),
-        createActionCard(
-          'museum',
-          '博物馆',
-          museumStore.availableScholarCommissionCount > 0
-            ? `当前还有 ${museumStore.availableScholarCommissionCount} 条学者委托待接，能立刻消化样本和见闻。`
-            : '先检查馆务和学者委托，把这趟样本变成收藏与研究推进。',
-          museumFocus ? `馆务重点「${museumFocus}」和这趟泽地素材高度匹配。` : '蜃潮泽地的样本与异闻，最容易直接长进博物馆价值。',
-          museumReady,
-          '随后处理',
-          '待馆务刷新'
-        )
-      ].filter(action => allowedKeys.has(action.key))
-
-      return {
-        headline: '泽地回流会优先拆进鱼塘与博物馆。',
-        resourceLines: [
-          specimenStock > 0
-            ? `生态样本 ${specimenStock} 份 -> 先投鱼塘展示 / 周赛，再转博物馆委托。`
-            : '泽地带回的样本、藻材和生态线索会优先流向鱼塘与博物馆。',
-          museumFocus ? `研究重点 -> 当前馆务「${museumFocus}」可直接承接这趟泽地见闻。` : '研究与展陈需求，通常会吃到泽地带回的样本。'
-        ],
-        actionCards,
-        whyNowLines: getJourneyFollowUpNotes(regionId).slice(0, 4),
-        receiptSections: buildJourneyReceiptSections(regionId)
-      }
-    }
-
-    const crystalStock = regionMapStore.getFamilyResourceQuantity('ley_crystal')
-    const projectName = villageProjectStore
-      .getLinkedProjectSummaries('guild')
-      .filter(project => project.available || project.completed)
-      .slice(0, 1)[0]?.name ?? ''
-    const guildReady = true
-    const villageReady = Boolean(projectName) || villageProjectStore.overviewSummary.availableProjects > 0
-    const walletReady = crystalStock > 0 || Boolean(goalStore.currentThemeWeek?.name)
-    const actionCards = [
-      createActionCard(
-        'guild',
-        '公会',
-        '先去公会把高地推进成果接进战备与下一轮远征准备。',
-        `当前公会战备位于 ${guildStore.crossSystemOverview.currentRankBandLabel}，现在最容易承接高地回流。`,
-        guildReady,
-        '现在就去',
-        '待战备提升'
-      ),
-      createActionCard(
-        'village',
-        '村庄',
-        projectName ? `继续推进「${projectName}」等高地建设前置。` : '把高地带回的成果继续投进村庄建设与长期前置。',
-        projectName ? `当前就有「${projectName}」这类建设项可继续接力。` : '高地回流和村庄建设的联动最容易形成长期收益。',
-        villageReady,
-        '随后处理',
-        '待建设解锁'
-      ),
-      createActionCard(
-        'wallet',
-        '钱包',
-        crystalStock > 0 ? `把灵脉结晶 ${crystalStock} 份继续转成高阶准备、预算与后续投入。` : '把高地回流继续转成高阶准备与预算安排。',
-        goalStore.currentThemeWeek?.name ? `本周「${goalStore.currentThemeWeek.name}」会放大这部分高地回流价值。` : '高地收益最怕压仓，尽快转成准备更值。',
-        walletReady,
-        '可稍后去',
-        '待形成库存'
-      )
-    ].filter(action => allowedKeys.has(action.key))
-
-    return {
-      headline: '高地回流会优先拆进公会、村庄与钱包。',
-      resourceLines: [
-        crystalStock > 0
-          ? `灵脉结晶 ${crystalStock} 份 -> 先补公会战备，再转建设与高阶准备。`
-          : '高地带回的晶体、军备和前哨成果会优先流向公会与建设线。',
-        projectName ? `建设前置 -> 当前可继续推进「${projectName}」。` : '建设前置会持续消化高地带回的阶段成果。'
-      ],
-      actionCards,
-      whyNowLines: getJourneyFollowUpNotes(regionId).slice(0, 4),
-      receiptSections: buildJourneyReceiptSections(regionId)
-    }
-  }
-
-  function getJourneyFollowUpNotes(regionId: RegionId): string[] {
-    if (regionId === 'ancient_road') {
-      const archiveStock = regionMapStore.getFamilyResourceQuantity('ancient_archive')
-      const shopFocus = shopStore.activityCampaignOfferRecommendations[0]?.name ?? shopStore.recommendedCatalogOffers[0]?.name ?? ''
-      const hanhaiHint = hanhaiStore.crossSystemOverview.recommendedActions[0] ?? ''
-      return [
-        archiveStock > 0 ? `任务板：当前古迹残卷 ${archiveStock} 份，可优先转成交付、委托或后续线索。` : '',
-        shopFocus ? `商圈：可先围绕「${shopFocus}」补货，把荒道收获变成下一趟远行准备。` : '',
-        hanhaiHint ? `瀚海：${hanhaiHint}` : '',
-        goalStore.currentEventCampaign ? `活动：当前「${goalStore.currentEventCampaign.label}」也能承接这趟荒道回流。` : ''
-      ].filter(Boolean)
-    }
-
-    if (regionId === 'mirage_marsh') {
-      const specimenStock = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
-      const pondContest = fishPondStore.currentPondContestDef?.label ?? ''
-      const museumFocus = museumStore.featuredScholarCommissionOverview[0]?.title ?? ''
-      return [
-        specimenStock > 0 ? `鱼塘/博物馆：当前生态样本 ${specimenStock} 份，可优先转成展示池与学者委托。` : '',
-        pondContest ? `鱼塘：本周周赛「${pondContest}」可继续吃到这趟泽地带回的样本与素材。` : '',
-        museumStore.availableScholarCommissionCount > 0 ? `博物馆：当前还有 ${museumStore.availableScholarCommissionCount} 条学者委托待接。` : '',
-        museumFocus ? `馆务重点：可优先处理「${museumFocus}」。` : ''
-      ].filter(Boolean)
-    }
-
-    const crystalStock = regionMapStore.getFamilyResourceQuantity('ley_crystal')
-    const projectName = villageProjectStore
-      .getLinkedProjectSummaries('guild')
-      .filter(project => project.available || project.completed)
-      .slice(0, 1)[0]?.name ?? ''
-    return [
-      crystalStock > 0 ? `公会/钱包：当前灵脉结晶 ${crystalStock} 份，可继续转成高地战备与高阶准备。` : '',
-      `公会：当前战备位于 ${guildStore.crossSystemOverview.currentRankBandLabel}，可继续承接高地推进结果。`,
-      projectName ? `村庄：可继续推进「${projectName}」等高地建设前置。` : '',
-      goalStore.currentThemeWeek?.name ? `主题周：本周「${goalStore.currentThemeWeek.name}」会放大高地回流价值。` : ''
-    ].filter(Boolean)
   }
 
   function getExpeditionSettlementBuckets(lines: string[]) {
@@ -4447,88 +3366,6 @@
       .filter((panel): panel is LinkedPanel => panel !== null)
   }
 
-  function getRegionHandoffSummary(regionId: RegionId) {
-    const regionSummary = regionMapStore.regionSummaries.find(region => region.id === regionId) ?? null
-    const unlockedRouteCount = getRegionRoutes(regionId).filter(route => isRouteUnlocked(route.id)).length
-
-    if (!regionSummary?.unlocked) {
-      return {
-        headline: '先推进解锁',
-        detailLines: [`当前解锁条件：${getUnlockSummary(regionId)}`]
-      }
-    }
-
-    if (regionId === 'ancient_road') {
-      const detailLines = [
-        `荒道节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('ancient_road')}/${unlockedRouteCount} 条，可继续补护送线和残卷线。`,
-        goalStore.currentEventCampaign ? `活动承接：${goalStore.currentEventCampaign.label}` : '',
-        hanhaiStore.crossSystemOverview.featuredCaravanContracts.length > 0
-          ? `瀚海合同：${hanhaiStore.crossSystemOverview.featuredCaravanContracts.slice(0, 2).map(contract => contract.label).join('、')}`
-          : '',
-        hanhaiStore.crossSystemOverview.activeBossCycle
-          ? `瀚海焦点首领：${hanhaiStore.crossSystemOverview.activeBossCycle.label}`
-          : '',
-        shopStore.activityCampaignOfferRecommendations.length > 0
-          ? `商圈补给：${shopStore.activityCampaignOfferRecommendations.slice(0, 2).map(offer => offer.name).join('、')}`
-          : shopStore.recommendedCatalogOffers.length > 0
-            ? `商圈推荐：${shopStore.recommendedCatalogOffers.slice(0, 2).map(offer => offer.name).join('、')}`
-            : '',
-        regionMapStore.getFamilyResourceQuantity('ancient_archive') > 0
-          ? `当前已持有古迹残卷 ${regionMapStore.getFamilyResourceQuantity('ancient_archive')} 份，可先回任务板、商圈或瀚海消化。`
-          : ''
-      ].filter(Boolean)
-
-      return {
-        headline: '任务板 -> 商圈 -> 瀚海',
-        detailLines
-      }
-    }
-
-    if (regionId === 'mirage_marsh') {
-      const detailLines = [
-        `泽地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('mirage_marsh')}/${unlockedRouteCount} 条，可继续补夜游、样本和异常线。`,
-        fishPondStore.currentPondContestDef ? `鱼塘周赛：${fishPondStore.currentPondContestDef.label}` : '',
-        fishPondStore.displayOverview.entryCount > 0
-          ? `展示池：已摆入 ${fishPondStore.displayOverview.entryCount} 条高光样本，总观赏值 ${fishPondStore.displayOverview.totalShowValue}`
-          : '',
-        museumStore.availableScholarCommissionCount > 0
-          ? `馆务委托：当前可承接 ${museumStore.availableScholarCommissionCount} 条学者委托`
-          : '',
-        museumStore.featuredScholarCommissionOverview.length > 0
-          ? `重点馆务：${museumStore.featuredScholarCommissionOverview.slice(0, 2).map(commission => commission.title).join('、')}`
-          : '',
-        goalStore.currentEventCampaign ? `邮件/活动承接：${goalStore.currentEventCampaign.label}` : '',
-        regionMapStore.getFamilyResourceQuantity('ecology_specimen') > 0
-          ? `当前生态样本库存 ${regionMapStore.getFamilyResourceQuantity('ecology_specimen')} 份，可优先转成鱼塘展示或馆务委托。`
-          : ''
-      ].filter(Boolean)
-
-      return {
-        headline: '鱼塘 -> 博物馆 -> 邮箱',
-        detailLines
-      }
-    }
-
-    const highlandProjectNames = villageProjectStore
-      .getLinkedProjectSummaries('guild')
-      .filter(project => project.available || project.completed)
-      .slice(0, 2)
-      .map(project => project.name)
-    const detailLines = [
-      goalStore.currentThemeWeek?.name ? `主题周承接：${goalStore.currentThemeWeek.name}` : '',
-      `高地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('cloud_highland')}/${unlockedRouteCount} 条。`,
-      `公会战备：Lv.${guildStore.guildLevel} / ${guildStore.crossSystemOverview.currentRankBandLabel}。`,
-      highlandProjectNames.length > 0 ? `建设前置：${highlandProjectNames.join('、')}` : '',
-      regionMapStore.getFamilyResourceQuantity('ley_crystal') > 0
-        ? `灵脉结晶：当前库存 ${regionMapStore.getFamilyResourceQuantity('ley_crystal')}，可继续接公会、建设与高阶准备。`
-        : ''
-    ].filter(Boolean)
-    return {
-      headline: '公会 -> 村庄 -> 钱包',
-      detailLines
-    }
-  }
-
   const handleNavigate = (panelKey: PanelKey) => {
     navigateToPanel(panelKey)
   }
@@ -4544,12 +3381,14 @@
     const action = primaryJourneyActionCard.value
 
     if (action.kind === 'session' && action.regionId) {
+      setRegionMapTab('today')
       revealRegionSelection(action.regionId, action.routeId)
       await scrollAnchorIntoView(stagePanelAnchor.value)
       return
     }
 
     if (action.kind === 'focus' && action.regionId) {
+      setRegionMapTab('map')
       revealRegionSelection(action.regionId, action.routeId)
       await scrollAnchorIntoView(regionListAnchor.value)
       return
@@ -4567,15 +3406,15 @@
       }
 
       if (latestJourneyAftermathSummary.value) {
-        selectedJourneyAftermathId.value = latestJourneyAftermathSummary.value.entry.id
         revealRegionSelection(latestJourneyAftermathSummary.value.entry.regionId)
       }
-      await scrollAnchorIntoView(latestAftermathAnchor.value)
+      await openAftermathTab()
       return
     }
 
     const regionId = getPreferredRegionSelectionId()
     if (regionId) {
+      setRegionMapTab('map')
       selectedRegionId.value = regionId
     }
     await scrollAnchorIntoView(regionListAnchor.value)
@@ -4600,6 +3439,7 @@
     const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     if (result.success) {
+      setRegionMapTab('today')
       settlementDialog.value = null
     } else {
       openSettlementDialog(result.title, result.lines, result.tone)
@@ -4633,6 +3473,7 @@
     const result = regionMapStore.startBossExpeditionSession(regionId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     if (result.success) {
+      setRegionMapTab('today')
       settlementDialog.value = null
     } else {
       openSettlementDialog(result.title, result.lines, result.tone)
@@ -4695,14 +3536,17 @@
   const handleSettleExpedition = () => {
     const result = regionMapStore.settleActiveExpedition(currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
+    setRegionMapTab('aftermath')
     openExpeditionSettlementDialog(result.title, result.lines, result.tone)
   }
 
   const handleOpenJourneyAftermath = (entry: RegionExpeditionArchiveEntry) => {
+    setRegionMapTab('aftermath')
     openArchiveAftermathDialog(entry)
   }
 
   const handleSelectJourneyAftermath = (entry: RegionExpeditionArchiveEntry) => {
+    setRegionMapTab('aftermath')
     selectedJourneyAftermathId.value = entry.id
     selectedJourneyAftermathPinned.value = true
     mobileSelectedAftermathExpanded.value = true
