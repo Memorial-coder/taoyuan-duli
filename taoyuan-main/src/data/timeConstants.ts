@@ -66,14 +66,14 @@ export const ACTION_TIME_COSTS = {
   water: 0.08,
   harvest: 0.17,
   // 钓鱼
-  fishStart: 1,
+  fishStart: 0.5,
   // 挖矿
   mineOre: 0.25,
   combat: 0.25,
   nextFloor: 0.17,
   revealTile: 0.05,
   // 采集
-  forage: 1,
+  forage: 0.5,
   chopTree: 1,
   // 烹饪
   cook: 0.5,
