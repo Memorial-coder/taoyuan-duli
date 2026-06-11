@@ -310,6 +310,32 @@ export const useMiningStore = defineStore('mining', () => {
 
   const formatRewardLabels = (rewards: MineRewardDisplayEntry[]): string => rewards.map(reward => reward.label).join('、')
 
+  const calculateOreQuantityWithBonuses = (baseQuantity: number, oreMultiplier = 1): number => {
+    let quantity = Math.max(1, Math.floor(baseQuantity * oreMultiplier))
+
+    // 矿石数量加成统一走这里；稀矿转化等手动采矿专属额外奖励仍留在手动采矿流程。
+    const miningSkill = skillStore.getSkill('mining')
+    if (miningSkill.perk5 === 'miner' && Math.random() < 0.5) quantity += 1
+    if (gameStore.farmMapType === 'hilltop' && Math.random() < 0.5) quantity += 1
+    if (miningSkill.perk10 === 'prospector' && Math.random() < 0.15) quantity *= 2
+    if ((miningSkill.perk15 === 'vein_seeker' || miningSkill.perk15 === 'master_smith') && Math.random() < 0.3) quantity *= 2
+    if ((miningSkill.perk20 === 'earth_pulse' || miningSkill.perk20 === 'forge_god') && Math.random() < 0.5) quantity = Math.floor(quantity * 3)
+
+    const ringOreBonus = inventoryStore.getRingEffectValue('ore_bonus')
+    if (ringOreBonus > 0) {
+      const fixedOreBonus = Math.floor(ringOreBonus)
+      const fractionalOreBonus = ringOreBonus - fixedOreBonus
+      quantity += fixedOreBonus
+      if (fractionalOreBonus > 0 && Math.random() < fractionalOreBonus) quantity += 1
+    }
+    if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
+    const cookingOreBonusChance = useCookingStore().getActiveMiningOreBonusChance()
+    if (cookingOreBonusChance > 0 && Math.random() < cookingOreBonusChance) quantity += 1
+    if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
+
+    return quantity
+  }
+
   const canGrantRewardEntries = (entries: InventoryRewardEntry[]): boolean => {
     const merged = mergeRewardEntries(entries)
     if (merged.length === 0) return true
@@ -926,33 +952,7 @@ export const useMiningStore = defineStore('mining', () => {
   /** 处理矿石格子 */
   const _handleOreTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const oreId = tile.data?.oreId ?? 'copper_ore'
-    let quantity = tile.data?.oreQuantity ?? 1
-
-    // 矿工专精：50%概率+1
-    const miningSkill = skillStore.getSkill('mining')
-    if (miningSkill.perk5 === 'miner' && Math.random() < 0.5) quantity += 1
-    // 山丘农场加成：50%概率+1
-    const gameStore = useGameStore()
-    if (gameStore.farmMapType === 'hilltop' && Math.random() < 0.5) quantity += 1
-    // 探矿者专精：15% 概率双倍
-    if (miningSkill.perk10 === 'prospector' && Math.random() < 0.15) quantity *= 2
-    // perk15 矿石加成：矿脉探寻者/宗师铁匠 30%概率双倍
-    if ((miningSkill.perk15 === 'vein_seeker' || miningSkill.perk15 === 'master_smith') && Math.random() < 0.3) quantity *= 2
-    // perk20 矿石加成：大地脉动/锻造神 50%概率×3
-    if ((miningSkill.perk20 === 'earth_pulse' || miningSkill.perk20 === 'forge_god') && Math.random() < 0.5) quantity = Math.floor(quantity * 3)
-    // 装备 / 饰物矿石加成：整数部分固定加，小数部分按概率额外 +1。
-    const ringOreBonus = inventoryStore.getRingEffectValue('ore_bonus')
-    if (ringOreBonus > 0) {
-      const fixedOreBonus = Math.floor(ringOreBonus)
-      const fractionalOreBonus = ringOreBonus - fixedOreBonus
-      quantity += fixedOreBonus
-      if (fractionalOreBonus > 0 && Math.random() < fractionalOreBonus) quantity += 1
-    }
-    if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
-    const cookingOreBonusChance = useCookingStore().getActiveMiningOreBonusChance()
-    if (cookingOreBonusChance > 0 && Math.random() < cookingOreBonusChance) quantity += 1
-    // 仙缘能力：灵狐眼（hu_xian_2）15%概率额外掉落矿石
-    if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
+    const quantity = calculateOreQuantityWithBonuses(tile.data?.oreQuantity ?? 1)
 
     const hiddenNpcStore = useHiddenNpcStore()
     const herbRewards: InventoryRewardEntry[] = []
@@ -1211,13 +1211,13 @@ export const useMiningStore = defineStore('mining', () => {
           break
         case 'ore': {
           const oreId = tile.data?.oreId ?? 'copper_ore'
-          // 炸弹采矿不享受矿工专精/地形/探矿者加成，仅给基础数量
-          const quantity = tile.data?.oreQuantity ?? 1
-          if (!canGrantRewardEntries([{ itemId: oreId, quantity }]) || !grantRewardEntries([{ itemId: oreId, quantity }], true)) {
+          const quantity = calculateOreQuantityWithBonuses(tile.data?.oreQuantity ?? 1, bombDef.oreMultiplier)
+          const rewardEntries: InventoryRewardEntry[] = [{ itemId: oreId, quantity }]
+          if (!canGrantRewardEntries(rewardEntries) || !grantRewardEntries(rewardEntries, true)) {
             inventoryBlocked = true
             break
           }
-          bombRewardEntries.push({ itemId: oreId, quantity })
+          bombRewardEntries.push(...rewardEntries)
           useAchievementStore().discoverItem(oreId)
           oreCollected++
           tile.state = 'collected'
