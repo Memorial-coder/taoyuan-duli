@@ -18,6 +18,8 @@ export interface QmsgConfigOptions {
   showReverse: boolean
 }
 
+const QMSG_CONTAINER_SELECTOR = '.qmsg-shadow-container'
+
 // 配置 Qmsg 全局样式
 Qmsg.config({
   position: 'top',
@@ -27,6 +29,27 @@ Qmsg.config({
   isHTML: false,
   useShadowRoot: false
 })
+
+const getDefaultQmsgParent = () => {
+  if (typeof document === 'undefined') return null
+  return document.body || document.documentElement
+}
+
+export const setQmsgParent = (parent?: HTMLElement | null) => {
+  if (typeof document === 'undefined') return
+  const resolvedParent = parent ?? getDefaultQmsgParent()
+  if (!resolvedParent) return
+
+  Qmsg.config({
+    parent: resolvedParent,
+    useShadowRoot: false
+  })
+
+  const existingContainer = document.querySelector<HTMLElement>(QMSG_CONTAINER_SELECTOR)
+  if (existingContainer && existingContainer.parentNode !== resolvedParent) {
+    resolvedParent.appendChild(existingContainer)
+  }
+}
 
 /** 动态更新 Qmsg 全部通知配置 */
 export const applyQmsgConfig = (opts: QmsgConfigOptions) => {

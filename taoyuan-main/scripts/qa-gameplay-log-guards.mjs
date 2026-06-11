@@ -112,7 +112,8 @@ const {
   GAME_LOG_HISTORY_LIMIT,
   GAMEPLAY_LOG_QUEUE_LIMIT,
   _flushGameplayLogQueueForQa,
-  _getGameplayLogDebugState
+  _getGameplayLogDebugState,
+  setQmsgParent
 } = logModule
 
 resetLogs()
@@ -140,6 +141,38 @@ resetLogs()
 for (let index = 0; index < 20; index += 1) addLog(`待清理日志 ${index}`)
 resetLogs()
 assert(_getGameplayLogDebugState().queueLength === 0, 'resetLogs 必须同步清理待上报队列')
+
+const gameLogSource = fs.readFileSync(path.join(srcRoot, 'composables', 'useGameLog.ts'), 'utf8')
+const gameLayoutSource = fs.readFileSync(path.join(srcRoot, 'views', 'GameLayout.vue'), 'utf8')
+assert(/export const setQmsgParent =/.test(gameLogSource), 'useGameLog must expose a Qmsg parent sync helper.')
+assert(/QMSG_CONTAINER_SELECTOR = '\.qmsg-shadow-container'/.test(gameLogSource), 'Qmsg parent sync must target the shared Qmsg container.')
+assert(/Qmsg\.config\(\{\s*parent: resolvedParent,\s*useShadowRoot: false\s*\}\)/.test(gameLogSource), 'Qmsg parent sync must update the configured parent.')
+assert(/existingContainer\.parentNode !== resolvedParent[\s\S]*resolvedParent\.appendChild\(existingContainer\)/.test(gameLogSource), 'Qmsg parent sync must move the existing container into the active parent.')
+assert(/import \{ addLog, setQmsgParent, _registerDayLabelGetter \} from '@\/composables\/useGameLog'/.test(gameLayoutSource), 'GameLayout must import the Qmsg parent sync helper.')
+assert(/const syncGameLogToastParent = \(\) => \{[\s\S]*setQmsgParent\(shouldMountInGameRoot \? root : null\)/.test(gameLayoutSource), 'GameLayout must mount Qmsg under the fullscreen game root.')
+assert(/const syncFullscreenState = \(\) => \{[\s\S]*syncGameLogToastParent\(\)/.test(gameLayoutSource), 'Fullscreen state sync must also sync the Qmsg parent.')
+assert(/onUnmounted\(\(\) => \{[\s\S]*setQmsgParent\(null\)/.test(gameLayoutSource), 'GameLayout unmount must restore Qmsg to the default parent.')
+
+const createQmsgParent = () => ({
+  children: [],
+  appendChild(child) {
+    child.parentNode = this
+    this.children.push(child)
+  }
+})
+const defaultQmsgParent = createQmsgParent()
+const fullscreenQmsgParent = createQmsgParent()
+const existingQmsgContainer = { parentNode: defaultQmsgParent }
+globalThis.document = {
+  body: defaultQmsgParent,
+  documentElement: defaultQmsgParent,
+  querySelector: selector => (selector === '.qmsg-shadow-container' ? existingQmsgContainer : null)
+}
+setQmsgParent(fullscreenQmsgParent)
+assert(existingQmsgContainer.parentNode === fullscreenQmsgParent, 'setQmsgParent must move existing Qmsg container into fullscreen parent.')
+setQmsgParent(null)
+assert(existingQmsgContainer.parentNode === defaultQmsgParent, 'setQmsgParent(null) must restore Qmsg container to the default parent.')
+delete globalThis.document
 
 const miningStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useMiningStore.ts'), 'utf8')
 assert(/const MINING_COMBAT_LOG_LIMIT = 120/.test(miningStoreSource), 'useMiningStore 必须定义 combatLog 上限')

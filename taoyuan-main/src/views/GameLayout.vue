@@ -489,7 +489,7 @@
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
   import { handleEndDay } from '@/composables/useEndDay'
-  import { addLog, _registerDayLabelGetter } from '@/composables/useGameLog'
+  import { addLog, setQmsgParent, _registerDayLabelGetter } from '@/composables/useGameLog'
   import {
     LATE_NIGHT_RECOVERY_MAX,
     LATE_NIGHT_RECOVERY_MIN,
@@ -649,6 +649,13 @@
     return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null
   }
 
+  const syncGameLogToastParent = () => {
+    if (typeof document === 'undefined') return
+    const root = gameLayoutRoot.value
+    const shouldMountInGameRoot = root && getActiveFullscreenElement() === root
+    setQmsgParent(shouldMountInGameRoot ? root : null)
+  }
+
   const supportsGameFullscreen = () => {
     if (typeof document === 'undefined') return false
     const fullscreenDocument = document as FullscreenDocument
@@ -691,7 +698,9 @@
 
   const syncFullscreenState = () => {
     if (typeof document === 'undefined') return
-    isFullscreen.value = getActiveFullscreenElement() === gameLayoutRoot.value
+    const isGameRootFullscreen = getActiveFullscreenElement() === gameLayoutRoot.value
+    isFullscreen.value = isGameRootFullscreen
+    syncGameLogToastParent()
   }
 
   const toggleFullscreen = async () => {
@@ -844,6 +853,7 @@
     realtimeStore.stop()
     document.removeEventListener('fullscreenchange', syncFullscreenState)
     document.removeEventListener('webkitfullscreenchange', syncFullscreenState)
+    setQmsgParent(null)
     if (backgroundAutoSaveTimer.value !== null) {
       window.clearInterval(backgroundAutoSaveTimer.value)
       backgroundAutoSaveTimer.value = null
