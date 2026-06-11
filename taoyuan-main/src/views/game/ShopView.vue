@@ -1011,24 +1011,29 @@
             <div
               v-for="item in shopStore.blacksmithItems"
               :key="item.itemId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+              class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer"
+              :class="item.locked || item.weeklyRemaining === 0 ? 'border-accent/10 opacity-70 hover:bg-accent/5' : 'border-accent/20 hover:bg-accent/5'"
               @click="
                 openBatchBuyModal(
                   item.name,
                   item.description,
                   discounted(item.price),
-                  () => handleBuyItem(item.itemId, item.price, item.name),
-                  () => playerStore.money >= discounted(item.price),
-                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
-                  () => getMaxBuyable(discounted(item.price)),
-                  item.itemId
+                  () => handleBuyBlacksmithItem(item.itemId, item.price),
+                  () => canBuyBlacksmithItem(item.itemId, item.price),
+                  count => handleBatchBuyBlacksmithItem(item.itemId, item.price, count),
+                  () => getBlacksmithItemMaxBuyable(item.itemId, discounted(item.price)),
+                  item.itemId,
+                  getBlacksmithItemExtraLines(item)
                 )
               "
             >
               <div class="flex min-w-0 items-center gap-2">
                 <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
                 <div class="min-w-0">
-                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-sm">
+                    {{ item.name }}
+                    <span v-if="item.limitLabel" class="ml-1 text-[0.625rem] text-muted">{{ item.limitLabel }}</span>
+                  </p>
                   <p class="truncate text-muted text-xs">{{ item.description }}</p>
                 </div>
               </div>
@@ -2870,6 +2875,25 @@
     return Math.min(max, 999)
   }
 
+  const getBlacksmithItemMaxBuyable = (itemId: string, unitPrice: number): number => {
+    const weeklyRemaining = shopStore.getBlacksmithItemWeeklyRemaining(itemId)
+    return getMaxBuyable(unitPrice, weeklyRemaining ?? undefined)
+  }
+
+  const canBuyBlacksmithItem = (itemId: string, price: number): boolean => {
+    return !shopStore.getBlacksmithItemLimitHint(itemId, 1) && playerStore.money >= discounted(price)
+  }
+
+  const getBlacksmithItemExtraLines = (item: { itemId: string; locked?: boolean; weeklyLimit?: number; weeklyRemaining?: number }): string[] => {
+    const lines: string[] = []
+    if (item.weeklyLimit !== undefined) {
+      lines.push(item.locked ? '解锁条件：与孙铁匠成为朋友' : `每周限购：剩余 ${item.weeklyRemaining ?? 0}/${item.weeklyLimit}`)
+    }
+    const hint = shopStore.getBlacksmithItemLimitHint(item.itemId, 1)
+    if (hint) lines.push(hint)
+    return lines
+  }
+
   const openBuyModal = (
     name: string,
     description: string,
@@ -2892,7 +2916,8 @@
     canBuy: () => boolean,
     batchOnBuy: (count: number) => void,
     batchMaxCount: () => number,
-    itemId?: string
+    itemId?: string,
+    extraLines?: string[]
   ) => {
     const getResolvedMaxCount = () => {
       const baseMaxCount = Math.max(0, batchMaxCount())
@@ -2906,6 +2931,7 @@
       price: unitPrice,
       onBuy: onBuySingle,
       canBuy: () => canBuy() && getResolvedMaxCount() > 0,
+      extraLines,
       batchBuy: { onBuy: count => batchOnBuy(Math.min(count, Math.max(1, getResolvedMaxCount()))), maxCount: getResolvedMaxCount },
       itemId
     }
@@ -3256,6 +3282,26 @@
     } else {
       addLog('铜钱不足或背包已满。')
     }
+  }
+
+  const handleBuyBlacksmithItem = (itemId: string, price: number) => {
+    const result = shopStore.buyBlacksmithItem(itemId, price)
+    if (result.success) {
+      addLog(result.message)
+      return
+    }
+    addLog(result.message)
+  }
+
+  const handleBatchBuyBlacksmithItem = (itemId: string, price: number, count: number) => {
+    const result = shopStore.buyBlacksmithItem(itemId, price, count)
+    if (result.success) {
+      sfxBuy()
+      showFloat(`-${result.spent ?? discounted(price) * count}文`, 'danger')
+      addLog(result.message)
+      return
+    }
+    addLog(result.message)
   }
 
   const handleBatchBuyItem = (itemId: string, price: number, name: string, count: number) => {

@@ -28,7 +28,7 @@ import {
   getWeeklyShopCatalogOffers,
   normalizeShopCatalogExpansionState
 } from '@/data/shopCatalog'
-import { SHOP_NPC_RELATION_MAP } from '@/data/npcWorld'
+import { SHOP_NPC_RELATION_MAP, isRelationshipStageAtLeast } from '@/data/npcWorld'
 import {
   createDefaultMarketDynamicsState,
   ECONOMY_SINK_CONTENT_DEFS,
@@ -65,6 +65,7 @@ import type {
   PriceBreakdownEntry,
   PriceModifierStep,
   Quality,
+  RelationshipStage,
   RewardTicketType,
   SellPriceBreakdown,
   ShopCatalogContentTier,
@@ -89,6 +90,10 @@ export interface ShopItemEntry {
   name: string
   price: number
   description: string
+  locked?: boolean
+  weeklyLimit?: number
+  weeklyRemaining?: number
+  limitLabel?: string
 }
 
 const CATALOG_BUCKET_BY_CATEGORY: Record<ShopCatalogLuxuryCategory, ShopCatalogExpansionBucketKey> = {
@@ -117,6 +122,10 @@ const QUALITY_PRICE_LABELS: Record<Quality, string> = {
 const MARKET_CATEGORY_IDS: MarketCategory[] = ['crop', 'fish', 'animal_product', 'processed', 'fruit', 'ore', 'gem']
 const isMarketCategory = (category: string): category is MarketCategory =>
   MARKET_CATEGORY_IDS.includes(category as MarketCategory)
+const BLACKSMITH_QUARTZ_ITEM_ID = 'quartz'
+const BLACKSMITH_QUARTZ_PRICE = 220
+const BLACKSMITH_QUARTZ_WEEKLY_LIMIT = 4
+const BLACKSMITH_QUARTZ_REQUIRED_STAGE: RelationshipStage = 'friend'
 
 type RecentShippingItemSummary = {
   itemId: string
@@ -256,6 +265,7 @@ export const useShopStore = defineStore('shop', () => {
   const catalogExpansionState = ref<ShopCatalogExpansionState>(createDefaultShopCatalogExpansionState())
   const marketDynamics = ref<MarketDynamicsState>(createDefaultMarketDynamicsState())
   const catalogPurchaseLock = ref<string | null>(null)
+  const blacksmithWeeklyPurchases = ref<Record<string, Record<string, number>>>({})
 
   const isCatalogOfferEnabled = (offer: ShopCatalogOfferDef): boolean => {
     if (!SHOP_CATALOG_TUNING_CONFIG.poolEnabled[offer.pool]) return false
@@ -302,6 +312,7 @@ export const useShopStore = defineStore('shop', () => {
   }
 
   const currentWeekId = computed(() => Math.floor((getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day) - 1) / 7))
+  const currentWeekKey = computed(() => String(currentWeekId.value))
   const basicCatalogOffers = computed(() =>
     mergeUniqueCatalogOffers([
       ...SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'basic' && isCatalogOfferEnabled(offer)),
@@ -1914,15 +1925,95 @@ export const useShopStore = defineStore('shop', () => {
 
   // === 铁匠铺 (孙铁匠) ===
 
-  const blacksmithItems = computed<ShopItemEntry[]>(() => [
-    { itemId: 'copper_ore', name: '铜矿', price: 100, description: '矿洞中常见的铜矿' },
-    { itemId: 'iron_ore', name: '铁矿', price: 200, description: '中层矿洞出产的铁矿' },
-    { itemId: 'gold_ore', name: '金矿', price: 400, description: '深层矿洞出产的金矿' },
-    { itemId: 'copper_bar', name: '铜锭', price: 300, description: '冶炼好的铜锭' },
-    { itemId: 'iron_bar', name: '铁锭', price: 600, description: '冶炼好的铁锭' },
-    { itemId: 'gold_bar', name: '金锭', price: 1200, description: '冶炼好的金锭' },
-    { itemId: 'charcoal', name: '木炭', price: 100, description: '烧制的木炭' }
-  ])
+  const isBlacksmithQuartzUnlocked = () =>
+    isRelationshipStageAtLeast(npcStore.getRelationshipStage('sun_tiejiang'), BLACKSMITH_QUARTZ_REQUIRED_STAGE)
+
+  const getBlacksmithWeeklyPurchasedCount = (itemId: string): number => {
+    return Math.max(0, Math.floor(Number(blacksmithWeeklyPurchases.value[currentWeekKey.value]?.[itemId]) || 0))
+  }
+
+  const getBlacksmithItemWeeklyLimit = (itemId: string): number | null => {
+    if (itemId !== BLACKSMITH_QUARTZ_ITEM_ID) return null
+    return BLACKSMITH_QUARTZ_WEEKLY_LIMIT
+  }
+
+  const getBlacksmithItemWeeklyRemaining = (itemId: string): number | null => {
+    const limit = getBlacksmithItemWeeklyLimit(itemId)
+    if (limit === null) return null
+    if (itemId === BLACKSMITH_QUARTZ_ITEM_ID && !isBlacksmithQuartzUnlocked()) return 0
+    return Math.max(0, limit - getBlacksmithWeeklyPurchasedCount(itemId))
+  }
+
+  const getBlacksmithItemLimitHint = (itemId: string, quantity = 1): string => {
+    if (itemId !== BLACKSMITH_QUARTZ_ITEM_ID) return ''
+    if (!isBlacksmithQuartzUnlocked()) return '与孙铁匠成为朋友后，才会把石英留给你。'
+
+    const requestedQuantity = Math.max(1, Math.floor(quantity))
+    const remaining = getBlacksmithItemWeeklyRemaining(itemId) ?? 0
+    if (remaining <= 0) return '石英本周已限购完，等下周再来。'
+    if (requestedQuantity > remaining) return `石英本周还剩 ${remaining} 个。`
+    return ''
+  }
+
+  const recordBlacksmithWeeklyPurchase = (itemId: string, quantity: number) => {
+    const limit = getBlacksmithItemWeeklyLimit(itemId)
+    if (limit === null) return
+
+    const weekRecord = { ...(blacksmithWeeklyPurchases.value[currentWeekKey.value] ?? {}) }
+    weekRecord[itemId] = Math.min(limit, getBlacksmithWeeklyPurchasedCount(itemId) + Math.max(1, Math.floor(quantity)))
+    blacksmithWeeklyPurchases.value = {
+      ...blacksmithWeeklyPurchases.value,
+      [currentWeekKey.value]: weekRecord
+    }
+  }
+
+  const blacksmithItems = computed<ShopItemEntry[]>(() => {
+    const quartzRemaining = getBlacksmithItemWeeklyRemaining(BLACKSMITH_QUARTZ_ITEM_ID) ?? 0
+    const quartzUnlocked = isBlacksmithQuartzUnlocked()
+
+    return [
+      { itemId: 'copper_ore', name: '铜矿', price: 100, description: '矿洞中常见的铜矿' },
+      {
+        itemId: BLACKSMITH_QUARTZ_ITEM_ID,
+        name: '石英',
+        price: BLACKSMITH_QUARTZ_PRICE,
+        description: quartzUnlocked
+          ? `孙铁匠给熟客留的镶嵌石英，本周还剩 ${quartzRemaining}/${BLACKSMITH_QUARTZ_WEEKLY_LIMIT} 个。`
+          : `与孙铁匠成为朋友后解锁，每周限购 ${BLACKSMITH_QUARTZ_WEEKLY_LIMIT} 个。`,
+        locked: !quartzUnlocked,
+        weeklyLimit: BLACKSMITH_QUARTZ_WEEKLY_LIMIT,
+        weeklyRemaining: quartzRemaining,
+        limitLabel: quartzUnlocked ? `本周 ${quartzRemaining}/${BLACKSMITH_QUARTZ_WEEKLY_LIMIT}` : '朋友解锁'
+      },
+      { itemId: 'iron_ore', name: '铁矿', price: 200, description: '中层矿洞出产的铁矿' },
+      { itemId: 'gold_ore', name: '金矿', price: 400, description: '深层矿洞出产的金矿' },
+      { itemId: 'copper_bar', name: '铜锭', price: 300, description: '冶炼好的铜锭' },
+      { itemId: 'iron_bar', name: '铁锭', price: 600, description: '冶炼好的铁锭' },
+      { itemId: 'gold_bar', name: '金锭', price: 1200, description: '冶炼好的金锭' },
+      { itemId: 'charcoal', name: '木炭', price: 100, description: '烧制的木炭' }
+    ]
+  })
+
+  const buyBlacksmithItem = (itemId: string, price: number, quantity: number = 1): { success: boolean; message: string; spent?: number } => {
+    const item = blacksmithItems.value.find(entry => entry.itemId === itemId)
+    if (!item) return { success: false, message: '铁匠铺没有这件商品。' }
+
+    const requestedQuantity = Math.max(1, Math.floor(quantity))
+    const limitHint = getBlacksmithItemLimitHint(itemId, requestedQuantity)
+    if (limitHint) return { success: false, message: limitHint }
+    if (!inventoryStore.canAddItem(itemId, requestedQuantity)) return { success: false, message: '背包已满，无法购买。' }
+
+    const totalCost = applyDiscount(price) * requestedQuantity
+    if (!playerStore.spendMoney(totalCost)) return { success: false, message: '铜钱不足。' }
+
+    if (!inventoryStore.addItemExact(itemId, requestedQuantity)) {
+      playerStore.earnMoney(totalCost, { countAsEarned: false })
+      return { success: false, message: '背包已满，无法购买。' }
+    }
+
+    recordBlacksmithWeeklyPurchase(itemId, requestedQuantity)
+    return { success: true, message: `购买了${requestedQuantity}个${item.name}。(-${totalCost}文)`, spent: totalCost }
+  }
 
   // === 药铺 (林老) ===
 
@@ -2876,6 +2967,7 @@ export const useShopStore = defineStore('shop', () => {
     shippingItemHistory: shippingItemHistory.value,
     shippingLifetimeCategoryTotals: shippingLifetimeCategoryTotals.value,
     shippingLifetimeItemTotals: shippingLifetimeItemTotals.value,
+    blacksmithWeeklyPurchases: blacksmithWeeklyPurchases.value,
     marketDynamics: marketDynamics.value
   })
 
@@ -2943,6 +3035,16 @@ export const useShopStore = defineStore('shop', () => {
           }))
       : []
     shippedItems.value = Array.isArray(data?.shippedItems) ? normalizeShippedItems(data.shippedItems) : []
+    blacksmithWeeklyPurchases.value = Object.fromEntries(
+      Object.entries(data?.blacksmithWeeklyPurchases && typeof data.blacksmithWeeklyPurchases === 'object' ? data.blacksmithWeeklyPurchases : {}).map(([weekKey, record]) => [
+        weekKey,
+        Object.fromEntries(
+          Object.entries(record && typeof record === 'object' ? record : {})
+            .filter(([itemId, quantity]) => typeof itemId === 'string' && Number(quantity) > 0 && getBlacksmithItemWeeklyLimit(itemId) !== null)
+            .map(([itemId, quantity]) => [itemId, Math.min(getBlacksmithItemWeeklyLimit(itemId) ?? 0, Math.max(0, Math.floor(Number(quantity) || 0)))])
+        )
+      ])
+    )
     shippingHistory.value = Object.fromEntries(
       Object.entries(data?.shippingHistory && typeof data.shippingHistory === 'object' ? data.shippingHistory : {}).map(([dayKey, record]) => [
         dayKey,
@@ -3085,6 +3187,9 @@ export const useShopStore = defineStore('shop', () => {
     getMarketDynamicsDebugSnapshot,
     // 铁匠铺
     blacksmithItems,
+    getBlacksmithItemLimitHint,
+    getBlacksmithItemWeeklyRemaining,
+    buyBlacksmithItem,
     // 渔具铺
     shopBaits,
     shopTackles,
