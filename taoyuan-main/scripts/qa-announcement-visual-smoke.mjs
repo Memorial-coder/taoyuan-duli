@@ -43,6 +43,19 @@ async function waitForHttp(url, timeoutMs = 90_000) {
   throw new Error(`Timed out waiting for ${url}`)
 }
 
+async function respondsOk(url, timeoutMs = 3_000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    return response.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function stopProcessTree(child) {
   if (!child || child.killed) return Promise.resolve()
   return new Promise(resolve => {
@@ -145,18 +158,30 @@ async function startServers(serverPort, frontendPort) {
       SECRET_KEY: 'qa_announcement_visual_secret',
     }),
   })
+  await waitForHttp(`http://127.0.0.1:${serverPort}/api/health`)
+
+  const existingFrontendPort = 5173
+  if (
+    existingFrontendPort !== frontendPort
+    && !(await canListen(existingFrontendPort))
+    && await respondsOk(`http://127.0.0.1:${existingFrontendPort}/`)
+  ) {
+    return existingFrontendPort
+  }
+
   spawnLogged(process.execPath, [
     path.join(frontendRoot, 'node_modules', 'vite', 'bin', 'vite.js'),
     '--host',
     '127.0.0.1',
     '--port',
     String(frontendPort),
+    '--strictPort',
   ], {
     cwd: frontendRoot,
     env: createChildEnv(),
   })
-  await waitForHttp(`http://127.0.0.1:${serverPort}/api/health`)
   await waitForHttp(`http://127.0.0.1:${frontendPort}/`)
+  return frontendPort
 }
 
 async function verifyPopup(page, viewport, name, frontendPort) {
@@ -237,8 +262,7 @@ try {
     throw new Error('Port 4013 is required by vite.config.ts proxy and is already in use')
   }
   const serverPort = 4013
-  const frontendPort = await findPort(4183)
-  await startServers(serverPort, frontendPort)
+  const frontendPort = await startServers(serverPort, await findPort(4183))
   await runBrowserChecks(frontendPort)
   console.log('qa-announcement-visual-smoke passed')
 } catch (error) {
