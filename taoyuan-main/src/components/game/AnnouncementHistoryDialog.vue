@@ -30,34 +30,53 @@
           v-for="announcement in announcements"
           :key="announcement.id"
           class="announcement-history-item"
+          :class="{ 'announcement-history-item--collapsed': !isAnnouncementExpanded(announcement.id) }"
           data-testid="announcement-history-item"
         >
-          <div class="flex flex-wrap items-start justify-between gap-2">
-            <div class="min-w-0">
+          <button
+            type="button"
+            class="announcement-history-summary"
+            :aria-expanded="isAnnouncementExpanded(announcement.id)"
+            @click="toggleAnnouncement(announcement.id)"
+          >
+            <div class="announcement-history-summary-main">
               <h3 class="announcement-history-title">{{ announcement.title }}</h3>
               <p class="text-[0.6875rem] text-muted mt-1">
                 {{ formatTime(announcement.published_at || announcement.created_at) }}
                 <template v-if="announcement.version"> · v{{ announcement.version }}</template>
               </p>
             </div>
-            <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
-          </div>
-          <img
-            v-if="announcement.image_url"
-            :src="announcement.image_url"
-            :alt="announcement.title"
-            class="announcement-history-image"
-            loading="lazy"
-          />
-          <div class="announcement-history-rich" v-html="renderBody(announcement.body)" />
-          <Button
-            v-if="announcement.cta_url"
-            class="announcement-history-cta justify-center"
-            :icon="ExternalLink"
-            @click="$emit('cta', announcement)"
-          >
-            {{ announcement.cta_text || announcement.button_texts.cta || '查看详情' }}
-          </Button>
+            <div class="announcement-history-summary-side">
+              <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
+              <span class="announcement-history-toggle">
+                {{ isAnnouncementExpanded(announcement.id) ? '收起' : '展开' }}
+                <ChevronDown
+                  :size="14"
+                  class="announcement-history-toggle-icon"
+                  :class="{ 'announcement-history-toggle-icon--open': isAnnouncementExpanded(announcement.id) }"
+                />
+              </span>
+            </div>
+          </button>
+
+          <template v-if="isAnnouncementExpanded(announcement.id)">
+            <img
+              v-if="announcement.image_url"
+              :src="announcement.image_url"
+              :alt="announcement.title"
+              class="announcement-history-image"
+              loading="lazy"
+            />
+            <div class="announcement-history-rich" v-html="renderBody(announcement.body)" />
+            <Button
+              v-if="announcement.cta_url"
+              class="announcement-history-cta justify-center"
+              :icon="ExternalLink"
+              @click="$emit('cta', announcement)"
+            >
+              {{ announcement.cta_text || announcement.button_texts.cta || '查看详情' }}
+            </Button>
+          </template>
         </article>
       </div>
     </div>
@@ -65,12 +84,13 @@
 </template>
 
 <script setup lang="ts">
-  import { ExternalLink, RefreshCw, X } from 'lucide-vue-next'
+  import { ref, watch } from 'vue'
+  import { ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { renderRichContent } from '@/utils/safeMarkdown'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
 
-  defineProps<{
+  const props = defineProps<{
     open: boolean
     announcements: TaoyuanAnnouncement[]
     loading: boolean
@@ -82,6 +102,30 @@
     refresh: []
     cta: [announcement: TaoyuanAnnouncement]
   }>()
+
+  const expandedAnnouncementIds = ref<Set<string>>(new Set())
+
+  const syncExpandedAnnouncements = (reset = false) => {
+    const latestId = props.announcements[0]?.id || ''
+    if (reset) {
+      expandedAnnouncementIds.value = latestId ? new Set([latestId]) : new Set()
+      return
+    }
+
+    const availableIds = new Set(props.announcements.map(announcement => announcement.id))
+    const next = new Set([...expandedAnnouncementIds.value].filter(id => availableIds.has(id)))
+    if (latestId) next.add(latestId)
+    expandedAnnouncementIds.value = next
+  }
+
+  const isAnnouncementExpanded = (id: string) => expandedAnnouncementIds.value.has(id)
+
+  const toggleAnnouncement = (id: string) => {
+    const next = new Set(expandedAnnouncementIds.value)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    expandedAnnouncementIds.value = next
+  }
 
   const renderBody = (body: string) => renderRichContent(body || '')
 
@@ -106,6 +150,21 @@
     }
     return labels[templateType] || templateType
   }
+
+  watch(
+    () => props.open,
+    open => {
+      if (open) syncExpandedAnnouncements(true)
+    },
+    { immediate: true }
+  )
+
+  watch(
+    () => props.announcements.map(announcement => announcement.id).join('|'),
+    () => {
+      if (props.open) syncExpandedAnnouncements(false)
+    }
+  )
 </script>
 
 <style scoped>
@@ -151,6 +210,32 @@
     padding: 12px;
   }
 
+  .announcement-history-item--collapsed {
+    background: rgba(16, 20, 30, 0.28);
+  }
+
+  .announcement-history-summary {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    color: inherit;
+  }
+
+  .announcement-history-summary-main {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .announcement-history-summary-side {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+  }
+
   .announcement-history-title {
     color: rgb(var(--color-text));
     font-size: 0.9375rem;
@@ -165,6 +250,28 @@
     font-size: 0.6875rem;
     padding: 2px 8px;
     white-space: nowrap;
+  }
+
+  .announcement-history-toggle {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(200, 164, 92, 0.2);
+    border-radius: 4px;
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .announcement-history-toggle-icon {
+    flex: 0 0 auto;
+    transition: transform 160ms ease;
+  }
+
+  .announcement-history-toggle-icon--open {
+    transform: rotate(180deg);
   }
 
   .announcement-history-image {
@@ -221,6 +328,16 @@
     .announcement-history-header {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .announcement-history-summary {
+      gap: 8px;
+    }
+
+    .announcement-history-summary-side {
+      align-items: flex-end;
+      flex-direction: column;
+      gap: 6px;
     }
   }
 </style>

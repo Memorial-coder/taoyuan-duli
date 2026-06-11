@@ -112,6 +112,33 @@ async function writeAnnouncementStore() {
           operator_name: 'qa',
           operator_role: 'admin',
         },
+        {
+          id: 'ann_visual_002',
+          title: 'QA secondary announcement',
+          body: '## More news\n- This announcement should be collapsed by default.\n- Players can expand it manually.',
+          image_url: '',
+          version: '3.0.0',
+          target_versions: ['3.0.0'],
+          target_channels: ['web'],
+          start_at: now - 60,
+          end_at: now + 3600,
+          priority: 10,
+          status: 'published',
+          cta_text: 'Details',
+          cta_url: '/game/farm',
+          button_texts: {
+            close: 'OK',
+            suppress: 'Do not show again',
+            cta: 'Details',
+          },
+          template_type: 'hotfix',
+          created_at: now - 180,
+          updated_at: now - 180,
+          published_at: now - 180,
+          offline_at: null,
+          operator_name: 'qa',
+          operator_role: 'admin',
+        },
       ],
       events: [],
     }, null, 2),
@@ -200,11 +227,20 @@ async function verifyPopup(page, viewport, name, frontendPort) {
   assert(panelBox.width <= viewport.width + 1, `${name} panel should fit viewport width`)
   assert(panelBox.height <= viewport.height + 1, `${name} panel should fit viewport height`)
 
+  const popupItems = page.getByTestId('announcement-popup-item')
+  assert.equal(await popupItems.count(), 2, `${name} should render one batched popup with two announcement items`)
+  const expandedStates = await page.locator('.announcement-summary').evaluateAll(nodes => (
+    nodes.map(node => node.getAttribute('aria-expanded'))
+  ))
+  assert.deepEqual(expandedStates, ['true', 'false'], `${name} should expand only the first popup announcement by default`)
+  await popupItems.nth(1).locator('.announcement-summary').click()
+  assert.equal(await popupItems.nth(1).locator('.announcement-summary').getAttribute('aria-expanded'), 'true', `${name} second popup announcement should be expandable`)
+
   const buttons = await page.locator('.announcement-actions button').evaluateAll(nodes => nodes.map(node => {
     const rect = node.getBoundingClientRect()
     return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height }
   }))
-  assert.equal(buttons.length, 3, `${name} should render three announcement buttons`)
+  assert.equal(buttons.length, 2, `${name} should render two persistent announcement action buttons`)
   for (const button of buttons) {
     assert(button.width > 20 && button.height > 20, `${name} button should have stable size`)
     assert(button.left >= -1 && button.right <= viewport.width + 1, `${name} button should stay inside viewport`)

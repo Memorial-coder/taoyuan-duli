@@ -16,7 +16,16 @@
     </div>
 
     <!-- 内容 -->
-    <div ref="contentViewport" class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto">
+    <div
+      ref="contentViewport"
+      class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto"
+      :class="{ 'game-layout-content--rebounding': bottomRevealRebounding }"
+      :style="bottomRevealStyle"
+      @touchstart.passive="handleContentTouchStart"
+      @touchmove.passive="handleContentTouchMove"
+      @touchend.passive="releaseBottomReveal"
+      @touchcancel.passive="releaseBottomReveal"
+    >
       <div class="game-layout-body">
         <TopGoalsPanel class="mb-0.5 md:mb-3 xl:mb-4" />
         <div ref="sceneContentAnchor">
@@ -62,8 +71,8 @@
 
     <Transition name="panel-fade">
       <AnnouncementDialog
-        v-if="currentAnnouncement && !blockAnnouncementDialogs"
-        :announcement="currentAnnouncement"
+        v-if="announcementStore.popupQueue.length > 0 && !blockAnnouncementDialogs"
+        :announcements="announcementStore.popupQueue"
         @close="announcementStore.closeCurrent"
         @cta="handleAnnouncementCta"
         @save-update="handleAnnouncementSaveUpdate"
@@ -516,6 +525,7 @@
   import { useAudio } from '@/composables/useAudio'
   import type { Quality, RecordCenterTabId } from '@/types'
   import type { SaveSlotInfo } from '@/stores/useSaveStore'
+  import type { TaoyuanAnnouncement } from '@/types/announcement'
   import { Moon, X, Map, ArrowDown, ArrowDownToLine, Maximize2, Minimize2 } from 'lucide-vue-next'
   import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
   import Button from '@/components/game/Button.vue'
@@ -546,6 +556,10 @@
   import { Capacitor } from '@capacitor/core'
 
   const BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000
+  const MOBILE_BOTTOM_REVEAL_MAX_PX = 150
+  const MOBILE_BOTTOM_REVEAL_DAMPING = 0.55
+  const MOBILE_BOTTOM_REVEAL_EDGE_PX = 4
+  const MOBILE_BOTTOM_REVEAL_REBOUND_MS = 180
   type ShortRestOption = (typeof SHORT_REST_OPTIONS)[number]
 
   type FullscreenDocument = Document & {
@@ -576,6 +590,15 @@
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
+  const bottomRevealOffset = ref(0)
+  const bottomRevealRebounding = ref(false)
+  const bottomRevealStyle = computed(() => ({
+    '--game-bottom-reveal-offset': `${bottomRevealOffset.value}px`
+  }))
+  let bottomRevealStartY = 0
+  let bottomRevealTouchId: number | null = null
+  let bottomRevealTracking = false
+  let bottomRevealReleaseTimer: number | null = null
 
   const {
     currentEvent,
@@ -734,6 +757,109 @@
     }
   }
 
+  const isMobileBottomRevealViewport = () => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 767px)').matches
+  )
+
+  const isContentViewportAtBottom = () => {
+    const viewport = contentViewport.value
+    if (!viewport) return false
+    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= MOBILE_BOTTOM_REVEAL_EDGE_PX
+  }
+
+  const clearBottomRevealTimer = () => {
+    if (bottomRevealReleaseTimer === null) return
+    window.clearTimeout(bottomRevealReleaseTimer)
+    bottomRevealReleaseTimer = null
+  }
+
+  const setBottomRevealOffset = (value: number) => {
+    bottomRevealOffset.value = Math.round(Math.max(0, Math.min(MOBILE_BOTTOM_REVEAL_MAX_PX, value)))
+  }
+
+  const stickContentViewportToBottom = () => {
+    const viewport = contentViewport.value
+    if (!viewport) return
+    window.requestAnimationFrame(() => {
+      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
+    })
+  }
+
+  const findBottomRevealTouch = (touchList: TouchList) => {
+    if (bottomRevealTouchId === null) return touchList[0] ?? null
+    for (let index = 0; index < touchList.length; index += 1) {
+      const touch = touchList.item(index)
+      if (touch?.identifier === bottomRevealTouchId) return touch
+    }
+    return null
+  }
+
+  const handleContentTouchStart = (event: TouchEvent) => {
+    clearBottomRevealTimer()
+    bottomRevealRebounding.value = false
+    setBottomRevealOffset(0)
+
+    if (!isMobileBottomRevealViewport() || event.touches.length !== 1) {
+      bottomRevealTracking = false
+      bottomRevealTouchId = null
+      return
+    }
+
+    const touch = event.touches.item(0)
+    if (!touch) return
+    bottomRevealStartY = touch.clientY
+    bottomRevealTouchId = touch.identifier
+    bottomRevealTracking = isContentViewportAtBottom()
+  }
+
+  const handleContentTouchMove = (event: TouchEvent) => {
+    if (!isMobileBottomRevealViewport() || event.touches.length !== 1) {
+      releaseBottomReveal()
+      return
+    }
+
+    const touch = findBottomRevealTouch(event.touches)
+    if (!touch) return
+
+    const dragUpDistance = bottomRevealStartY - touch.clientY
+    if (!bottomRevealTracking) {
+      if (dragUpDistance <= 0 || !isContentViewportAtBottom()) return
+      bottomRevealStartY = touch.clientY
+      bottomRevealTracking = true
+      return
+    }
+
+    if (dragUpDistance <= 0) {
+      setBottomRevealOffset(0)
+      return
+    }
+
+    setBottomRevealOffset(dragUpDistance * MOBILE_BOTTOM_REVEAL_DAMPING)
+    stickContentViewportToBottom()
+  }
+
+  const releaseBottomReveal = () => {
+    bottomRevealTracking = false
+    bottomRevealTouchId = null
+    clearBottomRevealTimer()
+
+    if (bottomRevealOffset.value <= 0) {
+      bottomRevealRebounding.value = false
+      return
+    }
+
+    bottomRevealRebounding.value = true
+    void nextTick(() => {
+      setBottomRevealOffset(0)
+      bottomRevealReleaseTimer = window.setTimeout(() => {
+        bottomRevealRebounding.value = false
+        bottomRevealReleaseTimer = null
+      }, MOBILE_BOTTOM_REVEAL_REBOUND_MS)
+    })
+  }
+
   /** 日志弹窗 */
   const showRecordCenter = ref(false)
   /** 日志清空确认：undefined=不显示, null=清空全部, string=清空指定天 */
@@ -744,8 +870,8 @@
   const blockAnnouncementDialogs = computed(() => showDailyDigestSummary.value || showRecordCenter.value || showSaveManager.value || showSavePrompt.value)
   const blockFollowupDialogs = computed(() => blockAnnouncementDialogs.value || !!currentAnnouncement.value)
 
-  const handleAnnouncementCta = async () => {
-    const announcement = announcementStore.clickCurrentCta()
+  const handleAnnouncementCta = async (selectedAnnouncement: TaoyuanAnnouncement) => {
+    const announcement = announcementStore.clickAnnouncementCta(selectedAnnouncement.id) || selectedAnnouncement
     if (!announcement?.cta_url) return
     try {
       await openAnnouncementTarget(announcement.cta_url, router)
@@ -884,6 +1010,7 @@
     startGameLayoutRuntime()
   })
   onUnmounted(() => {
+    clearBottomRevealTimer()
     stopClock()
     realtimeStore.stop()
     document.removeEventListener('fullscreenchange', syncFullscreenState)
@@ -1400,11 +1527,32 @@
   }
 
   .game-layout-content {
+    --game-bottom-reveal-offset: 0px;
     overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .game-layout-body {
     width: 100%;
     max-width: 100%;
+  }
+
+  @media (max-width: 767px) {
+    .game-layout-root {
+      height: 100vh;
+      height: 100dvh;
+      min-height: 100dvh;
+    }
+
+    .game-layout-body::after {
+      content: '';
+      display: block;
+      height: var(--game-bottom-reveal-offset, 0px);
+      pointer-events: none;
+    }
+
+    .game-layout-content--rebounding .game-layout-body::after {
+      transition: height 180ms ease-out;
+    }
   }
 </style>

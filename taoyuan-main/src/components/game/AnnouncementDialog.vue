@@ -1,5 +1,6 @@
 <template>
   <div
+    v-if="primaryAnnouncement"
     class="game-modal-overlay fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 md:p-4"
     data-testid="announcement-dialog"
   >
@@ -7,28 +8,75 @@
       <div class="announcement-header">
         <div class="min-w-0">
           <p class="text-[0.6875rem] text-accent">更新公告</p>
-          <h2 class="announcement-title">{{ announcement.title }}</h2>
+          <h2 class="announcement-title">
+            {{ announcements.length > 1 ? `未读公告（${announcements.length}条）` : primaryAnnouncement.title }}
+          </h2>
         </div>
         <div class="announcement-meta">
-          <span v-if="announcement.version">v{{ announcement.version }}</span>
-          <span v-if="announcement.priority">优先级 {{ announcement.priority }}</span>
+          <span v-if="announcements.length > 1">按优先级展示</span>
+          <span v-else-if="primaryAnnouncement.version">v{{ primaryAnnouncement.version }}</span>
+          <span v-if="primaryAnnouncement.priority">优先级 {{ primaryAnnouncement.priority }}</span>
         </div>
       </div>
 
       <div class="announcement-scroll">
-        <img
-          v-if="announcement.image_url"
-          :src="announcement.image_url"
-          :alt="announcement.title"
-          class="announcement-image"
-          loading="lazy"
-        />
-        <div class="announcement-rich" v-html="bodyHtml" />
+        <article
+          v-for="announcement in announcements"
+          :key="announcement.id"
+          class="announcement-item"
+          :class="{ 'announcement-item--collapsed': !isAnnouncementExpanded(announcement.id) }"
+          data-testid="announcement-popup-item"
+        >
+          <button
+            type="button"
+            class="announcement-summary"
+            :aria-expanded="isAnnouncementExpanded(announcement.id)"
+            @click="toggleAnnouncement(announcement.id)"
+          >
+            <div class="announcement-summary-main">
+              <h3 class="announcement-item-title">{{ announcement.title }}</h3>
+              <p class="announcement-item-meta">
+                {{ formatTime(announcement.published_at || announcement.created_at) }}
+                <template v-if="announcement.version"> · v{{ announcement.version }}</template>
+              </p>
+            </div>
+            <div class="announcement-summary-side">
+              <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
+              <span class="announcement-toggle">
+                {{ isAnnouncementExpanded(announcement.id) ? '收起' : '展开' }}
+                <ChevronDown
+                  :size="14"
+                  class="announcement-toggle-icon"
+                  :class="{ 'announcement-toggle-icon--open': isAnnouncementExpanded(announcement.id) }"
+                />
+              </span>
+            </div>
+          </button>
+
+          <template v-if="isAnnouncementExpanded(announcement.id)">
+            <img
+              v-if="announcement.image_url"
+              :src="announcement.image_url"
+              :alt="announcement.title"
+              class="announcement-image"
+              loading="lazy"
+            />
+            <div class="announcement-rich" v-html="renderBody(announcement.body)" />
+            <Button
+              v-if="announcement.cta_url"
+              class="announcement-item-cta justify-center"
+              :icon="ExternalLink"
+              @click="$emit('cta', announcement)"
+            >
+              {{ announcement.cta_text || announcement.button_texts.cta || '查看详情' }}
+            </Button>
+          </template>
+        </article>
       </div>
 
       <div class="announcement-actions">
         <Button class="announcement-button justify-center" :icon="Check" @click="$emit('close')">
-          {{ announcement.button_texts.close || '知道了' }}
+          {{ primaryAnnouncement.button_texts.close || '知道了' }}
         </Button>
         <Button
           class="announcement-button announcement-button-update justify-center"
@@ -37,37 +85,74 @@
         >
           保存存档并更新
         </Button>
-        <Button
-          v-if="announcement.cta_url"
-          class="announcement-button announcement-button-primary justify-center"
-          :icon="ExternalLink"
-          @click="$emit('cta')"
-        >
-          {{ announcement.cta_text || announcement.button_texts.cta || '查看详情' }}
-        </Button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
-  import { Check, ExternalLink, RefreshCw } from 'lucide-vue-next'
+  import { computed, ref, watch } from 'vue'
+  import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { renderRichContent } from '@/utils/safeMarkdown'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
 
   const props = defineProps<{
-    announcement: TaoyuanAnnouncement
+    announcements: TaoyuanAnnouncement[]
   }>()
 
   defineEmits<{
     close: []
-    cta: []
+    cta: [announcement: TaoyuanAnnouncement]
     saveUpdate: []
   }>()
 
-  const bodyHtml = computed(() => renderRichContent(props.announcement.body || ''))
+  const expandedAnnouncementIds = ref<Set<string>>(new Set())
+  const primaryAnnouncement = computed(() => props.announcements[0] || null)
+
+  const syncExpandedAnnouncements = () => {
+    const firstId = props.announcements[0]?.id || ''
+    expandedAnnouncementIds.value = firstId ? new Set([firstId]) : new Set()
+  }
+
+  const isAnnouncementExpanded = (id: string) => expandedAnnouncementIds.value.has(id)
+
+  const toggleAnnouncement = (id: string) => {
+    const next = new Set(expandedAnnouncementIds.value)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    expandedAnnouncementIds.value = next
+  }
+
+  const renderBody = (body: string) => renderRichContent(body || '')
+
+  const formatTime = (timestamp?: number | null) => {
+    if (!timestamp) return '未发布'
+    return new Date(timestamp * 1000).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const templateLabel = (templateType: string) => {
+    const labels: Record<string, string> = {
+      version_update: '版本更新',
+      maintenance: '停服维护',
+      hotfix: '热修复',
+      event_preview: '活动预告',
+      compensation: '补偿说明',
+    }
+    return labels[templateType] || templateType
+  }
+
+  watch(
+    () => props.announcements.map(announcement => announcement.id).join('|'),
+    syncExpandedAnnouncements,
+    { immediate: true }
+  )
 </script>
 
 <style scoped>
@@ -104,7 +189,8 @@
     font-size: 0.6875rem;
   }
 
-  .announcement-meta span {
+  .announcement-meta span,
+  .announcement-chip {
     border: 1px solid rgba(200, 164, 92, 0.18);
     border-radius: 999px;
     padding: 2px 8px;
@@ -112,10 +198,86 @@
     white-space: nowrap;
   }
 
+  .announcement-chip {
+    color: rgb(var(--color-accent));
+    font-size: 0.6875rem;
+  }
+
   .announcement-scroll {
     min-height: 0;
     overflow-y: auto;
     padding-right: 2px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .announcement-item {
+    border: 1px solid rgba(200, 164, 92, 0.16);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.14);
+    padding: 12px;
+  }
+
+  .announcement-item--collapsed {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  .announcement-summary {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    color: inherit;
+  }
+
+  .announcement-summary-main {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .announcement-summary-side {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .announcement-item-title {
+    color: rgb(var(--color-text));
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+
+  .announcement-item-meta {
+    margin-top: 4px;
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+    line-height: 1.4;
+  }
+
+  .announcement-toggle {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(200, 164, 92, 0.2);
+    border-radius: 4px;
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .announcement-toggle-icon {
+    flex: 0 0 auto;
+    transition: transform 160ms ease;
+  }
+
+  .announcement-toggle-icon--open {
+    transform: rotate(180deg);
   }
 
   .announcement-image {
@@ -126,10 +288,11 @@
     border: 1px solid rgba(200, 164, 92, 0.16);
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.18);
-    margin-bottom: 12px;
+    margin: 12px 0;
   }
 
   .announcement-rich {
+    margin-top: 10px;
     color: rgb(var(--color-text));
     font-size: 0.8125rem;
     line-height: 1.8;
@@ -180,9 +343,14 @@
     vertical-align: top;
   }
 
+  .announcement-item-cta {
+    margin-top: 10px;
+    min-height: 36px;
+  }
+
   .announcement-actions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 8px;
   }
 
@@ -198,12 +366,6 @@
     color: rgb(var(--color-success));
   }
 
-  .announcement-button-primary {
-    background: rgba(200, 164, 92, 0.92);
-    border-color: rgba(200, 164, 92, 0.92);
-    color: rgb(var(--color-bg));
-  }
-
   @media (max-width: 520px) {
     .announcement-panel {
       max-height: 90vh;
@@ -216,6 +378,16 @@
 
     .announcement-meta {
       justify-content: flex-start;
+    }
+
+    .announcement-summary {
+      gap: 8px;
+    }
+
+    .announcement-summary-side {
+      align-items: flex-end;
+      flex-direction: column;
+      gap: 6px;
     }
 
     .announcement-actions {

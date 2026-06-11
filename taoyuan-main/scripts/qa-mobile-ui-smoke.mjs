@@ -3288,6 +3288,123 @@ async function captureScenario({
   }
 }
 
+async function assertGameBottomRevealGesture(page) {
+  const metrics = await page.evaluate(async () => {
+    const waitForFrames = () => new Promise(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve))
+    })
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+    const viewport = document.querySelector('.game-layout-content')
+    if (!viewport) return { missingViewport: true }
+
+    const previousScrollTop = viewport.scrollTop
+    const readRevealOffset = () => Number.parseFloat(
+      getComputedStyle(viewport).getPropertyValue('--game-bottom-reveal-offset')
+    ) || 0
+    const isVisible = element => {
+      const rect = element.getBoundingClientRect()
+      const style = window.getComputedStyle(element)
+      return rect.width > 0
+        && rect.height > 0
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+    }
+    const getControlIssues = () => Array.from(document.querySelectorAll('.mobile-hub-btn, .game-floating-btn, .ai-fab'))
+      .filter(isVisible)
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.getAttribute('data-testid') || element.className || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom
+        }
+      })
+      .filter(rect => (
+        rect.left < -1
+        || rect.right > window.innerWidth + 1
+        || rect.top < -1
+        || rect.bottom > window.innerHeight + 1
+      ))
+      .map(rect => `${rect.label}:${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.right)},${Math.round(rect.bottom)}`)
+
+    const makeTouch = clientY => {
+      const touchInit = {
+        identifier: 1,
+        target: viewport,
+        clientX: Math.round(window.innerWidth / 2),
+        clientY,
+        screenX: Math.round(window.innerWidth / 2),
+        screenY: clientY,
+        pageX: Math.round(window.innerWidth / 2),
+        pageY: clientY,
+        radiusX: 1,
+        radiusY: 1,
+        rotationAngle: 0,
+        force: 1
+      }
+      return typeof Touch === 'function' ? new Touch(touchInit) : touchInit
+    }
+    const dispatchTouch = (type, clientY) => {
+      const touch = makeTouch(clientY)
+      const activeTouches = type === 'touchend' || type === 'touchcancel' ? [] : [touch]
+      viewport.dispatchEvent(new TouchEvent(type, {
+        touches: activeTouches,
+        targetTouches: activeTouches,
+        changedTouches: [touch],
+        bubbles: true,
+        cancelable: true
+      }))
+    }
+
+    viewport.scrollTop = viewport.scrollHeight
+    await waitForFrames()
+    const bottomBefore = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const startY = Math.min(window.innerHeight - 96, 680)
+    const moveY = Math.max(32, startY - 120)
+
+    dispatchTouch('touchstart', startY)
+    dispatchTouch('touchmove', moveY)
+    await waitForFrames()
+
+    const revealOffset = readRevealOffset()
+    const revealScrollBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const controlIssuesDuringReveal = getControlIssues()
+    const horizontalOverflowDuringReveal = document.documentElement.scrollWidth > window.innerWidth + 4
+
+    dispatchTouch('touchend', moveY)
+    await wait(260)
+    await waitForFrames()
+
+    const reboundOffset = readRevealOffset()
+    const reboundClassStillActive = viewport.classList.contains('game-layout-content--rebounding')
+    viewport.scrollTop = previousScrollTop
+
+    return {
+      missingViewport: false,
+      scrollable: viewport.scrollHeight > viewport.clientHeight + 8,
+      bottomBefore,
+      revealOffset,
+      revealScrollBottom,
+      controlIssuesDuringReveal,
+      horizontalOverflowDuringReveal,
+      reboundOffset,
+      reboundClassStillActive
+    }
+  })
+
+  expect(metrics.missingViewport).toBeFalsy()
+  expect(metrics.scrollable).toBeTruthy()
+  expect(metrics.bottomBefore).toBeLessThanOrEqual(4)
+  expect(metrics.revealOffset).toBeGreaterThan(48)
+  expect(metrics.revealScrollBottom).toBeLessThanOrEqual(metrics.revealOffset + 8)
+  expect(metrics.controlIssuesDuringReveal).toEqual([])
+  expect(metrics.horizontalOverflowDuringReveal).toBeFalsy()
+  expect(metrics.reboundOffset).toBeLessThanOrEqual(1)
+  expect(metrics.reboundClassStillActive).toBeFalsy()
+}
+
 async function assertShopTradeDefault(page) {
   await expect(page.getByTestId('shop-tab-trade')).toBeVisible()
   await expect(page.getByTestId('shop-tab-trade')).toContainText('买卖')
@@ -4914,7 +5031,8 @@ async function main() {
         label: '14-guild-mobile-390x844',
         hash: '/#/game/guild',
         viewport: { width: 390, height: 844 },
-        primarySelector: '[data-testid="guild-primary-action-card"]'
+        primarySelector: '[data-testid="guild-primary-action-card"]',
+        assertPage: assertGameBottomRevealGesture
       })
       await captureScenario({
         browser,
@@ -4935,7 +5053,8 @@ async function main() {
         label: '17-guild-mobile-360x780',
         hash: '/#/game/guild',
         viewport: { width: 360, height: 780 },
-        primarySelector: '[data-testid="guild-primary-action-card"]'
+        primarySelector: '[data-testid="guild-primary-action-card"]',
+        assertPage: assertGameBottomRevealGesture
       })
       await captureScenario({
         browser,
@@ -4956,7 +5075,8 @@ async function main() {
         label: '20-guild-mobile-430x932',
         hash: '/#/game/guild',
         viewport: { width: 430, height: 932 },
-        primarySelector: '[data-testid="guild-primary-action-card"]'
+        primarySelector: '[data-testid="guild-primary-action-card"]',
+        assertPage: assertGameBottomRevealGesture
       })
       await captureScenario({
         browser,
@@ -5129,7 +5249,8 @@ async function main() {
         viewport: { width: 390, height: 844 },
         primarySelector: '[data-testid="online-cohabitation-page"]',
         mockCohabitation: true,
-        prepare: prepareFarmCohabitationSwitchMobile
+        prepare: prepareFarmCohabitationSwitchMobile,
+        assertPage: assertGameBottomRevealGesture
       })
       await captureScenario({
         browser,
@@ -5138,7 +5259,8 @@ async function main() {
         viewport: { width: 360, height: 780 },
         primarySelector: '[data-testid="online-cohabitation-page"]',
         mockCohabitation: true,
-        prepare: prepareFarmCohabitationSwitchMobile
+        prepare: prepareFarmCohabitationSwitchMobile,
+        assertPage: assertGameBottomRevealGesture
       })
       await captureScenario({
         browser,

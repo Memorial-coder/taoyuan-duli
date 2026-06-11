@@ -44,11 +44,13 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     impressionIds.value = new Set([...impressionIds.value, announcementId])
   }
 
-  const recordCurrentImpression = async () => {
-    const current = currentAnnouncement.value
-    if (!current || impressionIds.value.has(current.id)) return
-    markImpressionSeen(current.id)
-    await recordAnnouncementEvent(current.id, 'impression').catch(() => {})
+  const recordQueueImpressions = async () => {
+    const pending = popupQueue.value.filter(item => item.id && !impressionIds.value.has(item.id))
+    if (!pending.length) return
+    for (const item of pending) {
+      markImpressionSeen(item.id)
+    }
+    await Promise.all(pending.map(item => recordAnnouncementEvent(item.id, 'impression').catch(() => {})))
   }
 
   const rebuildQueue = async (items: TaoyuanAnnouncement[]) => {
@@ -56,7 +58,7 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     activeAnnouncements.value = items
     popupQueue.value = items.filter(item => !readLocalSuppressed(item.id))
     impressionIds.value = new Set()
-    await recordCurrentImpression()
+    await recordQueueImpressions()
   }
 
   const fetchActive = async () => {
@@ -83,35 +85,41 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     }
   }
 
-  const shiftCurrent = () => {
-    popupQueue.value = popupQueue.value.slice(1)
-    void recordCurrentImpression()
-  }
-
   const closeCurrent = () => {
-    const current = currentAnnouncement.value
-    if (!current) return
-    writeLocalSuppressed(current.id)
-    void recordAnnouncementEvent(current.id, 'close').catch(() => {})
-    shiftCurrent()
+    const closing = [...popupQueue.value]
+    if (!closing.length) return
+    for (const announcement of closing) {
+      writeLocalSuppressed(announcement.id)
+    }
+    popupQueue.value = []
+    for (const announcement of closing) {
+      void recordAnnouncementEvent(announcement.id, 'close').catch(() => {})
+    }
   }
 
   const suppressCurrent = async () => {
-    const current = currentAnnouncement.value
-    if (!current) return
+    const suppressing = [...popupQueue.value]
+    if (!suppressing.length) return
     await ensureCurrentAccount().catch(() => '')
-    writeLocalSuppressed(current.id)
-    void recordAnnouncementEvent(current.id, 'suppress').catch(() => {})
-    shiftCurrent()
+    for (const announcement of suppressing) {
+      writeLocalSuppressed(announcement.id)
+    }
+    popupQueue.value = []
+    for (const announcement of suppressing) {
+      void recordAnnouncementEvent(announcement.id, 'suppress').catch(() => {})
+    }
   }
 
-  const clickCurrentCta = () => {
-    const current = currentAnnouncement.value
+  const clickAnnouncementCta = (announcementId?: string) => {
+    const current = announcementId
+      ? popupQueue.value.find(item => item.id === announcementId) || null
+      : currentAnnouncement.value
     if (!current) return null
     void recordAnnouncementEvent(current.id, 'cta_click', { cta_url: current.cta_url }).catch(() => {})
-    shiftCurrent()
     return current
   }
+
+  const clickCurrentCta = () => clickAnnouncementCta()
 
   return {
     activeAnnouncements,
@@ -126,6 +134,7 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     fetchHistory,
     closeCurrent,
     suppressCurrent,
+    clickAnnouncementCta,
     clickCurrentCta,
   }
 })
