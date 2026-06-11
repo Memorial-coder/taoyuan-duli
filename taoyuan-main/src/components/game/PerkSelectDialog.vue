@@ -202,11 +202,11 @@
     },
     combat: {
       warrior: [
-        { id: 'sword_saint', name: '剑圣', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' },
+        { id: 'sword_saint', name: '剑圣', description: '生命上限+80，攻击伤害+35%，暴击率+15%，20%概率追击' },
         { id: 'berserker', name: '狂战士', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' }
       ],
       brute: [
-        { id: 'sword_saint', name: '剑圣', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' },
+        { id: 'sword_saint', name: '剑圣', description: '生命上限+80，攻击伤害+35%，暴击率+15%，20%概率追击' },
         { id: 'berserker', name: '狂战士', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' }
       ],
       acrobat: [
@@ -296,11 +296,11 @@
     },
     combat: {
       sword_saint: [
-        { id: 'war_god', name: '战神', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' },
+        { id: 'war_god', name: '战神', description: '生命上限+150，攻击伤害+80%，暴击率+25%，30%概率强力追击' },
         { id: 'slaughter_king', name: '杀戮之王', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' }
       ],
       berserker: [
-        { id: 'war_god', name: '战神', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' },
+        { id: 'war_god', name: '战神', description: '生命上限+150，攻击伤害+80%，暴击率+25%，30%概率强力追击' },
         { id: 'slaughter_king', name: '杀戮之王', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' }
       ],
       phantom_blade: [

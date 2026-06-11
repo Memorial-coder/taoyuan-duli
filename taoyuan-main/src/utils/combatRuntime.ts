@@ -179,14 +179,24 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
       input.guildAttackBonus
   )
 
+  const swordArtCritBonus = perk20 === 'war_god' ? 0.25 : perk15 === 'sword_saint' ? 0.15 : 0
+  const swordArtExtraStrikeChance = perk20 === 'war_god' ? 0.3 : perk15 === 'sword_saint' ? 0.2 : 0
+  const weaponExtraStrikeChance = weaponType === 'dagger' ? 0.25 : 0
+  const extraStrikeChance = Math.min(1, weaponExtraStrikeChance + swordArtExtraStrikeChance)
+  const extraStrikeMultiplier = Math.max(weaponType === 'dagger' ? 0.5 : 0, perk20 === 'war_god' ? 0.6 : perk15 === 'sword_saint' ? 0.5 : 0)
+
   const attackMultiplier =
-    perk20 === 'war_god' || perk20 === 'slaughter_king'
+    perk20 === 'slaughter_king'
       ? 2
-      : perk15 === 'berserker' || perk15 === 'sword_saint'
-        ? 1.55
-        : perk10 === 'brute'
-          ? 1.25
-          : 1
+      : perk20 === 'war_god'
+        ? 1.8
+        : perk15 === 'berserker'
+          ? 1.55
+          : perk15 === 'sword_saint'
+            ? 1.35
+            : perk10 === 'brute'
+              ? 1.25
+              : 1
 
   const dodgeRate =
     perk20 === 'shadow_sovereign'
@@ -224,11 +234,11 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
   return {
     attack: {
       attack,
-      critRate: Math.max(0, input.weaponCritRate + input.ringCritBonus + input.ringLuck * 0.5),
+      critRate: Math.max(0, input.weaponCritRate + input.ringCritBonus + input.ringLuck * 0.5 + swordArtCritBonus),
       critMultiplier: 1.5,
       attackMultiplier,
-      extraStrikeChance: weaponType === 'dagger' ? 0.25 : 0,
-      extraStrikeMultiplier: weaponType === 'dagger' ? 0.5 : 0,
+      extraStrikeChance,
+      extraStrikeMultiplier,
       stunChance: weaponType === 'club' ? 0.2 : 0,
       lifesteal: (enchantSpecial === 'vampiric' ? 0.15 : 0) + input.ringVampiric
     },
@@ -252,9 +262,9 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
             : 0,
     defendHealRatio: perk20 === 'indestructible' || perk20 === 'shadow_sovereign' ? 0.15 : 0,
     killHealRatio:
-      perk20 === 'slaughter_king' || perk20 === 'war_god'
+      perk20 === 'slaughter_king'
         ? 0.2
-        : perk15 === 'berserker' || perk15 === 'sword_saint'
+        : perk15 === 'berserker'
           ? 0.1
           : 0
   }

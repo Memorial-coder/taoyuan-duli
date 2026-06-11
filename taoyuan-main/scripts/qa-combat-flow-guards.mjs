@@ -129,16 +129,12 @@ const installBrowserShims = () => {
     innerHTML: '',
     content: { firstChild: null }
   })
+  const documentElement = makeElement('html')
+  documentElement.style.fontSize = ''
   const documentObj = {
     hidden: false,
     visibilityState: 'visible',
-    documentElement: {
-      style: {
-        fontSize: '',
-        setProperty: () => {},
-        removeProperty: () => {}
-      }
-    },
+    documentElement,
     body: makeElement('body'),
     createElement: tag => makeElement(tag),
     createElementNS: (_ns, tag) => makeElement(tag),
@@ -330,6 +326,9 @@ const clearInventoryCapacity = inventoryStore => {
   for (const forbiddenText of ['闪避并反击', '闪避后必定暴击', '致命伤时保留', '反弹全部伤害', '闪避时造成三倍伤害', '反弹10%伤害']) {
     assert(!combatPerkUiSource.includes(forbiddenText), `战斗专精 UI 不应继续承诺未实现效果：${forbiddenText}`)
   }
+  assert(combatPerkUiSource.includes('剑圣') && combatPerkUiSource.includes('暴击率+15%') && combatPerkUiSource.includes('20%概率追击'), '剑圣 UI 文案应区别于狂战士，标出暴击和追击。')
+  assert(combatPerkUiSource.includes('狂战士') && combatPerkUiSource.includes('击杀回复10%生命'), '狂战士 UI 文案应保留击杀回血定位。')
+  assert(combatPerkUiSource.includes('战神') && combatPerkUiSource.includes('暴击率+25%') && combatPerkUiSource.includes('30%概率强力追击'), '战神 UI 文案应区别于杀戮之王，标出高阶爆发效果。')
 }
 
 {
@@ -375,6 +374,10 @@ const clearInventoryCapacity = inventoryStore => {
   const shadowRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk20: 'shadow_sovereign' }))
   const ironRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk15: 'iron_fortress' }))
   const indestructibleRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk20: 'indestructible' }))
+  const swordRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk15: 'sword_saint' }))
+  const berserkerRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk15: 'berserker' }))
+  const warGodRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk20: 'war_god' }))
+  const slaughterKingRuntime = combatRuntime.buildPlayerCombatRuntime(baseCombatRuntimeInput({ perk20: 'slaughter_king' }))
   assert(acrobatRuntime.defense.dodgeRate === 0.25, '杂技师运行时闪避率应为 25%。')
   assert(phantomRuntime.defense.dodgeRate === 0.4, '幻影剑客运行时闪避率应为 40%。')
   assert(shadowRuntime.defense.dodgeRate === 0.8, '暗影霸主运行时闪避率应为 80%。')
@@ -382,6 +385,20 @@ const clearInventoryCapacity = inventoryStore => {
   assert(ironRuntime.defendHealFlat === 15, '铁壁运行时防御后应恢复 15HP。')
   assert(Math.abs((indestructibleRuntime.defendDefense.damageMultipliers?.[0] ?? 1) - 0.05) < 0.000001, '不灭之躯运行时防御承伤应为 5%。')
   assert(indestructibleRuntime.defendHealRatio === 0.15, '不灭之躯运行时防御后应恢复 15% 最大生命。')
+  assert(Math.abs((swordRuntime.attack.attackMultiplier ?? 1) - 1.35) < 0.000001, '剑圣运行时攻击倍率应为 1.35。')
+  assert(Math.abs(swordRuntime.attack.critRate - 0.15) < 0.000001, '剑圣运行时应提供 15% 暴击率。')
+  assert(Math.abs((swordRuntime.attack.extraStrikeChance ?? 0) - 0.2) < 0.000001, '剑圣运行时应提供 20% 追击率。')
+  assert(swordRuntime.killHealRatio === 0, '剑圣运行时不应复用狂战士击杀回血。')
+  assert(Math.abs((berserkerRuntime.attack.attackMultiplier ?? 1) - 1.55) < 0.000001, '狂战士运行时攻击倍率应为 1.55。')
+  assert(berserkerRuntime.attack.critRate === 0, '狂战士运行时不应复用剑圣暴击率。')
+  assert(berserkerRuntime.killHealRatio === 0.1, '狂战士运行时应保留 10% 击杀回血。')
+  assert(Math.abs((warGodRuntime.attack.attackMultiplier ?? 1) - 1.8) < 0.000001, '战神运行时攻击倍率应为 1.8。')
+  assert(Math.abs(warGodRuntime.attack.critRate - 0.25) < 0.000001, '战神运行时应提供 25% 暴击率。')
+  assert(Math.abs((warGodRuntime.attack.extraStrikeChance ?? 0) - 0.3) < 0.000001, '战神运行时应提供 30% 强力追击率。')
+  assert(warGodRuntime.killHealRatio === 0, '战神运行时不应复用杀戮之王击杀回血。')
+  assert((slaughterKingRuntime.attack.attackMultiplier ?? 1) === 2, '杀戮之王运行时攻击倍率应为 2。')
+  assert(slaughterKingRuntime.attack.critRate === 0, '杀戮之王运行时不应复用战神暴击率。')
+  assert(slaughterKingRuntime.killHealRatio === 0.2, '杀戮之王运行时应保留 20% 击杀回血。')
 }
 
 {
