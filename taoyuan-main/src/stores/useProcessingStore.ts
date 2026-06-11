@@ -24,7 +24,13 @@ import { useBreedingStore } from './useBreedingStore'
 import { useWarehouseStore } from './useWarehouseStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { addLog } from '@/composables/useGameLog'
-import { hasCombinedItem, removeCombinedItem, getLowestCombinedQuality, getCombinedItemCount } from '@/composables/useCombinedInventory'
+import {
+  hasCombinedItems,
+  removeCombinedItem,
+  removeCombinedItems,
+  getLowestCombinedQuality,
+  getCombinedItemCount
+} from '@/composables/useCombinedInventory'
 import {
   formatCropUseSubstitutionSummary,
   getCropUseRequirementAvailableCount,
@@ -482,24 +488,16 @@ export const useProcessingStore = defineStore('processing', () => {
   /** 检查是否有足够材料制造某样东西 */
   const canCraft = (craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
     if (playerStore.money < craftMoney) return false
-    return craftCost.every(c => hasCombinedItem(c.itemId, c.quantity))
+    return hasCombinedItems(craftCost)
   }
 
   /** 消耗材料 */
   const consumeCraftMaterials = (craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
     if (!canCraft(craftCost, craftMoney)) return false
     if (!playerStore.spendMoney(craftMoney)) return false
-    const removed: { itemId: string; quantity: number }[] = []
-    for (const c of craftCost) {
-      if (!removeCombinedItem(c.itemId, c.quantity)) {
-        // 回退：恢复已消耗的材料和金钱
-        playerStore.earnMoney(craftMoney)
-        for (const r of removed) {
-          inventoryStore.addItem(r.itemId, r.quantity)
-        }
-        return false
-      }
-      removed.push({ itemId: c.itemId, quantity: c.quantity })
+    if (!removeCombinedItems(craftCost)) {
+      playerStore.earnMoney(craftMoney)
+      return false
     }
     return true
   }
@@ -692,11 +690,11 @@ export const useProcessingStore = defineStore('processing', () => {
       return true
     }
 
-    if (recipe.extraInputs && recipe.extraInputs.length > 0) {
-      for (const extra of recipe.extraInputs) {
-        if (!hasCombinedItem(extra.itemId, extra.quantity)) return false
-      }
-    }
+    if (recipe.extraInputs && recipe.extraInputs.length > 0 && !hasCombinedItems(recipe.extraInputs)) return false
+
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseStore = useWarehouseStore()
+    const warehouseSnapshot = warehouseStore.serialize()
 
     // 消耗输入材料（蜂箱无需输入），记录投入品质
     let quality: Quality = 'normal'
@@ -716,8 +714,10 @@ export const useProcessingStore = defineStore('processing', () => {
     }
     // 消耗额外副材料（合金配方）
     if (recipe.extraInputs && recipe.extraInputs.length > 0) {
-      for (const extra of recipe.extraInputs) {
-        removeCombinedItem(extra.itemId, extra.quantity)
+      if (!removeCombinedItems(recipe.extraInputs)) {
+        inventoryStore.deserialize(inventorySnapshot)
+        warehouseStore.deserialize(warehouseSnapshot)
+        return false
       }
     }
 

@@ -16,7 +16,7 @@ import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useFarmStore } from './useFarmStore'
 import { useNpcStore } from './useNpcStore'
-import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
 
 /** 酒窖陈酿槽 */
 interface CellarSlot {
@@ -111,8 +111,9 @@ export const useHomeStore = defineStore('home', () => {
     if (!playerStore.spendMoney(upgrade.cost)) return false
 
     // 扣除材料
-    for (const mat of upgrade.materialCost) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(upgrade.materialCost)) {
+      playerStore.earnMoney(upgrade.cost)
+      return false
     }
 
     farmhouseLevel.value = upgrade.level
@@ -165,8 +166,9 @@ export const useHomeStore = defineStore('home', () => {
     }
     if (!playerStore.spendMoney(GREENHOUSE_UNLOCK_COST)) return false
 
-    for (const mat of GREENHOUSE_MATERIAL_COST) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(GREENHOUSE_MATERIAL_COST)) {
+      playerStore.earnMoney(GREENHOUSE_UNLOCK_COST)
+      return false
     }
 
     greenhouseUnlocked.value = true
@@ -203,8 +205,9 @@ export const useHomeStore = defineStore('home', () => {
     if (!playerStore.spendMoney(renovation.cost)) {
       return { success: false, message: `${renovation.name}所需铜钱不足。` }
     }
-    for (const mat of renovation.materialCost) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(renovation.materialCost)) {
+      playerStore.earnMoney(renovation.cost)
+      return { success: false, message: `${renovation.name}所需材料不足。` }
     }
     homeRenovationStates.value = {
       ...homeRenovationStates.value,
