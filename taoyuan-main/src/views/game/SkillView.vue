@@ -240,7 +240,7 @@
     estate_owner: '作物售价+20%，加工品售价+40%，并保留 20% 双倍收成机会',
     livestock_baron: '动物产品数量翻倍',
     animal_whisperer: '动物亲密度满后每日额外产出',
-    ancient_botanist: '采集物50%概率为极品品质',
+    ancient_botanist: '采集物50%概率为极品，否则优质；植物学家路线提升至75%',
     grand_alchemist: '食物恢复+100%，可叠加效果',
     forest_guardian: '采集时必定获得2份额外木材',
     wilderness_expert: '每次采集额外+2物品',

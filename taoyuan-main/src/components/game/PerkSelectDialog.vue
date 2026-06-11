@@ -90,7 +90,7 @@
         { id: 'tracker', name: '追踪者', description: '每次采集额外获得1件物品' }
       ],
       herbalist: [
-        { id: 'botanist', name: '植物学家', description: '采集物必定优良品质' },
+        { id: 'botanist', name: '植物学家', description: '采集物必定优质品质' },
         { id: 'alchemist', name: '炼金师', description: '食物恢复+50%' }
       ]
     },
@@ -148,11 +148,11 @@
     },
     foraging: {
       botanist: [
-        { id: 'ancient_botanist', name: '上古植物学家', description: '采集物50%概率为极品品质' },
+        { id: 'ancient_botanist', name: '上古植物学家', description: '采集物75%概率为极品，否则优质' },
         { id: 'grand_alchemist', name: '大炼金师', description: '食物恢复效果再+50%' }
       ],
       alchemist: [
-        { id: 'ancient_botanist', name: '上古植物学家', description: '采集物50%概率为极品品质' },
+        { id: 'ancient_botanist', name: '上古植物学家', description: '采集物50%概率为极品，否则优质' },
         { id: 'grand_alchemist', name: '大炼金师', description: '食物恢复效果再+50%' }
       ],
       forester: [

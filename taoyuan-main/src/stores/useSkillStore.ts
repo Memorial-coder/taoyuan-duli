@@ -497,9 +497,9 @@ export const useSkillStore = defineStore('skill', () => {
     const skill = getSkill('foraging')
     // perk20: 世界之树 必定极品品质
     if (skill.perk20 === 'world_tree') return 'supreme'
-    // perk15: 上古植物学家 50%概率极品，否则必定精品；植物学家路线提高到75%
-    if (skill.perk15 === 'ancient_botanist') return Math.random() < (skill.perk10 === 'botanist' ? 0.75 : 0.5) ? 'supreme' : 'excellent'
-    if (skill.perk10 === 'botanist') return 'excellent'
+    // perk15: 上古植物学家 50%概率极品，否则必定优质；植物学家路线提高到75%
+    if (skill.perk15 === 'ancient_botanist') return Math.random() < (skill.perk10 === 'botanist' ? 0.75 : 0.5) ? 'supreme' : 'fine'
+    if (skill.perk10 === 'botanist') return 'fine'
     const level = skill.level + levelBonus
     const roll = Math.random()
 
