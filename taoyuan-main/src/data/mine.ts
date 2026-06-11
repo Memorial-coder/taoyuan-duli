@@ -81,6 +81,10 @@ export const getSkullCavernMushroomTileItems = (floor: number): { itemId: string
 }
 
 /** 宝箱层奖励 */
+export const FOX_BEAD_MIN_FLOOR = 50
+export const FOX_BEAD_DEEP_TREASURE_CHANCE = 0.12
+export const canTreasureDropFoxBead = (floor: number): boolean => floor >= FOX_BEAD_MIN_FLOOR
+
 export const getTreasureRewards = (floor: number): { items: { itemId: string; quantity: number }[]; money: number } => {
   const zoneIndex = Math.floor((floor - 1) / 20)
   const zones: MineFloorDef['zone'][] = ['shallow', 'frost', 'lava', 'crystal', 'shadow', 'abyss']
@@ -114,6 +118,10 @@ export const getTreasureRewards = (floor: number): { items: { itemId: string; qu
       const drop = pool[Math.floor(Math.random() * pool.length)]!
       items.push({ itemId: drop, quantity: 1 })
     }
+  }
+
+  if (canTreasureDropFoxBead(floor) && Math.random() < FOX_BEAD_DEEP_TREASURE_CHANCE) {
+    items.push({ itemId: 'fox_bead', quantity: 1 })
   }
 
   // 深渊层宝箱极小概率掉落仙桃

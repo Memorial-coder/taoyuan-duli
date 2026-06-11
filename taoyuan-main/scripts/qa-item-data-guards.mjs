@@ -86,7 +86,9 @@ const {
   HIDDEN_NPCS,
   ANIMAL_DEFS,
   FEED_DEFS,
-  HANHAI_SHOP_ITEMS
+  HANHAI_SHOP_ITEMS,
+  canTreasureDropFoxBead,
+  getTreasureRewards
 } = data
 const { WILD_TREE_DEFS } = wildTrees
 
@@ -197,6 +199,22 @@ assert(forageViewSource.includes('recordMonsterKill()'), '竹林野兽胜利必�
 const skullMushroomSoup = RECIPES.find(recipe => recipe.id === 'skull_mushroom_soup')
 assert(skullMushroomSoup?.effect.buff?.oreBonusChance === 0.25, '幽骨菌汤必须提供 25% 概率矿石产出+1')
 assert(skullMushroomSoup?.effect.buff?.description.includes('矿石产出+1'), '幽骨菌汤 Buff 文案必须说明矿石产出+1')
+
+assert(canTreasureDropFoxBead(49) === false, '狐珠不应在矿洞50层前的宝箱掉落')
+assert(canTreasureDropFoxBead(50) === true, '狐珠应从矿洞50层后的深层宝箱开放掉落')
+
+const originalRandom = Math.random
+try {
+  const sequence = [0, 0.99, 0, 0]
+  Math.random = () => sequence.shift() ?? 0
+  const deepTreasure = getTreasureRewards(58)
+  assert(
+    deepTreasure.items.some(item => item.itemId === 'fox_bead' && item.quantity === 1),
+    '矿洞50层后的深层宝箱概率命中时应产出狐珠'
+  )
+} finally {
+  Math.random = originalRandom
+}
 
 assert(migrateLegacyItemId('osmanthus_tea', 'quest_reward') === 'processed_osmanthus_tea', '任务奖励旧桂花茶应迁移到加工茶')
 assert(migrateLegacyItemId('osmanthus_tea', 'general') === 'osmanthus_tea', '通用旧桂花茶应保留作物身份')

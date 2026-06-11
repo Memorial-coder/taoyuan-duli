@@ -72,7 +72,7 @@ export const MUSEUM_ITEMS: MuseumItemDef[] = [
   { id: 'painted_pottery', name: '彩陶碎片', category: 'artifact', sourceHint: '熔岩层宝箱' },
 
   // ===== 仙灵 (4) =====
-  { id: 'fox_bead', name: '狐珠', category: 'spirit', sourceHint: '矿洞深处（与狐仙有关的线索）' },
+  { id: 'fox_bead', name: '狐珠', category: 'spirit', sourceHint: '矿洞50层后深层宝箱（与狐仙有关的线索）' },
   { id: 'spirit_peach', name: '灵桃', category: 'spirit', sourceHint: '桃夭赐福的桃树概率产出' },
   { id: 'moon_herb', name: '月草', category: 'spirit', sourceHint: '月兔赐福后采集概率获得' },
   { id: 'dream_silk', name: '梦丝', category: 'spirit', sourceHint: '归女赐福后织布机概率产出' }

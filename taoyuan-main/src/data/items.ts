@@ -2498,7 +2498,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   antler_powder: '加工制作',
   stamina_fruit: '深渊宝箱(极稀有) / 制作',
   // 仙灵相关物品
-  fox_bead: '矿洞深处（狐仙发现线索）',
+  fox_bead: '矿洞50层后深层宝箱（狐仙发现线索）',
   spirit_peach: '仙缘能力·灵桃（桃夭）',
   moon_herb: '仙缘能力·月华（月兔）',
   dream_silk: '仙缘能力·梦织（归女）',
