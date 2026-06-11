@@ -19,6 +19,7 @@ const texas = read('src/components/game/TexasHoldemGame.vue')
 const buckshot = read('src/components/game/BuckshotRouletteGame.vue')
 const hanhaiView = read('src/views/game/HanhaiView.vue')
 const hanhaiStore = read('src/stores/useHanhaiStore.ts')
+const hanhaiTypes = read('src/types/hanhai.ts')
 
 assert(/onMounted,\s*onUnmounted,\s*nextTick/.test(texas), 'TexasHoldemGame.vue must import onUnmounted.')
 assert(/const timers = new Set<ReturnType<typeof setTimeout>>\(\)/.test(texas), 'TexasHoldemGame.vue must own timeout handles.')
@@ -28,6 +29,12 @@ assert(/if \(!disposed\) callback\(\)/.test(texas), 'TexasHoldemGame.vue schedul
 assert(/onUnmounted\(\(\) => \{[\s\S]*for \(const timer of timers\) clearTimeout\(timer\)[\s\S]*timers\.clear\(\)[\s\S]*\}\)/.test(texas), 'TexasHoldemGame.vue must clear timers on unmount.')
 assert(countMatches(texas, /setTimeout\(/g) === 1, 'TexasHoldemGame.vue should only call setTimeout inside schedule().')
 assert(!/setTimeout\(\(\) => dealerTurn\(\)|setTimeout\(\(\) => advanceStreet\(\)|setTimeout\(\(\) => endHand\(|setTimeout\(\(\) => startNextHand\(/.test(texas), 'TexasHoldemGame.vue has a bare gameplay timeout.')
+assert(/export interface TexasDealerActionRecord/.test(hanhaiTypes), 'Texas reports must type dealer action records.')
+assert(/dealerActions\?: TexasDealerActionRecord\[\]/.test(hanhaiTypes), 'TexasSessionReport must carry dealer action records.')
+assert(/const dealerActions = ref<TexasDealerActionRecord\[\]>\(\[\]\)/.test(texas), 'TexasHoldemGame.vue must track dealer actions.')
+assert(/const recordDealerAction = \(decision: ReturnType<typeof texasDealerAI>\)/.test(texas), 'TexasHoldemGame.vue must centralize dealer action recording.')
+assert(/recordDealerAction\(decision\)/.test(texas), 'TexasHoldemGame.vue must record every dealer decision.')
+assert(/dealerActions: dealerActions\.value\.map\(action => \(\{ \.\.\.action \}\)\)/.test(texas), 'TexasHoldemGame.vue completion report must include dealer actions.')
 
 assert(/nextTick,\s*onMounted,\s*onUnmounted/.test(buckshot), 'BuckshotRouletteGame.vue must import onUnmounted.')
 assert(/const timers = new Set<ReturnType<typeof setTimeout>>\(\)/.test(buckshot), 'BuckshotRouletteGame.vue must own timeout handles.')
@@ -53,6 +60,14 @@ assert(/const normalizeActiveBuckshotSessionForLoad/.test(hanhaiStore), 'useHanh
 assert(/session\.settled \|\| session\.startedAtDayTag !== getCurrentDayTag\(\)/.test(hanhaiStore), 'useHanhaiStore.ts must drop settled or cross-day active sessions on load.')
 assert(/activeTexasSession\.value = normalizeActiveTexasSessionForLoad\(data\?\.activeTexasSession\)/.test(hanhaiStore), 'deserialize() must use normalized Texas active session.')
 assert(/activeBuckshotSession\.value = normalizeActiveBuckshotSessionForLoad\(data\?\.activeBuckshotSession\)/.test(hanhaiStore), 'deserialize() must use normalized Buckshot active session.')
+assert(/const dealerActions = Array\.isArray\(report\.dealerActions\) \? report\.dealerActions : null/.test(hanhaiStore), 'Texas settlement must consume reported dealer actions instead of rerolling dealer AI.')
+assert(/const consumeDealerDecision = \(\): \{ action: PokerActionType; amount: number \} \| null/.test(hanhaiStore), 'Texas settlement must replay dealer decisions through a validator.')
+assert(/庄家操作轨迹不完整/.test(hanhaiStore), 'Texas settlement must reject incomplete dealer action reports.')
+assert(/if \(dealerActions && dealerActionIndex !== dealerActions\.length\)/.test(hanhaiStore), 'Texas settlement must reject extra dealer action reports.')
+assert(/const endTexas = \(report: TexasSessionReport\): HanhaiCasinoSettlementResult/.test(hanhaiStore), 'endTexas must return a settlement result to the view.')
+assert(/const endBuckshot = \(playerActions: BuckshotPlayerAction\[\], sessionId\?: string\): HanhaiCasinoSettlementResult/.test(hanhaiStore), 'endBuckshot must return a settlement result to the view.')
+assert(/const result = hanhaiStore\.endTexas\(report\)[\s\S]*if \(!result\.success\)[\s\S]*if \(hanhaiStore\.hasActiveCasinoSession\) return[\s\S]*showTexasModal\.value = false/.test(hanhaiView), 'HanhaiView.vue must keep Texas modal open when settlement fails and the session remains active.')
+assert(/const result = hanhaiStore\.endBuckshot\(playerActions, buckshotSetup\.value\?\.sessionId\)[\s\S]*if \(!result\.success\)[\s\S]*if \(hanhaiStore\.hasActiveCasinoSession\) return[\s\S]*showBuckshotModal\.value = false/.test(hanhaiView), 'HanhaiView.vue must keep Buckshot modal open when settlement fails and the session remains active.')
 
 const currentDayTag = '1-spring-7'
 const validHand = {

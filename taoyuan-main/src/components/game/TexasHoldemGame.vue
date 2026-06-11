@@ -143,7 +143,7 @@
   import { sfxChipBet, sfxFoldCards, sfxCardFlip, sfxCasinoWin, sfxCasinoLose } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
-  import type { TexasActionRecord, TexasSessionReport, TexasSetup, TexasStreet, PokerSuit, PokerHandResult, PokerCard } from '@/types'
+  import type { TexasActionRecord, TexasDealerActionRecord, TexasSessionReport, TexasSetup, TexasStreet, PokerSuit, PokerHandResult, PokerCard } from '@/types'
 
   const props = defineProps<{ setup: TexasSetup }>()
   const emit = defineEmits<{ complete: [report: TexasSessionReport] }>()
@@ -180,6 +180,7 @@
   const totalInvested = ref(0) // 场外累计投入（不含初始入场费）
   const reserveMoney = ref(Math.max(0, Math.floor(Number(props.setup.reserveMoney) || 0)))
   const playerActions = ref<TexasActionRecord[]>([])
+  const dealerActions = ref<TexasDealerActionRecord[]>([])
   const actionLog = ref<string[]>([])
   const logRef = ref<HTMLElement | null>(null)
   const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -237,6 +238,15 @@
       street: street.value,
       action,
       ...(typeof total === 'number' ? { total } : {})
+    })
+  }
+
+  const recordDealerAction = (decision: ReturnType<typeof texasDealerAI>) => {
+    dealerActions.value.push({
+      round: currentRound.value,
+      street: street.value,
+      action: decision.action,
+      amount: decision.amount
     })
   }
 
@@ -386,6 +396,7 @@
       playerAllIn.value,
       tier.blind
     )
+    recordDealerAction(decision)
 
     if (decision.action === 'fold') {
       sfxFoldCards()
@@ -560,7 +571,8 @@
     emit('complete', {
       sessionId: props.setup.sessionId,
       tierName: tier.name,
-      playerActions: playerActions.value.map(action => ({ ...action }))
+      playerActions: playerActions.value.map(action => ({ ...action })),
+      dealerActions: dealerActions.value.map(action => ({ ...action }))
     })
   }
 

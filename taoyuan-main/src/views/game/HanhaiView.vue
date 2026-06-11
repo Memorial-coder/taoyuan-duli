@@ -1307,7 +1307,11 @@
   }
 
   const handleTexasComplete = (report: TexasSessionReport) => {
-    hanhaiStore.endTexas(report)
+    const result = hanhaiStore.endTexas(report)
+    if (!result.success) {
+      showFloat(result.message, 'danger')
+      if (hanhaiStore.hasActiveCasinoSession) return
+    }
     showTexasModal.value = false
     texasSetup.value = null
   }
@@ -1335,7 +1339,11 @@
   }
 
   const handleBuckshotComplete = (playerActions: BuckshotPlayerAction[]) => {
-    hanhaiStore.endBuckshot(playerActions, buckshotSetup.value?.sessionId)
+    const result = hanhaiStore.endBuckshot(playerActions, buckshotSetup.value?.sessionId)
+    if (!result.success) {
+      showFloat(result.message, 'danger')
+      if (hanhaiStore.hasActiveCasinoSession) return
+    }
     showBuckshotModal.value = false
     buckshotSetup.value = null
   }

@@ -292,10 +292,18 @@ export interface TexasActionRecord {
   total?: number
 }
 
+export interface TexasDealerActionRecord {
+  round: number
+  street: TexasStreet
+  action: PokerActionType
+  amount?: number
+}
+
 export interface TexasSessionReport {
   sessionId: string
   tierName: string
   playerActions: TexasActionRecord[]
+  dealerActions?: TexasDealerActionRecord[]
 }
 
 export interface TexasSetup {

@@ -63,6 +63,8 @@ import type {
   HanhaiRelicSiteSummary,
   HanhaiSaveData,
   HanhaiShopItemSummary,
+  PokerActionType,
+  TexasDealerActionRecord,
   TexasHandSetup,
   TexasSessionReport,
   RewardTicketType,
@@ -86,6 +88,7 @@ type HanhaiQuestMarketCategory = 'crop' | 'fruit' | 'ore' | 'gem' | 'processed' 
 type HanhaiQuestType = 'delivery' | 'gathering' | 'mining' | 'fishing'
 type ActiveTexasSession = HanhaiActiveTexasSession
 type ActiveBuckshotSession = HanhaiActiveBuckshotSession
+type HanhaiCasinoSettlementResult = { success: boolean; message: string }
 
 const hanhaiTuning = HANHAI_OPERATION_TUNING_CONFIG
 const hanhaiFeatureFlags = hanhaiTuning.featureFlags
@@ -232,11 +235,15 @@ const resolveTexasSessionOutcome = (
 ): { valid: boolean; finalChips?: number; totalInvested?: number; reason?: string } => {
   const tier = getTexasTier(session.tierId)
   const actions = Array.isArray(report.playerActions) ? report.playerActions : []
+  const dealerActions = Array.isArray(report.dealerActions) ? report.dealerActions : null
+  const allowedDealerActions = new Set<PokerActionType>(['check', 'raise', 'call', 'fold', 'allin'])
   const firstHand = session.hands[0]
   if (!firstHand) {
     return { valid: false, reason: '牌局配置缺失' }
   }
   let actionIndex = 0
+  let dealerActionIndex = 0
+  let replayError = ''
   let currentRound = 1
   let playerStack = tier.entryFee
   let dealerStack = tier.entryFee
@@ -361,39 +368,86 @@ const resolveTexasSessionOutcome = (
     }
   }
 
+  const consumeDealerDecision = (): { action: PokerActionType; amount: number } | null => {
+    if (!dealerActions) {
+      return texasDealerAI(
+        currentHand.dealerHole,
+        getVisibleTexasCommunity(street, currentHand.community),
+        street,
+        pot + playerBetRound + dealerBetRound,
+        dealerStack,
+        playerBetRound,
+        dealerBetRound,
+        playerAllIn,
+        tier.blind
+      )
+    }
+
+    const action = dealerActions[dealerActionIndex] as TexasDealerActionRecord | undefined
+    if (!action) {
+      replayError = '庄家操作轨迹不完整'
+      return null
+    }
+    if (action.round !== currentRound || action.street !== street) {
+      replayError = '庄家操作轨迹与当前牌局阶段不匹配'
+      return null
+    }
+    if (!allowedDealerActions.has(action.action)) {
+      replayError = '存在未知的庄家操作'
+      return null
+    }
+    dealerActionIndex += 1
+    return {
+      action: action.action,
+      amount: Math.max(0, Math.floor(Number(action.amount) || 0))
+    }
+  }
+
   const dealerTurn = () => {
-    const decision = texasDealerAI(
-      currentHand.dealerHole,
-      getVisibleTexasCommunity(street, currentHand.community),
-      street,
-      pot + playerBetRound + dealerBetRound,
-      dealerStack,
-      playerBetRound,
-      dealerBetRound,
-      playerAllIn,
-      tier.blind
-    )
+    const decision = consumeDealerDecision()
+    if (!decision) return
+    const toCall = playerBetRound - dealerBetRound
 
     if (decision.action === 'fold') {
+      if (toCall <= 0) {
+        replayError = '庄家弃牌轨迹无效'
+        return
+      }
       collectBets()
       endHand('won')
       return
     }
     if (decision.action === 'check') {
+      if (toCall > 0) {
+        replayError = '庄家过牌轨迹无效'
+        return
+      }
       checkRoundEnd(false)
       return
     }
     if (decision.action === 'call') {
-      betFromDealer(playerBetRound - dealerBetRound)
+      if (toCall <= 0) {
+        replayError = '庄家跟注轨迹无效'
+        return
+      }
+      betFromDealer(toCall)
       checkRoundEnd(false)
       return
     }
     if (decision.action === 'allin') {
+      if (dealerStack <= 0) {
+        replayError = '庄家全押轨迹无效'
+        return
+      }
       betFromDealer(dealerStack)
       dealerAllIn = true
       if (!(dealerBetRound > playerBetRound && !playerAllIn)) {
         checkRoundEnd(false)
       }
+      return
+    }
+    if (playerAllIn || decision.amount <= Math.max(0, toCall) || decision.amount > dealerStack) {
+      replayError = '庄家加注轨迹无效'
       return
     }
     betFromDealer(decision.amount)
@@ -404,6 +458,9 @@ const resolveTexasSessionOutcome = (
   collectBets()
 
   while (!sessionOver) {
+    if (replayError) {
+      return { valid: false, reason: replayError }
+    }
     const action = actions[actionIndex]
     if (!action) {
       return { valid: false, reason: '玩家操作轨迹不完整' }
@@ -415,11 +472,13 @@ const resolveTexasSessionOutcome = (
 
     if (action.action === 'check') {
       dealerTurn()
+      if (replayError) return { valid: false, reason: replayError }
       continue
     }
     if (action.action === 'call') {
       betFromPlayer(Math.max(0, dealerBetRound - playerBetRound))
       checkRoundEnd(true)
+      if (replayError) return { valid: false, reason: replayError }
       continue
     }
     if (action.action === 'raise') {
@@ -429,12 +488,14 @@ const resolveTexasSessionOutcome = (
       }
       betFromPlayer(total - playerBetRound)
       dealerTurn()
+      if (replayError) return { valid: false, reason: replayError }
       continue
     }
     if (action.action === 'allin') {
       betFromPlayer(playerStack)
       playerAllIn = true
       dealerTurn()
+      if (replayError) return { valid: false, reason: replayError }
       continue
     }
     if (action.action === 'fold') {
@@ -447,6 +508,12 @@ const resolveTexasSessionOutcome = (
 
   if (actionIndex !== actions.length) {
     return { valid: false, reason: '玩家操作轨迹存在多余步骤' }
+  }
+  if (replayError) {
+    return { valid: false, reason: replayError }
+  }
+  if (dealerActions && dealerActionIndex !== dealerActions.length) {
+    return { valid: false, reason: '庄家操作轨迹存在多余步骤' }
   }
 
   return {
@@ -1688,67 +1755,79 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
-  const endTexas = (report: TexasSessionReport) => {
+  const endTexas = (report: TexasSessionReport): HanhaiCasinoSettlementResult => {
     const lockId = 'casino_texas_end'
     if (!beginHanhaiAction(lockId)) {
-      addLog('瀚海扑克结算中，请勿重复提交结果。')
-      return
+      const message = '瀚海扑克结算中，请勿重复提交结果。'
+      addLog(message)
+      return { success: false, message }
     }
 
     const snapshots = createHanhaiActionSnapshots()
     try {
       const session = activeTexasSession.value
       if (!session || session.settled) {
-        addLog('瀚海扑克结算失败：当前没有可结算的牌局。')
-        return
+        const message = '瀚海扑克结算失败：当前没有可结算的牌局。'
+        addLog(message)
+        return { success: false, message }
       }
       if (!report?.sessionId || session.sessionId !== report.sessionId) {
-        addLog('瀚海扑克结算失败：牌局凭证无效。')
-        return
+        const message = '瀚海扑克结算失败：牌局凭证无效。'
+        addLog(message)
+        return { success: false, message }
       }
       if (session.startedAtDayTag !== getCurrentDayTag()) {
-        addLog('瀚海扑克结算失败：牌局已跨日失效。')
+        const message = '瀚海扑克结算失败：牌局已跨日失效。'
+        addLog(message)
         activeTexasSession.value = null
-        return
+        return { success: false, message }
       }
       if (session.tierName !== report.tierName) {
-        addLog('瀚海扑克结算失败：场次信息不匹配。')
-        return
+        const message = '瀚海扑克结算失败：场次信息不匹配。'
+        addLog(message)
+        return { success: false, message }
       }
       const tier = getTexasTier(session.tierId)
       const resolved = resolveTexasSessionOutcome(session, report)
       if (!resolved.valid) {
-        addLog(`瀚海扑克结算失败：${resolved.reason ?? '对局轨迹校验失败'}。`)
-        return
+        const message = `瀚海扑克结算失败：${resolved.reason ?? '对局轨迹校验失败'}。`
+        addLog(message)
+        return { success: false, message }
       }
       const normalizedFinalChips = Math.max(0, Math.floor(Number(resolved.finalChips) || 0))
       const totalInvested = Math.max(0, Math.floor(Number(resolved.totalInvested) || 0))
       const playerStore = usePlayerStore()
       const maxTheoreticalFinalChips = session.entryFee + totalInvested + tier.entryFee * tier.rounds
       if (normalizedFinalChips > maxTheoreticalFinalChips) {
-        addLog(`瀚海扑克结算失败：筹码结果超出本局理论上限（上限 ${maxTheoreticalFinalChips}）。`)
-        return
+        const message = `瀚海扑克结算失败：筹码结果超出本局理论上限（上限 ${maxTheoreticalFinalChips}）。`
+        addLog(message)
+        return { success: false, message }
       }
       activeTexasSession.value = {
         ...session,
         settled: true
       }
       if (totalInvested > 0 && !playerStore.spendMoney(totalInvested)) {
-        addLog('瀚海扑克结算失败：场外补注扣款失败。')
+        const message = '瀚海扑克结算失败：场外补注扣款失败。'
+        addLog(message)
         activeTexasSession.value = null
-        return
+        return { success: false, message }
       }
       const trigger: HanhaiCasinoRewardTrigger = normalizedFinalChips > tier.entryFee ? 'win' : normalizedFinalChips > 0 ? 'draw' : 'lose'
       const settlement = settleCasinoRewards('texas', trigger, normalizedFinalChips)
       const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
       const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
       const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
-      addLog(`瀚海扑克（${report.tierName}）结束，按赌坊折算结算${settlement.directMoney}文。${extraText}${skippedText}`)
+      const message = `瀚海扑克（${report.tierName}）结束，按赌坊折算结算${settlement.directMoney}文。${extraText}${skippedText}`
+      addLog(message)
       activeTexasSession.value = null
+      return { success: true, message }
     } catch {
       rollbackHanhaiAction(snapshots)
       activeTexasSession.value = null
-      addLog('瀚海扑克结算失败，已自动回滚。')
+      const message = '瀚海扑克结算失败，已自动回滚。'
+      addLog(message)
+      return { success: false, message }
     } finally {
       finishHanhaiAction(lockId)
     }
@@ -1796,34 +1875,39 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
-  const endBuckshot = (playerActions: BuckshotPlayerAction[], sessionId?: string) => {
+  const endBuckshot = (playerActions: BuckshotPlayerAction[], sessionId?: string): HanhaiCasinoSettlementResult => {
     const lockId = 'casino_buckshot_end'
     if (!beginHanhaiAction(lockId)) {
-      addLog('恶魔轮盘结算中，请勿重复提交结果。')
-      return
+      const message = '恶魔轮盘结算中，请勿重复提交结果。'
+      addLog(message)
+      return { success: false, message }
     }
 
     const snapshots = createHanhaiActionSnapshots()
     try {
       const session = activeBuckshotSession.value
       if (!session || session.settled) {
-        addLog('恶魔轮盘结算失败：当前没有可结算的赌局。')
-        return
+        const message = '恶魔轮盘结算失败：当前没有可结算的赌局。'
+        addLog(message)
+        return { success: false, message }
       }
       if (!sessionId || session.sessionId !== sessionId) {
-        addLog('恶魔轮盘结算失败：赌局凭证无效。')
-        return
+        const message = '恶魔轮盘结算失败：赌局凭证无效。'
+        addLog(message)
+        return { success: false, message }
       }
       if (session.startedAtDayTag !== getCurrentDayTag()) {
-        addLog('恶魔轮盘结算失败：赌局已跨日失效。')
+        const message = '恶魔轮盘结算失败：赌局已跨日失效。'
+        addLog(message)
         activeBuckshotSession.value = null
-        return
+        return { success: false, message }
       }
       const outcome = resolveBuckshotOutcome(session, playerActions)
       if (!outcome.valid) {
-        addLog(`恶魔轮盘结算失败：${outcome.reason ?? '操作轨迹校验失败'}。`)
+        const message = `恶魔轮盘结算失败：${outcome.reason ?? '操作轨迹校验失败'}。`
+        addLog(message)
         activeBuckshotSession.value = null
-        return
+        return { success: false, message }
       }
       activeBuckshotSession.value = {
         ...session,
@@ -1835,20 +1919,30 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       if (outcome.won) {
         const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
         const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
-        addLog(`恶魔轮盘胜利！按赌坊折算赢得${settlement.directMoney}文！${extraText}`)
+        const message = `恶魔轮盘胜利！按赌坊折算赢得${settlement.directMoney}文！${extraText}`
+        addLog(message)
+        activeBuckshotSession.value = null
+        return { success: true, message }
       } else if (outcome.draw) {
         const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
         const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
-        addLog(`恶魔轮盘平局，按赌坊折算退还${settlement.directMoney}文。${extraText}`)
+        const message = `恶魔轮盘平局，按赌坊折算退还${settlement.directMoney}文。${extraText}`
+        addLog(message)
+        activeBuckshotSession.value = null
+        return { success: true, message }
       } else {
         const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
-        addLog(`恶魔轮盘落败，损失了${BUCKSHOT_BET_AMOUNT}文。${extraText}`)
+        const message = `恶魔轮盘落败，损失了${BUCKSHOT_BET_AMOUNT}文。${extraText}`
+        addLog(message)
+        activeBuckshotSession.value = null
+        return { success: true, message }
       }
-      activeBuckshotSession.value = null
     } catch {
       rollbackHanhaiAction(snapshots)
       activeBuckshotSession.value = null
-      addLog('恶魔轮盘结算失败，已自动回滚。')
+      const message = '恶魔轮盘结算失败，已自动回滚。'
+      addLog(message)
+      return { success: false, message }
     } finally {
       finishHanhaiAction(lockId)
     }
