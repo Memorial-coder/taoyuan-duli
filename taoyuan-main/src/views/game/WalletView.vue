@@ -147,6 +147,9 @@
         </div>
         <p class="text-xs text-text mt-1">{{ shopStore.weeklySurpriseOffer.name }}</p>
         <p class="text-[0.625rem] text-muted mt-0.5">{{ shopStore.weeklySurpriseOffer.description }}</p>
+        <p v-if="shopStore.getCatalogOfferPurchaseLimitCopy(shopStore.weeklySurpriseOffer.id)" class="text-[0.625rem] text-warning mt-0.5">
+          {{ shopStore.getCatalogOfferPurchaseLimitCopy(shopStore.weeklySurpriseOffer.id) }}
+        </p>
         <p class="text-[0.625rem] text-success mt-1">{{ walletCatalogFeaturedReason }}</p>
       </div>
 
@@ -159,6 +162,9 @@
               <span class="text-[0.625rem] text-accent">{{ shopStore.applyDiscount(offer.price) }}文</span>
             </div>
             <p class="text-[0.625rem] text-muted mt-0.5">{{ offer.description }}</p>
+            <p v-if="shopStore.getCatalogOfferPurchaseLimitCopy(offer.id)" class="text-[0.625rem] text-warning mt-0.5">
+              {{ shopStore.getCatalogOfferPurchaseLimitCopy(offer.id) }}
+            </p>
             <p class="text-[0.625rem] text-success mt-1">{{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}</p>
           </div>
           <p v-if="walletCatalogRecommendedOffers.length === 0" class="text-[0.625rem] text-muted">当前暂无额外推荐，先完成图鉴、主题周或流派节点解锁可获得更明确的商店路线提示。</p>

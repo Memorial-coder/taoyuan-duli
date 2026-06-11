@@ -18,6 +18,7 @@ export type ShopCatalogLinkedSystem = 'shop' | 'wallet' | 'inventory' | 'warehou
 export type ShopCatalogPriceBand = 'entry' | 'mid' | 'high' | 'luxury' | 'prestige'
 export type ShopCatalogServiceBillingCycle = 'one_off' | 'daily' | 'weekly' | 'seasonal'
 export type ShopCatalogEntitlementStatus = 'inactive' | 'active' | 'expired' | 'consumed'
+export type ShopCatalogPurchaseLimitWindow = 'daily' | 'weekly' | 'seasonal' | 'lifetime'
 
 export type ShopCatalogWarehouseServiceType = 'chest_slot' | 'vault_charter' | 'sorting_service'
 export type ShopCatalogTravelRouteTag = 'universal' | 'farming' | 'fishing' | 'mining' | 'festival'
@@ -97,6 +98,11 @@ export interface ShopCatalogServiceContractConfig {
   fishPondDailyOutputBonus?: number
 }
 
+export interface ShopCatalogPurchaseLimitConfig {
+  window: ShopCatalogPurchaseLimitWindow
+  max: number
+}
+
 export interface ShopCatalogActivityOfferBundleDef {
   id: string
   campaignId: string
@@ -135,6 +141,7 @@ export interface ShopCatalogOfferDef {
   linkedSystems: ShopCatalogLinkedSystem[]
   priceBand: ShopCatalogPriceBand
   serviceBillingCycle: ShopCatalogServiceBillingCycle
+  purchaseLimits?: ShopCatalogPurchaseLimitConfig[]
   decorationUnlockId?: string
   permitConfig?: ShopCatalogPermitConfig
   warehouseServiceConfig?: ShopCatalogWarehouseServiceConfig

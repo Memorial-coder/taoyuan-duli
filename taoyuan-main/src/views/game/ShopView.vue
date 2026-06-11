@@ -1870,6 +1870,7 @@
   import { CRAFTABLE_RINGS } from '@/data/rings'
   import { SHOP_HATS, CRAFTABLE_HATS } from '@/data/hats'
   import { SHOP_SHOES, CRAFTABLE_SHOES } from '@/data/shoes'
+  import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type { CohabitationFundShopPurchaseCatalogItem } from '@/utils/cohabitationApi'
   import { HAY_PRICE } from '@/data/animals'
@@ -2482,18 +2483,25 @@
     const eff = offer.effect
     if (eff.type === 'unlock_decoration') return ''
     if (eff.type === 'expand_inventory_extra') {
-      return `购买后背包：${inventoryStore.capacity}格 → ${inventoryStore.capacity + eff.amount}格`
+      return `购买后永久背包容量：${inventoryStore.capacity}格 → ${inventoryStore.capacity + eff.amount}格`
     }
     if (eff.type === 'expand_warehouse') {
       if (warehouseStore.maxChests >= warehouseStore.MAX_CHESTS_CAP) return '仓库箱位已达上限'
       const nextMax = Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.maxChests + eff.amount)
-      return `购买后仓库箱位：${warehouseStore.maxChests} → ${nextMax}`
+      return `购买后永久仓库箱位：${warehouseStore.maxChests} → ${nextMax}`
     }
     if (eff.type === 'unlock_greenhouse') {
       return homeStore.greenhouseUnlocked ? '温室已解锁' : '解锁后可在农舍界面使用温室地块'
     }
     if (eff.type === 'grant_chest') {
-      return `将新增一个「${eff.label ?? offer.name}」到仓库`
+      const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
+      const nextMax = Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.maxChests + capacityDelta)
+      const capacityText = capacityDelta > 0 && nextMax > warehouseStore.maxChests
+        ? `，并开放永久仓库箱位：${warehouseStore.maxChests} → ${nextMax}`
+        : capacityDelta > 0
+          ? '，永久仓库箱位已达上限'
+          : ''
+      return `将新增一个「${eff.label ?? offer.name}」到仓库${capacityText}`
     }
     if (eff.type === 'add_items') {
       const parts = eff.items.map((item: { itemId: string; quantity: number }) => {
@@ -2503,14 +2511,14 @@
       return `获得：${parts.join('、')}`
     }
     if (eff.type === 'activate_service_contract') {
-      return `签约效果：${offer.serviceContractConfig?.effectSummary ?? '激活长期服务合同'} · 周费${offer.serviceContractConfig?.weeklyFee ?? 0}文`
+      return `签约 7 日生效：${offer.serviceContractConfig?.effectSummary ?? '激活长期服务合同'} · 周费${offer.serviceContractConfig?.weeklyFee ?? 0}文`
     }
     return ''
   }
 
   const catalogOfferLimitHint = (offer: ShopCatalogOfferDef): string => shopStore.getCatalogOfferLimitHint(offer.id)
 
-  const catalogOfferSubtitle = (offer: Pick<ShopCatalogOfferDef, 'pool'> & { tags?: string[] }) => {
+  const catalogOfferSubtitle = (offer: Pick<ShopCatalogOfferDef, 'id' | 'pool'> & { tags?: string[] }) => {
     const prefix =
       offer.pool === 'weekly'
         ? '每周精选 · 每周一刷新'
@@ -2519,7 +2527,8 @@
           : offer.pool === 'premium'
             ? '高价长期商品'
             : '常驻货架'
-    return [prefix, ...(offer.tags ?? [])].join(' · ')
+    const limitCopy = shopStore.getCatalogOfferPurchaseLimitCopy(offer.id)
+    return [prefix, ...(offer.tags ?? []), limitCopy].filter(Boolean).join(' · ')
   }
 
   const isCatalogOfferLocked = (offer: ShopCatalogOfferDef) => !shopStore.isCatalogOfferUnlocked(offer.id)
@@ -2547,9 +2556,14 @@
 
   const activeServiceContracts = computed(() => shopStore.activeServiceContractSummaries)
 
-  const formatExchangeBundle = (entries: Array<{ type: string; item_id?: string; quantity?: number; amount?: number }>) => {
+  const formatExchangeBundle = (entries: Array<{ type: string; item_id?: string; quantity?: number; amount?: number; ticket_type?: string }>) => {
     return entries.map(entry => {
       if (entry.type === 'money') return `${entry.amount ?? 0}文`
+      if (entry.type === 'ticket') {
+        const ticketType = String(entry.ticket_type ?? '').trim()
+        const label = ticketType ? (REWARD_TICKET_LABELS as Partial<Record<string, string>>)[ticketType] ?? `${ticketType}券` : '票券'
+        return `${label}×${entry.quantity ?? 0}`
+      }
       const def = entry.item_id ? getItemById(entry.item_id) : null
       return `${def?.name ?? entry.item_id ?? '未知物品'}×${entry.quantity ?? 0}`
     }).join('、')

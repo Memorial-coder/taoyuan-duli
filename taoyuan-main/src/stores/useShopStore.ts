@@ -78,6 +78,7 @@ import type {
   ShopCatalogOfferDef,
   ShopCatalogOfferOperationalSummary,
   ShopCatalogOverviewSummary,
+  ShopCatalogPurchaseLimitConfig,
   ShopCatalogPool,
   ShopServiceContractSummary
 } from '@/types'
@@ -199,6 +200,21 @@ const parseDayKeyToAbsoluteDay = (dayKey: string): number | null => {
   return getAbsoluteDay(year, seasonIndex, day)
 }
 
+const getLimitWindowLabel = (window: ShopCatalogPurchaseLimitConfig['window']): string => {
+  switch (window) {
+    case 'daily':
+      return '每日'
+    case 'weekly':
+      return '每周'
+    case 'seasonal':
+      return '本季'
+    case 'lifetime':
+      return '全档'
+    default:
+      return '当前周期'
+  }
+}
+
 const cloneCatalogExpansionState = (state: ShopCatalogExpansionState): ShopCatalogExpansionState => ({
   saveVersion: state.saveVersion,
   operationalMeta: { ...state.operationalMeta },
@@ -275,19 +291,124 @@ export const useShopStore = defineStore('shop', () => {
     return true
   }
 
+  const getPurchaseLimitWindowKey = (window: ShopCatalogPurchaseLimitConfig['window'], dayKey = getCurrentCatalogDayKey()): string => {
+    const absoluteDay = parseDayKeyToAbsoluteDay(dayKey) ?? getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
+    switch (window) {
+      case 'daily':
+        return dayKey
+      case 'weekly':
+        return String(Math.floor((absoluteDay - 1) / 7))
+      case 'seasonal': {
+        const [yearText, seasonIndexText] = dayKey.split('-')
+        return `${yearText || gameStore.year}-${seasonIndexText || gameStore.seasonIndex}`
+      }
+      case 'lifetime':
+        return 'lifetime'
+      default:
+        return dayKey
+    }
+  }
+
+  const getCatalogOfferPurchaseLimitCount = (offer: ShopCatalogOfferDef, limit: ShopCatalogPurchaseLimitConfig): number => {
+    const rawState = getCatalogOfferStateRecord(offer)
+    if (!rawState) return 0
+    if (limit.window === 'lifetime') return rawState.purchasedCount ?? 0
+
+    const lastPurchasedDayKey = rawState.lastPurchasedDayKey ?? ''
+    if (!lastPurchasedDayKey) return 0
+    return getPurchaseLimitWindowKey(limit.window, lastPurchasedDayKey) === getPurchaseLimitWindowKey(limit.window) ? 1 : 0
+  }
+
+  const getCatalogOfferPurchaseLimitHint = (offer: ShopCatalogOfferDef): string => {
+    for (const limit of offer.purchaseLimits ?? []) {
+      const max = Math.max(1, Math.floor(Number(limit.max) || 0))
+      const purchasedCount = getCatalogOfferPurchaseLimitCount(offer, limit)
+      if (purchasedCount >= max) {
+        return `${getLimitWindowLabel(limit.window)}已达限购（${purchasedCount}/${max}），无法重复购买。`
+      }
+    }
+    return ''
+  }
+
+  const getCatalogOfferPurchaseLimitCopy = (offerId: string): string => {
+    const offer = getCatalogOfferById(offerId)
+    if (!offer) return ''
+    if (offer.purchaseLimits?.length) {
+      return offer.purchaseLimits
+        .map(limit => `${getLimitWindowLabel(limit.window)}限购 ${Math.max(1, Math.floor(Number(limit.max) || 0))} 次`)
+        .join(' · ')
+    }
+    if (offer.onceOnly) return '全档限购 1 次'
+    if (offer.serviceBillingCycle === 'weekly') return '7 日生效 · 生效期内不可重复购买'
+    if (offer.serviceBillingCycle === 'daily') return '当日生效 · 生效期内不可重复购买'
+    if (offer.serviceBillingCycle === 'seasonal') return '本季生效 · 生效期内不可重复购买'
+    return ''
+  }
+
+  const getWarehouseServicePurchaseLimit = (offer: ShopCatalogOfferDef): number => {
+    const rawLimit = Math.floor(Number(offer.warehouseServiceConfig?.maxServiceLevel) || 0)
+    return rawLimit > 0 ? rawLimit : Number.POSITIVE_INFINITY
+  }
+
+  const getWarehouseServicePurchaseLimitHint = (offer: ShopCatalogOfferDef): string => {
+    if (offer.luxuryCategory !== 'warehouse_service' || !offer.warehouseServiceConfig) return ''
+    if (offer.serviceBillingCycle !== 'one_off') return ''
+
+    const limit = getWarehouseServicePurchaseLimit(offer)
+    if (!Number.isFinite(limit)) return ''
+
+    const rawState = catalogExpansionState.value.warehouseServiceStates[offer.id]
+    const purchasedCount = rawState?.purchasedCount ?? 0
+    if (purchasedCount < limit) return ''
+
+    return `该仓储服务已达到购买上限（${purchasedCount}/${limit}），无法重复购买。`
+  }
+
+  const getWarehouseServiceCapacityMultiplier = (
+    offer: ShopCatalogOfferDef,
+    entitlement: ShopCatalogExpansionState['warehouseServiceStates'][string]
+  ): number => {
+    if (entitlement.status !== 'active') return 0
+    if (offer.serviceBillingCycle !== 'one_off') return 1
+
+    const purchasedCount = Math.max(1, entitlement.purchasedCount || 0)
+    return Math.min(purchasedCount, getWarehouseServicePurchaseLimit(offer))
+  }
+
   const getWarehouseServiceCapacityTarget = (state: ShopCatalogExpansionState = catalogExpansionState.value) => {
     const capacityDelta = Object.entries(state.warehouseServiceStates).reduce((sum, [offerId, entitlement]) => {
       if (entitlement.status !== 'active') return sum
       const offer = SHOP_CATALOG_OFFERS.find(candidate => candidate.id === offerId)
       if (!offer?.warehouseServiceConfig) return sum
-      return sum + Math.max(0, offer.warehouseServiceConfig.capacityDelta ?? 0)
+      const multiplier = getWarehouseServiceCapacityMultiplier(offer, entitlement)
+      return sum + Math.max(0, offer.warehouseServiceConfig.capacityDelta ?? 0) * multiplier
     }, 0)
 
     return Math.min(warehouseStore.MAX_CHESTS_CAP, BASE_WAREHOUSE_CHEST_SLOTS + capacityDelta)
   }
 
   const syncWarehouseServiceCapacity = (state: ShopCatalogExpansionState = catalogExpansionState.value) => {
-    warehouseStore.maxChests = getWarehouseServiceCapacityTarget(state)
+    warehouseStore.maxChests = Math.min(warehouseStore.MAX_CHESTS_CAP, Math.max(warehouseStore.maxChests, getWarehouseServiceCapacityTarget(state)))
+  }
+
+  const getGrantChestCapacityTarget = (offer: ShopCatalogOfferDef): number => {
+    const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
+    return Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.maxChests + capacityDelta)
+  }
+
+  const canGrantCatalogChest = (offer: ShopCatalogOfferDef): boolean => {
+    const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
+    const target = getGrantChestCapacityTarget(offer)
+    if (capacityDelta > 0 && target <= warehouseStore.maxChests) return false
+    return warehouseStore.chests.length < target
+  }
+
+  const prepareGrantCatalogChestSlot = (offer: ShopCatalogOfferDef): boolean => {
+    const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
+    const target = getGrantChestCapacityTarget(offer)
+    if (capacityDelta > 0 && target <= warehouseStore.maxChests) return false
+    if (target > warehouseStore.maxChests) warehouseStore.maxChests = target
+    return warehouseStore.chests.length < warehouseStore.maxChests
   }
 
   const isCatalogOfferVisibleForCurrentSeason = (offer: ShopCatalogOfferDef): boolean => {
@@ -564,9 +685,13 @@ export const useShopStore = defineStore('shop', () => {
     if (catalogPurchaseLock.value === offerId) return '该目录商品正在结算，请勿重复点击。'
     if (catalogPurchaseLock.value && catalogPurchaseLock.value !== offerId) return '当前有其他目录事务正在结算，请稍候。'
     if (offer.onceOnly && isCatalogOwned(offerId)) return '已拥有，无法重复购买。'
+    const purchaseLimitHint = getCatalogOfferPurchaseLimitHint(offer)
+    if (purchaseLimitHint) return purchaseLimitHint
 
     const serviceLockHint = getCatalogOfferServiceLockHint(offerId)
     if (serviceLockHint) return serviceLockHint
+    const warehouseServiceLimitHint = getWarehouseServicePurchaseLimitHint(offer)
+    if (warehouseServiceLimitHint) return warehouseServiceLimitHint
 
     switch (offer.effect.type) {
       case 'unlock_decoration':
@@ -580,7 +705,7 @@ export const useShopStore = defineStore('shop', () => {
       case 'unlock_greenhouse':
         return homeStore.greenhouseUnlocked ? '温室已解锁，无需重复购买。' : ''
       case 'grant_chest':
-        return warehouseStore.chests.length >= warehouseStore.maxChests ? '仓库箱子已满，请先扩建仓库。' : ''
+        return canGrantCatalogChest(offer) ? '' : '仓库箱位已达上限，无法完整获得该商品附带的永久箱位。'
       case 'add_items':
         return canReceiveItemBundle(offer.effect.items) ? '' : '背包空间不足，无法领取整包物资。'
       default:
@@ -1706,7 +1831,9 @@ export const useShopStore = defineStore('shop', () => {
     if (!isCatalogOfferVisibleForCurrentSeason(offer)) return false
     if (!isCatalogOfferUnlocked(offerId)) return false
     if (offer.onceOnly && isCatalogOwned(offerId)) return false
+    if (getCatalogOfferPurchaseLimitHint(offer)) return false
     if (getCatalogOfferServiceLockHint(offerId)) return false
+    if (getWarehouseServicePurchaseLimitHint(offer)) return false
     if (playerStore.money < applyDiscount(offer.price)) return false
 
     switch (offer.effect.type) {
@@ -1719,7 +1846,7 @@ export const useShopStore = defineStore('shop', () => {
       case 'unlock_greenhouse':
         return !homeStore.greenhouseUnlocked
       case 'grant_chest':
-        return warehouseStore.chests.length < warehouseStore.maxChests
+        return canGrantCatalogChest(offer)
       case 'add_items':
         return canReceiveItemBundle(offer.effect.items)
       case 'activate_service_contract':
@@ -1826,7 +1953,7 @@ export const useShopStore = defineStore('shop', () => {
           if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
           break
         case 'grant_chest':
-          success = warehouseStore.addChest(offer.effect.tier, offer.effect.label ?? offer.name)
+          success = prepareGrantCatalogChestSlot(offer) && warehouseStore.addChest(offer.effect.tier, offer.effect.label ?? offer.name)
           if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
           break
         case 'add_items':
@@ -3158,6 +3285,7 @@ export const useShopStore = defineStore('shop', () => {
     isCatalogOfferUnlocked,
     getCatalogOfferUnlockHint,
     getCatalogOfferLimitHint,
+    getCatalogOfferPurchaseLimitCopy,
     getCatalogOfferBadge,
     getCatalogOfferPreferenceReason,
     getServiceContractEffectSummary,
