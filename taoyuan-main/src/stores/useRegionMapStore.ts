@@ -2025,6 +2025,30 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const isJourneyRecipeUnlocked = (recipeId: string) => Boolean(saveData.value.journeyCraftingUnlocks[recipeId])
 
+  const normalizeJourneyRequiredItems = (items: { itemId: string; quantity: number }[]) => {
+    const totals = new Map<string, number>()
+    for (const item of items) {
+      const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      if (!item.itemId || quantity <= 0) continue
+      totals.set(item.itemId, (totals.get(item.itemId) ?? 0) + quantity)
+    }
+    return [...totals.entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
+  }
+
+  const removeJourneyRequiredItems = (items: { itemId: string; quantity: number }[]) => {
+    const inventoryStore = useInventoryStore()
+    const normalized = normalizeJourneyRequiredItems(items)
+    if (normalized.some(item => inventoryStore.getItemCount(item.itemId) < item.quantity)) return false
+    const inventorySnapshot = inventoryStore.serialize()
+    for (const item of normalized) {
+      if (!inventoryStore.removeItem(item.itemId, item.quantity)) {
+        inventoryStore.deserialize(inventorySnapshot)
+        return false
+      }
+    }
+    return true
+  }
+
   const canCraftJourneyRecipe = (recipeId: string) => {
     const recipe = JOURNEY_CRAFTING_RECIPES.find(entry => entry.id === recipeId)
     if (!recipe) return { ok: false, reason: '配方不存在。' }
@@ -2032,7 +2056,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
     if (playerStore.money < recipe.requiredMoney) return { ok: false, reason: `铜钱不足，需要 ${recipe.requiredMoney} 文。` }
-    for (const material of recipe.requiredItems) {
+    for (const material of normalizeJourneyRequiredItems(recipe.requiredItems)) {
       if (inventoryStore.getItemCount(material.itemId) < material.quantity) {
         return { ok: false, reason: `${getItemById(material.itemId)?.name ?? material.itemId} 不足。` }
       }
@@ -2056,10 +2080,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!availability.ok) return { success: false, message: availability.reason }
     const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
-    for (const material of recipe.requiredItems) {
-      inventoryStore.removeItem(material.itemId, material.quantity)
+    if (!playerStore.spendMoney(recipe.requiredMoney)) return { success: false, message: '铜钱不足，无法完成旅程锻造。' }
+    if (!removeJourneyRequiredItems(recipe.requiredItems)) {
+      playerStore.earnMoney(recipe.requiredMoney, { countAsEarned: false })
+      return { success: false, message: '材料不足，无法完成旅程锻造。' }
     }
-    playerStore.spendMoney(recipe.requiredMoney)
     if (recipe.reward.kind === 'weapon') {
       inventoryStore.addWeapon(recipe.reward.defId, recipe.reward.enchantmentId ?? null)
     } else if (recipe.reward.kind === 'ring') {

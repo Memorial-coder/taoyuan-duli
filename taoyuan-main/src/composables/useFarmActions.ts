@@ -621,9 +621,14 @@ export const handleBatchPlant = (cropId: string) => {
       )
     )
     if (!playerStore.consumeStamina(cost)) break
-    inventoryStore.removeItem(cropDef.seedId)
-    farmStore.plantCrop(plot.id, cropDef.id)
-    planted++
+    if (!inventoryStore.removeItem(cropDef.seedId)) break
+    if (farmStore.plantCrop(plot.id, cropDef.id)) {
+      planted++
+    } else {
+      playerStore.restoreStamina(cost)
+      inventoryStore.addItem(cropDef.seedId)
+      break
+    }
   }
 
   if (planted > 0) {

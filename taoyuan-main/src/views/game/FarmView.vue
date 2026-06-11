@@ -2782,9 +2782,14 @@
         )
       )
       if (!playerStore.consumeStamina(cost)) break
-      inventoryStore.removeItem(crop.seedId)
-      farmStore.greenhousePlantCrop(plot.id, cropId)
-      planted++
+      if (!inventoryStore.removeItem(crop.seedId)) break
+      if (farmStore.greenhousePlantCrop(plot.id, cropId)) {
+        planted++
+      } else {
+        playerStore.restoreStamina(cost)
+        inventoryStore.addItem(crop.seedId)
+        break
+      }
     }
     if (planted > 0) {
       sfxPlant()
@@ -2866,18 +2871,28 @@
   const handleGhUpgrade = () => {
     const upgrade = nextGhUpgrade.value
     if (!upgrade) return
-    for (const mat of upgrade.materialCost) {
+    const materialCost = [...upgrade.materialCost.reduce((totals, mat) => {
+      totals.set(mat.itemId, (totals.get(mat.itemId) ?? 0) + mat.quantity)
+      return totals
+    }, new Map<string, number>()).entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
+    for (const mat of materialCost) {
       if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) {
         addLog('材料不足，无法升级温室。')
         return
       }
     }
+    const inventorySnapshot = inventoryStore.serialize()
     if (!playerStore.spendMoney(upgrade.cost)) {
       addLog('铜钱不足，无法升级温室。')
       return
     }
-    for (const mat of upgrade.materialCost) {
-      inventoryStore.removeItem(mat.itemId, mat.quantity)
+    for (const mat of materialCost) {
+      if (!inventoryStore.removeItem(mat.itemId, mat.quantity)) {
+        playerStore.earnMoney(upgrade.cost, { countAsEarned: false })
+        inventoryStore.deserialize(inventorySnapshot)
+        addLog('材料不足，无法升级温室。')
+        return
+      }
     }
     farmStore.upgradeGreenhouse(upgrade.plotCount)
     addLog(`温室已升级至${upgrade.name}！（${upgrade.plotCount}个地块）`)
