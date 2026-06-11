@@ -13,6 +13,7 @@
     "qa:server-node-check": "node scripts/qa-server-node-check.mjs",
     "qa:content-moderation-guard": "node scripts/qa-content-moderation-guard.mjs",
     "qa:content-moderation-route-guard": "node scripts/qa-content-moderation-route-guard.mjs",
+    "qa:announcement-flow": "node scripts/qa-announcement-flow.mjs",
     "qa:content-risk-discovery": "node scripts/qa-content-risk-discovery.mjs",
     "qa:admin-audit-retention": "node scripts/qa-admin-audit-retention.mjs",
     "qa:gameplay-log-retention": "node scripts/qa-gameplay-log-retention.mjs",

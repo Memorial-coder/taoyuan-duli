@@ -3078,6 +3078,26 @@ function buildAnnouncementAuditDetail(announcement = {}, extra = {}) {
   };
 }
 
+function emitAnnouncementRealtimeEvent(action, announcement = {}) {
+  try {
+    const snapshot = taoyuanRealtimeRuntime.getRealtimeAdminState?.() || {};
+    const usernames = Array.isArray(snapshot.connections)
+      ? snapshot.connections.map(connection => connection?.username).filter(Boolean)
+      : [];
+    if (!usernames.length || typeof taoyuanRealtimeRuntime.emitOnlineUsersEvent !== 'function') return 0;
+    return taoyuanRealtimeRuntime.emitOnlineUsersEvent(
+      usernames,
+      `announcement.${action}`,
+      {
+        action,
+        announcement: taoyuanAnnouncementRuntime.toPublicAnnouncement(announcement),
+      },
+    );
+  } catch {
+    return 0;
+  }
+}
+
 const OFFICIAL_CONTROL_MANAGED_TEXT_FIELDS = Object.freeze({
   ai_assistant_console_credit: { label: '官方云控 AI 助手署名文案', maxLength: 1200, maxLineBreaks: 20 },
   ai_assistant_name: { label: '官方云控 AI 助手名称', maxLength: 80, maxLineBreaks: 0 },
@@ -7289,7 +7309,8 @@ router.post('/admin/taoyuan/announcements/:id/publish', userAdminAuth, async (re
   try {
     const announcement = await taoyuanAnnouncementRuntime.publishAnnouncement(req.params.id, getAnnouncementActor(req));
     await appendAdminAuditLog(req, 'publish_taoyuan_announcement', '', buildAnnouncementAuditDetail(announcement));
-    res.json({ ok: true, announcement });
+    const realtimeEmitted = emitAnnouncementRealtimeEvent('published', announcement);
+    res.json({ ok: true, announcement, realtime_emitted: realtimeEmitted });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to publish announcement' });
   }
@@ -7299,7 +7320,8 @@ router.post('/admin/taoyuan/announcements/:id/offline', userAdminAuth, async (re
   try {
     const announcement = await taoyuanAnnouncementRuntime.offlineAnnouncement(req.params.id, getAnnouncementActor(req));
     await appendAdminAuditLog(req, 'offline_taoyuan_announcement', '', buildAnnouncementAuditDetail(announcement));
-    res.json({ ok: true, announcement });
+    const realtimeEmitted = emitAnnouncementRealtimeEvent('offline', announcement);
+    res.json({ ok: true, announcement, realtime_emitted: realtimeEmitted });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to offline announcement' });
   }

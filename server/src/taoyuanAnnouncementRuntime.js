@@ -515,15 +515,15 @@ async function getSuppressedAnnouncementIds(username) {
   if (MYSQL_ENABLED) {
     await ensureMysqlReady();
     const [rows] = await buildMysqlPool().execute(
-      'SELECT DISTINCT announcement_id FROM taoyuan_announcement_events WHERE username = ? AND event_type = ?',
-      [normalizedUsername, 'suppress'],
+      'SELECT DISTINCT announcement_id FROM taoyuan_announcement_events WHERE username = ? AND event_type IN (?, ?)',
+      [normalizedUsername, 'suppress', 'close'],
     );
     return new Set(rows.map(row => String(row.announcement_id || '')).filter(Boolean));
   }
   const store = loadLocalStore();
   return new Set(store.events
     .map(mapEvent)
-    .filter(event => event.username === normalizedUsername && event.event_type === 'suppress')
+    .filter(event => event.username === normalizedUsername && ['suppress', 'close'].includes(event.event_type))
     .map(event => event.announcement_id));
 }
 
