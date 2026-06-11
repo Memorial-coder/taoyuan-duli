@@ -71,6 +71,22 @@ const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
   void_ore: 'iridium_ore'
 }
 const getRareTransmuteOre = (oreId: string): string | null => RARE_TRANSMUTE_ORE_UPGRADES[oreId] ?? null
+const MINING_ITEM_EXP: Record<string, number> = {
+  copper_ore: 6,
+  iron_ore: 8,
+  gold_ore: 11,
+  crystal_ore: 15,
+  shadow_ore: 20,
+  void_ore: 26,
+  iridium_ore: 34,
+  quartz: 8,
+  jade: 12,
+  ruby: 16,
+  moonstone: 22,
+  obsidian: 28,
+  dragon_jade: 36,
+  prismatic_shard: 60
+}
 
 type CombatActionResult = {
   message: string
@@ -309,6 +325,22 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   const formatRewardLabels = (rewards: MineRewardDisplayEntry[]): string => rewards.map(reward => reward.label).join('、')
+
+  const calculateMiningExpForRewardEntries = (entries: InventoryRewardEntry[]): number => {
+    return entries.reduce((total, entry) => {
+      const itemExp = MINING_ITEM_EXP[entry.itemId] ?? 0
+      return total + itemExp * Math.max(0, Math.floor(entry.quantity))
+    }, 0)
+  }
+
+  const addMiningExpForRewardEntries = (entries: InventoryRewardEntry[]): number => {
+    const baseExp = calculateMiningExpForRewardEntries(entries)
+    if (baseExp <= 0) return 0
+    const hilltopXpBonus = gameStore.farmMapType === 'hilltop' ? 1.25 : 1.0
+    const exp = Math.floor(baseExp * hilltopXpBonus)
+    if (exp > 0) skillStore.addExp('mining', exp)
+    return exp
+  }
 
   const calculateOreQuantityWithBonuses = (baseQuantity: number, oreMultiplier = 1): number => {
     let quantity = Math.max(1, Math.floor(baseQuantity * oreMultiplier))
@@ -976,9 +1008,7 @@ export const useMiningStore = defineStore('mining', () => {
     useQuestStore().onItemObtained(oreId, quantity)
     if (rareTransmuteOreId) useQuestStore().onItemObtained(rareTransmuteOreId, 1)
 
-    // 经验
-    const hilltopXpBonus = gameStore.farmMapType === 'hilltop' ? 1.25 : 1.0
-    skillStore.addExp('mining', Math.floor(5 * hilltopXpBonus))
+    addMiningExpForRewardEntries(rewardEntries)
 
     tile.state = 'collected'
     const windowSuffix = environmentWindow.value.mining.active ? ` ${environmentWindow.value.mining.label}：${environmentWindow.value.mining.summary}` : ''
@@ -1080,6 +1110,7 @@ export const useMiningStore = defineStore('mining', () => {
       playerStore.earnMoney(money)
       recordMoneyLoot(money)
     }
+    addMiningExpForRewardEntries(rewardEntries)
 
     // 宝箱戒指掉落
     const floor = getActiveFloorData()
@@ -1164,6 +1195,7 @@ export const useMiningStore = defineStore('mining', () => {
     const rewards = buildRewardDisplayEntries(rewardEntries)
     setRecentRewards(rewards)
     skillStore.addExp('foraging', 3)
+    addMiningExpForRewardEntries(rewardEntries)
 
     tile.state = 'collected'
     return { success: true, message: `采集到了${formatRewardLabels(rewards)}！(+3采集经验, -${staminaCost}体力)`, startsCombat: false, rewards }
@@ -1199,6 +1231,7 @@ export const useMiningStore = defineStore('mining', () => {
     let monstersKilled = 0
     let inventoryBlocked = false
     const bombRewardEntries: InventoryRewardEntry[] = []
+    const bombMiningExpEntries: InventoryRewardEntry[] = []
     let bombMoney = 0
 
     for (const idx of indices) {
@@ -1218,6 +1251,7 @@ export const useMiningStore = defineStore('mining', () => {
             break
           }
           bombRewardEntries.push(...rewardEntries)
+          bombMiningExpEntries.push(...rewardEntries)
           useAchievementStore().discoverItem(oreId)
           oreCollected++
           tile.state = 'collected'
@@ -1276,6 +1310,7 @@ export const useMiningStore = defineStore('mining', () => {
             bombMoney += money
           }
           bombRewardEntries.push(...rewardEntries)
+          bombMiningExpEntries.push(...rewardEntries)
           tile.state = 'collected'
           break
         }
@@ -1287,6 +1322,7 @@ export const useMiningStore = defineStore('mining', () => {
             break
           }
           bombRewardEntries.push(...rewardEntries)
+          bombMiningExpEntries.push(...rewardEntries)
           tile.state = 'collected'
           break
         }
@@ -1302,7 +1338,7 @@ export const useMiningStore = defineStore('mining', () => {
       }
     }
 
-    if (oreCollected > 0) skillStore.addExp('mining', 5 * oreCollected)
+    addMiningExpForRewardEntries(bombMiningExpEntries)
     const rewards = buildRewardDisplayEntries(bombRewardEntries)
     const moneyReward = buildMoneyRewardDisplayEntry(bombMoney)
     if (moneyReward) rewards.push(moneyReward)
