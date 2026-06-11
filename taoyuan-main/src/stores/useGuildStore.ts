@@ -6,12 +6,14 @@ import {
   GUILD_DONATIONS,
   GUILD_LEVELS,
   GUILD_BONUS_PER_LEVEL,
+  getGuildShopDiscountRateForLevel,
+  getGuildShopPriceAfterDiscount,
   GUILD_SEASON_TUNING_CONFIG,
   GUILD_SEASON_ACTIVITY_TRACKS,
   GUILD_SEASON_REWARD_POOLS,
   GUILD_WORLD_MILESTONES
 } from '@/data/guild'
-import type { GuildGoalSummary, GuildRankBand, GuildSeasonOverview, GuildSeasonPhase, GuildSeasonState } from '@/types'
+import type { GuildGoalSummary, GuildRankBand, GuildSeasonOverview, GuildSeasonPhase, GuildSeasonState, GuildShopItemDef } from '@/types'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
@@ -535,6 +537,14 @@ export const useGuildStore = defineStore('guild', () => {
 
   // ==================== 商店 ====================
 
+  const getGuildShopDiscountRate = (): number => {
+    return getGuildShopDiscountRateForLevel(guildLevel.value)
+  }
+
+  const getGuildShopItemMoneyPrice = (item: Pick<GuildShopItemDef, 'price'>): number => {
+    return getGuildShopPriceAfterDiscount(item.price, guildLevel.value)
+  }
+
   /** 公会商店：检查物品是否已解锁 */
   const isShopItemUnlocked = (itemId: string): boolean => {
     const item = GUILD_SHOP_ITEMS.find(i => i.itemId === itemId)
@@ -588,8 +598,9 @@ export const useGuildStore = defineStore('guild', () => {
         if (contributionPoints.value < item.contributionCost) return false
         contributionPoints.value -= item.contributionCost
       } else {
-        if (playerStore.money < item.price) return false
-        playerStore.spendMoney(item.price)
+        const moneyPrice = getGuildShopItemMoneyPrice(item)
+        if (playerStore.money < moneyPrice) return false
+        playerStore.spendMoney(moneyPrice)
       }
 
       // 扣除材料
@@ -853,6 +864,8 @@ export const useGuildStore = defineStore('guild', () => {
     getTotalRemaining,
     getGuildAttackBonus,
     getGuildHpBonus,
+    getGuildShopDiscountRate,
+    getGuildShopItemMoneyPrice,
     isShopItemUnlocked,
     buyShopItem,
     serialize,

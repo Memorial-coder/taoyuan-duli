@@ -417,6 +417,10 @@
 
     <!-- 公会商店 -->
     <div v-if="tab === 'shop'" class="flex flex-col space-y-2">
+      <div v-if="guildStore.getGuildShopDiscountRate() > 0" class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
+        <p class="text-xs text-success">荣誉采购折扣 -{{ guildShopDiscountPercent }}%</p>
+        <p class="text-[0.625rem] text-muted mt-0.5">仅作用于公会商店铜钱补给，贡献点与材料兑换保持原价。</p>
+      </div>
       <div
         v-for="item in GUILD_SHOP_ITEMS"
         :key="item.itemId"
@@ -455,7 +459,7 @@
           </div>
         </div>
         <span class="text-xs whitespace-nowrap ml-2" :class="item.contributionCost ? 'text-success' : 'text-accent'">
-          {{ item.contributionCost ? `${item.contributionCost}贡献` : `${item.price}文` }}
+          {{ formatShopItemCost(item) }}
         </span>
       </div>
     </div>
@@ -484,7 +488,7 @@
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">{{ shopBuyQty > 1 ? '单价' : '价格' }}</span>
               <span class="text-xs" :class="shopModalItem.contributionCost ? 'text-success' : 'text-accent'">
-                {{ shopModalItem.contributionCost ? `${shopModalItem.contributionCost} 贡献点` : `${shopModalItem.price}文` }}
+                {{ formatShopItemCost(shopModalItem, true) }}
               </span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
@@ -502,7 +506,7 @@
             </div>
             <div v-else class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">持有铜钱</span>
-              <span class="text-xs" :class="playerStore.money >= shopModalItem.price * shopBuyQty ? 'text-text' : 'text-danger'">
+              <span class="text-xs" :class="playerStore.money >= shopBuyTotalCost ? 'text-text' : 'text-danger'">
                 {{ playerStore.money }}文
               </span>
             </div>
@@ -591,7 +595,7 @@
             {{
               maxShopBuyQty > 1
                 ? `购买 ×${shopBuyQty}`
-                : `购买 ${shopModalItem.contributionCost ? `${shopModalItem.contributionCost}贡献` : `${shopModalItem.price}文`}`
+                : `购买 ${formatShopItemCost(shopModalItem)}`
             }}
           </Button>
           <p v-if="shopBuyBlockedReason" class="text-xs text-danger mt-2">{{ shopBuyBlockedReason }}</p>
@@ -845,6 +849,25 @@
     shopBuyQty.value = 1
   }
 
+  const guildShopDiscountPercent = computed(() => Math.round(guildStore.getGuildShopDiscountRate() * 100))
+
+  const getShopItemMoneyPrice = (item: GuildShopItemDef): number => {
+    return guildStore.getGuildShopItemMoneyPrice(item)
+  }
+
+  const formatShopItemCost = (item: GuildShopItemDef, fullContributionText = false): string => {
+    if (item.contributionCost) {
+      return `${item.contributionCost}${fullContributionText ? ' 贡献点' : '贡献'}`
+    }
+
+    const actualPrice = getShopItemMoneyPrice(item)
+    const originalPrice = Math.max(0, Math.floor(item.price))
+    if (guildStore.getGuildShopDiscountRate() > 0 && actualPrice < originalPrice) {
+      return `${actualPrice}文（原${originalPrice}文）`
+    }
+    return `${actualPrice}文`
+  }
+
   /** 最大可购买数量 */
   const maxShopBuyQty = computed(() => {
     const item = shopModalItem.value
@@ -855,7 +878,7 @@
     if (item.contributionCost) {
       max = Math.min(max, Math.floor(guildStore.contributionPoints / item.contributionCost))
     } else if (item.price > 0) {
-      max = Math.min(max, Math.floor(playerStore.money / item.price))
+      max = Math.min(max, Math.floor(playerStore.money / Math.max(1, getShopItemMoneyPrice(item))))
     }
     if (item.materials) {
       for (const mat of item.materials) {
@@ -871,7 +894,7 @@
   const shopBuyTotalCost = computed(() => {
     if (!shopModalItem.value) return 0
     if (shopModalItem.value.contributionCost) return shopModalItem.value.contributionCost * shopBuyQty.value
-    return shopModalItem.value.price * shopBuyQty.value
+    return getShopItemMoneyPrice(shopModalItem.value) * shopBuyQty.value
   })
 
   const setShopBuyQty = (val: number) => {
@@ -989,7 +1012,7 @@
     }
     if (item.contributionCost) {
       if (guildStore.contributionPoints < item.contributionCost * safeQty) return '贡献点不足。'
-    } else if (playerStore.money < item.price * safeQty) {
+    } else if (playerStore.money < getShopItemMoneyPrice(item) * safeQty) {
       return '铜钱不足。'
     }
     if (!item.equipType && !inventoryStore.canAddItem(item.itemId, safeQty)) {

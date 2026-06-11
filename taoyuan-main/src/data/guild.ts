@@ -296,7 +296,7 @@ export const GUILD_DONATIONS: GuildDonationDef[] = [
   { itemId: 'prismatic_shard', points: 80 }
 ]
 
-/** 公会等级表（10级） */
+/** 公会等级表（13级） */
 export const GUILD_LEVELS: GuildLevelDef[] = [
   { level: 1, expRequired: 100 },
   { level: 2, expRequired: 300 },
@@ -307,13 +307,32 @@ export const GUILD_LEVELS: GuildLevelDef[] = [
   { level: 7, expRequired: 3000 },
   { level: 8, expRequired: 4000 },
   { level: 9, expRequired: 5500 },
-  { level: 10, expRequired: 7500 }
+  { level: 10, expRequired: 7500 },
+  { level: 11, expRequired: 11000 },
+  { level: 12, expRequired: 16000 },
+  { level: 13, expRequired: 23000 }
 ]
 
 /** 每公会等级的被动增益 */
 export const GUILD_BONUS_PER_LEVEL = {
   attack: 1, // 每级+1攻击力
   maxHp: 5 // 每级+5最大生命值
+}
+
+export const GUILD_SHOP_DISCOUNT_TIERS = [
+  { minLevel: 11, discountRate: 0.05 },
+  { minLevel: 12, discountRate: 0.08 },
+  { minLevel: 13, discountRate: 0.1 }
+] as const
+
+export const getGuildShopDiscountRateForLevel = (level: number): number => {
+  const normalizedLevel = Number.isFinite(level) ? Math.max(0, Math.floor(level)) : 0
+  return [...GUILD_SHOP_DISCOUNT_TIERS].reverse().find(tier => normalizedLevel >= tier.minLevel)?.discountRate ?? 0
+}
+
+export const getGuildShopPriceAfterDiscount = (price: number, guildLevel: number): number => {
+  const safePrice = Number.isFinite(price) ? Math.max(0, Math.floor(price)) : 0
+  return Math.floor(safePrice * (1 - getGuildShopDiscountRateForLevel(guildLevel)))
 }
 
 export const GUILD_SEASON_CONFIG: GuildSeasonConfig = {
