@@ -60,6 +60,7 @@
     "qa:npc-mobile-interactions": "node scripts/qa-npc-mobile-interactions.mjs",
     "qa:font-size-scaling": "node scripts/qa-font-size-scaling.mjs",
     "qa:theme-contrast": "node scripts/qa-theme-contrast.mjs",
+    "qa:settings-dialog-touch-target": "node scripts/qa-settings-dialog-touch-target.mjs",
     "qa:ai-assistant-dynamic-quick-questions": "node scripts/qa-ai-assistant-dynamic-quick-questions.mjs",
     "qa:ai-assistant-safe-actions": "node scripts/qa-ai-assistant-safe-actions.mjs",
     "qa:ai-assistant-pending-stages": "node scripts/qa-ai-assistant-pending-stages.mjs",

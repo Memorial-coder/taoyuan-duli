@@ -216,7 +216,7 @@ const verifySettingsUiToggle = async page => {
   await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-desktop-layout-mode'))).toBe('classic')
   await page.getByTestId('settings-desktop-layout-adaptive').click()
   await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-desktop-layout-mode'))).toBe('adaptive')
-  await page.locator('[data-testid="settings-dialog"] > button').first().click()
+  await page.getByTestId('settings-dialog-close').click()
   await expect(page.getByTestId('settings-dialog')).toBeHidden({ timeout: 10_000 })
 }
 

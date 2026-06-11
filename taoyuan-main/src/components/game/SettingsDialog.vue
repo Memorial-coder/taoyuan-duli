@@ -2,15 +2,21 @@
   <Transition name="panel-fade">
     <div
       v-if="open"
-      class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      class="game-modal-overlay settings-dialog-overlay fixed inset-0 bg-black/70 flex items-start md:items-center justify-center z-50 p-4 overflow-y-auto"
       data-testid="settings-dialog-overlay"
       @click.self="$emit('close')"
     >
       <div class="game-panel settings-dialog-shell w-full max-w-xs text-center relative" data-testid="settings-dialog">
-        <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
-          <X :size="14" />
+        <button
+          type="button"
+          class="settings-dialog-close"
+          aria-label="关闭设置"
+          data-testid="settings-dialog-close"
+          @click.stop="$emit('close')"
+        >
+          <X :size="18" aria-hidden="true" />
         </button>
-        <Divider title class="my-4" label="设置" />
+        <Divider title class="settings-dialog-title my-4" label="设置" />
         <!-- 分类导航 -->
         <div class="settings-dialog-tabs grid grid-cols-3 justify-center gap-1 mb-3">
           <button
@@ -26,7 +32,7 @@
           </button>
         </div>
 
-        <div class="flex flex-col space-y-3">
+        <div class="settings-dialog-body flex flex-col space-y-3">
           <!-- ===== 通用 ===== -->
           <template v-if="activeTab === 'general'">
             <div class="settings-dialog-scroll max-h-[40vh] overflow-y-auto">
@@ -680,8 +686,57 @@
 </script>
 
 <style scoped>
+  .settings-dialog-overlay {
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
   .settings-dialog-shell {
+    display: flex;
+    max-height: calc(100vh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
     min-width: 0;
+    overflow: hidden;
+  }
+
+  .settings-dialog-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 20;
+    display: inline-flex;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: rgb(var(--color-muted));
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .settings-dialog-close:hover,
+  .settings-dialog-close:focus-visible {
+    border-color: rgb(var(--color-accent) / 0.28);
+    background: rgb(var(--color-accent) / 0.12);
+    color: rgb(var(--color-text));
+    outline: none;
+  }
+
+  .settings-dialog-title {
+    min-height: 44px;
+    padding-right: 44px;
+    padding-left: 44px;
+  }
+
+  .settings-dialog-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding-right: 4px;
   }
 
   .settings-dialog-tabs {
@@ -703,7 +758,9 @@
   }
 
   .settings-dialog-scroll {
-    padding-right: 4px;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .settings-dialog-stepper {
@@ -771,7 +828,19 @@
   }
 
   .settings-save-button {
+    flex-shrink: 0;
     min-height: 40px;
+  }
+
+  @media (min-width: 768px) {
+    .settings-dialog-overlay {
+      padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .settings-dialog-shell {
+      max-height: calc(100vh - 48px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+      max-height: calc(100dvh - 48px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    }
   }
 
   .yes-select {
