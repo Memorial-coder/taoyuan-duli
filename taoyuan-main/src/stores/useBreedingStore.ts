@@ -66,6 +66,11 @@ import { useSettingsStore } from './useSettingsStore'
 import { BREEDING_SPECIAL_ORDER_THEME_AUDIT } from '@/data/goals'
 import { getWeekCycleInfo } from '@/utils/weekCycle'
 
+type BreedingMaterialRequirement = { itemId: string; quantity: number }
+type SpendMoneyFn = (amount: number) => boolean
+type RefundMoneyFn = (amount: number) => void
+type RemoveMaterialsFn = (materials: BreedingMaterialRequirement[]) => boolean
+
 export const useBreedingStore = defineStore('breeding', () => {
   const npcStore = useNpcStore()
   // === 状态 ===
@@ -656,14 +661,16 @@ export const useBreedingStore = defineStore('breeding', () => {
   }
 
   const upgradeResearch = (
-    spendMoney: (amount: number) => void,
-    removeItem: (id: string, qty: number) => void
+    spendMoney: SpendMoneyFn,
+    refundMoney: RefundMoneyFn,
+    removeMaterials: RemoveMaterialsFn
   ): { success: boolean; message: string } => {
     const upgrade = getNextResearchUpgrade()
     if (!upgrade) return { success: false, message: '育种研究已达到最高等级。' }
-    spendMoney(upgrade.cost)
-    for (const mat of upgrade.materials) {
-      removeItem(mat.itemId, mat.quantity)
+    if (!spendMoney(upgrade.cost)) return { success: false, message: '铜钱不足，无法升级育种研究。' }
+    if (!removeMaterials(upgrade.materials)) {
+      refundMoney(upgrade.cost)
+      return { success: false, message: '材料不足，无法升级育种研究。' }
     }
     researchLevel.value = upgrade.level
     return { success: true, message: `育种研究提升到 Lv.${upgrade.level}：${upgrade.name}。` }
@@ -783,11 +790,12 @@ export const useBreedingStore = defineStore('breeding', () => {
 
   // === 育种台 ===
 
-  const craftStation = (spendMoney: (amount: number) => void, removeItem: (id: string, qty: number) => void): boolean => {
+  const craftStation = (spendMoney: SpendMoneyFn, refundMoney: RefundMoneyFn, removeMaterials: RemoveMaterialsFn): boolean => {
     if (stationCount.value >= MAX_BREEDING_STATIONS) return false
-    spendMoney(BREEDING_STATION_COST.money)
-    for (const mat of BREEDING_STATION_COST.materials) {
-      removeItem(mat.itemId, mat.quantity)
+    if (!spendMoney(BREEDING_STATION_COST.money)) return false
+    if (!removeMaterials(BREEDING_STATION_COST.materials)) {
+      refundMoney(BREEDING_STATION_COST.money)
+      return false
     }
     stationCount.value++
     stations.value.push({
@@ -828,14 +836,16 @@ export const useBreedingStore = defineStore('breeding', () => {
   }
 
   const upgradeSeedBox = (
-    spendMoney: (amount: number) => void,
-    removeItem: (id: string, qty: number) => void
+    spendMoney: SpendMoneyFn,
+    refundMoney: RefundMoneyFn,
+    removeMaterials: RemoveMaterialsFn
   ): { success: boolean; message: string } => {
     const upgrade = getNextSeedBoxUpgrade()
     if (!upgrade) return { success: false, message: '种子箱已达到最高等级。' }
-    spendMoney(upgrade.cost)
-    for (const mat of upgrade.materials) {
-      removeItem(mat.itemId, mat.quantity)
+    if (!spendMoney(upgrade.cost)) return { success: false, message: '铜钱不足，无法升级种子箱。' }
+    if (!removeMaterials(upgrade.materials)) {
+      refundMoney(upgrade.cost)
+      return { success: false, message: '材料不足，无法升级种子箱。' }
     }
     seedBoxLevel.value++
     return { success: true, message: `种子箱扩容完成！容量提升至${maxSeedBox.value}格。` }

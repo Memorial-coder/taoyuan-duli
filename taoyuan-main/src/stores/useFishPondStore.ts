@@ -43,7 +43,7 @@ import { getItemById } from '@/data/items'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
-import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+import { getCombinedItemCount, removeCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { useSkillStore } from './useSkillStore'
 import { useWalletStore } from './useWalletStore'
 import { useGoalStore } from './useGoalStore'
@@ -160,8 +160,9 @@ export const useFishPondStore = defineStore('fishPond', () => {
       if (getCombinedItemCount(mat.itemId) < mat.quantity) return false
     }
     if (!playerStore.spendMoney(POND_BUILD_COST.money)) return false
-    for (const mat of POND_BUILD_COST.materials) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(POND_BUILD_COST.materials)) {
+      playerStore.earnMoney(POND_BUILD_COST.money)
+      return false
     }
 
     pond.value.built = true
@@ -185,8 +186,9 @@ export const useFishPondStore = defineStore('fishPond', () => {
       if (getCombinedItemCount(mat.itemId) < mat.quantity) return false
     }
     if (!playerStore.spendMoney(cost.money)) return false
-    for (const mat of cost.materials) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(cost.materials)) {
+      playerStore.earnMoney(cost.money)
+      return false
     }
 
     pond.value.level = nextLevel

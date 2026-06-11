@@ -38,7 +38,7 @@ import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useHomeStore } from './useHomeStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useCookingStore } from './useCookingStore'
-import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+import { getCombinedItemCount, removeCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 const PET_COOKING_TOPIC_LABELS = ['宠物反馈']
@@ -158,8 +158,9 @@ export const useAnimalStore = defineStore('animal', () => {
     if (!playerStore.spendMoney(def.cost)) return false
 
     // 扣除材料
-    for (const mat of def.materialCost) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(def.materialCost)) {
+      playerStore.earnMoney(def.cost)
+      return false
     }
 
     b.built = true
@@ -182,8 +183,9 @@ export const useAnimalStore = defineStore('animal', () => {
     }
     if (!playerStore.spendMoney(upgrade.cost)) return false
 
-    for (const mat of upgrade.materialCost) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(upgrade.materialCost)) {
+      playerStore.earnMoney(upgrade.cost)
+      return false
     }
 
     b.level++
