@@ -32,8 +32,9 @@
 
     <!-- ===== 育种台 Tab ===== -->
     <template v-if="tab === 'breeding'">
+      <div class="desktop-adaptive-grid" data-testid="breeding-layout">
       <!-- 育种台区 -->
-      <div class="mb-3 game-panel-muted p-3">
+      <div class="game-panel-muted p-3">
         <div class="flex items-center justify-between mb-1.5">
           <div>
             <p class="text-xs text-accent">育种台</p>
@@ -164,7 +165,7 @@
       </div>
 
       <!-- 育种研究 -->
-      <div v-if="breedingStore.unlocked" class="mt-3 border border-accent/20 rounded-xs p-2">
+      <div v-if="breedingStore.unlocked" class="border border-accent/20 rounded-xs p-2">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-accent">育种研究</p>
           <span class="text-[0.625rem] text-muted">Lv.{{ breedingStore.researchLevel }}</span>
@@ -228,6 +229,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </template>
 

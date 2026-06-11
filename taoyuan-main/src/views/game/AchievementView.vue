@@ -43,7 +43,7 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <div class="desktop-adaptive-grid--cards" data-testid="achievement-layout">
         <button
           v-for="track in grandMedalTracks"
           :key="track.id"
@@ -184,7 +184,7 @@
 
     <!-- 祠堂任务板 -->
     <template v-if="tab === 'bundles'">
-      <div class="flex flex-col space-y-1.5 max-h-72 overflow-y-auto">
+      <div class="desktop-adaptive-grid--cards max-h-72 overflow-y-auto">
         <div
           v-for="bundle in COMMUNITY_BUNDLES"
           :key="bundle.id"
@@ -285,7 +285,7 @@
     <!-- 出货收集 -->
     <template v-if="tab === 'shipping'">
       <p class="text-xs text-muted mb-2">出货记录 {{ shopStore.shippedItems.length }}/{{ shippableItems.length }}</p>
-      <div class="flex flex-col space-y-2 max-h-72 overflow-y-auto">
+      <div class="desktop-adaptive-grid--cards max-h-72 overflow-y-auto">
         <div v-for="(items, category) in itemsByCategory" :key="category" class="border border-accent/20 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">{{ CATEGORY_NAMES[category] ?? category }}</p>
           <div class="grid grid-cols-3 md:grid-cols-5 gap-1">
@@ -493,7 +493,7 @@
         <p class="text-xs text-muted mt-1">继续远征、兑现传闻、触发区域变体或结算同伴合同后，这里会开始沉淀记录。</p>
       </div>
 
-      <div v-else class="space-y-2 max-h-72 overflow-y-auto">
+      <div v-else class="desktop-adaptive-grid--cards max-h-72 overflow-y-auto">
         <div v-for="entry in chronicleOverview.entries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">

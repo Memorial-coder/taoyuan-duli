@@ -9,8 +9,9 @@
       <span class="text-xs text-muted">第{{ gameStore.year }}年 {{ SEASON_NAMES[gameStore.season] }}</span>
     </div>
 
+    <div class="desktop-adaptive-grid" data-testid="char-info-layout">
     <!-- 角色身份 + 属性 -->
-    <div class="border border-accent/20 rounded-xs p-2 mb-3">
+    <div class="border border-accent/20 rounded-xs p-2">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-accent">{{ playerStore.playerName }}</span>
         <span class="text-xs text-muted">{{ genderLabel }}</span>
@@ -58,7 +59,7 @@
     </div>
 
     <!-- 装备槽位 -->
-    <div class="border border-accent/20 rounded-xs p-2 mb-3">
+    <div class="border border-accent/20 rounded-xs p-2">
       <p class="text-xs text-muted mb-1.5">装备</p>
       <div class="grid grid-cols-3 gap-1 mb-1">
         <div
@@ -277,7 +278,7 @@
     </Transition>
 
     <!-- 工具一览 -->
-    <div class="border border-accent/20 rounded-xs p-2 mb-3">
+    <div class="border border-accent/20 rounded-xs p-2">
       <div class="flex items-center justify-between mb-1.5">
         <p class="text-xs text-muted">工具</p>
         <button class="text-xs text-accent hover:underline" @click="goToUpgrade">前往升级</button>
@@ -298,7 +299,7 @@
     </div>
 
     <!-- 技能总览 -->
-    <div class="border border-accent/20 rounded-xs p-2 mb-3">
+    <div class="border border-accent/20 rounded-xs p-2">
       <div class="flex items-center justify-between mb-1.5">
         <p class="text-xs text-muted">技能</p>
         <button class="text-xs text-accent hover:underline" @click="goToSkills">查看详情</button>
@@ -316,7 +317,7 @@
     </div>
 
     <!-- 被动加成 -->
-    <div v-if="unlockedWalletItems.length > 0" class="border border-accent/20 rounded-xs p-2 mb-3">
+    <div v-if="unlockedWalletItems.length > 0" class="border border-accent/20 rounded-xs p-2">
       <p class="text-xs text-muted mb-1.5">被动加成</p>
       <div class="flex flex-col space-y-0.5">
         <div v-for="item in unlockedWalletItems" :key="item.id" class="flex items-center justify-between">
@@ -339,6 +340,7 @@
           <span class="text-xs">{{ CHILD_STAGE_NAMES[child.stage] }}</span>
         </div>
       </div>
+    </div>
     </div>
   </div>
 </template>

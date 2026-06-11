@@ -10,8 +10,9 @@
 
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
 
+    <div class="desktop-adaptive-grid" data-testid="animal-layout">
     <!-- 宠物区域 -->
-    <div class="mb-4 border border-accent/20 rounded-xs p-3">
+    <div class="border border-accent/20 rounded-xs p-3">
       <div class="flex items-center justify-between mb-2">
         <p class="text-xs text-muted">宠物</p>
         <div class="flex items-center gap-2">
@@ -152,7 +153,7 @@
     </div>
 
     <!-- 畜舍列表 (鸡舍和牲口棚) -->
-    <div v-for="bDef in mainBuildings" :key="bDef.type" class="mb-4 border border-accent/20 rounded-xs p-3">
+    <div v-for="bDef in mainBuildings" :key="bDef.type" class="border border-accent/20 rounded-xs p-3">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-accent">{{ getBuildingDisplayName(bDef.type) }}</span>
         <div v-if="isBuildingBuilt(bDef.type)" class="flex items-center space-x-2">
@@ -309,7 +310,7 @@
     </div>
 
     <!-- 马厩 -->
-    <div class="mb-4 border border-accent/20 rounded-xs p-3">
+    <div class="border border-accent/20 rounded-xs p-3">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-accent">马厩</span>
         <div v-if="animalStore.stableBuilt" class="flex items-center space-x-2">
@@ -534,6 +535,7 @@
           <span class="text-xs text-muted">需兽药×{{ sickCount }}</span>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- 购买动物列表弹窗 -->

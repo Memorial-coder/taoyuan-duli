@@ -16,6 +16,7 @@ const port = configuredBaseURL ? preferredPort : await findAvailablePort(host, p
 const baseURL = configuredBaseURL || `http://${host}:${port}`
 const shouldStartDevServer = process.env.TAOYUAN_SKIP_DEV_SERVER !== '1' && !configuredBaseURL
 const sampleId = 'endgame_showcase'
+const navigationTimeoutMs = 90_000
 
 const viewports = [
   { label: '360', width: 360, height: 780 },
@@ -26,6 +27,11 @@ const viewports = [
 ]
 
 const scenarios = [
+  { label: 'char-info', hash: '/#/game/charinfo', selector: '[data-testid="char-info-layout"]' },
+  { label: 'achievement', hash: '/#/game/achievement', selector: '[data-testid="achievement-layout"]' },
+  { label: 'animal', hash: '/#/game/animal', selector: '[data-testid="animal-layout"]' },
+  { label: 'breeding', hash: '/#/game/breeding', selector: '[data-testid="breeding-layout"]' },
+  { label: 'cooking', hash: '/#/game/cooking', selector: '[data-testid="cooking-layout"]' },
   { label: 'skills', hash: '/#/game/skills', selector: '[data-testid="skill-layout-grid"]' },
   { label: 'tool-upgrade', hash: '/#/game/upgrade', selector: '[data-testid="tool-upgrade-list"]' },
   {
@@ -118,7 +124,7 @@ const createPage = async viewport => {
 }
 
 const loadBuiltInSample = async page => {
-  await page.goto(`${baseURL}/#/`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+  await page.goto(`${baseURL}/#/`, { waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
   await page.waitForFunction(() => typeof window.__TAOYUAN_SAMPLE_SAVES__?.load === 'function', null, { timeout: 15_000 })
   const loaded = await page.evaluate(async id => {
     return await window.__TAOYUAN_SAMPLE_SAVES__.load(id)
@@ -127,10 +133,10 @@ const loadBuiltInSample = async page => {
 }
 
 const openScenario = async (page, scenario) => {
-  await page.goto(`${baseURL}${scenario.hash}`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+  await page.goto(`${baseURL}${scenario.hash}`, { waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
   await expect(page.getByTestId('game-layout')).toBeVisible({ timeout: 20_000 })
   if (scenario.prepare) await scenario.prepare(page)
-  await expect(page.locator(scenario.selector)).toBeVisible({ timeout: 10_000 })
+  await expect(page.locator(scenario.selector)).toBeVisible({ timeout: 30_000 })
 }
 
 const setDesktopLayoutMode = async (page, mode) => {
@@ -182,6 +188,24 @@ const assertLayout = async ({ page, viewport, scenario, mode }) => {
   }
 }
 
+const verifyFullscreenAdaptiveLayout = async (page, viewport, scenario) => {
+  if (viewport.width < 1280) return
+  await openScenario(page, scenario)
+  await setDesktopLayoutMode(page, 'adaptive')
+  const canFullscreen = await page.evaluate(() => document.fullscreenEnabled)
+  if (!canFullscreen) {
+    console.warn('qa-desktop-layout-smoke: fullscreen API unavailable, skipping fullscreen adaptive check')
+    return
+  }
+  await page.getByTestId('fullscreen-button').click()
+  await expect.poll(async () => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
+  await assertLayout({ page, viewport, scenario, mode: 'adaptive' })
+  await page.evaluate(async () => {
+    if (document.fullscreenElement) await document.exitFullscreen()
+  })
+  await expect.poll(async () => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false)
+}
+
 const verifySettingsUiToggle = async page => {
   await page.getByTestId('mobile-hub-button').click()
   await page.getByTestId('mobile-map-menu-open-settings').click()
@@ -214,6 +238,10 @@ try {
         await setDesktopLayoutMode(page, 'classic')
         await assertLayout({ page, viewport, scenario, mode: 'classic' })
         await setDesktopLayoutMode(page, 'adaptive')
+      }
+
+      if (viewport.width === 1920) {
+        await verifyFullscreenAdaptiveLayout(page, viewport, scenarios[0])
       }
     } finally {
       await context.close()

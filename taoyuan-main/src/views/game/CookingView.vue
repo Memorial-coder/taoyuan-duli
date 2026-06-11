@@ -12,8 +12,9 @@
     </div>
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
 
+    <div class="desktop-adaptive-grid" data-testid="cooking-layout">
     <!-- 当前增益 -->
-    <div v-if="cookingStore.activeBuff" class="border border-water/20 rounded-xs px-3 py-1.5 mb-3">
+    <div v-if="cookingStore.activeBuff" class="border border-water/20 rounded-xs px-3 py-1.5">
       <p class="text-[0.625rem] text-water">
         <Zap :size="12" class="inline mr-0.5" />
         当前增益：{{ cookingStore.activeBuff.description }}
@@ -21,7 +22,7 @@
     </div>
 
     <!-- 最近料理线索 -->
-    <div v-if="cookingStore.recentStoryTriggerRecords.length > 0" class="border border-water/20 rounded-xs px-3 py-1.5 mb-3">
+    <div v-if="cookingStore.recentStoryTriggerRecords.length > 0" class="border border-water/20 rounded-xs px-3 py-1.5">
       <p class="text-[0.625rem] text-water mb-1">最近料理线索</p>
       <div
         v-for="record in cookingStore.recentStoryTriggerRecords.slice(0, 3)"
@@ -39,7 +40,7 @@
     </div>
 
     <!-- 用途推荐 -->
-    <div v-if="cookingRecommendations.length > 0" class="border border-accent/20 rounded-xs px-3 py-1.5 mb-3">
+    <div v-if="cookingRecommendations.length > 0" class="border border-accent/20 rounded-xs px-3 py-1.5">
       <p class="text-[0.625rem] text-accent mb-1">用途推荐</p>
       <div
         v-for="info in cookingRecommendations"
@@ -58,7 +59,7 @@
     </div>
 
     <!-- 食谱列表 -->
-    <div v-if="displayedRecipeInfos.length > 0" class="cooking-recipe-grid mb-4">
+    <div v-if="displayedRecipeInfos.length > 0" class="cooking-recipe-grid desktop-adaptive-span-all">
       <button
         v-for="info in displayedRecipeInfos"
         :key="info.recipe.id"
@@ -88,12 +89,13 @@
         </span>
       </button>
     </div>
-    <div v-else class="flex flex-col items-center justify-center py-8 mb-4">
+    <div v-else class="desktop-adaptive-span-all flex flex-col items-center justify-center py-8">
       <UtensilsCrossed :size="36" class="text-accent/20 mb-2" />
       <p v-if="showOnlyMakeable" class="text-xs text-muted">没有可制作的食谱</p>
       <p v-else-if="cookingStore.recipes.length === 0" class="text-xs text-muted">还没有食谱</p>
       <p v-if="showOnlyMakeable" class="text-[0.625rem] text-muted/50 mt-0.5">取消筛选或收集更多食材</p>
       <p v-else-if="cookingStore.recipes.length === 0" class="text-[0.625rem] text-muted/50 mt-0.5">与村民交好或观看电视可学习食谱</p>
+    </div>
     </div>
 
     <!-- 烹饪弹窗 -->

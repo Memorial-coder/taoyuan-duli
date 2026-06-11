@@ -187,13 +187,6 @@ button {
   }
 }
 
-.game-layout-root:fullscreen .desktop-adaptive-grid,
-.game-layout-root:fullscreen .desktop-adaptive-grid--cards,
-.game-layout-root:-webkit-full-screen .desktop-adaptive-grid,
-.game-layout-root:-webkit-full-screen .desktop-adaptive-grid--cards {
-  grid-template-columns: 1fr !important;
-}
-
 /* 像素风按钮基础样式 */
 .btn {
   display: inline-flex;
