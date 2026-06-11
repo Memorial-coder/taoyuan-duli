@@ -9,6 +9,7 @@ const readSource = relativePath => fs.readFileSync(path.join(projectRoot, relati
 const themeSource = readSource('src/data/themes.ts')
 const appCssSource = readSource('src/app.css')
 const settingsDialogSource = readSource('src/components/game/SettingsDialog.vue')
+const mobileMapMenuSource = readSource('src/components/game/MobileMapMenu.vue')
 const packageJson = JSON.parse(readSource('package.json'))
 
 const contrastThemeBlock = themeSource.match(/\{\s*key: 'contrast',[\s\S]*?tone: 'light'\s*\}/)?.[0]
@@ -42,7 +43,7 @@ const contrastRatio = (foreground, background) => {
 }
 
 assert.match(themeSource, /export type ThemeKey = 'dark' \| 'warm' \| 'ink' \| 'parchment' \| 'contrast'/, 'ThemeKey should include contrast')
-assert.equal(color('name'), '高对比', 'contrast theme should have the expected player-facing label')
+assert.equal(color('name'), '澈', 'contrast theme should have the expected player-facing label')
 
 assert.ok(contrastRatio(color('text'), color('bg')) >= 7, 'contrast theme text should pass AAA contrast on background')
 assert.ok(contrastRatio(color('muted'), color('bg')) >= 4.5, 'contrast theme muted text should pass AA contrast on background')
@@ -53,6 +54,9 @@ assert.ok(contrastRatio(color('bg'), color('accent')) >= 4.5, 'contrast theme ac
 
 assert.match(settingsDialogSource, /v-for="t in THEMES"/, 'settings dialog should enumerate theme swatches from THEMES')
 assert.match(settingsDialogSource, /settings-theme-\$\{t\.key\}/, 'settings dialog should expose stable theme test ids')
+assert.doesNotMatch(mobileMapMenuSource, /rgba\(255,\s*248,\s*226/, 'mobile map captions should not use hard-coded pale text on light themes')
+assert.match(mobileMapMenuSource, /\.map-area-caption\s*\{[\s\S]*color:\s*rgb\(var\(--color-muted-rgb\) \/ 0\.95\)/, 'mobile map captions should use theme-muted text')
+assert.match(mobileMapMenuSource, /\.map-loc-active\s*\{[\s\S]*color:\s*rgb\(var\(--color-bg\)\)/, 'mobile map active tiles should keep inverse text readable')
 assert.ok(appCssSource.includes("html[data-theme='contrast'] .text-muted\\/50"), 'contrast theme should strengthen low-opacity muted text')
 assert.ok(appCssSource.includes("html[data-theme='contrast'] .placeholder\\:text-muted\\/40::placeholder"), 'contrast theme should strengthen muted placeholders')
 assert.equal(packageJson.scripts?.['qa:theme-contrast'], 'node scripts/qa-theme-contrast.mjs', 'package.json should register qa:theme-contrast')

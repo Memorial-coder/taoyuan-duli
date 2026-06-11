@@ -21,6 +21,7 @@
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:headed": "node scripts/run-e2e.mjs --headed",
     "qa:mobile-ui-smoke": "node scripts/qa-mobile-ui-smoke.mjs",
+    "qa:desktop-layout-smoke": "node scripts/qa-desktop-layout-smoke.mjs",
     "qa:online-ui-structure": "node scripts/qa-online-ui-structure.mjs",
     "qa:online-player-copy": "node scripts/qa-online-player-copy.mjs",
     "qa:online-visual-feature-flags": "node scripts/qa-online-visual-feature-flags.mjs",
