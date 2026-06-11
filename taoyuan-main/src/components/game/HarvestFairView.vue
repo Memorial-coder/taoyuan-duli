@@ -69,7 +69,7 @@
       </div>
 
       <div class="flex space-x-2">
-        <Button class="flex-1" :disabled="selectedItems.length === 0" @click="handleSubmit">参展！</Button>
+        <Button class="flex-1" :disabled="!canSubmit" @click="handleSubmit">参展！</Button>
         <Button class="flex-1 opacity-60 hover:opacity-100" @click="handleQuit">放弃参赛</Button>
       </div>
     </div>
@@ -181,6 +181,10 @@
     quality: Quality
   }
 
+  interface SelectedItemCount extends SelectedItem {
+    quantity: number
+  }
+
   interface ScoreDetail {
     name: string
     quality: Quality
@@ -202,13 +206,48 @@
   const scoreDetails = ref<ScoreDetail[]>([])
   const playerScore = ref(0)
 
+  const EXHIBIT_CATEGORIES = ['crop', 'fish', 'food', 'processed', 'gem', 'misc']
+
+  const selectionKey = (item: SelectedItem) => `${item.itemId}::${item.quality}`
+
+  const selectedItemCounts = computed<SelectedItemCount[]>(() => {
+    const counts = new Map<string, SelectedItemCount>()
+    for (const item of selectedItems.value) {
+      const key = selectionKey(item)
+      const existing = counts.get(key)
+      if (existing) existing.quantity += 1
+      else counts.set(key, { ...item, quantity: 1 })
+    }
+    return Array.from(counts.values())
+  })
+
+  const getInventoryQuantity = (itemId: string, quality: Quality) =>
+    inventoryStore.items
+      .filter(item => item.itemId === itemId && item.quality === quality)
+      .reduce((sum, item) => sum + item.quantity, 0)
+
+  const getSelectedQuantity = (itemId: string, quality: Quality) =>
+    selectedItemCounts.value.find(item => item.itemId === itemId && item.quality === quality)?.quantity ?? 0
+
   /** 可参展的背包物品（排除种子、机器等非展示类物品） */
   const selectableItems = computed(() => {
-    const exhibitCategories = ['crop', 'fish', 'food', 'processed', 'gem', 'misc']
-    return inventoryStore.items.filter(item => {
+    const grouped = new Map<string, SelectedItemCount>()
+    for (const item of inventoryStore.items) {
       const def = getItemById(item.itemId)
-      return def && exhibitCategories.includes(def.category)
-    })
+      if (!def || !EXHIBIT_CATEGORIES.includes(def.category)) continue
+
+      const key = selectionKey(item)
+      const existing = grouped.get(key)
+      if (existing) existing.quantity += item.quantity
+      else grouped.set(key, { itemId: item.itemId, quality: item.quality, quantity: item.quantity })
+    }
+
+    return Array.from(grouped.values())
+      .map(item => ({
+        ...item,
+        quantity: item.quantity - getSelectedQuantity(item.itemId, item.quality)
+      }))
+      .filter(item => item.quantity > 0)
   })
 
   /** 预览当前选择的总分 */
@@ -228,6 +267,12 @@
 
   const displayPrizeForRank = (rank: number) => (BASE_PRIZES[rank] ?? 0) + props.bonusMoney
 
+  const selectedItemsAvailable = computed(() =>
+    selectedItemCounts.value.every(item => getInventoryQuantity(item.itemId, item.quality) >= item.quantity)
+  )
+
+  const canSubmit = computed(() => selectedItems.value.length > 0 && selectedItemsAvailable.value)
+
   const qualityClass = (quality: Quality): string => {
     const classes: Record<Quality, string> = {
       normal: '',
@@ -240,6 +285,7 @@
 
   const addSelection = (item: { itemId: string; quality: Quality }) => {
     if (selectedItems.value.length >= 5) return
+    if (getInventoryQuantity(item.itemId, item.quality) <= getSelectedQuantity(item.itemId, item.quality)) return
     sfxItemSelect()
     selectedItems.value.push({ itemId: item.itemId, quality: item.quality })
   }
@@ -250,7 +296,19 @@
   }
 
   const handleSubmit = () => {
-    if (selectedItems.value.length === 0) return
+    if (!canSubmit.value) {
+      if (selectedItems.value.length > 0) sfxMiniFail()
+      return
+    }
+
+    const submissionItems = selectedItemCounts.value
+    for (const item of submissionItems) {
+      if (!inventoryStore.removeItem(item.itemId, item.quantity, item.quality)) {
+        sfxMiniFail()
+        return
+      }
+    }
+
     sfxJudging()
 
     // 计算玩家分数明细
