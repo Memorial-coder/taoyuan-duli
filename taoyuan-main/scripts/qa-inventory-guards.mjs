@@ -110,7 +110,11 @@ const installBrowserShims = () => {
   const documentObj = {
     hidden: false,
     visibilityState: 'visible',
-    documentElement: { style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} } },
+    documentElement: {
+      style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    },
     body: { appendChild: () => {}, removeChild: () => {} },
     createElement: () => ({ style: {}, classList: { add: () => {}, remove: () => {} } }),
     querySelector: () => null,
@@ -164,6 +168,7 @@ const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src
 const miningStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useMiningStore.ts')).href)
 const itemDataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
 const inventoryUseRulesModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryUseRules.ts')).href)
+const inventoryCapacityModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryCapacity.ts')).href)
 
 const freshInventoryStore = () => {
   setActivePinia(createPinia())
@@ -192,6 +197,54 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
     restoreStamina: amount => playerStore.restoreStamina(amount),
     restoreHealth: amount => playerStore.restoreHealth(amount)
   })
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.capacity = 496
+
+  assert(inventoryStore.MAX_CAPACITY === inventoryCapacityModule.INVENTORY_REGULAR_MAX_CAPACITY, '普通背包扩容上限应由统一容量常量提供。')
+  assert(inventoryStore.expandCapacity() === true, '普通扩容应允许 496 格扩至 500 格。')
+  assert(inventoryStore.capacity === 500, '普通扩容 496 格后应正好钳制到 500 格。')
+  assert(inventoryStore.expandCapacity() === false, '普通扩容达到 500 格后应失败。')
+  assert(inventoryStore.capacity === 500, '普通扩容失败后容量不应继续增长。')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.capacity = 498
+
+  assert(inventoryStore.expandCapacity() === true, '普通扩容应允许异常 498 格存档补到上限。')
+  assert(inventoryStore.capacity === 500, '普通扩容应把 498 格钳制到 500 格，不能扩到 502 格。')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.capacity = 500
+
+  assert(inventoryStore.expandCapacityExtra() === true, '超限扩容商品应允许突破普通 500 格上限。')
+  assert(inventoryStore.capacity === 501, '超限扩容应能从 500 格增加到 501 格。')
+}
+
+{
+  const priceCases = [
+    [196, 22000],
+    [200, 23000],
+    [296, 47000],
+    [300, 48500],
+    [396, 84500],
+    [400, 87000],
+    [496, 147000]
+  ]
+  for (const [capacity, expectedPrice] of priceCases) {
+    assert(
+      inventoryCapacityModule.getInventoryExpansionPrice(capacity) === expectedPrice,
+      `背包 ${capacity} 格扩容价格应为 ${expectedPrice} 文。`
+    )
+  }
+  assert(inventoryCapacityModule.getNextInventoryCapacity(496) === 500, '496 格下一次普通扩容目标应为 500 格。')
+  assert(inventoryCapacityModule.getNextInventoryCapacity(498) === 500, '498 格下一次普通扩容目标应钳制为 500 格。')
+  assert(inventoryCapacityModule.getNextInventoryCapacity(500) === 500, '500 格之后普通扩容目标应保持 500 格。')
 }
 
 {

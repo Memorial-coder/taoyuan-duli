@@ -432,35 +432,56 @@ export const useShopStore = defineStore('shop', () => {
       .filter(offer => isCatalogOfferVisibleForCurrentSeason(offer))
   }
 
+  const hasReachedLifetimeCatalogLimit = (offer: ShopCatalogOfferDef): boolean => {
+    const lifetimeLimit = offer.purchaseLimits?.find(limit => limit.window === 'lifetime')
+    if (!lifetimeLimit) return false
+    const max = Math.max(1, Math.floor(Number(lifetimeLimit.max) || 0))
+    return getCatalogOfferPurchaseLimitCount(offer, lifetimeLimit) >= max
+  }
+
+  const isCatalogOfferHiddenAfterPurchase = (offer: ShopCatalogOfferDef): boolean => {
+    if (offer.onceOnly && ownedCatalogOfferIds.value.includes(offer.id)) return true
+    if (hasReachedLifetimeCatalogLimit(offer)) return true
+    if (offer.effect.type !== 'unlock_decoration' || !offer.decorationUnlockId) return false
+    return ownedCatalogOfferIds.value.includes(offer.id) || decorationStore.hasReachedMaxCount(offer.decorationUnlockId)
+  }
+
+  const getVisibleCatalogOffers = (offers: ShopCatalogOfferDef[]): ShopCatalogOfferDef[] =>
+    offers.filter(offer => !isCatalogOfferHiddenAfterPurchase(offer))
+
   const currentWeekId = computed(() => Math.floor((getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day) - 1) / 7))
   const currentWeekKey = computed(() => String(currentWeekId.value))
   const basicCatalogOffers = computed(() =>
-    mergeUniqueCatalogOffers([
+    getVisibleCatalogOffers(mergeUniqueCatalogOffers([
       ...SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'basic' && isCatalogOfferEnabled(offer)),
       ...resolveFallbackCatalogOffers('basic')
-    ])
+    ]))
   )
   const weeklyCatalogOffers = computed(() => {
     if (!SHOP_CATALOG_TUNING_CONFIG.poolEnabled.weekly) return []
     const targetCount = Math.max(1, SHOP_CATALOG_TUNING_CONFIG.weeklySelectionCount)
-    const visibleWeeklyOffers = getWeeklyShopCatalogOffers(currentWeekId.value, Number.MAX_SAFE_INTEGER).filter(offer => isCatalogOfferEnabled(offer))
-    const fallbackOffers = resolveFallbackCatalogOffers('weekly').filter(offer => !visibleWeeklyOffers.some(entry => entry.id === offer.id))
+    const visibleWeeklyOffers = getVisibleCatalogOffers(
+      getWeeklyShopCatalogOffers(currentWeekId.value, Number.MAX_SAFE_INTEGER).filter(offer => isCatalogOfferEnabled(offer))
+    )
+    const fallbackOffers = getVisibleCatalogOffers(
+      resolveFallbackCatalogOffers('weekly').filter(offer => !visibleWeeklyOffers.some(entry => entry.id === offer.id))
+    )
     return mergeUniqueCatalogOffers([...visibleWeeklyOffers, ...fallbackOffers]).slice(0, targetCount)
   })
   const seasonalCatalogOffers = computed(() =>
-    SHOP_CATALOG_OFFERS
+    getVisibleCatalogOffers(SHOP_CATALOG_OFFERS
       .filter(offer => offer.pool === 'seasonal' && isCatalogOfferVisibleForCurrentSeason(offer))
-      .slice(0, Math.max(1, SHOP_CATALOG_TUNING_CONFIG.seasonalDisplayLimit))
+    ).slice(0, Math.max(1, SHOP_CATALOG_TUNING_CONFIG.seasonalDisplayLimit))
   )
   const premiumCatalogOffers = computed(() =>
-    mergeUniqueCatalogOffers([
+    getVisibleCatalogOffers(mergeUniqueCatalogOffers([
       ...SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'premium' && isCatalogOfferEnabled(offer)),
       ...resolveFallbackCatalogOffers('premium')
-    ])
+    ]))
   )
   const weeklyCatalogRefreshText = computed(() => `第${currentWeekId.value + 1}周精选 · 每周一刷新`)
   const availableCatalogOffers = computed(() =>
-    SHOP_CATALOG_OFFERS.filter(offer => isCatalogOfferVisibleForCurrentSeason(offer))
+    getVisibleCatalogOffers(SHOP_CATALOG_OFFERS.filter(offer => isCatalogOfferVisibleForCurrentSeason(offer)))
   )
   const activityOfferBundles = [...WS10_ACTIVITY_OFFER_BUNDLES, ...WS13_ACTIVITY_OFFER_BUNDLES]
   const recommendedCatalogOffers = computed(() => {

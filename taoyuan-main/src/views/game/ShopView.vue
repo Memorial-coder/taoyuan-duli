@@ -845,12 +845,12 @@
           <div class="flex flex-col space-y-2">
             <!-- 背包扩容 -->
             <div
-              v-if="inventoryStore.capacity < 120"
+              v-if="canExpandBag"
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
               @click="
                 openBuyModal(
                   '背包扩容',
-                  `当前${inventoryStore.capacity}格 → ${inventoryStore.capacity + 4}格`,
+                  `当前${inventoryStore.capacity}格 → ${nextBagCapacity}格`,
                   discounted(bagPrice),
                   handleBuyBag,
                   () => playerStore.money >= discounted(bagPrice)
@@ -859,7 +859,7 @@
             >
               <div>
                 <p class="text-sm">背包扩容</p>
-                <p class="text-muted text-xs">当前{{ inventoryStore.capacity }}格 → {{ inventoryStore.capacity + 4 }}格</p>
+                <p class="text-muted text-xs">当前{{ inventoryStore.capacity }}格 → {{ nextBagCapacity }}格</p>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(bagPrice) }}文</span>
             </div>
@@ -1880,6 +1880,7 @@
   import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
+  import { getInventoryExpansionPrice, getNextInventoryCapacity } from '@/utils/inventoryCapacity'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
   import type { MarketCategory, MarketTrend } from '@/data/market'
   import { useTutorialStore } from '@/stores/useTutorialStore'
@@ -3180,10 +3181,9 @@
 
   // === 万物铺 ===
 
-  const bagPrice = computed(() => {
-    const level = (inventoryStore.capacity - 24) / 4
-    return 500 + level * 500
-  })
+  const canExpandBag = computed(() => inventoryStore.capacity < inventoryStore.MAX_CAPACITY)
+  const nextBagCapacity = computed(() => getNextInventoryCapacity(inventoryStore.capacity))
+  const bagPrice = computed(() => getInventoryExpansionPrice(inventoryStore.capacity))
 
   const farmExpandInfo = computed(() => {
     const prices: Record<number, { newSize: number; price: number }> = {

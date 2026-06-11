@@ -49,11 +49,17 @@ import { EQUIPMENT_SETS } from '@/data/equipmentSets'
 import { usePlayerStore } from './usePlayerStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useSkillStore } from './useSkillStore'
+import {
+  INVENTORY_INITIAL_CAPACITY,
+  INVENTORY_REGULAR_MAX_CAPACITY,
+  INVENTORY_TEMP_CAPACITY,
+  getNextInventoryCapacity
+} from '@/utils/inventoryCapacity'
 
-const INITIAL_CAPACITY = 24
-const MAX_CAPACITY = 120
+const INITIAL_CAPACITY = INVENTORY_INITIAL_CAPACITY
+const MAX_CAPACITY = INVENTORY_REGULAR_MAX_CAPACITY
 const MAX_STACK = 999
-const TEMP_CAPACITY = 10
+const TEMP_CAPACITY = INVENTORY_TEMP_CAPACITY
 export const MAX_EQUIPMENT_PRESETS = 10
 type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
 type LockableEquipmentEntry = { locked?: boolean }
@@ -624,8 +630,9 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   /** 扩容背包 */
   const expandCapacity = (): boolean => {
-    if (capacity.value >= MAX_CAPACITY) return false
-    capacity.value += 4
+    const nextCapacity = getNextInventoryCapacity(capacity.value)
+    if (nextCapacity <= capacity.value) return false
+    capacity.value = nextCapacity
     return true
   }
 
