@@ -35,6 +35,7 @@
     "qa:equipment-guards": "node scripts/qa-equipment-guards.mjs",
     "qa:inventory-guards": "node scripts/qa-inventory-guards.mjs",
     "qa:harvest-fair-inventory-consumption": "node scripts/qa-harvest-fair-inventory-consumption.mjs",
+    "qa:resource-consumption-guards": "node scripts/qa-resource-consumption-guards.mjs",
     "qa:museum-ancient-seed-donation": "node scripts/qa-museum-ancient-seed-donation.mjs",
     "qa:navigation-clock-guards": "node scripts/qa-navigation-clock-guards.mjs",
     "qa:new-game-reset-guards": "node scripts/qa-new-game-reset-guards.mjs",

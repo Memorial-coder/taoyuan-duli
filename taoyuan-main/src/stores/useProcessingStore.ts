@@ -674,9 +674,7 @@ export const useProcessingStore = defineStore('processing', () => {
       const materialPlan = resolveAlchemyMaterialPlan(recipe, 1, specifiedQuality)
       if (!materialPlan.fulfilled) return false
       const quality = getAlchemyMainInputQuality(recipe, materialPlan)
-      for (const entry of materialPlan.entries) {
-        if (!removeCombinedItem(entry.itemId, entry.quantity, entry.quality)) return false
-      }
+      if (!removeCombinedItems(materialPlan.entries)) return false
 
       slot.recipeId = recipeId
       slot.inputItemId = recipe.inputItemId

@@ -819,7 +819,7 @@
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
-  import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+  import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { getItemById, getNpcById } from '@/data'
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import { GREENHOUSE_UNLOCK_COST, GREENHOUSE_MATERIAL_COST, WAREHOUSE_UNLOCK_MATERIALS } from '@/data/buildings'
@@ -1033,10 +1033,15 @@
       addLog('铜钱或材料不足，无法解锁仓库。')
       return
     }
-    for (const mat of WAREHOUSE_UNLOCK_MATERIALS) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!playerStore.spendMoney(warehouseStore.UNLOCK_COST)) {
+      addLog('铜钱不足，无法解锁仓库。')
+      return
     }
-    playerStore.spendMoney(warehouseStore.UNLOCK_COST)
+    if (!removeCombinedItems(WAREHOUSE_UNLOCK_MATERIALS)) {
+      playerStore.earnMoney(warehouseStore.UNLOCK_COST, { countAsEarned: false })
+      addLog('材料不足，无法解锁仓库。')
+      return
+    }
     warehouseStore.unlocked = true
     showWarehouseUnlockModal.value = false
     addLog(`仓库已解锁！（-${warehouseStore.UNLOCK_COST}文）`)

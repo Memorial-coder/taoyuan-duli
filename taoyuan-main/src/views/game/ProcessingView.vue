@@ -629,7 +629,7 @@
   import { useProcessingStore } from '@/stores/useProcessingStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
-  import { getCombinedItemCount, hasCombinedItem, removeCombinedItem } from '@/composables/useCombinedInventory'
+  import { getCombinedItemCount, hasCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
   import {
     PROCESSING_MACHINES,
     SPRINKLERS,
@@ -1800,18 +1800,17 @@
       addLog('背包空间不足，无法制作翡翠戒指。')
       return
     }
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     if (!playerStore.spendMoney(JADE_RING_MONEY)) return
-    for (const c of JADE_RING_COST) {
-      if (!removeCombinedItem(c.itemId, c.quantity)) {
-        playerStore.earnMoney(JADE_RING_MONEY)
-        return
-      }
+    if (!removeCombinedItems(JADE_RING_COST)) {
+      playerStore.earnMoney(JADE_RING_MONEY, { countAsEarned: false })
+      return
     }
     if (!inventoryStore.addItemExact('jade_ring')) {
-      playerStore.earnMoney(JADE_RING_MONEY)
-      for (const c of JADE_RING_COST) {
-        inventoryStore.addItem(c.itemId, c.quantity)
-      }
+      playerStore.earnMoney(JADE_RING_MONEY, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       addLog('背包空间不足，翡翠戒指制作已回滚。')
       return
     }
