@@ -1,4 +1,4 @@
-export type ThemeKey = 'dark' | 'warm' | 'ink' | 'parchment'
+export type ThemeKey = 'dark' | 'warm' | 'ink' | 'parchment' | 'contrast'
 
 export interface ThemeDef {
   key: ThemeKey
@@ -115,6 +115,29 @@ export const THEMES: ThemeDef[] = [
     focusRing: 'rgba(111, 122, 80, 0.28)',
     shadow: 'rgba(60, 50, 36, 0.12)',
     overlay: 'rgba(45, 40, 32, 0.42)',
+    tone: 'light'
+  },
+  {
+    key: 'contrast',
+    name: '高对比',
+    bg: '#f6f8f2',
+    panel: '#e5ecdf',
+    text: '#111a17',
+    accent: '#175f55',
+    danger: '#9b2f35',
+    success: '#226a42',
+    warning: '#6c530f',
+    water: '#1f6378',
+    earth: '#6d5123',
+    muted: '#43534d',
+    highlight: '#0d5149',
+    surfaceMuted: 'rgba(23, 95, 85, 0.11)',
+    surfaceRaised: 'rgba(255, 255, 255, 0.72)',
+    borderSubtle: 'rgba(23, 95, 85, 0.26)',
+    border: 'rgba(23, 95, 85, 0.46)',
+    focusRing: 'rgba(23, 95, 85, 0.42)',
+    shadow: 'rgba(17, 26, 23, 0.18)',
+    overlay: 'rgba(17, 26, 23, 0.5)',
     tone: 'light'
   }
 ]

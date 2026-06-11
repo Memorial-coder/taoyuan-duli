@@ -6,7 +6,7 @@
     </h3>
     <!-- WS06 anchor: this skill/perk panel is the existing base for future
          mastery-style endgame growth that converges multiple progression lines. -->
-    <div class="space-y-3">
+    <div class="desktop-adaptive-grid--cards">
       <div v-for="skill in skillStore.skills" :key="skill.type" class="game-panel">
         <!-- 标题行：图标 + 名称等级 + 经验 -->
         <div class="flex justify-between items-center mb-1.5">
@@ -101,7 +101,7 @@
         </div>
       </div>
 
-      <div class="game-panel">
+      <div class="game-panel desktop-adaptive-span-all">
         <div class="flex items-center justify-between mb-2">
           <div>
             <p class="text-sm text-accent">终局精通</p>

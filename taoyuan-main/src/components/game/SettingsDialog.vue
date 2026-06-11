@@ -244,6 +244,32 @@
               </template>
             </div>
 
+            <div class="settings-dialog-card border border-accent/20 rounded-xs" data-testid="settings-desktop-layout-card">
+              <p class="text-xs text-muted mb-2">桌面布局</p>
+              <div class="settings-segmented-control" role="group" aria-label="桌面布局模式">
+                <button
+                  type="button"
+                  class="settings-segmented-control__button"
+                  :class="{ 'settings-segmented-control__button--active': settingsStore.desktopLayoutMode === 'adaptive' }"
+                  data-testid="settings-desktop-layout-adaptive"
+                  @click="settingsStore.setDesktopLayoutMode('adaptive')"
+                >
+                  <LayoutGrid :size="12" />
+                  <span>多列</span>
+                </button>
+                <button
+                  type="button"
+                  class="settings-segmented-control__button"
+                  :class="{ 'settings-segmented-control__button--active': settingsStore.desktopLayoutMode === 'classic' }"
+                  data-testid="settings-desktop-layout-classic"
+                  @click="settingsStore.setDesktopLayoutMode('classic')"
+                >
+                  <Rows3 :size="12" />
+                  <span>旧版</span>
+                </button>
+              </div>
+            </div>
+
             <!-- 配色主题 -->
             <div class="settings-dialog-card border border-accent/20 rounded-xs">
               <p class="text-xs text-muted mb-2">配色主题</p>
@@ -507,7 +533,9 @@
     Sprout,
     Square,
     Maximize2,
-    Percent
+    Percent,
+    LayoutGrid,
+    Rows3
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'

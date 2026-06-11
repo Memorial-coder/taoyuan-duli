@@ -53,6 +53,7 @@
     "qa:random-npc-content-guard": "node scripts/qa-random-npc-content-guard.mjs",
     "qa:npc-mobile-interactions": "node scripts/qa-npc-mobile-interactions.mjs",
     "qa:font-size-scaling": "node scripts/qa-font-size-scaling.mjs",
+    "qa:theme-contrast": "node scripts/qa-theme-contrast.mjs",
     "qa:ai-assistant-dynamic-quick-questions": "node scripts/qa-ai-assistant-dynamic-quick-questions.mjs",
     "qa:ai-assistant-safe-actions": "node scripts/qa-ai-assistant-safe-actions.mjs",
     "qa:ai-assistant-pending-stages": "node scripts/qa-ai-assistant-pending-stages.mjs",

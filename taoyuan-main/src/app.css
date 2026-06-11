@@ -63,6 +63,8 @@
   --ai-assistant-risk-border: rgba(255, 137, 137, 0.38);
   --ai-assistant-warn-border: rgba(248, 209, 122, 0.42);
   --app-page-width: 100%;
+  --desktop-adaptive-gap: var(--spacing-3);
+  --desktop-adaptive-card-min: 22rem;
 }
 
 /* 生产环境禁止选中和复制 */
@@ -139,6 +141,50 @@ button {
     width: min(100%, var(--app-page-width));
     max-width: none;
   }
+}
+
+.desktop-adaptive-grid,
+.desktop-adaptive-grid--cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--desktop-adaptive-gap);
+  align-items: start;
+  min-width: 0;
+}
+
+.desktop-adaptive-span-all {
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .desktop-adaptive-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .desktop-adaptive-grid--cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--desktop-adaptive-card-min)), 1fr));
+  }
+
+  html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .desktop-adaptive-span-all {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1920px) {
+  html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .desktop-adaptive-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .inventory-adaptive-item-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+.game-layout-root:fullscreen .desktop-adaptive-grid,
+.game-layout-root:fullscreen .desktop-adaptive-grid--cards,
+.game-layout-root:-webkit-full-screen .desktop-adaptive-grid,
+.game-layout-root:-webkit-full-screen .desktop-adaptive-grid--cards {
+  grid-template-columns: 1fr !important;
 }
 
 /* 像素风按钮基础样式 */
@@ -574,6 +620,34 @@ html[data-theme-tone='light'] .bg-bg\/80 {
 
 html[data-theme-tone='light'] .text-red-200 {
   color: var(--color-danger);
+}
+
+html[data-theme='contrast'] .text-muted\/30,
+html[data-theme='contrast'] .text-muted\/40,
+html[data-theme='contrast'] .text-muted\/50,
+html[data-theme='contrast'] .text-muted\/60 {
+  color: rgb(var(--color-muted-rgb) / 0.82);
+}
+
+html[data-theme='contrast'] .text-muted\/70,
+html[data-theme='contrast'] .text-muted\/80 {
+  color: rgb(var(--color-muted-rgb) / 0.95);
+}
+
+html[data-theme='contrast'] .text-accent\/20,
+html[data-theme='contrast'] .text-accent\/30,
+html[data-theme='contrast'] .text-accent\/40,
+html[data-theme='contrast'] .text-accent\/50 {
+  color: rgb(var(--color-accent-rgb) / 0.68);
+}
+
+html[data-theme='contrast'] .text-accent\/70,
+html[data-theme='contrast'] .text-accent\/80 {
+  color: rgb(var(--color-accent-rgb) / 0.95);
+}
+
+html[data-theme='contrast'] .placeholder\:text-muted\/40::placeholder {
+  color: rgb(var(--color-muted-rgb) / 0.72);
 }
 
 /* 隐藏 number 输入框的浏览器自带加减按钮 */

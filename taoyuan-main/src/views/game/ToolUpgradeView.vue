@@ -21,11 +21,12 @@
       <span class="text-xs text-muted whitespace-nowrap ml-2">剩{{ inventoryStore.pendingUpgrade.daysRemaining }}天</span>
     </div>
 
-    <div class="flex flex-col space-y-1.5">
+    <div class="desktop-adaptive-grid--cards" data-testid="tool-upgrade-list">
       <div
         v-for="tool in inventoryStore.tools"
         :key="tool.type"
         class="flex items-center justify-between border rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
+        data-testid="tool-upgrade-card"
         :class="isUpgrading(tool.type) ? 'border-accent/30' : 'border-accent/20'"
         @click="selectedTool = tool.type"
       >
