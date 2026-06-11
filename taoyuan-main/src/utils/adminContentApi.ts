@@ -1,6 +1,15 @@
 import { clearStoredAdminToken, getStoredAdminToken, setStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
 import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
 import type { AndroidAppReleaseConfig } from '@/types/androidRelease'
+import type {
+  TaoyuanAnnouncement,
+  TaoyuanAnnouncementAuditLog,
+  TaoyuanAnnouncementEvent,
+  TaoyuanAnnouncementPayload,
+  TaoyuanAnnouncementStats,
+  TaoyuanAnnouncementTemplate,
+} from '@/types/announcement'
+import { normalizeAnnouncement, normalizeAnnouncementPayload } from '@/utils/announcementApi'
 import { createDefaultAndroidAppReleaseConfig, normalizeAndroidAppReleaseConfig } from '@/utils/androidRelease'
 
 export interface HomepageAboutContentPayload {
@@ -59,6 +68,17 @@ export interface GameplayLogListResult {
 
 export interface AdminAndroidReleaseConfigResult {
   config: AndroidAppReleaseConfig
+}
+
+export interface AdminAnnouncementListResult {
+  announcements: TaoyuanAnnouncement[]
+  templates: TaoyuanAnnouncementTemplate[]
+}
+
+export interface AdminAnnouncementStatsResult {
+  announcement: TaoyuanAnnouncement
+  stats: TaoyuanAnnouncementStats
+  recent_events: TaoyuanAnnouncementEvent[]
 }
 
 const parseJsonSafe = async (res: Response) => {
@@ -188,6 +208,95 @@ export const uploadAdminContentImage = async (file: File, tokenOverride?: string
     },
     tokenOverride,
   )
+}
+
+export const fetchAdminAnnouncements = async (tokenOverride?: string): Promise<AdminAnnouncementListResult> => {
+  const data = await adminRequest<{
+    announcements?: Partial<TaoyuanAnnouncement>[]
+    templates?: TaoyuanAnnouncementTemplate[]
+  }>('/api/admin/taoyuan/announcements', undefined, tokenOverride)
+  return {
+    announcements: (Array.isArray(data.announcements) ? data.announcements : []).map(normalizeAnnouncement),
+    templates: Array.isArray(data.templates) ? data.templates : [],
+  }
+}
+
+export const createAdminAnnouncement = async (payload: TaoyuanAnnouncementPayload, tokenOverride?: string) => {
+  const data = await adminRequest<{ announcement?: Partial<TaoyuanAnnouncement> }>(
+    '/api/admin/taoyuan/announcements',
+    {
+      method: 'POST',
+      body: JSON.stringify(normalizeAnnouncementPayload(payload)),
+    },
+    tokenOverride,
+  )
+  return normalizeAnnouncement(data.announcement || {})
+}
+
+export const updateAdminAnnouncement = async (id: string, payload: TaoyuanAnnouncementPayload, tokenOverride?: string) => {
+  const data = await adminRequest<{ announcement?: Partial<TaoyuanAnnouncement> }>(
+    `/api/admin/taoyuan/announcements/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(normalizeAnnouncementPayload(payload)),
+    },
+    tokenOverride,
+  )
+  return normalizeAnnouncement(data.announcement || {})
+}
+
+export const publishAdminAnnouncement = async (id: string, tokenOverride?: string) => {
+  const data = await adminRequest<{ announcement?: Partial<TaoyuanAnnouncement>; realtime_emitted?: number }>(
+    `/api/admin/taoyuan/announcements/${encodeURIComponent(id)}/publish`,
+    { method: 'POST' },
+    tokenOverride,
+  )
+  return {
+    announcement: normalizeAnnouncement(data.announcement || {}),
+    realtimeEmitted: Number(data.realtime_emitted) || 0,
+  }
+}
+
+export const offlineAdminAnnouncement = async (id: string, tokenOverride?: string) => {
+  const data = await adminRequest<{ announcement?: Partial<TaoyuanAnnouncement>; realtime_emitted?: number }>(
+    `/api/admin/taoyuan/announcements/${encodeURIComponent(id)}/offline`,
+    { method: 'POST' },
+    tokenOverride,
+  )
+  return {
+    announcement: normalizeAnnouncement(data.announcement || {}),
+    realtimeEmitted: Number(data.realtime_emitted) || 0,
+  }
+}
+
+export const fetchAdminAnnouncementStats = async (id: string, tokenOverride?: string): Promise<AdminAnnouncementStatsResult> => {
+  const data = await adminRequest<{
+    announcement?: Partial<TaoyuanAnnouncement>
+    stats?: Partial<TaoyuanAnnouncementStats>
+    recent_events?: TaoyuanAnnouncementEvent[]
+  }>(`/api/admin/taoyuan/announcements/${encodeURIComponent(id)}/stats`, undefined, tokenOverride)
+  return {
+    announcement: normalizeAnnouncement(data.announcement || {}),
+    stats: {
+      impression_count: Number(data.stats?.impression_count) || 0,
+      close_count: Number(data.stats?.close_count) || 0,
+      suppress_count: Number(data.stats?.suppress_count) || 0,
+      cta_click_count: Number(data.stats?.cta_click_count) || 0,
+      read_count: Number(data.stats?.read_count) || 0,
+      exposed_user_count: Number(data.stats?.exposed_user_count) || 0,
+      event_count: Number(data.stats?.event_count) || 0,
+    },
+    recent_events: Array.isArray(data.recent_events) ? data.recent_events : [],
+  }
+}
+
+export const fetchAdminAnnouncementAuditLogs = async (id: string, tokenOverride?: string): Promise<TaoyuanAnnouncementAuditLog[]> => {
+  const data = await adminRequest<{ logs?: TaoyuanAnnouncementAuditLog[] }>(
+    `/api/admin/taoyuan/announcements/${encodeURIComponent(id)}/audit-logs`,
+    undefined,
+    tokenOverride,
+  )
+  return Array.isArray(data.logs) ? data.logs : []
 }
 
 export const fetchGameplayLogs = async (

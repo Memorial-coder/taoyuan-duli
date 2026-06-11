@@ -4,7 +4,7 @@
       <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
         <X :size="14" />
       </button>
-      <Divider title class="my-4" :label="props.saveIntent === 'save-return' ? '保存并返回' : props.saveIntent === 'save' ? '保存进度' : '存档管理'" />
+      <Divider title class="my-4" :label="saveIntentTitle" />
       <div class="save-manager-storage-toggle mb-3 grid gap-2">
         <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
           本地存储
@@ -14,8 +14,8 @@
         </Button>
       </div>
       <div class="mb-3 space-y-2 text-left">
-        <p v-if="props.saveIntent === 'save' || props.saveIntent === 'save-return'" class="break-words text-[0.6875rem] text-muted leading-5 text-center">
-          请选择存储方式后再保存。不同方式各有优点，你可以按自己的使用习惯选择。
+        <p v-if="isSaveIntentAction" class="break-words text-[0.6875rem] text-muted leading-5 text-center">
+          {{ saveIntentHelp }}
         </p>
         <div class="grid grid-cols-1 gap-2 text-[0.625rem] text-muted">
           <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
@@ -277,12 +277,14 @@
   import { showFloat } from '@/composables/useGameLog'
   import { useWebdav } from '@/composables/useWebdav'
 
-  const props = withDefaults(defineProps<{ allowLoad?: boolean; saveIntent?: 'manage' | 'save' | 'save-return'; returnUrl?: string }>(), {
+  type SaveIntent = 'manage' | 'save' | 'save-return' | 'save-refresh'
+
+  const props = withDefaults(defineProps<{ allowLoad?: boolean; saveIntent?: SaveIntent; returnUrl?: string }>(), {
     allowLoad: false,
     saveIntent: 'manage',
     returnUrl: '/'
   })
-  const emit = defineEmits<{ close: []; load: [slot: number]; change: []; saved: [intent: 'save' | 'save-return'] }>()
+  const emit = defineEmits<{ close: []; load: [slot: number]; change: []; saved: [intent: Exclude<SaveIntent, 'manage'>] }>()
 
   const saveStore = useSaveStore()
   const { webdavReady, uploadSave, downloadSave } = useWebdav()
@@ -297,6 +299,19 @@
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
   const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
   const serverSaveFieldAnomaly = computed(() => saveStore.serverSaveFieldAnomaly)
+  const isSaveIntentAction = computed(() => props.saveIntent === 'save' || props.saveIntent === 'save-return' || props.saveIntent === 'save-refresh')
+  const saveIntentTitle = computed(() => {
+    if (props.saveIntent === 'save-refresh') return '保存并更新'
+    if (props.saveIntent === 'save-return') return '保存并返回'
+    if (props.saveIntent === 'save') return '保存进度'
+    return '存档管理'
+  })
+  const saveIntentHelp = computed(() => {
+    if (props.saveIntent === 'save-refresh') {
+      return '请选择存储方式后保存当前进度。保存成功后会自动刷新当前页面，加载刚推送的新内容。'
+    }
+    return '请选择存储方式后再保存。不同方式各有优点，你可以按自己的使用习惯选择。'
+  })
   const visibleFieldAnomalies = computed(() => serverSaveFieldAnomaly.value?.details.anomalies.slice(0, 5) ?? [])
   const hiddenFieldAnomalyCount = computed(() => Math.max(0, (serverSaveFieldAnomaly.value?.details.anomalies.length ?? 0) - visibleFieldAnomalies.value.length))
   const saveIdentityHint = computed(() => {
@@ -360,6 +375,10 @@
     await refreshSlots()
   }
 
+  const reloadCurrentPageForUpdate = () => {
+    window.location.reload()
+  }
+
   const handleSaveCurrent = async () => {
     if (saveStore.activeSlot < 0) {
       showFloat('当前还没有活跃存档槽位。', 'danger')
@@ -373,6 +392,14 @@
       emit('change')
       const queued = saveStore.lastSaveResultStatus === 'queued'
       const savedMessage = saveStore.lastServerSyncMessage || `已保存到存档 ${saveStore.activeSlot + 1}。`
+      if (props.saveIntent === 'save-refresh') {
+        showFloat(
+          queued ? '已本地保底，服务恢复后会自动同步，正在刷新。' : `已保存到存档 ${saveStore.activeSlot + 1}，正在刷新。`,
+          queued ? 'accent' : 'success'
+        )
+        reloadCurrentPageForUpdate()
+        return
+      }
       if (props.saveIntent === 'save-return') {
         showFloat(
           queued ? '已本地保底，服务恢复后会自动同步，正在返回。' : `已保存到存档 ${saveStore.activeSlot + 1}，正在返回。`,
@@ -418,6 +445,10 @@
     emit('change')
     if (choice === 'local') {
       showFloat(saveStore.lastServerSyncMessage || '已保存当前进度。', 'success')
+      if (props.saveIntent === 'save-refresh') {
+        reloadCurrentPageForUpdate()
+        return
+      }
       if (props.saveIntent === 'save-return') {
         window.location.href = props.returnUrl || '/'
         return
@@ -429,6 +460,9 @@
       return
     }
     showFloat(saveStore.lastServerSyncMessage || '已改用服务端存档。', 'success')
+    if (props.saveIntent === 'save-refresh') {
+      reloadCurrentPageForUpdate()
+    }
   }
 
   const handleRepairServerFieldAnomaly = async () => {
@@ -448,6 +482,10 @@
 
     emit('change')
     showFloat(saveStore.lastServerSyncMessage || '已修复异常字段并保存到服务端。', 'success')
+    if (props.saveIntent === 'save-refresh') {
+      reloadCurrentPageForUpdate()
+      return
+    }
     if (props.saveIntent === 'save-return') {
       window.location.href = props.returnUrl || '/'
       return

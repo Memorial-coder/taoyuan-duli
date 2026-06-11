@@ -10,6 +10,7 @@ import { useManorStore } from '@/stores/useManorStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
 import { useMarketGovernanceStore } from '@/stores/useMarketGovernanceStore'
 import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
+import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
 import { useSocialStore } from '@/stores/useSocialStore'
 import { useSocietyStore } from '@/stores/useSocietyStore'
 import { useExchangeLedgerStore } from '@/stores/useExchangeLedgerStore'
@@ -79,6 +80,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let neighborConsignmentRefreshTimer: number | null = null
   let exchangeLedgerRefreshTimer: number | null = null
   let marketGovernanceRefreshTimer: number | null = null
+  let announcementRefreshTimer: number | null = null
   let manuallyStopped = true
 
   const isConnected = computed(() => status.value === 'connected')
@@ -273,6 +275,20 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }, 300)
   }
 
+  const queueAnnouncementRefresh = () => {
+    if (announcementRefreshTimer !== null) return
+    announcementRefreshTimer = window.setTimeout(() => {
+      announcementRefreshTimer = null
+      const announcementStore = useAnnouncementStore()
+      void Promise.all([
+        announcementStore.fetchActive(),
+        announcementStore.fetchHistory()
+      ]).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时公告刷新失败'
+      })
+    }, 300)
+  }
+
   const dispatchHallNotification = (payload: Record<string, unknown> | undefined) => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent(TAOYUAN_HALL_NOTIFICATION_EVENT, {
@@ -362,6 +378,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }
     if (ACTIVITY_ROOM_EVENT_TYPES.has(envelope.type)) {
       queueActivityRoomRefresh(envelope.payload)
+      return
+    }
+    if (envelope.type === 'announcement.published' || envelope.type === 'announcement.offline') {
+      queueAnnouncementRefresh()
       return
     }
     if (envelope.type === 'notification.created') {
@@ -519,6 +539,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (marketGovernanceRefreshTimer !== null) {
       window.clearTimeout(marketGovernanceRefreshTimer)
       marketGovernanceRefreshTimer = null
+    }
+    if (announcementRefreshTimer !== null) {
+      window.clearTimeout(announcementRefreshTimer)
+      announcementRefreshTimer = null
     }
     if (socket) {
       const currentSocket = socket

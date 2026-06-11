@@ -229,6 +229,7 @@
           <Button class="text-center justify-center py-3 md:col-span-2" data-testid="new-journey-button" :icon="Play" @click="showPrivacy = true">新的旅程</Button>
           <Button class="text-center justify-center" :icon="BookOpen" @click="handleOpenGuide">新手教程</Button>
           <Button class="text-center justify-center" :icon="BookOpen" @click="handleOpenGuideBook">百科全书</Button>
+          <Button class="text-center justify-center" :icon="Megaphone" data-testid="main-menu-announcements" @click="openAnnouncementHistory">更新公告</Button>
           <Button class="text-center justify-center" :icon="MessagesSquare" @click="handleOpenHall">交流大厅</Button>
           <Button v-if="showAdminEntry" class="text-center justify-center" :icon="KeyRound" @click="handleOpenAdmin">桃源管理</Button>
           <Button
@@ -532,14 +533,27 @@
       </div>
     </Transition>
 
+    <Transition name="panel-fade">
+      <AnnouncementHistoryDialog
+        :open="showAnnouncementHistory"
+        :announcements="announcementStore.historyAnnouncements"
+        :loading="announcementStore.loadingHistory"
+        :error="announcementStore.historyError"
+        @close="showAnnouncementHistory = false"
+        @refresh="announcementStore.fetchHistory"
+        @cta="handleAnnouncementHistoryCta"
+      />
+    </Transition>
+
   </div>
 </template>
 
 <script setup lang="ts">
-  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload } from 'lucide-vue-next'
+  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload, Megaphone } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
+  import AnnouncementHistoryDialog from '@/components/game/AnnouncementHistoryDialog.vue'
   import { renderRichContent } from '@/utils/safeMarkdown'
   import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
   import { useRouter } from 'vue-router'
@@ -552,6 +566,7 @@
   import { useQuestStore } from '@/stores/useQuestStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
+  import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
   import { FARM_MAP_DEFS } from '@/data/farmMaps'
   import _pkg from '../../package.json'
   import { useAudio } from '@/composables/useAudio'
@@ -562,6 +577,8 @@
   import { Capacitor } from '@capacitor/core'
   import { buildScopedSingleKey, initCurrentAccount, migrateLegacySingleValue } from '@/utils/accountStorage'
   import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
+  import type { TaoyuanAnnouncement } from '@/types/announcement'
+  import { openAnnouncementTarget } from '@/utils/announcementApi'
 
   const router = useRouter()
   const { startBgm } = useAudio()
@@ -577,6 +594,7 @@
   const questStore = useQuestStore()
   const inventoryStore = useInventoryStore()
   const mailboxStore = useMailboxStore()
+  const announcementStore = useAnnouncementStore()
 
   const slots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
   type ImportNotice = {
@@ -599,6 +617,7 @@
   const showPrivacy = ref(false)
   const showFarmConfirm = ref(false)
   const showAbout = ref(false)
+  const showAnnouncementHistory = ref(false)
   const isDesktopMenu = ref(typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1280px)').matches)
   const menuConfig = ref({
     returnButtonEnabled: true,
@@ -860,6 +879,21 @@
 
   const handleOpenHall = () => {
     void router.push('/hall')
+  }
+
+  const openAnnouncementHistory = () => {
+    showAnnouncementHistory.value = true
+    void announcementStore.fetchHistory()
+  }
+
+  const handleAnnouncementHistoryCta = async (announcement: TaoyuanAnnouncement) => {
+    if (!announcement.cta_url) return
+    try {
+      await openAnnouncementTarget(announcement.cta_url, router)
+      showAnnouncementHistory.value = false
+    } catch {
+      showFloat('公告链接暂时无法打开，请稍后重试。', 'danger')
+    }
   }
 
   const handleOpenAdmin = () => {

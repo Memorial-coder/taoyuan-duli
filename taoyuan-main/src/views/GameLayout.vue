@@ -61,6 +61,16 @@
     </Transition>
 
     <Transition name="panel-fade">
+      <AnnouncementDialog
+        v-if="currentAnnouncement && !blockAnnouncementDialogs"
+        :announcement="currentAnnouncement"
+        @close="announcementStore.closeCurrent"
+        @cta="handleAnnouncementCta"
+        @save-update="handleAnnouncementSaveUpdate"
+      />
+    </Transition>
+
+    <Transition name="panel-fade">
       <div
         v-if="showSavePrompt"
         class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -485,6 +495,7 @@
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useRealtimeStore } from '@/stores/useRealtimeStore'
+  import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
@@ -510,6 +521,7 @@
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import DailyDigestSummaryDialog from '@/components/game/DailyDigestSummaryDialog.vue'
+  import AnnouncementDialog from '@/components/game/AnnouncementDialog.vue'
   import MobileMapMenu from '@/components/game/MobileMapMenu.vue'
   import PlayerRecordCenterPanel from '@/components/game/PlayerRecordCenterPanel.vue'
   import StatusBar from '@/components/game/StatusBar.vue'
@@ -530,6 +542,7 @@
   import SettingsDialog from '@/components/game/SettingsDialog.vue'
   import SaveManager from '@/components/game/SaveManager.vue'
   import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
+  import { openAnnouncementTarget } from '@/utils/announcementApi'
   import { Capacitor } from '@capacitor/core'
 
   const BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000
@@ -555,6 +568,7 @@
   const mailboxStore = useMailboxStore()
   const saveStore = useSaveStore()
   const realtimeStore = useRealtimeStore()
+  const announcementStore = useAnnouncementStore()
   const { switchToSeasonalBgm } = useAudio()
   const gameLayoutRoot = ref<HTMLDivElement | null>(null)
   const contentViewport = ref<HTMLDivElement | null>(null)
@@ -599,7 +613,7 @@
   const showSettings = ref(false)
   const showSavePrompt = ref(false)
   const showSaveManager = ref(false)
-  const saveIntent = ref<'manage' | 'save' | 'save-return'>('manage')
+  const saveIntent = ref<'manage' | 'save' | 'save-return' | 'save-refresh'>('manage')
   const saveReturnUrl = ref('/')
 
   const openSettings = () => {
@@ -617,7 +631,7 @@
     showSavePrompt.value = true
   }
 
-  const openSaveManager = (payload: { intent: 'save' | 'save-return'; returnUrl: string }) => {
+  const openSaveManager = (payload: { intent: 'save' | 'save-return' | 'save-refresh'; returnUrl: string }) => {
     saveIntent.value = payload.intent
     saveReturnUrl.value = payload.returnUrl || '/'
     showSavePrompt.value = false
@@ -726,7 +740,27 @@
   const showDailyDigestSummary = ref(false)
   const latestUnreadDailyDigest = computed(() => (playerRecordCenterStore.hasUnreadDailyDigest ? playerRecordCenterStore.latestDailyDigest : null))
   const recordCenterInitialTab = ref<RecordCenterTabId>(playerRecordCenterStore.getPreferredOpenTab())
-  const blockFollowupDialogs = computed(() => showDailyDigestSummary.value || showRecordCenter.value)
+  const currentAnnouncement = computed(() => announcementStore.currentAnnouncement)
+  const blockAnnouncementDialogs = computed(() => showDailyDigestSummary.value || showRecordCenter.value || showSaveManager.value || showSavePrompt.value)
+  const blockFollowupDialogs = computed(() => blockAnnouncementDialogs.value || !!currentAnnouncement.value)
+
+  const handleAnnouncementCta = async () => {
+    const announcement = announcementStore.clickCurrentCta()
+    if (!announcement?.cta_url) return
+    try {
+      await openAnnouncementTarget(announcement.cta_url, router)
+    } catch {
+      addLog('公告链接暂时无法打开，请稍后从首页公告入口重试。')
+    }
+  }
+
+  const handleAnnouncementSaveUpdate = () => {
+    announcementStore.closeCurrent()
+    openSaveManager({
+      intent: 'save-refresh',
+      returnUrl: window.location.href,
+    })
+  }
 
   const closeDailyDigestSummary = () => {
     const latestDayTag = playerRecordCenterStore.latestDailyDigest?.dayTag
@@ -829,6 +863,7 @@
     document.addEventListener('fullscreenchange', syncFullscreenState)
     document.addEventListener('webkitfullscreenchange', syncFullscreenState)
     void realtimeStore.start()
+    void announcementStore.fetchActive()
     void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
     mailboxVisibilityHandler = () => {

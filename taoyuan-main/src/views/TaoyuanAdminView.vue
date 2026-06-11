@@ -30,6 +30,9 @@
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'content' }" @click="switchAdminTab('content')">
               <span>首页关于</span>
             </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'announcements' }" @click="switchAdminTab('announcements')">
+              <span>更新公告</span>
+            </button>
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'android' }" @click="switchAdminTab('android')">
               <span>安卓发布</span>
             </button>
@@ -542,6 +545,8 @@
 
       <AdminHomepageAboutPanel v-if="hasToken && activeAdminTab === 'content'" :can-load="hasAdminAccess" />
 
+      <AdminAnnouncementPanel v-if="hasToken && activeAdminTab === 'announcements'" :can-load="hasAdminAccess" />
+
       <AdminAndroidReleasePanel v-if="hasToken && activeAdminTab === 'android'" :can-load="hasAdminAccess" />
 
       <AdminLogCenterPanel
@@ -646,6 +651,7 @@
   import { ArrowLeft, Bug, KeyRound, Play, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users } from 'lucide-vue-next'
   import Divider from '@/components/game/Divider.vue'
   import AdminHomepageAboutPanel from '@/components/game/AdminHomepageAboutPanel.vue'
+  import AdminAnnouncementPanel from '@/components/game/AdminAnnouncementPanel.vue'
   import AdminAndroidReleasePanel from '@/components/game/AdminAndroidReleasePanel.vue'
   import AdminLogCenterPanel from '@/components/game/AdminLogCenterPanel.vue'
   import AdminOnlineGovernancePanel from '@/components/game/AdminOnlineGovernancePanel.vue'
@@ -831,7 +837,8 @@
   const composer = ref<ComposerState>(createComposer())
   const adminSession = ref<AdminSessionInfo | null>(null)
   const isAuthorized = ref(false)
-  const activeAdminTab = ref<'mail' | 'content' | 'android' | 'logs' | 'online' | 'ai' | 'cloud' | 'debug'>('mail')
+  type AdminTab = 'mail' | 'content' | 'announcements' | 'android' | 'logs' | 'online' | 'ai' | 'cloud' | 'debug'
+  const activeAdminTab = ref<AdminTab>('mail')
   const officialControlPlatformStatus = ref<OfficialControlPlatformStatus | null>(null)
 
   const loadingCampaigns = ref(false)
@@ -907,7 +914,7 @@
     void router.push('/')
   }
 
-  const switchAdminTab = (tab: 'mail' | 'content' | 'android' | 'logs' | 'online' | 'ai' | 'cloud' | 'debug') => {
+  const switchAdminTab = (tab: AdminTab) => {
     activeAdminTab.value = tab
     const nextQuery = { ...route.query }
     if (tab !== 'mail') {
@@ -927,7 +934,7 @@
 
   const syncAdminTabFromRoute = () => {
     const routeTab = route.query.tab
-    if (routeTab === 'content' || routeTab === 'android' || routeTab === 'logs' || routeTab === 'online' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
+    if (routeTab === 'content' || routeTab === 'announcements' || routeTab === 'android' || routeTab === 'logs' || routeTab === 'online' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
       activeAdminTab.value = routeTab
       return
     }
