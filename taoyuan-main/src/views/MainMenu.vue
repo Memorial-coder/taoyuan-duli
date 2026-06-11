@@ -481,6 +481,49 @@
       </div>
     </Transition>
 
+    <Transition name="panel-fade">
+      <div
+        v-if="serverSaveFieldAnomaly"
+        class="game-modal-overlay fixed inset-0 z-60 flex items-center justify-center bg-bg/80 p-4"
+        data-testid="main-menu-save-field-anomaly-modal"
+        @click.self="saveStore.dismissServerSaveFieldAnomaly"
+      >
+        <div class="game-panel w-full max-w-sm text-left">
+          <div class="mb-3 flex items-start gap-2">
+            <AlertTriangle :size="16" class="mt-0.5 shrink-0 text-danger" />
+            <div>
+              <p class="text-sm text-danger">修复异常字段后强制保存？</p>
+              <p class="mt-1 text-[0.6875rem] leading-5 text-muted">
+                服务端检测到导入存档有越界或非法字段。确认后会先把这些字段修到合法范围，再覆盖服务端存档 {{ serverSaveFieldAnomaly.slot + 1 }}。
+              </p>
+            </div>
+          </div>
+          <div class="mb-3 rounded-xs border border-danger/20 bg-bg/25 px-3 py-2 text-[0.625rem] leading-5">
+            <p class="text-text">{{ formatConflictSummary(serverSaveFieldAnomaly.summary) }}</p>
+            <p class="mt-1 text-muted">异常 {{ serverSaveFieldAnomaly.details.anomaly_count }} 项，远端旧档会在确认后被覆盖。</p>
+          </div>
+          <div v-if="visibleFieldAnomalies.length > 0" class="mb-4 space-y-1 text-[0.625rem] leading-5 text-muted">
+            <p v-for="(entry, index) in visibleFieldAnomalies" :key="entry.id || entry.field_path || index">
+              {{ formatSaveFieldAnomaly(entry) }}
+            </p>
+            <p v-if="hiddenFieldAnomalyCount > 0">还有 {{ hiddenFieldAnomalyCount }} 项未展开。</p>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button :disabled="repairingFieldAnomaly" @click="handleDismissServerFieldAnomaly">暂不处理</Button>
+            <Button
+              class="btn-danger justify-center"
+              :icon="Save"
+              :icon-size="12"
+              :disabled="repairingFieldAnomaly"
+              @click="handleRepairServerFieldAnomaly"
+            >
+              {{ repairingFieldAnomaly ? '修复保存中...' : '修复并强制保存' }}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 隐私协议弹窗 -->
     <Transition name="panel-fade">
       <div v-if="showPrivacy" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80" @click.self="handlePrivacyDecline">
@@ -549,7 +592,7 @@
 </template>
 
 <script setup lang="ts">
-  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload, Megaphone } from 'lucide-vue-next'
+  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload, Megaphone, AlertTriangle } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
@@ -609,6 +652,7 @@
   const adminEntryUnlocked = ref(false)
   const slotMenuOpen = ref<number | null>(null)
   const resolvingConflict = ref(false)
+  const repairingFieldAnomaly = ref(false)
   const importNotice = ref<ImportNotice | null>(null)
   const importNoticePanelRef = ref<HTMLElement | null>(null)
   const selectedMap = ref<FarmMapType>('standard')
@@ -669,6 +713,9 @@
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
   const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
+  const serverSaveFieldAnomaly = computed(() => saveStore.serverSaveFieldAnomaly)
+  const visibleFieldAnomalies = computed(() => serverSaveFieldAnomaly.value?.details.anomalies.slice(0, 5) ?? [])
+  const hiddenFieldAnomalyCount = computed(() => Math.max(0, (serverSaveFieldAnomaly.value?.details.anomalies.length ?? 0) - visibleFieldAnomalies.value.length))
   const storageModeText = computed(() => (saveStore.storageMode === 'local' ? '本地存储（当前设备）' : '服务端持久化（当前账号）'))
   const storageModeDesc = computed(() =>
     saveStore.storageMode === 'local'
@@ -1128,6 +1175,9 @@
   }
 
   const buildImportFailureMessage = () => {
+    if (saveStore.serverSaveFieldAnomaly) {
+      return '检测到云存档字段异常，请在弹窗中确认是否修复后强制保存。'
+    }
     if (saveStore.lastSaveResultStatus === 'conflict') {
       return '云存档有新版本，请在上方比较后选择要保存哪一个。'
     }
@@ -1150,6 +1200,17 @@
       : '时间未知'
     const moneyText = Number.isFinite(Number(info.money)) ? ` · ${Math.floor(Number(info.money))} 铜钱` : ''
     return `${playerName} · ${dayText}${moneyText}`
+  }
+
+  const formatSaveFieldAnomaly = (entry: { field_path?: string; action?: string; observed_value?: unknown; normalized_value?: unknown; limit?: unknown }) => {
+    const fieldPath = entry.field_path || 'unknown_field'
+    const action = entry.action ? ` · ${entry.action}` : ''
+    const observed = entry.observed_value !== undefined && entry.observed_value !== null ? ` · 当前 ${String(entry.observed_value)}` : ''
+    const limit = entry.limit !== undefined && entry.limit !== null ? ` · 限制 ${String(entry.limit)}` : ''
+    const normalized = entry.normalized_value !== undefined && entry.normalized_value !== null
+      ? ` -> ${String(entry.normalized_value)}`
+      : ''
+    return `${fieldPath}${action}${observed}${limit}${normalized}`
   }
 
   const handleResolveServerConflict = async (choice: 'local' | 'remote') => {
@@ -1177,6 +1238,47 @@
     if (slot === null || slot === undefined) return
     clearImportNotice()
     await loadGameFromSlot(slot)
+  }
+
+  const handleDismissServerFieldAnomaly = () => {
+    saveStore.dismissServerSaveFieldAnomaly()
+    setImportNotice({
+      tone: 'danger',
+      message: '已暂不处理云存档字段异常，服务端旧档仍保留。',
+      slot: null
+    })
+  }
+
+  const handleRepairServerFieldAnomaly = async () => {
+    if (repairingFieldAnomaly.value) return
+    const anomalySlot = serverSaveFieldAnomaly.value?.slot ?? null
+    repairingFieldAnomaly.value = true
+    const ok = await saveStore.forceRepairServerSaveFieldAnomaly()
+    repairingFieldAnomaly.value = false
+    await refreshSlots()
+
+    if (!ok) {
+      const message = saveStore.lastSaveResultStatus === 'conflict'
+        ? '云存档又有新版本，请先比较导入存档和服务端存档。'
+        : saveStore.lastSaveErrorMessage || '修复并强制保存失败，服务端旧档仍保留。'
+      showFloat(message, saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger')
+      addLog(message)
+      setImportNotice({
+        tone: saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger',
+        message,
+        slot: null
+      })
+      return
+    }
+
+    const message = saveStore.lastServerSyncMessage || '已修复异常字段并保存到服务端存档。'
+    showFloat(message, 'success')
+    addLog(message)
+    setImportNotice({
+      tone: 'success',
+      message,
+      slot: anomalySlot
+    })
   }
 
   const handleImportFile = (e: Event) => {
@@ -1212,14 +1314,14 @@
             addLog(message)
           } else {
             const message = buildImportFailureMessage()
-            if (saveStore.lastSaveResultStatus === 'conflict') {
+            if (saveStore.lastSaveResultStatus === 'conflict' || saveStore.serverSaveFieldAnomaly) {
               await refreshSlots()
             }
-            showFloat(message, saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger')
+            showFloat(message, saveStore.lastSaveResultStatus === 'conflict' || saveStore.serverSaveFieldAnomaly ? 'accent' : 'danger')
             setImportNotice({
-              tone: saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger',
+              tone: saveStore.lastSaveResultStatus === 'conflict' || saveStore.serverSaveFieldAnomaly ? 'accent' : 'danger',
               message,
-              slot: saveStore.lastSaveResultStatus === 'conflict' ? emptySlot.slot : null
+              slot: saveStore.lastSaveResultStatus === 'conflict' || saveStore.serverSaveFieldAnomaly ? emptySlot.slot : null
             })
             addLog(message)
           }

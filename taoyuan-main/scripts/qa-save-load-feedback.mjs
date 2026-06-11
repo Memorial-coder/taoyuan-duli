@@ -320,7 +320,11 @@ const installBrowserShims = () => {
   const documentObj = {
     hidden: false,
     visibilityState: 'visible',
-    documentElement: { style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} } },
+    documentElement: {
+      style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    },
     body: makeElement('body'),
     createElement: tag => makeElement(tag),
     createElementNS: (_ns, tag) => makeElement(tag),
@@ -469,6 +473,9 @@ assert(mainMenuSource.includes("setImportNotice({\n              tone: saveStore
 assert(mainMenuSource.includes('handleLoadImportedSlot'), 'main menu import success notice must offer a direct load action')
 assert(mainMenuSource.includes('main-menu-server-save-conflict-panel'), 'main menu must render server import conflict panel')
 assert(mainMenuSource.includes('main-menu-import-conflict-actions'), 'main menu import notice must expose conflict actions next to the import feedback')
+assert(mainMenuSource.includes('main-menu-save-field-anomaly-modal'), 'main menu must render the save-field repair confirmation modal')
+assert(mainMenuSource.includes('forceRepairServerSaveFieldAnomaly'), 'main menu must let players confirm repair and force-save field anomalies')
+assert(mainMenuSource.includes('dismissServerSaveFieldAnomaly'), 'main menu must let players dismiss field anomaly repair')
 assert(mainMenuSource.includes("handleResolveServerConflict('local')"), 'main menu must let players keep imported/local copy')
 assert(mainMenuSource.includes("handleResolveServerConflict('remote')"), 'main menu must let players use server save')
 assert(saveManagerSource.includes('server-save-conflict-panel'), 'save manager must render server conflict panel')
