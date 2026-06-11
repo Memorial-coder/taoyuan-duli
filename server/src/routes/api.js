@@ -27,6 +27,7 @@ const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
 const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
 const taoyuanWorldEventRuntime = require('../taoyuanWorldEventRuntime');
 const taoyuanOnlineAudit = require('../taoyuanOnlineAudit');
+const taoyuanAnnouncementRuntime = require('../taoyuanAnnouncementRuntime');
 const taoyuanImageModeration = require('../taoyuanImageModeration');
 const taoyuanContentModerationAudit = require('../taoyuanContentModerationAudit');
 const {
@@ -2979,6 +2980,101 @@ function moderateOnlineReleaseConfigPayload(payload = {}, req) {
       knownIssues: moderateField(next.releaseNotes.knownIssues, 'release_notes_known_issues', '联机发布已知问题', 2400),
       rollbackPlan: moderateField(next.releaseNotes.rollbackPlan, 'release_notes_rollback_plan', '联机发布回滚说明', 2400),
     },
+  };
+}
+
+function getAnnouncementActor(req) {
+  return {
+    operator_name: sanitizeAuditValue(req.admin?.operator_name || '', 64),
+    operator_role: sanitizeAuditValue(req.admin?.role || '', 32),
+  };
+}
+
+function buildAnnouncementModerationAuditContext(req, overrides = {}) {
+  return buildAdminContentModerationAuditContext(req, {
+    scene: 'admin_announcement',
+    content_type: 'taoyuan_announcement',
+    content_id: sanitizeAuditValue(overrides.content_id || '', 80),
+    ...overrides,
+  });
+}
+
+function moderateAnnouncementPayload(req, payload = {}, options = {}) {
+  const source = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const next = { ...source };
+  const contentId = sanitizeAuditValue(options.contentId || next.id || '', 80);
+  const baseAuditContext = buildAnnouncementModerationAuditContext(req, { content_id: contentId });
+  const moderateField = (field, label, maxLength, maxLineBreaks = 0) => {
+    if (!Object.prototype.hasOwnProperty.call(next, field)) return;
+    next[field] = moderateText(next[field], {
+      label,
+      field,
+      scene: 'admin_announcement',
+      maxLength,
+      storageMaxLength: maxLength,
+      maxLineBreaks,
+      auditContext: {
+        ...baseAuditContext,
+        field,
+      },
+    });
+  };
+
+  moderateField('title', 'Announcement title', 120, 2);
+  moderateField('body', 'Announcement body', 8000, 300);
+  moderateField('cta_text', 'Announcement CTA text', 60, 0);
+  moderateField('ctaText', 'Announcement CTA text', 60, 0);
+
+  const rawCtaUrl = Object.prototype.hasOwnProperty.call(next, 'cta_url') ? next.cta_url : next.ctaUrl;
+  if (rawCtaUrl !== undefined && rawCtaUrl !== null && String(rawCtaUrl).trim()) {
+    const sanitized = taoyuanAnnouncementRuntime.sanitizeUrl(rawCtaUrl);
+    if (!sanitized) {
+      const error = new Error('Announcement CTA URL must start with /, http://, or https://');
+      error.status = 400;
+      error.code = 'ANNOUNCEMENT_CTA_URL_INVALID';
+      throw error;
+    }
+    next.cta_url = sanitized;
+  }
+
+  const rawButtonTexts = next.button_texts ?? next.buttonTexts;
+  if (rawButtonTexts && typeof rawButtonTexts === 'object' && !Array.isArray(rawButtonTexts)) {
+    const buttonTexts = { ...rawButtonTexts };
+    for (const field of ['close', 'suppress', 'cta']) {
+      if (!Object.prototype.hasOwnProperty.call(buttonTexts, field)) continue;
+      buttonTexts[field] = moderateText(buttonTexts[field], {
+        label: `Announcement ${field} button text`,
+        field: `button_texts.${field}`,
+        scene: 'admin_announcement',
+        maxLength: 40,
+        storageMaxLength: 40,
+        auditContext: {
+          ...baseAuditContext,
+          field: `button_texts.${field}`,
+        },
+      });
+    }
+    next.button_texts = buttonTexts;
+  }
+
+  return next;
+}
+
+function buildAnnouncementAuditDetail(announcement = {}, extra = {}) {
+  return {
+    target_type: 'taoyuan_announcement',
+    target_id: sanitizeAuditValue(announcement.id || extra.target_id || '', 80),
+    title: sanitizeAuditValue(announcement.title || '', 120),
+    status: sanitizeAuditValue(announcement.status || '', 32),
+    version: sanitizeAuditValue(announcement.version || '', 64),
+    priority: Number(announcement.priority) || 0,
+    target_versions: Array.isArray(announcement.target_versions) ? announcement.target_versions.slice(0, 20) : [],
+    target_channels: Array.isArray(announcement.target_channels) ? announcement.target_channels.slice(0, 20) : [],
+    start_at: announcement.start_at || null,
+    end_at: announcement.end_at || null,
+    published_at: announcement.published_at || null,
+    offline_at: announcement.offline_at || null,
+    ...extra,
   };
 }
 
@@ -7136,6 +7232,167 @@ router.post('/admin/content/upload-image', userAdminAuth, async (req, res) => {
     res.json({ ok: true, ...uploaded });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '上传内容图片失败' });
+  }
+});
+
+router.get('/admin/taoyuan/announcements', userAdminAuth, async (req, res) => {
+  try {
+    const announcements = await taoyuanAnnouncementRuntime.listAdminAnnouncements();
+    res.json({
+      ok: true,
+      announcements,
+      templates: taoyuanAnnouncementRuntime.getTemplates(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to load announcements' });
+  }
+});
+
+router.post('/admin/taoyuan/announcements', userAdminAuth, async (req, res) => {
+  try {
+    const payload = moderateAnnouncementPayload(req, {
+      ...(req.body || {}),
+      status: 'draft',
+      published_at: null,
+      offline_at: null,
+    });
+    const announcement = await taoyuanAnnouncementRuntime.upsertAnnouncement(payload, getAnnouncementActor(req));
+    await appendAdminAuditLog(req, 'create_taoyuan_announcement', '', buildAnnouncementAuditDetail(announcement));
+    res.json({ ok: true, announcement });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to create announcement' });
+  }
+});
+
+router.put('/admin/taoyuan/announcements/:id', userAdminAuth, async (req, res) => {
+  try {
+    const current = await taoyuanAnnouncementRuntime.getAnnouncement(req.params.id);
+    if (!current) return res.status(404).json({ ok: false, msg: 'Announcement not found' });
+    const payload = moderateAnnouncementPayload(req, {
+      ...(req.body || {}),
+      id: current.id,
+      status: current.status,
+      published_at: current.published_at,
+      offline_at: current.offline_at,
+    }, { contentId: current.id });
+    const announcement = await taoyuanAnnouncementRuntime.upsertAnnouncement(payload, getAnnouncementActor(req));
+    await appendAdminAuditLog(req, 'update_taoyuan_announcement', '', buildAnnouncementAuditDetail(announcement, {
+      before_status: current.status,
+    }));
+    res.json({ ok: true, announcement });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to update announcement' });
+  }
+});
+
+router.post('/admin/taoyuan/announcements/:id/publish', userAdminAuth, async (req, res) => {
+  try {
+    const announcement = await taoyuanAnnouncementRuntime.publishAnnouncement(req.params.id, getAnnouncementActor(req));
+    await appendAdminAuditLog(req, 'publish_taoyuan_announcement', '', buildAnnouncementAuditDetail(announcement));
+    res.json({ ok: true, announcement });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to publish announcement' });
+  }
+});
+
+router.post('/admin/taoyuan/announcements/:id/offline', userAdminAuth, async (req, res) => {
+  try {
+    const announcement = await taoyuanAnnouncementRuntime.offlineAnnouncement(req.params.id, getAnnouncementActor(req));
+    await appendAdminAuditLog(req, 'offline_taoyuan_announcement', '', buildAnnouncementAuditDetail(announcement));
+    res.json({ ok: true, announcement });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to offline announcement' });
+  }
+});
+
+router.get('/admin/taoyuan/announcements/:id/stats', userAdminAuth, async (req, res) => {
+  try {
+    const result = await taoyuanAnnouncementRuntime.getAnnouncementStats(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to load announcement stats' });
+  }
+});
+
+router.get('/admin/taoyuan/announcements/:id/audit-logs', userAdminAuth, async (req, res) => {
+  try {
+    const announcement = await taoyuanAnnouncementRuntime.getAnnouncement(req.params.id);
+    if (!announcement) return res.status(404).json({ ok: false, msg: 'Announcement not found' });
+    const actions = [
+      'create_taoyuan_announcement',
+      'update_taoyuan_announcement',
+      'publish_taoyuan_announcement',
+      'offline_taoyuan_announcement',
+    ];
+    const batches = await Promise.all(actions.map(action => db.listAdminAuditLogs({
+      page: 1,
+      pageSize: 100,
+      action,
+    })));
+    const logs = batches
+      .flatMap(batch => Array.isArray(batch.logs) ? batch.logs : [])
+      .filter(log => {
+        const detail = log?.detail && typeof log.detail === 'object' ? log.detail : {};
+        return detail.target_type === 'taoyuan_announcement' && detail.target_id === announcement.id;
+      })
+      .sort((left, right) => (Number(right.created_at) || 0) - (Number(left.created_at) || 0))
+      .slice(0, 100);
+    res.json({ ok: true, logs });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to load announcement audit logs' });
+  }
+});
+
+router.get('/taoyuan/announcements/active', async (req, res) => {
+  try {
+    const announcements = await taoyuanAnnouncementRuntime.listActiveAnnouncements({
+      username: req.session?.username || '',
+      version: req.query.version,
+      channel: req.query.channel,
+    });
+    res.json({
+      ok: true,
+      announcements: announcements.map(taoyuanAnnouncementRuntime.toPublicAnnouncement),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to load active announcements' });
+  }
+});
+
+router.get('/taoyuan/announcements/history', async (req, res) => {
+  try {
+    const announcements = await taoyuanAnnouncementRuntime.listPublicHistory({
+      version: req.query.version,
+      channel: req.query.channel,
+      limit: req.query.limit,
+    });
+    res.json({
+      ok: true,
+      announcements: announcements.map(taoyuanAnnouncementRuntime.toPublicAnnouncement),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to load announcement history' });
+  }
+});
+
+router.post('/taoyuan/announcements/:id/events', async (req, res) => {
+  try {
+    const eventType = String(req.body?.event_type || req.body?.eventType || '').trim();
+    if (!taoyuanAnnouncementRuntime.ANNOUNCEMENT_EVENT_TYPES.has(eventType)) {
+      return res.status(400).json({ ok: false, msg: 'Invalid announcement event type' });
+    }
+    const result = await taoyuanAnnouncementRuntime.recordAnnouncementEvent(req.params.id, {
+      username: req.session?.username || '',
+      event_type: eventType,
+      client_version: req.body?.client_version || req.body?.clientVersion || '',
+      client_channel: req.body?.client_channel || req.body?.clientChannel || '',
+      detail: req.body?.detail && typeof req.body.detail === 'object' && !Array.isArray(req.body.detail)
+        ? req.body.detail
+        : {},
+    });
+    res.json({ ok: true, recorded: result.recorded });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to record announcement event' });
   }
 });
 
