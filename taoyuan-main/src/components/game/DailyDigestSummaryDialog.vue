@@ -106,13 +106,13 @@
   }
 
   :deep(.daily-digest-action-btn--secondary) {
-    background: rgba(18, 21, 31, 0.92);
+    background: var(--color-surface-raised);
     border-color: rgba(200, 164, 92, 0.32);
     color: rgb(var(--color-text));
   }
 
   :deep(.daily-digest-action-btn--secondary:hover) {
-    background: rgba(32, 37, 52, 0.96);
+    background: rgb(var(--color-accent-rgb) / 0.12);
     border-color: rgba(200, 164, 92, 0.5);
   }
 

@@ -592,29 +592,34 @@ button {
   border-radius: 2px;
 }
 
+html[data-theme-tone='light'] .bg-black\/5,
 html[data-theme-tone='light'] .bg-black\/10,
 html[data-theme-tone='light'] .bg-bg\/5,
 html[data-theme-tone='light'] .bg-bg\/10,
+html[data-theme-tone='light'] .bg-bg\/15,
 html[data-theme-tone='light'] .bg-background\/70 {
   background-color: var(--color-surface-muted);
 }
 
 html[data-theme-tone='light'] .bg-black\/20,
-html[data-theme-tone='light'] .bg-bg\/15,
 html[data-theme-tone='light'] .bg-bg\/20,
 html[data-theme-tone='light'] .bg-bg\/25,
 html[data-theme-tone='light'] .bg-bg\/30,
 html[data-theme-tone='light'] .bg-bg\/40,
 html[data-theme-tone='light'] .bg-bg\/50,
-html[data-theme-tone='light'] .bg-bg\/60 {
+html[data-theme-tone='light'] .bg-bg\/60,
+html[data-theme-tone='light'] .bg-bg\/70,
+html[data-theme-tone='light'] .bg-bg\/80,
+html[data-theme-tone='light'] .bg-bg\/90,
+html[data-theme-tone='light'] .bg-bg\/95 {
   background-color: var(--color-surface-raised);
 }
 
+html[data-theme-tone='light'] .bg-black\/45,
 html[data-theme-tone='light'] .bg-black\/60,
 html[data-theme-tone='light'] .bg-black\/70,
 html[data-theme-tone='light'] .bg-black\/75,
-html[data-theme-tone='light'] .bg-black\/80,
-html[data-theme-tone='light'] .bg-bg\/80 {
+html[data-theme-tone='light'] .bg-black\/80 {
   background-color: var(--color-overlay);
 }
 

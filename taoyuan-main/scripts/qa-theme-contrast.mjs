@@ -10,6 +10,9 @@ const themeSource = readSource('src/data/themes.ts')
 const appCssSource = readSource('src/app.css')
 const settingsDialogSource = readSource('src/components/game/SettingsDialog.vue')
 const mobileMapMenuSource = readSource('src/components/game/MobileMapMenu.vue')
+const dailyDigestSource = readSource('src/components/game/DailyDigestSummaryDialog.vue')
+const aiAssistantWidgetSource = readSource('src/components/game/AiAssistantWidget.vue')
+const hallViewSource = readSource('src/views/HallView.vue')
 const packageJson = JSON.parse(readSource('package.json'))
 
 const contrastThemeBlock = themeSource.match(/\{\s*key: 'contrast',[\s\S]*?tone: 'light'\s*\}/)?.[0]
@@ -51,14 +54,31 @@ assert.ok(contrastRatio(color('accent'), color('bg')) >= 4.5, 'contrast theme ac
 assert.ok(contrastRatio(color('text'), color('panel')) >= 7, 'contrast theme text should pass AAA contrast on panel')
 assert.ok(contrastRatio(color('accent'), color('panel')) >= 4.5, 'contrast theme accent should pass AA contrast on panel')
 assert.ok(contrastRatio(color('bg'), color('accent')) >= 4.5, 'contrast theme accent buttons should keep readable inverse text')
+assert.match(color('overlay'), /^rgba\(29,\s*42,\s*37,\s*0\.26\)$/, 'contrast theme overlay should be soft enough for light backgrounds')
 
 assert.match(settingsDialogSource, /v-for="t in THEMES"/, 'settings dialog should enumerate theme swatches from THEMES')
 assert.match(settingsDialogSource, /settings-theme-\$\{t\.key\}/, 'settings dialog should expose stable theme test ids')
 assert.doesNotMatch(mobileMapMenuSource, /rgba\(255,\s*248,\s*226/, 'mobile map captions should not use hard-coded pale text on light themes')
 assert.match(mobileMapMenuSource, /\.map-area-caption\s*\{[\s\S]*color:\s*rgb\(var\(--color-muted-rgb\) \/ 0\.95\)/, 'mobile map captions should use theme-muted text')
 assert.match(mobileMapMenuSource, /\.map-loc-active\s*\{[\s\S]*color:\s*rgb\(var\(--color-bg\)\)/, 'mobile map active tiles should keep inverse text readable')
+assert.doesNotMatch(dailyDigestSource, /rgba\(18,\s*21,\s*31,\s*0\.92\)/, 'daily digest secondary action should not keep a fixed dark background')
+assert.match(dailyDigestSource, /daily-digest-action-btn--secondary[\s\S]*background:\s*var\(--color-surface-raised\)/, 'daily digest secondary action should use theme surface color')
+assert.doesNotMatch(aiAssistantWidgetSource, /background:\s*rgba\(0,\s*0,\s*0,\s*0\.(14|18|24|26|32)\)/, 'AI assistant surfaces should not keep fixed black backgrounds')
+assert.match(aiAssistantWidgetSource, /\.ai-msg__bubble\s*\{[\s\S]*background:\s*var\(--color-surface-muted\)/, 'AI assistant bubbles should use theme surface color')
+assert.doesNotMatch(hallViewSource, /background:\s*(?:rgb\(38,\s*40,\s*56\)|rgba\(26,\s*26,\s*26,\s*0\.(14|18|2)\)|rgba\(0,\s*0,\s*0,\s*0\.15\)|rgba\(43,\s*45,\s*60,\s*0\.65\))/, 'hall surfaces should not keep fixed dark backgrounds')
+assert.match(hallViewSource, /\.hall-dropdown-panel\s*\{[\s\S]*background:\s*rgb\(var\(--color-panel\)\)/, 'hall dropdown should use theme panel color')
 assert.ok(appCssSource.includes("html[data-theme='contrast'] .text-muted\\/50"), 'contrast theme should strengthen low-opacity muted text')
 assert.ok(appCssSource.includes("html[data-theme='contrast'] .placeholder\\:text-muted\\/40::placeholder"), 'contrast theme should strengthen muted placeholders')
+for (const utility of [
+  'bg-black\\/5',
+  'bg-black\\/45',
+  'bg-bg\\/70',
+  'bg-bg\\/80',
+  'bg-bg\\/90',
+  'bg-bg\\/95'
+]) {
+  assert.ok(appCssSource.includes(`html[data-theme-tone='light'] .${utility}`), `light themes should soften ${utility}`)
+}
 assert.equal(packageJson.scripts?.['qa:theme-contrast'], 'node scripts/qa-theme-contrast.mjs', 'package.json should register qa:theme-contrast')
 
 console.log('qa-theme-contrast passed')

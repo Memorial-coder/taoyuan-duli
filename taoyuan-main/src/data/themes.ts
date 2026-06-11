@@ -137,7 +137,7 @@ export const THEMES: ThemeDef[] = [
     border: 'rgba(44, 111, 100, 0.42)',
     focusRing: 'rgba(44, 111, 100, 0.36)',
     shadow: 'rgba(29, 42, 37, 0.15)',
-    overlay: 'rgba(29, 42, 37, 0.48)',
+    overlay: 'rgba(29, 42, 37, 0.26)',
     tone: 'light'
   }
 ]

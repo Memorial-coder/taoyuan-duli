@@ -1432,7 +1432,7 @@
     padding: 10px 12px;
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.14);
+    background: var(--color-surface-muted);
   }
 
   .ai-msg--user .ai-msg__bubble {
@@ -1558,7 +1558,7 @@
     padding: 2px 7px;
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.32);
+    background: var(--color-surface-raised);
     color: rgb(var(--color-text) / 0.84);
     font-size: 0.625rem;
     line-height: 1.35;
@@ -1576,7 +1576,7 @@
     padding: 34px 10px 10px;
     border: 1px solid var(--ai-assistant-markdown-border, rgba(200, 164, 92, 0.18));
     border-radius: 6px;
-    background: rgba(0, 0, 0, 0.24);
+    background: var(--color-surface-muted);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
@@ -1738,7 +1738,7 @@
     padding: 2px 7px;
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--color-surface-raised);
     color: rgb(var(--color-text) / 0.82);
     font-size: 0.625rem;
     line-height: 1.35;
@@ -2080,7 +2080,7 @@
     overflow: auto;
     border: 1px solid rgba(200, 164, 92, 0.16);
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.26);
+    background: var(--color-surface-muted);
     color: rgb(var(--color-text) / 0.86);
     font-size: 0.625rem;
     line-height: 1.5;
