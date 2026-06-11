@@ -54,6 +54,7 @@
     "qa:quest-guards": "node scripts/qa-quest-guards.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",
     "qa:crop-assets": "node scripts/qa-crop-assets.mjs",
+    "qa:static-asset-browser-cache": "node scripts/qa-static-asset-browser-cache.mjs",
     "qa:reward-delivery-control": "node scripts/qa-reward-delivery-control.mjs",
     "qa:random-npc-save-guard": "node scripts/qa-random-npc-save-guard.mjs",
     "qa:random-npc-content-guard": "node scripts/qa-random-npc-content-guard.mjs",

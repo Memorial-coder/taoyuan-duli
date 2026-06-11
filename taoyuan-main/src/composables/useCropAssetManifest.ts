@@ -101,7 +101,7 @@ export const loadCropAssetManifest = async (): Promise<CropAssetManifest | null>
   loadPromise = (async () => {
     try {
       const url = `${resolveStaticBase(FALLBACK_BASE_PATH)}/crop-asset-manifest.json`
-      const res = await fetch(url, { cache: 'no-store' })
+      const res = await fetch(url)
       if (!res.ok) throw new Error(`manifest ${res.status}`)
       const data = (await res.json()) as CropAssetManifest
       manifest.value = data && typeof data === 'object' ? data : null

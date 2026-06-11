@@ -89,7 +89,7 @@ export const loadFishBossAssetManifest = async (): Promise<FishBossAssetManifest
   loadPromise = (async () => {
     try {
       const url = `${resolveStaticBase(FALLBACK_BASE_PATH)}/fish-boss-asset-manifest.json`
-      const res = await fetch(url, { cache: 'no-store' })
+      const res = await fetch(url)
       if (!res.ok) throw new Error(`manifest ${res.status}`)
       const data = (await res.json()) as FishBossAssetManifest
       manifest.value = data && typeof data === 'object' ? data : null

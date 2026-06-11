@@ -8,6 +8,7 @@ import App from './App.vue'
 import './app.css'
 import { initCurrentAccount } from '@/utils/accountStorage'
 import { installApiFetchBridge } from '@/utils/apiClient'
+import { registerAssetCacheServiceWorker } from '@/utils/assetCacheServiceWorker'
 
 const defaultProjectCreditMessage =
   '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186'
@@ -125,6 +126,7 @@ router.afterEach((to) => {
 const bootstrap = async () => {
   markBootstrapStage('bootstrap-start')
   installApiFetchBridge()
+  registerAssetCacheServiceWorker()
 
   const app = createApp(App)
   const pinia = createPinia()
