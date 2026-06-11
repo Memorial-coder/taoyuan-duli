@@ -495,10 +495,10 @@ export const useSkillStore = defineStore('skill', () => {
   /** 判断采集物品质（基于采集等级和专精 + 可选技能等级加成） */
   const rollForageQuality = (levelBonus: number = 0): 'normal' | 'fine' | 'excellent' | 'supreme' => {
     const skill = getSkill('foraging')
-    // perk20: 世界之树 必定神圣品质
+    // perk20: 世界之树 必定极品品质
     if (skill.perk20 === 'world_tree') return 'supreme'
-    // perk15: 上古植物学家 50%概率神圣，否则必定极品
-    if (skill.perk15 === 'ancient_botanist') return Math.random() < 0.5 ? 'supreme' : 'excellent'
+    // perk15: 上古植物学家 50%概率极品，否则必定精品；植物学家路线提高到75%
+    if (skill.perk15 === 'ancient_botanist') return Math.random() < (skill.perk10 === 'botanist' ? 0.75 : 0.5) ? 'supreme' : 'excellent'
     if (skill.perk10 === 'botanist') return 'excellent'
     const level = skill.level + levelBonus
     const roll = Math.random()
