@@ -52,6 +52,7 @@ import {
   getLifestealHeal,
   rollAttackOutcome
 } from '@/utils/combatRuntime'
+import { resolveFractionalStaminaCost } from '@/utils/fractionalStamina'
 
 const DEFEAT_MONEY_PENALTY_RATE = 0.1
 const DEFEAT_MONEY_PENALTY_CAP = 15000
@@ -61,6 +62,7 @@ const COMBAT_TIME_ADVANTAGE = 0.12
 const COMBAT_TIME_NORMAL = 0.17
 const COMBAT_TIME_LONG = 0.25
 const MINING_COMBAT_LOG_LIMIT = 120
+const MINING_BASE_STAMINA_COST = 2
 const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
 const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
   copper_ore: 'iron_ore',
@@ -199,6 +201,13 @@ export const useMiningStore = defineStore('mining', () => {
 
   /** 本次探索收集的物品（离开时50%丢失用） */
   const sessionLoot = ref<SessionLootEntry[]>([])
+  const miningStaminaDiscountCredit = ref(0)
+  watch(
+    () => `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+    () => {
+      miningStaminaDiscountCredit.value = 0
+    }
+  )
 
   /** 猎魔符效果：本次探索掉落率+20% */
   const slayerCharmActive = ref(false)
@@ -325,6 +334,10 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   const formatRewardLabels = (rewards: MineRewardDisplayEntry[]): string => rewards.map(reward => reward.label).join('、')
+
+  const formatMiningStaminaCostTag = (staminaCost: number): string => {
+    return staminaCost > 0 ? `-${staminaCost}体力` : '体力减免生效'
+  }
 
   const calculateMiningExpForRewardEntries = (entries: InventoryRewardEntry[]): number => {
     return entries.reduce((total, entry) => {
@@ -925,25 +938,24 @@ export const useMiningStore = defineStore('mining', () => {
     const blessingMiningReduction = skillStore.getBlessingEffectValue('mining_stamina')
     // 仙缘能力：聚气（shan_weng_1）挖矿体力-15%
     const spiritMiningReduction = useHiddenNpcStore().getAbilityValue('shan_weng_1') / 100
-    const staminaCost = Math.max(
-      1,
-      Math.floor(
-        2 *
-          environmentWindow.value.mining.staminaCostMultiplier *
-          pickaxeMultiplier *
-          (1 - skillStore.getStaminaReduction('mining')) *
-          (1 - miningBuff) *
-          (1 - alchemyMiningBuff) *
-          (1 - walletMiningReduction) *
-          (1 - ringMiningReduction) *
-          (1 - ringGlobalReduction) *
-          (1 - blessingMiningReduction) *
-          (1 - spiritMiningReduction)
-      )
-    )
-    if (!playerStore.consumeStamina(staminaCost)) {
+    const rawStaminaCost =
+      MINING_BASE_STAMINA_COST *
+      environmentWindow.value.mining.staminaCostMultiplier *
+      pickaxeMultiplier *
+      (1 - skillStore.getStaminaReduction('mining')) *
+      (1 - miningBuff) *
+      (1 - alchemyMiningBuff) *
+      (1 - walletMiningReduction) *
+      (1 - ringMiningReduction) *
+      (1 - ringGlobalReduction) *
+      (1 - blessingMiningReduction) *
+      (1 - spiritMiningReduction)
+    const resolvedStaminaCost = resolveFractionalStaminaCost(rawStaminaCost, miningStaminaDiscountCredit.value)
+    const staminaCost = resolvedStaminaCost.cost
+    if (staminaCost > 0 && !playerStore.consumeStamina(staminaCost)) {
       return { success: false, message: '体力不足，无法探索。', startsCombat: false }
     }
+    miningStaminaDiscountCredit.value = resolvedStaminaCost.discountCredit
 
     // 3% 概率获得秘密笔记
     if (Math.random() < 0.03) {
@@ -978,7 +990,7 @@ export const useMiningStore = defineStore('mining', () => {
   /** 处理空格子 */
   const _handleEmptyTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     tile.state = 'revealed'
-    return { success: true, message: `探索了一个空区域。(-${staminaCost}体力)`, startsCombat: false }
+    return { success: true, message: `探索了一个空区域。(${formatMiningStaminaCostTag(staminaCost)})`, startsCombat: false }
   }
 
   /** 处理矿石格子 */
@@ -1013,7 +1025,7 @@ export const useMiningStore = defineStore('mining', () => {
     tile.state = 'collected'
     const windowSuffix = environmentWindow.value.mining.active ? ` ${environmentWindow.value.mining.label}：${environmentWindow.value.mining.summary}` : ''
     const rareTransmuteSuffix = rareTransmuteOreId ? '（稀矿转化）' : ''
-    return { success: true, message: `挖到了${formatRewardLabels(rewards)}！(-${staminaCost}体力)${windowSuffix}${rareTransmuteSuffix}`, startsCombat: false, rewards }
+    return { success: true, message: `挖到了${formatRewardLabels(rewards)}！(${formatMiningStaminaCostTag(staminaCost)})${windowSuffix}${rareTransmuteSuffix}`, startsCombat: false, rewards }
   }
 
   /** 处理怪物格子 */
@@ -1028,7 +1040,7 @@ export const useMiningStore = defineStore('mining', () => {
     combatMonster.value = { ...monster }
     combatMonsterHp.value = monster.hp
     combatRound.value = 0
-    combatLog.value = [`遭遇了${monster.name}！(HP: ${monster.hp})  (-${staminaCost}体力)`]
+    combatLog.value = [`遭遇了${monster.name}！(HP: ${monster.hp})  (${formatMiningStaminaCostTag(staminaCost)})`]
     combatIsBoss.value = false
     inCombat.value = true
 
@@ -1049,7 +1061,7 @@ export const useMiningStore = defineStore('mining', () => {
     combatRound.value = 0
 
     const isFirstKill = !defeatedBosses.value.includes(monster.id)
-    combatLog.value = [`BOSS战！遭遇了${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}  (-${staminaCost}体力)`]
+    combatLog.value = [`BOSS战！遭遇了${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}  (${formatMiningStaminaCostTag(staminaCost)})`]
     combatIsBoss.value = true
     inCombat.value = true
 
@@ -1067,16 +1079,16 @@ export const useMiningStore = defineStore('mining', () => {
         const remaining = totalMonstersOnFloor.value - monstersDefeatedCount.value
         return {
           success: true,
-          message: `发现了楼梯！但需要先清除剩余${remaining}只怪物才能前进。(-${staminaCost}体力)`,
+          message: `发现了楼梯！但需要先清除剩余${remaining}只怪物才能前进。(${formatMiningStaminaCostTag(staminaCost)})`,
           startsCombat: false
         }
       }
       if (floor?.specialType === 'boss') {
-        return { success: true, message: `发现了楼梯！但需要先击败BOSS才能前进。(-${staminaCost}体力)`, startsCombat: false }
+        return { success: true, message: `发现了楼梯！但需要先击败BOSS才能前进。(${formatMiningStaminaCostTag(staminaCost)})`, startsCombat: false }
       }
     }
 
-    return { success: true, message: `发现了楼梯！可以前往下一层。(-${staminaCost}体力)`, startsCombat: false }
+    return { success: true, message: `发现了楼梯！可以前往下一层。(${formatMiningStaminaCostTag(staminaCost)})`, startsCombat: false }
   }
 
   /** 处理陷阱格子 */
@@ -1090,7 +1102,7 @@ export const useMiningStore = defineStore('mining', () => {
       return { success: true, message: `踩中了陷阱！受到${damage}点伤害。${defeatResult.message}`, startsCombat: false }
     }
 
-    return { success: true, message: `踩中了陷阱！受到${damage}点伤害。(-${staminaCost}体力)`, startsCombat: false }
+    return { success: true, message: `踩中了陷阱！受到${damage}点伤害。(${formatMiningStaminaCostTag(staminaCost)})`, startsCombat: false }
   }
 
   /** 处理宝箱格子 */
@@ -1178,7 +1190,7 @@ export const useMiningStore = defineStore('mining', () => {
     let msg = '发现宝箱！'
     if (items.length > 0) msg += `获得了${getRewardNames(items)}`
     if (money > 0) msg += `${items.length > 0 ? '和' : '获得了'}${money}文`
-    msg += `！(-${staminaCost}体力)`
+    msg += `！(${formatMiningStaminaCostTag(staminaCost)})`
     const rewardSuffix = rewards.length > 0 ? ` 刚获得：${formatRewardLabels(rewards)}。` : ''
     return { success: true, message: `${msg}${rewardSuffix}`, startsCombat: false, rewards: rewards.length > 0 ? rewards : undefined }
   }
@@ -1198,7 +1210,7 @@ export const useMiningStore = defineStore('mining', () => {
     addMiningExpForRewardEntries(rewardEntries)
 
     tile.state = 'collected'
-    return { success: true, message: `采集到了${formatRewardLabels(rewards)}！(+3采集经验, -${staminaCost}体力)`, startsCombat: false, rewards }
+    return { success: true, message: `采集到了${formatRewardLabels(rewards)}！(+3采集经验, ${formatMiningStaminaCostTag(staminaCost)})`, startsCombat: false, rewards }
   }
 
   // ==================== 炸弹 ====================
