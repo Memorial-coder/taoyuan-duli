@@ -83,7 +83,8 @@ const {
   FORAGE_ITEMS,
   HIDDEN_NPCS,
   ANIMAL_DEFS,
-  FEED_DEFS
+  FEED_DEFS,
+  HANHAI_SHOP_ITEMS
 } = data
 const { WILD_TREE_DEFS } = wildTrees
 
@@ -127,6 +128,15 @@ expectItem('buffalo_milk', { category: 'animal_product', sellPrice: 230 })
 expectItem('donkey_milk', { category: 'animal_product', sellPrice: 300 })
 expectItem('ostrich_egg', { category: 'animal_product', sellPrice: 520 })
 expectItem('antler_velvet', { category: 'animal_product', sellPrice: 900 })
+
+for (const shopItem of HANHAI_SHOP_ITEMS.filter(item => item.itemId.endsWith('_seed'))) {
+  const canonicalItem = getItemById(shopItem.itemId)
+  assert(!!canonicalItem, `瀚海商店种子缺少物品定义：${shopItem.itemId}`)
+  assert(
+    canonicalItem?.name === shopItem.name,
+    `瀚海商店种子 ${shopItem.itemId} 展示名应与物品定义一致：${shopItem.name} !== ${canonicalItem?.name ?? '未知'}`
+  )
+}
 
 const hayFeedPrice = FEED_DEFS.find(feed => feed.id === 'hay')?.price ?? 50
 for (const animal of ANIMAL_DEFS) {

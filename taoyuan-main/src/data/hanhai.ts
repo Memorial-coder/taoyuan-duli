@@ -692,7 +692,7 @@ export const WS14_HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
 /** 瀚海驿站商店物品 */
 export const HANHAI_SHOP_ITEMS: HanhaiShopItemDef[] = [
   { itemId: 'hanhai_cactus_seed', name: '仙人掌种子', price: 500, description: '来自西域的奇特植物种子。', weeklyLimit: 5 },
-  { itemId: 'hanhai_date_seed', name: '红枣种子', price: 400, description: '丝绸之路带来的果树种子。', weeklyLimit: 5 },
+  { itemId: 'hanhai_date_seed', name: '椰枣种子', price: 400, description: '丝绸之路带来的西域果实种子。', weeklyLimit: 5 },
   { itemId: 'hanhai_spice', name: '西域香料', price: 300, description: '异域风情的香料，烹饪佳品。', weeklyLimit: 3 },
   { itemId: 'hanhai_silk', name: '丝绸', price: 800, description: '细腻光滑的上等丝绸。', weeklyLimit: 2 },
   { itemId: 'hanhai_turquoise', name: '绿松石', price: 600, description: '西域特产的珍贵宝石。', weeklyLimit: 2 },
