@@ -39,6 +39,7 @@
     "qa:harvest-fair-inventory-consumption": "node scripts/qa-harvest-fair-inventory-consumption.mjs",
     "qa:resource-consumption-guards": "node scripts/qa-resource-consumption-guards.mjs",
     "qa:museum-ancient-seed-donation": "node scripts/qa-museum-ancient-seed-donation.mjs",
+    "qa:breeding-preview-guards": "node scripts/qa-breeding-preview-guards.mjs",
     "qa:navigation-clock-guards": "node scripts/qa-navigation-clock-guards.mjs",
     "qa:new-game-reset-guards": "node scripts/qa-new-game-reset-guards.mjs",
     "qa:mining-animation-timers": "node scripts/qa-mining-animation-timers.mjs",

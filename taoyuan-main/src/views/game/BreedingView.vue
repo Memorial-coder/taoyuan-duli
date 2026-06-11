@@ -824,6 +824,9 @@
             </template>
             <template v-else-if="crossBreedHint.type === 'no_recipe'">
               <p class="text-xs text-muted">这两个品种没有已知的杂交配方。</p>
+              <p class="text-xs text-warning mt-1">
+                若继续开始，会按失败杂交处理：随机返还{{ crossBreedHint.parentNames.join('或') }}的副本，并随机扣 {{ crossBreedHint.failedPenalty }} 点单项属性。
+              </p>
             </template>
             <template v-else-if="crossBreedHint.type === 'recipe'">
               <p class="text-xs text-accent mb-1">可杂交：{{ crossBreedHint.name }}</p>
@@ -843,6 +846,9 @@
               </div>
               <p v-if="!crossBreedHint.canSucceed" class="text-xs text-danger mt-1">属性未达标，杂交将失败。</p>
               <p v-if="!crossBreedHint.canSucceed" class="text-xs text-muted mt-1">{{ crossBreedHint.recommendation }}</p>
+              <p v-if="!crossBreedHint.canSucceed" class="text-xs text-warning mt-1">
+                失败时会随机返还一颗亲本副本，并随机扣 {{ crossBreedHint.failedPenalty }} 点单项属性。
+              </p>
               <p v-else class="text-xs text-success mt-1">属性达标，可以杂交成功！</p>
             </template>
           </div>
@@ -1287,6 +1293,7 @@
     const avgSweet = (a.sweetness + b.sweetness) / 2
     const avgYield = (a.yield + b.yield) / 2
     const avgRes = (a.resistance + b.resistance) / 2
+    if (a.cropId !== b.cropId && !hybrid) return null
     if (hybrid && (avgSweet < hybrid.minSweetness || avgYield < hybrid.minYield)) return null
     const avgStability = (a.stability + b.stability) / 2
     const avgMutationRate = (a.mutationRate + b.mutationRate) / 2
@@ -1367,7 +1374,14 @@
     const b = seedB.genetics
     if (a.cropId === b.cropId) return { type: 'same' as const }
     const hybrid = findPossibleHybrid(a.cropId, b.cropId)
-    if (!hybrid) return { type: 'no_recipe' as const }
+    const failedPenalty = breedingStore.researchLevel >= 2 ? 3 : 5
+    if (!hybrid) {
+      return {
+        type: 'no_recipe' as const,
+        parentNames: [getCropName(a.cropId), getCropName(b.cropId)],
+        failedPenalty
+      }
+    }
     const avgSweet = Math.round((a.sweetness + b.sweetness) / 2)
     const avgYield = Math.round((a.yield + b.yield) / 2)
     const sweetOk = avgSweet >= hybrid.minSweetness
@@ -1393,6 +1407,7 @@
       sweetOk,
       yieldOk,
       canSucceed: sweetOk && yieldOk,
+      failedPenalty,
       recommendation
     }
   })
