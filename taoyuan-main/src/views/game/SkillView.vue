@@ -6,7 +6,7 @@
     </h3>
     <!-- WS06 anchor: this skill/perk panel is the existing base for future
          mastery-style endgame growth that converges multiple progression lines. -->
-    <div class="desktop-adaptive-grid--cards">
+    <div class="desktop-adaptive-grid--cards" data-testid="skill-layout-grid">
       <div v-for="skill in skillStore.skills" :key="skill.type" class="game-panel">
         <!-- 标题行：图标 + 名称等级 + 经验 -->
         <div class="flex justify-between items-center mb-1.5">
@@ -101,7 +101,7 @@
         </div>
       </div>
 
-      <div class="game-panel desktop-adaptive-span-all">
+      <div class="game-panel desktop-adaptive-span-all" data-testid="skill-mastery-summary">
         <div class="flex items-center justify-between mb-2">
           <div>
             <p class="text-sm text-accent">终局精通</p>
@@ -240,7 +240,7 @@
     estate_owner: '作物售价+20%，加工品售价+40%，并保留 20% 双倍收成机会',
     livestock_baron: '动物产品数量翻倍',
     animal_whisperer: '动物亲密度满后每日额外产出',
-    ancient_botanist: '采集物必定神圣品质',
+    ancient_botanist: '采集物50%概率为极品品质',
     grand_alchemist: '食物恢复+100%，可叠加效果',
     forest_guardian: '采集时必定获得2份额外木材',
     wilderness_expert: '每次采集额外+2物品',
@@ -260,7 +260,7 @@
     land_god: '所有农产品产量+100%',
     beast_sovereign: '动物产品数量×2，动物产品售价+50%',
     nature_bond: '动物永远不会不满，产出品质神圣',
-    world_tree: '采集物品质神圣，采集量×3',
+    world_tree: '采集物必定极品，采集量×3',
     philosopher: '食物恢复效果+200%，料理增益不会因日切而清空',
     forest_spirit: '采集时必定获得3份木材及稀有材料',
     primal_tracker: '每次采集额外+4物品',

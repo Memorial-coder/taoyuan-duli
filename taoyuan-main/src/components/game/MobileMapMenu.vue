@@ -430,14 +430,14 @@
 
   /* 地图菜单 */
   .map-area {
-    border: 1px dashed rgba(200, 164, 92, 0.3);
+    border: 1px dashed rgb(var(--color-accent-rgb) / 0.3);
     border-radius: 2px;
     padding: calc(8px * var(--mobile-map-tile-scale, 1));
   }
 
   .map-area-title {
     font-size: calc(10px * var(--mobile-map-tile-scale, 1));
-    color: var(--color-muted);
+    color: var(--color-accent);
     margin-bottom: calc(6px * var(--mobile-map-tile-scale, 1));
     letter-spacing: 0.1em;
     text-align: center;
@@ -448,7 +448,7 @@
     margin-bottom: calc(6px * var(--mobile-map-tile-scale, 1));
     font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     line-height: 1.5;
-    color: rgba(255, 248, 226, 0.68);
+    color: rgb(var(--color-muted-rgb) / 0.95);
     text-align: center;
   }
 
@@ -475,7 +475,7 @@
     line-height: 1.3;
     color: rgb(var(--color-text));
     background: rgb(var(--color-bg));
-    border: 1px solid rgba(200, 164, 92, 0.2);
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
     border-radius: 2px;
     cursor: pointer;
     transition:
@@ -488,17 +488,19 @@
   .map-loc:active {
     background: var(--color-accent);
     border-color: var(--color-accent);
+    color: rgb(var(--color-bg));
   }
 
   .map-loc-active {
     background: var(--color-accent);
     border-color: var(--color-accent);
+    color: rgb(var(--color-bg));
   }
 
   .map-loc-online {
     min-width: calc(64px * var(--mobile-map-tile-scale, 1));
-    background: rgba(200, 164, 92, 0.08);
-    border-color: rgba(200, 164, 92, 0.28);
+    background: rgb(var(--color-accent-rgb) / 0.08);
+    border-color: rgb(var(--color-accent-rgb) / 0.28);
   }
 
   .map-loc-online-center {
@@ -508,7 +510,7 @@
 
   .map-path {
     text-align: center;
-    color: rgba(200, 164, 92, 0.3);
+    color: rgb(var(--color-accent-rgb) / 0.38);
     font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     line-height: 1;
     padding: calc(4px * var(--mobile-map-tile-scale, 1)) 0;
@@ -528,7 +530,7 @@
     gap: calc(10px * var(--mobile-map-tile-scale, 1));
     width: 100%;
     text-align: left;
-    border: 1px solid rgba(200, 164, 92, 0.2);
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
     border-radius: 2px;
     padding: calc(8px * var(--mobile-map-tile-scale, 1)) calc(10px * var(--mobile-map-tile-scale, 1));
     background: rgb(var(--color-bg));
@@ -541,8 +543,8 @@
   .quick-entry-btn:hover,
   .quick-entry-btn:active,
   .quick-entry-active {
-    background: rgba(200, 164, 92, 0.12);
-    border-color: rgba(200, 164, 92, 0.5);
+    background: rgb(var(--color-accent-rgb) / 0.12);
+    border-color: rgb(var(--color-accent-rgb) / 0.5);
   }
 
   .quick-entry-title {
@@ -560,12 +562,12 @@
 
   .quick-entry-tag {
     flex-shrink: 0;
-    border: 1px solid rgba(200, 164, 92, 0.2);
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
     border-radius: 2px;
     padding: calc(2px * var(--mobile-map-tile-scale, 1)) calc(6px * var(--mobile-map-tile-scale, 1));
     font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     color: var(--color-accent);
-    background: rgba(200, 164, 92, 0.08);
+    background: rgb(var(--color-accent-rgb) / 0.08);
   }
 
   .tool-entry-grid {
@@ -591,13 +593,13 @@
     display: flex;
     align-items: center;
     gap: calc(6px * var(--mobile-map-tile-scale, 1));
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.16);
     border-radius: 2px;
     padding: calc(6px * var(--mobile-map-tile-scale, 1)) calc(8px * var(--mobile-map-tile-scale, 1));
     font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     line-height: 1.35;
     color: var(--color-muted);
-    background: rgba(200, 164, 92, 0.06);
+    background: rgb(var(--color-accent-rgb) / 0.06);
     transition:
       background-color 0.15s,
       border-color 0.15s,
@@ -607,8 +609,8 @@
   .quick-link-chip:hover,
   .quick-link-chip:active,
   .quick-link-chip-active {
-    background: rgba(200, 164, 92, 0.12);
-    border-color: rgba(200, 164, 92, 0.4);
+    background: rgb(var(--color-accent-rgb) / 0.12);
+    border-color: rgb(var(--color-accent-rgb) / 0.4);
     color: rgb(var(--color-text));
   }
 
@@ -626,7 +628,7 @@
     align-items: flex-start;
     gap: calc(8px * var(--mobile-map-tile-scale, 1));
     min-height: calc(56px * var(--mobile-map-tile-scale, 1));
-    border: 1px solid rgba(200, 164, 92, 0.2);
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
     border-radius: 2px;
     padding: calc(8px * var(--mobile-map-tile-scale, 1)) calc(10px * var(--mobile-map-tile-scale, 1));
     text-align: left;
@@ -643,9 +645,9 @@
     justify-content: center;
     width: calc(24px * var(--mobile-map-tile-scale, 1));
     height: calc(24px * var(--mobile-map-tile-scale, 1));
-    border: 1px solid rgba(200, 164, 92, 0.2);
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
     border-radius: 2px;
-    background: rgba(200, 164, 92, 0.08);
+    background: rgb(var(--color-accent-rgb) / 0.08);
     color: var(--color-accent);
     flex-shrink: 0;
   }
@@ -660,14 +662,14 @@
 
   .tool-entry-btn:hover,
   .tool-entry-btn:active {
-    background: rgba(200, 164, 92, 0.12);
-    border-color: rgba(200, 164, 92, 0.5);
+    background: rgb(var(--color-accent-rgb) / 0.12);
+    border-color: rgb(var(--color-accent-rgb) / 0.5);
   }
 
   .tool-entry-btn:hover .tool-entry-icon-shell,
   .tool-entry-btn:active .tool-entry-icon-shell {
-    border-color: rgba(200, 164, 92, 0.45);
-    background: rgba(200, 164, 92, 0.14);
+    border-color: rgb(var(--color-accent-rgb) / 0.45);
+    background: rgb(var(--color-accent-rgb) / 0.14);
   }
 
   .tool-entry-title {

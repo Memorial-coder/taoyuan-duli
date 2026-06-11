@@ -893,7 +893,7 @@
   import { useBreedingStore } from '@/stores/useBreedingStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+  import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { getCropById } from '@/data/crops'
   import { getItemById } from '@/data/items'
   import {
@@ -1441,10 +1441,15 @@
 
   const handleCraftStation = () => {
     if (!canCraftStation.value) return
-    breedingStore.craftStation(
+    const crafted = breedingStore.craftStation(
       (amount: number) => playerStore.spendMoney(amount),
-      (id: string, qty: number) => removeCombinedItem(id, qty)
+      (amount: number) => playerStore.earnMoney(amount, { countAsEarned: false }),
+      materials => removeCombinedItems(materials)
     )
+    if (!crafted) {
+      addLog('材料或铜钱不足，无法建造育种台。')
+      return
+    }
     addLog('建造了一台育种台。')
     showCraftModal.value = false
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.breeding)
@@ -1473,7 +1478,8 @@
   const handleSeedBoxUpgrade = () => {
     const result = breedingStore.upgradeSeedBox(
       (amount: number) => playerStore.spendMoney(amount),
-      (id: string, qty: number) => removeCombinedItem(id, qty)
+      (amount: number) => playerStore.earnMoney(amount, { countAsEarned: false }),
+      materials => removeCombinedItems(materials)
     )
     addLog(result.message)
     if (result.success) {
@@ -1488,7 +1494,8 @@
   const handleUpgradeResearch = () => {
     const result = breedingStore.upgradeResearch(
       (amount: number) => playerStore.spendMoney(amount),
-      (id: string, qty: number) => removeCombinedItem(id, qty)
+      (amount: number) => playerStore.earnMoney(amount, { countAsEarned: false }),
+      materials => removeCombinedItems(materials)
     )
     addLog(result.message)
     if (result.success) {

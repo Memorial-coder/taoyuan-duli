@@ -196,7 +196,8 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+  import { useWarehouseStore } from '@/stores/useWarehouseStore'
+  import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { getUpgradeCost, TOOL_NAMES, TIER_NAMES, getItemById } from '@/data'
   import { ACTION_TIME_COSTS, isShopOpen } from '@/data/timeConstants'
   import { addLog } from '@/composables/useGameLog'
@@ -232,6 +233,7 @@
 
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
+  const warehouseStore = useWarehouseStore()
   const npcStore = useNpcStore()
   const gameStore = useGameStore()
 
@@ -347,11 +349,26 @@
       return
     }
 
-    playerStore.spendMoney(cost.money)
-    for (const mat of cost.materials) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
+    if (!playerStore.spendMoney(cost.money)) {
+      addLog('铜钱不足，无法升级。')
+      return
     }
-    inventoryStore.startUpgrade(type, cost.toTier)
+    if (!removeCombinedItems(cost.materials)) {
+      playerStore.earnMoney(cost.money, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      addLog('材料不足，无法升级。')
+      return
+    }
+    if (!inventoryStore.startUpgrade(type, cost.toTier)) {
+      playerStore.earnMoney(cost.money, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      addLog('工具暂时无法进入升级队列。')
+      return
+    }
 
     addLog(`你把${TOOL_NAMES[type]}和材料交给了小满，${cost.money}文。2天后会自动完成并归还。`)
     selectedTool.value = null
@@ -374,14 +391,23 @@
     }
 
     const rushMoney = getRushUpgradeMoney(cost.money)
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     if (!playerStore.spendMoney(rushMoney)) {
       addLog('铜钱不足，无法加急升级。')
       return
     }
-    for (const mat of cost.materials) {
-      removeCombinedItem(mat.itemId, mat.quantity)
+    if (!removeCombinedItems(cost.materials)) {
+      playerStore.earnMoney(rushMoney, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      addLog('材料不足，无法加急升级。')
+      return
     }
     if (!inventoryStore.upgradeTool(type)) {
+      playerStore.earnMoney(rushMoney, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       addLog('水壶已无法继续升级。')
       return
     }
