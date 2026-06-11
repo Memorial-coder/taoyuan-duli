@@ -53,7 +53,7 @@
           <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId)">查看</button>
         </div>
       </div>
-      <div v-if="filteredItems.length > 0" class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
+      <div v-if="filteredItems.length > 0" class="inventory-adaptive-item-grid grid grid-cols-3 md:grid-cols-5 gap-1.5">
         <ItemCard
           v-for="(item, idx) in filteredItems"
           :key="`${item.itemId}-${item.quality}-${idx}`"
@@ -88,7 +88,7 @@
             {{ tempMoveAllLabel }}
           </Button>
         </div>
-        <div class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
+        <div class="inventory-adaptive-item-grid grid grid-cols-3 md:grid-cols-5 gap-1.5">
           <ItemCard
             v-for="(item, idx) in inventoryStore.tempItems"
             :key="'temp-' + idx"
@@ -117,8 +117,9 @@
 
     <!-- 装备页 -->
     <template v-if="tab === 'tools'">
+      <div class="desktop-adaptive-grid" data-testid="inventory-equipment-layout">
       <!-- 方案按钮 -->
-      <div class="flex items-center justify-end mb-1.5 space-x-1.5">
+      <div class="desktop-adaptive-span-all flex items-center justify-end mb-1.5 space-x-1.5">
         <span v-if="activePresetName" class="text-[0.625rem] text-success truncate">{{ activePresetName }}</span>
         <Button class="py-0 px-1.5" :icon="BookMarked" :icon-size="12" @click="showPresetModal = true">方案</Button>
       </div>
@@ -297,7 +298,7 @@
       </div>
 
       <!-- 套装效果 -->
-      <div v-if="inventoryStore.equipmentSetCatalog.length > 0" class="border border-accent/20 rounded-xs p-2 mt-3">
+      <div v-if="inventoryStore.equipmentSetCatalog.length > 0" class="desktop-adaptive-span-all border border-accent/20 rounded-xs p-2 mt-3">
         <p class="text-xs text-muted mb-1">套装效果</p>
         <div class="max-h-80 overflow-y-auto pr-1 space-y-1.5">
           <div
@@ -337,6 +338,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </template>
 
