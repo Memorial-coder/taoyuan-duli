@@ -304,10 +304,10 @@
             <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
               <div
                 class="h-full rounded-xs bg-accent transition-all"
-                :style="{ width: Math.min(100, Math.floor((slot.daysAging / 14) * 100)) + '%' }"
+                :style="{ width: Math.min(100, Math.floor((slot.daysAging / CELLAR_AGING_DAYS) * 100)) + '%' }"
               />
             </div>
-            <span class="text-[0.625rem] text-muted">{{ slot.daysAging }}/14天</span>
+            <span class="text-[0.625rem] text-muted">{{ slot.daysAging }}/{{ CELLAR_AGING_DAYS }}天</span>
           </div>
         </div>
       </div>
@@ -317,7 +317,7 @@
       </div>
 
       <!-- 放入新酒 -->
-      <Button class="w-full" v-if="homeStore.cellarSlots.length < 6 && ageableInInventory.length > 0" @click="showAgingModal = true">
+      <Button class="w-full" v-if="homeStore.cellarSlots.length < CELLAR_MAX_SLOTS && ageableInInventory.length > 0" @click="showAgingModal = true">
         放入陈酿
       </Button>
     </div>
@@ -689,7 +689,7 @@
       >
         <div class="game-panel max-w-xs w-full text-center">
           <p class="text-sm text-accent mb-3">确定取出{{ getItemName(removeAgingConfirmSlot.itemId) }}吗？</p>
-          <p class="text-xs text-muted mb-4">已陈酿{{ removeAgingConfirmSlot.daysAging }}天，满14天可提升品质。</p>
+          <p class="text-xs text-muted mb-4">已陈酿{{ removeAgingConfirmSlot.daysAging }}天，满{{ CELLAR_AGING_DAYS }}天可提升品质。</p>
           <p v-if="!canRemoveAgingConfirmSlot" class="text-xs text-danger mb-4">背包空间不足，无法取出，请先腾出空间。</p>
           <div class="flex space-x-3 justify-center">
             <Button @click="removeAgingConfirmIdx = null">取消</Button>
@@ -720,6 +720,7 @@
   import { getSeasonEventsForDay, getSeasonalActivitiesForDay } from '@/data/events'
   import { getRareVisitorsForDay, getUpcomingRareVisitors } from '@/data/bookseller'
   import { getUpcomingTravelingMerchantVisits } from '@/data/travelingMerchant'
+  import { CELLAR_AGEABLE_ITEMS, CELLAR_AGING_DAYS, CELLAR_MAX_SLOTS } from '@/data/buildings'
   import { ACTION_TIME_COSTS, WEEKDAYS, WEEKDAY_NAMES } from '@/data/timeConstants'
   import type { Quality, ChildStage, PregnancyStage, Season, FarmHelperTask } from '@/types'
   import { addLog } from '@/composables/useGameLog'
@@ -919,8 +920,6 @@
     luxury: '圆满安置'
   }
 
-  const AGEABLE_ITEMS = ['watermelon_wine', 'osmanthus_wine', 'peach_wine', 'jujube_wine', 'corn_wine', 'rice_vinegar']
-
   // === 日历 ===
 
   const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
@@ -1117,7 +1116,7 @@
   })
 
   const ageableInInventory = computed(() => {
-    return inventoryStore.items.filter(inv => AGEABLE_ITEMS.includes(inv.itemId) && inv.quality !== 'supreme')
+    return inventoryStore.items.filter(inv => CELLAR_AGEABLE_ITEMS.includes(inv.itemId) && inv.quality !== 'supreme')
   })
 
   const getItemName = (itemId: string): string => {
@@ -1188,7 +1187,7 @@
       addLog('无法放入酒窖（已满或物品不可陈酿）。')
     }
     // 酒窖满或无剩余可陈酿物品时关闭弹窗
-    if (homeStore.cellarSlots.length >= 6 || ageableInInventory.value.length === 0) {
+    if (homeStore.cellarSlots.length >= CELLAR_MAX_SLOTS || ageableInInventory.value.length === 0) {
       showAgingModal.value = false
     }
   }

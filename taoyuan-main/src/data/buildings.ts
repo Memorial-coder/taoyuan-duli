@@ -113,7 +113,23 @@ export const GREENHOUSE_UPGRADES: GreenhouseUpgradeDef[] = [
 export const CELLAR_AGING_DAYS = 14
 
 /** 酒窖最大容量 */
-export const CELLAR_MAX_SLOTS = 6
+export const CELLAR_MAX_SLOTS = 12
+
+/** 可放入酒窖陈酿的物品 */
+export const CELLAR_AGEABLE_ITEMS: string[] = [
+  'watermelon_wine',
+  'osmanthus_wine',
+  'peach_wine',
+  'jujube_wine',
+  'corn_wine',
+  'mixed_fruit_wine',
+  'seasonal_fruit_wine',
+  'spirit_fruit_brew',
+  'mystic_fruit_wine',
+  'celestial_fruit_wine',
+  'ancient_fruit_wine',
+  'rice_vinegar'
+]
 
 export const getFarmhouseUpgrade = (level: number): FarmhouseUpgradeDef | undefined => {
   return FARMHOUSE_UPGRADES.find(u => u.level === level)

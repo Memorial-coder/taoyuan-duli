@@ -8,7 +8,8 @@ import {
   GREENHOUSE_UNLOCK_COST,
   GREENHOUSE_MATERIAL_COST,
   CELLAR_AGING_DAYS,
-  CELLAR_MAX_SLOTS
+  CELLAR_MAX_SLOTS,
+  CELLAR_AGEABLE_ITEMS
 } from '@/data/buildings'
 import { HOME_RENOVATIONS } from '@/data/homeRenovations'
 import { usePlayerStore } from './usePlayerStore'
@@ -30,20 +31,6 @@ type RemoveAgingResult =
 
 /** 品质升级顺序 */
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
-
-/** 可陈酿的物品ID（酒类） */
-const AGEABLE_ITEMS = [
-  'watermelon_wine',
-  'osmanthus_wine',
-  'peach_wine',
-  'jujube_wine',
-  'corn_wine',
-  'mixed_fruit_wine',
-  'seasonal_fruit_wine',
-  'spirit_fruit_brew',
-  'ancient_fruit_wine',
-  'rice_vinegar'
-]
 
 export const useHomeStore = defineStore('home', () => {
   const npcStore = useNpcStore()
@@ -231,7 +218,7 @@ export const useHomeStore = defineStore('home', () => {
   const startAging = (itemId: string, quality: Quality): boolean => {
     if (!hasCellar.value) return false
     if (cellarSlots.value.length >= CELLAR_MAX_SLOTS) return false
-    if (!AGEABLE_ITEMS.includes(itemId)) return false
+    if (!CELLAR_AGEABLE_ITEMS.includes(itemId)) return false
     if (quality === 'supreme') return false
 
     const inventoryStore = useInventoryStore()
