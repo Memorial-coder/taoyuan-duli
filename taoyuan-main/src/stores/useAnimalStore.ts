@@ -42,6 +42,28 @@ import { getCombinedItemCount, removeCombinedItem, removeCombinedItems } from '@
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 const PET_COOKING_TOPIC_LABELS = ['宠物反馈']
+const MEAT_ITEM_ID = 'wild_meat'
+const MEAT_YIELD_BY_ANIMAL_TYPE: Partial<Record<AnimalType, { min: number; max: number }>> = {
+  chicken: { min: 1, max: 2 },
+  duck: { min: 2, max: 3 },
+  rabbit: { min: 1, max: 2 },
+  goose: { min: 2, max: 3 },
+  quail: { min: 1, max: 2 },
+  pigeon: { min: 1, max: 2 },
+  silkie: { min: 2, max: 3 },
+  peacock: { min: 2, max: 4 },
+  cow: { min: 5, max: 8 },
+  sheep: { min: 3, max: 5 },
+  goat: { min: 3, max: 5 },
+  pig: { min: 4, max: 6 },
+  buffalo: { min: 5, max: 8 },
+  yak: { min: 5, max: 8 },
+  alpaca: { min: 3, max: 5 },
+  deer: { min: 3, max: 5 },
+  donkey: { min: 3, max: 5 },
+  camel: { min: 5, max: 8 },
+  ostrich: { min: 5, max: 8 }
+}
 
 export const useAnimalStore = defineStore('animal', () => {
   const buildings = ref<{ type: AnimalBuildingType; built: boolean; level: number }[]>([
@@ -1054,6 +1076,53 @@ export const useAnimalStore = defineStore('animal', () => {
     return { success: true, refund, name }
   }
 
+  const getAnimalMeatQuantity = (animal: Animal): number => {
+    const range = MEAT_YIELD_BY_ANIMAL_TYPE[animal.type]
+    if (!range) return 0
+    const friendshipBonus = Math.floor(Math.max(0, animal.friendship) / 500)
+    const careBonus = animal.wasFed && !animal.sick ? 1 : 0
+    return Math.min(range.max, range.min + friendshipBonus + careBonus)
+  }
+
+  const getAnimalMeatPreview = (animalId: string): { ok: boolean; reason: string; quantity: number; itemId: string } => {
+    const animal = animals.value.find(a => a.id === animalId)
+    if (!animal) return { ok: false, reason: '没有找到这只动物。', quantity: 0, itemId: MEAT_ITEM_ID }
+    if (animal.type === 'horse') return { ok: false, reason: '马不能取肉。', quantity: 0, itemId: MEAT_ITEM_ID }
+    if (animal.daysOwned < 1) return { ok: false, reason: '新到的动物需要至少养满一天后才能取肉。', quantity: 0, itemId: MEAT_ITEM_ID }
+    const quantity = getAnimalMeatQuantity(animal)
+    if (quantity <= 0) return { ok: false, reason: '这种动物暂时不能取肉。', quantity: 0, itemId: MEAT_ITEM_ID }
+    return { ok: true, reason: '', quantity, itemId: MEAT_ITEM_ID }
+  }
+
+  const processAnimalForMeat = (animalId: string): { success: boolean; message: string; quantity: number; itemId: string; name: string } => {
+    const idx = animals.value.findIndex(a => a.id === animalId)
+    if (idx === -1) return { success: false, message: '没有找到这只动物。', quantity: 0, itemId: MEAT_ITEM_ID, name: '' }
+    const animal = animals.value[idx]!
+    const preview = getAnimalMeatPreview(animalId)
+    if (!preview.ok) return { success: false, message: preview.reason, quantity: 0, itemId: MEAT_ITEM_ID, name: animal.name }
+
+    const itemName = getItemById(MEAT_ITEM_ID)?.name ?? '肉块'
+    const inventoryStore = useInventoryStore()
+    if (!inventoryStore.addItemExact(MEAT_ITEM_ID, preview.quantity, 'normal')) {
+      return {
+        success: false,
+        message: `背包空间不足，无法带走${itemName}。`,
+        quantity: 0,
+        itemId: MEAT_ITEM_ID,
+        name: animal.name
+      }
+    }
+
+    animals.value.splice(idx, 1)
+    return {
+      success: true,
+      message: `${animal.name}已离开牧场，获得${itemName}×${preview.quantity}。`,
+      quantity: preview.quantity,
+      itemId: MEAT_ITEM_ID,
+      name: animal.name
+    }
+  }
+
   /** 治疗单只生病的动物（消耗1个兽药） */
   const healAnimal = (animalId: string): boolean => {
     const animal = animals.value.find(a => a.id === animalId)
@@ -1291,6 +1360,8 @@ export const useAnimalStore = defineStore('animal', () => {
     upgradeBuilding,
     buyAnimal,
     sellAnimal,
+    getAnimalMeatPreview,
+    processAnimalForMeat,
     healAnimal,
     healAllSick,
     feedAll,

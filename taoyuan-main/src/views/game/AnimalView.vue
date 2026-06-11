@@ -257,6 +257,15 @@
                 <Button class="py-0 px-1" :icon="Coins" @click="sellTarget = { id: animal.id, name: animal.name, type: animal.type }">
                   出售
                 </Button>
+                <Button
+                  class="py-0 px-1"
+                  :icon="Beef"
+                  :disabled="!animalStore.getAnimalMeatPreview(animal.id).ok"
+                  :title="animalStore.getAnimalMeatPreview(animal.id).reason || `预计获得肉块×${animalStore.getAnimalMeatPreview(animal.id).quantity}`"
+                  @click="openMeatTarget(animal)"
+                >
+                  取肉
+                </Button>
               </div>
             </div>
             <div class="space-y-0.5">
@@ -565,6 +574,32 @@
       </div>
     </Transition>
 
+    <!-- 取肉确认弹窗 -->
+    <Transition name="panel-fade">
+      <div v-if="meatTarget" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4" @click.self="meatTarget = null">
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="meatTarget = null">
+            <X :size="14" />
+          </button>
+          <p class="text-accent text-sm mb-2">取肉确认</p>
+          <p class="text-xs text-text mb-1">
+            确定要将
+            <span class="text-accent">{{ meatTarget.name }}</span>
+            送去肉铺取肉吗？
+          </p>
+          <p class="text-xs text-muted mb-3">
+            该动物会永久离开牧场，预计获得
+            <span class="text-accent">肉块×{{ meatTarget.quantity }}</span>
+            。
+          </p>
+          <div class="flex space-x-2">
+            <Button class="flex-1" @click="meatTarget = null">取消</Button>
+            <Button class="flex-1 !bg-danger !text-text" :icon="Beef" :icon-size="12" @click="confirmProcessAnimalForMeat">确认取肉</Button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <Transition name="panel-fade">
       <div
         v-if="showPetAdoptionModal"
@@ -714,7 +749,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Hammer, ShoppingCart, Hand, Apple, Home, ArrowUp, Egg, X, Coins, Syringe, Pencil } from 'lucide-vue-next'
+  import { Hammer, ShoppingCart, Hand, Apple, Home, ArrowUp, Egg, X, Coins, Syringe, Pencil, Beef } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useAnimalStore } from '@/stores/useAnimalStore'
@@ -739,7 +774,7 @@
     type CropUseTag
   } from '@/data'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
-  import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState, PetType } from '@/types'
+  import type { Animal, AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState, PetType } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { useTutorialStore } from '@/stores/useTutorialStore'
@@ -823,6 +858,29 @@
     sellTarget.value = null
     if (result.success) {
       addLog(`卖掉了${result.name}，获得${result.refund}文。`)
+    }
+  }
+
+  const meatTarget = ref<{ id: string; name: string; type: AnimalType; quantity: number } | null>(null)
+
+  const openMeatTarget = (animal: Animal) => {
+    const preview = animalStore.getAnimalMeatPreview(animal.id)
+    if (!preview.ok) {
+      addLog(preview.reason)
+      return
+    }
+    meatTarget.value = { id: animal.id, name: animal.name, type: animal.type, quantity: preview.quantity }
+  }
+
+  const confirmProcessAnimalForMeat = () => {
+    if (!meatTarget.value) return
+    const result = animalStore.processAnimalForMeat(meatTarget.value.id)
+    meatTarget.value = null
+    addLog(result.message)
+    if (result.success) {
+      const tr = gameStore.advanceTime(ACTION_TIME_COSTS.processAnimalForMeat)
+      if (tr.message) addLog(tr.message)
+      if (tr.passedOut) handleEndDay()
     }
   }
 

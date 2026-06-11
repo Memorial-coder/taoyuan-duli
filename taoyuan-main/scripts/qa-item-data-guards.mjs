@@ -79,7 +79,9 @@ const {
   LEGACY_AMBIGUOUS_ITEM_ID_COMPATIBILITY,
   RECIPES,
   PROCESSING_RECIPES,
+  QUEST_TEMPLATES,
   FRUIT_TREE_DEFS,
+  CELLAR_AGEABLE_ITEMS,
   FORAGE_ITEMS,
   HIDDEN_NPCS,
   ANIMAL_DEFS,
@@ -117,8 +119,10 @@ expectItem('persimmon', { category: 'crop', sellPrice: 225, edible: true })
 expectItem('tree_persimmon', { category: 'fruit', sellPrice: 127, edible: true })
 expectItem('mulberry', { category: 'crop', sellPrice: 60, edible: true })
 expectItem('wild_mulberry', { category: 'misc', sellPrice: 25, edible: true })
+expectItem('wild_meat', { category: 'material', sellPrice: 35, edible: false })
 expectItem('skull_mushroom', { category: 'misc', sellPrice: 120, edible: true })
 expectItem('food_skull_mushroom_soup', { category: 'food', edible: true })
+expectItem('tavern_rice_wine', { name: '桃源米酒', category: 'processed', sellPrice: 80, edible: true })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
 expectItem('duck_egg', { category: 'animal_product', sellPrice: 180 })
@@ -153,6 +157,21 @@ for (const animal of ANIMAL_DEFS) {
 
 const recipeById = id => PROCESSING_RECIPES.find(recipe => recipe.id === id)
 assert(recipeById('brew_osmanthus')?.outputItemId === 'processed_osmanthus_tea', 'brew_osmanthus 应产出 processed_osmanthus_tea')
+assert(recipeById('wine_rice')?.machineType === 'wine_workshop', 'wine_rice 应属于酒坊配方')
+assert(recipeById('wine_rice')?.inputItemId === 'rice', 'wine_rice 应消耗稻米')
+assert(recipeById('wine_rice')?.inputQuantity === 1, 'wine_rice 应消耗 1 份稻米')
+assert(recipeById('wine_rice')?.outputItemId === 'tavern_rice_wine', 'wine_rice 应产出订单所需的桃源米酒')
+assert(recipeById('wine_rice')?.outputQuantity === 2, 'wine_rice 应产出 2 壶桃源米酒以覆盖稻米加工价值')
+assert(recipeById('vinegar_rice')?.outputItemId === 'rice_vinegar', 'vinegar_rice 应继续产出米醋')
+assert(CELLAR_AGEABLE_ITEMS.includes('tavern_rice_wine'), '桃源米酒应可放入酒窖陈酿')
+const tavernRiceWineQuestTargets = QUEST_TEMPLATES
+  .flatMap(template => template.targets ?? [])
+  .filter(target => target.itemId === 'tavern_rice_wine')
+assert(tavernRiceWineQuestTargets.length > 0, '普通订单池应保留桃源米酒交付目标')
+assert(
+  tavernRiceWineQuestTargets.every(target => target.name === '桃源米酒'),
+  '普通订单池中 tavern_rice_wine 的展示名应统一为桃源米酒'
+)
 assert(recipeById('spirit_forge_dragon_pearl')?.outputItemId === 'spirit_dragon_pearl', 'spirit_forge_dragon_pearl 应产出 spirit_dragon_pearl')
 assert(HIDDEN_NPCS.find(npc => npc.id === 'long_ling')?.bondItemId === 'spirit_dragon_pearl', '龙灵结缘应消耗 spirit_dragon_pearl')
 assert(FRUIT_TREE_DEFS.find(tree => tree.type === 'lychee_tree')?.fruitId === 'tree_lychee', '荔枝树应产出 tree_lychee')
@@ -163,6 +182,18 @@ assert(
   RECIPES.some(recipe => recipe.ingredients.some(ingredient => ingredient.itemId === 'skull_mushroom')),
   '幽骨菇必须至少接入一道食谱用途'
 )
+for (const recipeId of ['spicy_hotpot', 'bamboo_shoot_stir_fry', 'aged_radish_stew', 'hunters_roast', 'battle_stew', 'spiced_lamb']) {
+  const recipe = RECIPES.find(entry => entry.id === recipeId)
+  assert(!!recipe, `缺少野兽肉块接入食谱：${recipeId}`)
+  assert(
+    recipe?.ingredients.some(ingredient => ingredient.itemId === 'wild_meat' && ingredient.quantity === 1),
+    `${recipeId} 必须消耗 1 份 wild_meat`
+  )
+}
+const forageViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'ForageView.vue'), 'utf8')
+assert(forageViewSource.includes('FOREST_BEASTS'), '竹林采集页必须保留野兽遭遇表')
+assert(forageViewSource.includes("attemptGather('wild_meat'"), '竹林野兽遭遇必须能产出 wild_meat')
+assert(forageViewSource.includes('recordMonsterKill()'), '竹林野兽胜利必须记录怪物击败进度')
 const skullMushroomSoup = RECIPES.find(recipe => recipe.id === 'skull_mushroom_soup')
 assert(skullMushroomSoup?.effect.buff?.oreBonusChance === 0.25, '幽骨菌汤必须提供 25% 概率矿石产出+1')
 assert(skullMushroomSoup?.effect.buff?.description.includes('矿石产出+1'), '幽骨菌汤 Buff 文案必须说明矿石产出+1')

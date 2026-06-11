@@ -126,7 +126,11 @@ const installBrowserShims = () => {
   const documentObj = {
     hidden: false,
     visibilityState: 'visible',
-    documentElement: { style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} } },
+    documentElement: {
+      style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    },
     body: makeElement('body'),
     createElement: tag => makeElement(tag),
     createElementNS: (_ns, tag) => makeElement(tag),
@@ -180,6 +184,58 @@ installBrowserShims()
 const questDetailModalLine = questViewSource
   .split('\n')
   .find(line => line.includes('data-testid="quest-detail-modal"')) ?? ''
+
+const getStringLiteralValue = node =>
+  node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : null
+
+const getObjectPropertyName = prop => {
+  if (!prop.name) return ''
+  if (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) return prop.name.text
+  return ''
+}
+
+const assertQuestItemDisplayNamesMatchItems = () => {
+  const sourcePath = path.join(srcRoot, 'data', 'quests.ts')
+  const source = fs.readFileSync(sourcePath, 'utf8')
+  const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true)
+  const mismatches = []
+
+  const visit = node => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const props = new Map()
+      for (const prop of node.properties) {
+        if (ts.isPropertyAssignment(prop)) props.set(getObjectPropertyName(prop), prop.initializer)
+      }
+
+      const pairs = []
+      if (props.has('itemId')) {
+        pairs.push({ idExpr: props.get('itemId'), nameExpr: props.get('itemName') ?? props.get('name') })
+      }
+      if (props.has('targetItemId') && props.has('targetItemName')) {
+        pairs.push({ idExpr: props.get('targetItemId'), nameExpr: props.get('targetItemName') })
+      }
+
+      for (const pair of pairs) {
+        const itemId = getStringLiteralValue(pair.idExpr)
+        const displayName = getStringLiteralValue(pair.nameExpr)
+        if (!itemId || !displayName) continue
+        const item = getItemById(itemId)
+        if (!item || item.name !== displayName) {
+          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+          mismatches.push(`${line + 1}:${itemId}:${displayName}->${item?.name ?? 'missing'}`)
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+  assert(mismatches.length === 0, `Quest item display names must match item definitions: ${mismatches.join(', ')}`)
+}
+
+const dataForItemNames = await import(pathToFileURL(path.join(projectRoot, 'src/data/index.ts')).href)
+const { getItemById } = dataForItemNames
+assertQuestItemDisplayNamesMatchItems()
 
 assert(questDetailModalLine.includes('max-h-[calc(100dvh-2rem)]'), 'Quest detail modal must fit inside the mobile viewport.')
 assert(questDetailModalLine.includes('md:max-h-[calc(100dvh-3rem)]'), 'Quest detail modal must fit inside the desktop overlay padding.')

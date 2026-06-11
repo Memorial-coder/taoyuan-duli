@@ -122,6 +122,7 @@ export const CELLAR_AGEABLE_ITEMS: string[] = [
   'peach_wine',
   'jujube_wine',
   'corn_wine',
+  'tavern_rice_wine',
   'mixed_fruit_wine',
   'seasonal_fruit_wine',
   'spirit_fruit_brew',

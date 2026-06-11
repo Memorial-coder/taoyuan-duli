@@ -377,6 +377,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '馥郁芬芳的桂花酒。'
   },
   {
+    id: 'wine_rice',
+    machineType: 'wine_workshop',
+    name: '桃源米酒',
+    inputItemId: 'rice',
+    inputQuantity: 1,
+    outputItemId: 'tavern_rice_wine',
+    outputQuantity: 2,
+    processingDays: 2,
+    description: '用一份稻米酿出两壶清甜米酒，可用于酒饮订单交付。'
+  },
+  {
     id: 'vinegar_rice',
     machineType: 'wine_workshop',
     name: '米醋',

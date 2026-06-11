@@ -162,6 +162,15 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 
+  const FOREST_BEAST_ENCOUNTER_CHANCE = 0.12
+  const FOREST_BEAST_MEAT_DROP_CHANCE = 0.45
+  const FOREST_BEAST_SOURCE_ITEM_IDS = new Set(['wood', 'firewood', 'bamboo'])
+  const FOREST_BEASTS = [
+    { name: '竹林狼', challenge: 2, damage: 4, expReward: 6, meatQuantity: 1 },
+    { name: '黑熊', challenge: 5, damage: 7, expReward: 9, meatQuantity: 2 },
+    { name: '山虎', challenge: 8, damage: 10, expReward: 12, meatQuantity: 2 }
+  ] as const
+
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
@@ -303,6 +312,8 @@
     const herbDouble = hiddenNpcStore.isAbilityActive('yue_tu_1')
     const moonHerbChance = hiddenNpcStore.isAbilityActive('yue_tu_3')
     const questStore = useQuestStore()
+    let beastSourceTouched = false
+    let forestBeastMessage: string | null = null
 
     const attemptGather = (
       itemId: string,
@@ -330,6 +341,9 @@
       achievementStore.discoverItem(itemId)
       if (options.trackQuest) {
         questStore.onItemObtained(itemId, quantity)
+      }
+      if (FOREST_BEAST_SOURCE_ITEM_IDS.has(itemId)) {
+        beastSourceTouched = true
       }
       if (options.expReward) {
         skillStore.addExp('foraging', Math.floor(options.expReward * forestXpBonus))
@@ -398,6 +412,33 @@
       attemptGather('moon_herb', 1, 'normal', { expReward: 15 })
     }
 
+    if ((beastSourceTouched || treeSourceTouched) && Math.random() < FOREST_BEAST_ENCOUNTER_CHANCE) {
+      const beast = FOREST_BEASTS[Math.floor(Math.random() * FOREST_BEASTS.length)]!
+      const combatLevel = skillStore.getSkill('combat').level
+      const winChance = Math.min(0.9, Math.max(0.35, 0.55 + combatLevel * 0.04 - beast.challenge * 0.025))
+
+      if (Math.random() < winChance) {
+        const { leveledUp: combatLeveledUp, newLevel: combatNewLevel } = skillStore.addExp('combat', beast.expReward)
+        achievementStore.recordMonsterKill()
+        let meatNote = ''
+
+        if (Math.random() < FOREST_BEAST_MEAT_DROP_CHANCE) {
+          const gotMeat = attemptGather('wild_meat', beast.meatQuantity, 'normal', { trackQuest: true })
+          meatNote = gotMeat ? `，拾得野兽肉块×${beast.meatQuantity}` : '，但背包放不下野兽肉块'
+        }
+
+        forestBeastMessage = `砍竹声惊动了${beast.name}，你将它驱退${meatNote}。战斗经验+${beast.expReward}`
+        if (combatLeveledUp) forestBeastMessage += `，战斗提升到${combatNewLevel}级`
+        forestBeastMessage += '。'
+      } else {
+        const damage = Math.min(Math.max(1, beast.damage - Math.floor(combatLevel / 2)), Math.max(0, playerStore.hp - 1))
+        const actualDamage = playerStore.takeDamage(damage)
+        forestBeastMessage = actualDamage > 0
+          ? `砍竹声惊动了${beast.name}，你避让不及，被抓伤${actualDamage}点HP。`
+          : `砍竹声惊动了${beast.name}，你贴着竹影退开，险险避过。`
+      }
+    }
+
     if (treeSourceTouched && Math.random() < 0.03) {
       useSecretNoteStore().tryCollectNote('tree')
     }
@@ -427,6 +468,7 @@
     }
     if (leveledUp) msg += ` 采集提升到${newLevel}级！`
     if (environmentWindow.value.forage.active) msg += ` ${environmentWindow.value.forage.label}：${environmentWindow.value.forage.summary}`
+    if (forestBeastMessage) msg += ` ${forestBeastMessage}`
     addLog(msg)
 
     const tr = gameStore.advanceTime(forageTime.value)

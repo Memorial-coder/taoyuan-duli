@@ -43,7 +43,7 @@ export const QUEST_TEMPLATES: QuestTemplateDef[] = [
       { itemId: 'cabbage', name: '青菜', minQty: 2, maxQty: 5, seasons: ['spring'], unitPrice: 35 },
       { itemId: 'radish', name: '萝卜', minQty: 2, maxQty: 4, seasons: ['spring'], unitPrice: 55 },
       { itemId: 'potato', name: '土豆', minQty: 2, maxQty: 4, seasons: ['spring'], unitPrice: 50 },
-      { itemId: 'rice', name: '稻米', minQty: 2, maxQty: 5, seasons: ['summer'], unitPrice: 40 },
+      { itemId: 'rice', name: '稻谷', minQty: 2, maxQty: 5, seasons: ['summer'], unitPrice: 40 },
       { itemId: 'watermelon', name: '西瓜', minQty: 1, maxQty: 3, seasons: ['summer'], unitPrice: 80 },
       { itemId: 'chili', name: '辣椒', minQty: 2, maxQty: 4, seasons: ['summer'], unitPrice: 45 },
       { itemId: 'pumpkin', name: '南瓜', minQty: 1, maxQty: 3, seasons: ['autumn'], unitPrice: 100 },
@@ -65,7 +65,7 @@ export const QUEST_TEMPLATES: QuestTemplateDef[] = [
       { itemId: 'bass', name: '鲈鱼', minQty: 1, maxQty: 2, seasons: ['autumn'], unitPrice: 35 },
       { itemId: 'loach', name: '泥鳅', minQty: 1, maxQty: 3, seasons: ['summer', 'autumn'], unitPrice: 20 },
       { itemId: 'creek_shrimp', name: '溪虾', minQty: 2, maxQty: 4, seasons: ['spring', 'summer', 'autumn'], unitPrice: 30 },
-      { itemId: 'silver_carp', name: '白鲢', minQty: 1, maxQty: 2, seasons: ['summer'], unitPrice: 25 }
+      { itemId: 'silver_carp', name: '银鲢', minQty: 1, maxQty: 2, seasons: ['summer'], unitPrice: 25 }
     ],
     npcPool: ['qiu_yue', 'chen_bo', 'lin_lao'],
     rewardMultiplier: 3,
@@ -119,8 +119,8 @@ export const QUEST_TEMPLATES: QuestTemplateDef[] = [
       { itemId: 'copper_bar', name: '铜锭', minQty: 1, maxQty: 3, seasons: [], unitPrice: 50 },
       { itemId: 'iron_bar', name: '铁锭', minQty: 1, maxQty: 2, seasons: [], unitPrice: 90 },
       { itemId: 'honey', name: '蜂蜜', minQty: 1, maxQty: 3, seasons: ['spring', 'summer', 'autumn'], unitPrice: 60 },
-      { itemId: 'tavern_rice_wine', name: '米酒', minQty: 1, maxQty: 2, seasons: [], unitPrice: 80 },
-      { itemId: 'sesame_oil', name: '食用油', minQty: 1, maxQty: 2, seasons: [], unitPrice: 70 }
+      { itemId: 'tavern_rice_wine', name: '桃源米酒', minQty: 1, maxQty: 2, seasons: [], unitPrice: 80 },
+      { itemId: 'sesame_oil', name: '芝麻油', minQty: 1, maxQty: 2, seasons: [], unitPrice: 70 }
     ],
     npcPool: ['sun_tiejiang', 'chun_lan', 'xue_qin', 'lin_lao'],
     rewardMultiplier: 5,
@@ -802,7 +802,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
           description: '先提交一批基础茶样，供茶肆确认本周的选品方向。',
           phaseType: 'prepare',
           targetItemId: 'tea',
-          targetItemName: '茶叶',
+          targetItemName: '茶苗',
           targetQuantity: 4,
           requirementSummary: ['用于茶肆预筛选，不计入最终成单数量。'],
           stageRewards: {
@@ -1249,7 +1249,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
           description: '研究站先确认样本箱供电模块是否齐备。',
           phaseType: 'prepare',
           targetItemId: 'battery',
-          targetItemName: '电池',
+          targetItemName: '电池组',
           targetQuantity: 1,
           requirementSummary: ['样本运输前需先完成供电模块备齐。'],
           stageRewards: {
@@ -1300,7 +1300,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '春宴双拼供货',
     targetItemId: 'emerald_radish',
-    targetItemName: '翡翠萝卜拼单',
+    targetItemName: '翡翠萝卜',
     quantity: 6,
     days: 7,
     moneyReward: 2100,
@@ -1326,7 +1326,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       {
         id: 'combo_green_tea_drink',
         itemId: 'green_tea_drink',
-        itemName: '清茶饮',
+        itemName: '绿茶',
         quantity: 2,
         note: '用于宴席前台试饮。'
       }
@@ -1346,7 +1346,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         {
           id: 'combo_green_tea_drink',
           itemId: 'green_tea_drink',
-          itemName: '清茶饮',
+          itemName: '绿茶',
           quantity: 2,
           note: '用于宴席前台试饮。'
         }
@@ -1363,7 +1363,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '茶席陈列套组',
     targetItemId: 'lotus_tea',
-    targetItemName: '茶席陈列套组',
+    targetItemName: '莲心茶',
     quantity: 8,
     days: 7,
     moneyReward: 2800,
@@ -1438,7 +1438,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '矿馆展陈备料',
     targetItemId: 'gold_ore',
-    targetItemName: '矿馆展陈备料',
+    targetItemName: '金矿',
     quantity: 12,
     days: 7,
     moneyReward: 2600,
@@ -1472,7 +1472,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '观赏鲤茶会联供',
     targetItemId: 'koi',
-    targetItemName: '观赏鲤茶会联供',
+    targetItemName: '锦鲤',
     quantity: 5,
     days: 7,
     moneyReward: 3400,
@@ -1541,7 +1541,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '金鲤宴席联运',
     targetItemId: 'golden_carp',
-    targetItemName: '金鲤宴席联运',
+    targetItemName: '金鲤',
     quantity: 7,
     days: 7,
     moneyReward: 4200,
@@ -1569,7 +1569,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       {
         id: 'combo_rice_wine',
         itemId: 'tavern_rice_wine',
-        itemName: '米酒',
+        itemName: '桃源米酒',
         quantity: 6,
         note: '宴席物流需一并备齐酒饮。'
       }
@@ -1591,7 +1591,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         {
           id: 'combo_rice_wine',
           itemId: 'tavern_rice_wine',
-          itemName: '米酒',
+          itemName: '桃源米酒',
           quantity: 6,
           note: '宴席物流需一并备齐酒饮。'
         }
@@ -1610,7 +1610,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '洞窟联合样本箱',
     targetItemId: 'cave_blindfish',
-    targetItemName: '洞窟联合样本箱',
+    targetItemName: '洞穴盲鱼',
     quantity: 3,
     days: 7,
     moneyReward: 5000,
@@ -1638,7 +1638,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       {
         id: 'combo_battery',
         itemId: 'battery',
-        itemName: '电池',
+        itemName: '电池组',
         quantity: 2,
         note: '研究站需要稳定供电样本箱。'
       }
@@ -1660,7 +1660,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         {
           id: 'combo_battery',
           itemId: 'battery',
-          itemName: '电池',
+          itemName: '电池组',
           quantity: 2,
           note: '研究站需要稳定供电样本箱。'
         }
@@ -1679,7 +1679,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '高地巡路补给令',
     targetItemId: 'ley_crystal_shard',
-    targetItemName: '高地巡路补给令',
+    targetItemName: '灵脉碎晶',
     quantity: 8,
     days: 7,
     moneyReward: 5400,
@@ -1714,7 +1714,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '街市节景补缮单',
     targetItemId: 'bamboo',
-    targetItemName: '街市节景补缮单',
+    targetItemName: '竹子',
     quantity: 10,
     days: 7,
     moneyReward: 3600,
@@ -1731,7 +1731,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     requiredVillageProjectIds: ['festival_greenhouse'],
     comboRequirements: [
       { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
-      { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝带', quantity: 2, note: '用于节景挂饰收尾。' },
+      { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝帕', quantity: 2, note: '用于节景挂饰收尾。' },
       { id: 'combo_scene_incense', itemId: 'pine_incense', itemName: '松香', quantity: 2, note: '用于陈列区的香气点缀。' }
     ],
     stageDefinitions: createComboStageDefinitions({
@@ -1739,7 +1739,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       description: '雪琴这回要的不是单一材料，而是一整套能立刻上街的节景补缮包。',
       requirements: [
         { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
-        { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝带', quantity: 2, note: '用于节景挂饰收尾。' },
+        { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝帕', quantity: 2, note: '用于节景挂饰收尾。' },
         { id: 'combo_scene_incense', itemId: 'pine_incense', itemName: '松香', quantity: 2, note: '用于陈列区的香气点缀。' }
       ],
       requirementSummary: ['更像街景搭建单，而不是普通的单材料采购。']
@@ -1751,7 +1751,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '席前统筹总单',
     targetItemId: 'pumpkin',
-    targetItemName: '席前统筹总单',
+    targetItemName: '南瓜',
     quantity: 16,
     days: 7,
     moneyReward: 5200,
@@ -1767,7 +1767,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderStageType: 'combo',
     comboRequirements: [
       { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
-      { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
+      { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '桃源米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
       { id: 'combo_banquet_tea', itemId: 'processed_osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
     ],
     stageDefinitions: createComboStageDefinitions({
@@ -1775,7 +1775,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       description: '王大婶要的是能直接接上整场席面的总单，不再只是单一食材跑腿。',
       requirements: [
         { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
-        { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
+        { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '桃源米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
         { id: 'combo_banquet_tea', itemId: 'processed_osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
       ],
       requirementSummary: ['宴席总单会同时吃作物、酒饮与席前热茶。']
@@ -1787,7 +1787,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '行旅残卷修补案',
     targetItemId: 'archive_rubbing',
-    targetItemName: '行旅残卷修补案',
+    targetItemName: '残卷拓片',
     quantity: 6,
     days: 7,
     moneyReward: 3800,
@@ -1824,7 +1824,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   {
     name: '前哨器具校准单',
     targetItemId: 'wind_etched_core',
-    targetItemName: '前哨器具校准单',
+    targetItemName: '风蚀晶核',
     quantity: 9,
     days: 7,
     moneyReward: 5600,
@@ -2096,7 +2096,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'festival_prep',
     minStage: 'friend',
     targetItemId: 'rice',
-    targetItemName: '稻米',
+    targetItemName: '稻谷',
     minQty: 4,
     maxQty: 8,
     days: 2,
@@ -2172,7 +2172,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'errand',
     minStage: 'friend',
     targetItemId: 'tea',
-    targetItemName: '茶叶',
+    targetItemName: '茶苗',
     minQty: 2,
     maxQty: 4,
     days: 3,
@@ -2187,7 +2187,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'festival_prep',
     minStage: 'bestie',
     targetItemId: 'tea',
-    targetItemName: '茶叶',
+    targetItemName: '茶苗',
     minQty: 2,
     maxQty: 3,
     days: 3,
@@ -2248,7 +2248,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'festival_prep',
     minStage: 'friend',
     targetItemId: 'tea',
-    targetItemName: '茶叶',
+    targetItemName: '茶苗',
     minQty: 3,
     maxQty: 5,
     days: 3,
@@ -2371,7 +2371,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'rumor',
     minStage: 'recognize',
     targetItemId: 'standard_bait',
-    targetItemName: '鱼饵',
+    targetItemName: '普通鱼饵',
     minQty: 4,
     maxQty: 6,
     days: 1,
@@ -2389,7 +2389,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'rumor',
     minStage: 'recognize',
     targetItemId: 'rice',
-    targetItemName: '稻米',
+    targetItemName: '稻谷',
     minQty: 2,
     maxQty: 4,
     days: 1,
@@ -2424,7 +2424,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     category: 'rumor',
     minStage: 'familiar',
     targetItemId: 'tea',
-    targetItemName: '茶叶',
+    targetItemName: '茶苗',
     minQty: 1,
     maxQty: 2,
     days: 1,

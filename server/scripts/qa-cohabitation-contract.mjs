@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 44, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 45, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4514,6 +4514,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('chives'), 'warehouse item policy should list chives as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('peanut'), 'warehouse item policy should list peanut as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('wild_berry'), 'warehouse item policy should list wild berry as common cooking input')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('wild_meat'), 'warehouse item policy should list wild meat as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('watermelon'), 'warehouse item policy should list base watermelon as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('mixed_fruit_wine'), 'warehouse item policy should list generic hidden wine as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('spirit_fruit_brew'), 'warehouse item policy should list spirit fruit hidden wine as common items')
@@ -4919,7 +4920,7 @@ await processRecipePolicyBasicDish({
 await processRecipePolicyBasicDish({
   recipeId: 'shared_aged_radish_stew',
   outputItemId: 'food_aged_radish_stew',
-  inputs: [{ itemId: 'radish', quantity: 3 }, { itemId: 'firewood', quantity: 2 }],
+  inputs: [{ itemId: 'radish', quantity: 3 }, { itemId: 'wild_meat', quantity: 1 }, { itemId: 'firewood', quantity: 2 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_embroidered_cake',
@@ -4986,7 +4987,7 @@ await processRecipePolicyBasicDish({
 await processRecipePolicyBasicDish({
   recipeId: 'shared_hunters_roast',
   outputItemId: 'food_hunters_roast',
-  inputs: [{ itemId: 'wild_mushroom', quantity: 3 }, { itemId: 'herb', quantity: 2 }, { itemId: 'pine_cone', quantity: 1 }],
+  inputs: [{ itemId: 'wild_mushroom', quantity: 3 }, { itemId: 'herb', quantity: 2 }, { itemId: 'wild_meat', quantity: 1 }, { itemId: 'pine_cone', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_ranch_milk_soup',
@@ -5002,12 +5003,12 @@ await processRecipePolicyBasicDish({
 await processRecipePolicyBasicDish({
   recipeId: 'shared_spicy_hotpot',
   outputItemId: 'food_spicy_hotpot',
-  inputs: [{ itemId: 'chili', quantity: 2 }, { itemId: 'cabbage', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
+  inputs: [{ itemId: 'chili', quantity: 2 }, { itemId: 'cabbage', quantity: 1 }, { itemId: 'wild_meat', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_bamboo_shoot_stir_fry',
   outputItemId: 'food_bamboo_shoot_stir_fry',
-  inputs: [{ itemId: 'winter_bamboo_shoot', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+  inputs: [{ itemId: 'winter_bamboo_shoot', quantity: 2 }, { itemId: 'wild_meat', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_lotus_seed_soup',
@@ -5141,7 +5142,7 @@ await processRecipePolicyBasicDish({
 await processRecipePolicyBasicDish({
   recipeId: 'shared_spiced_lamb',
   outputItemId: 'food_spiced_lamb',
-  inputs: [{ itemId: 'hanhai_spice', quantity: 1 }, { itemId: 'goat_milk', quantity: 1 }],
+  inputs: [{ itemId: 'hanhai_spice', quantity: 1 }, { itemId: 'wild_meat', quantity: 1 }, { itemId: 'goat_milk', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_drunken_chicken',
@@ -5286,7 +5287,7 @@ await processRecipePolicyBasicDish({
 await processRecipePolicyBasicDish({
   recipeId: 'shared_battle_stew',
   outputItemId: 'food_battle_stew',
-  inputs: [{ itemId: 'chili', quantity: 1 }, { itemId: 'potato', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
+  inputs: [{ itemId: 'chili', quantity: 1 }, { itemId: 'potato', quantity: 1 }, { itemId: 'wild_meat', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_iron_fist_soup',

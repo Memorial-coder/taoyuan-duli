@@ -212,10 +212,10 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 44;
+const WAREHOUSE_ITEM_POLICY_VERSION = 45;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
-  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
+  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'wild_meat', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
   'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'chrysanthemum', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'silk', 'hanhai_spice', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
@@ -348,6 +348,7 @@ const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   chili: 90,
   wood: 15,
   stone: 10,
+  wild_meat: 35,
   clay: 12,
   coal: 25,
   copper_ore: 45,
@@ -1398,6 +1399,7 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     process_kind: 'cooking_dish',
     input_items: [
       { item_id: 'radish', quantity: 3, quality: 'normal' },
+      { item_id: 'wild_meat', quantity: 1, quality: 'normal' },
       { item_id: 'firewood', quantity: 2, quality: 'normal' },
     ],
     output_item_id: 'food_aged_radish_stew',
@@ -1579,6 +1581,7 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     input_items: [
       { item_id: 'wild_mushroom', quantity: 3, quality: 'normal' },
       { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'wild_meat', quantity: 1, quality: 'normal' },
       { item_id: 'pine_cone', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_hunters_roast',
@@ -1621,6 +1624,7 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     input_items: [
       { item_id: 'chili', quantity: 2, quality: 'normal' },
       { item_id: 'cabbage', quantity: 1, quality: 'normal' },
+      { item_id: 'wild_meat', quantity: 1, quality: 'normal' },
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_spicy_hotpot',
@@ -1634,6 +1638,7 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     process_kind: 'cooking_dish',
     input_items: [
       { item_id: 'winter_bamboo_shoot', quantity: 2, quality: 'normal' },
+      { item_id: 'wild_meat', quantity: 1, quality: 'normal' },
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_bamboo_shoot_stir_fry',
@@ -1994,6 +1999,7 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     process_kind: 'cooking_dish',
     input_items: [
       { item_id: 'hanhai_spice', quantity: 1, quality: 'normal' },
+      { item_id: 'wild_meat', quantity: 1, quality: 'normal' },
       { item_id: 'goat_milk', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_spiced_lamb',
@@ -2690,6 +2696,7 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     input_items: [
       { item_id: 'chili', quantity: 1, quality: 'normal' },
       { item_id: 'potato', quantity: 1, quality: 'normal' },
+      { item_id: 'wild_meat', quantity: 1, quality: 'normal' },
       { item_id: 'ginger', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_battle_stew',

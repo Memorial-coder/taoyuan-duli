@@ -66,6 +66,7 @@ const MISC_ITEMS: ItemDef[] = [
   { id: 'manor_edge_bundle', name: '庄园边角作物包', category: 'material', description: '好友照料庄园时整理出的少量边角作物，可留作公共订单、宠物点心或节会备料。', sellPrice: 8, edible: false },
   { id: 'herb', name: '草药', category: 'material', description: '山间野生的草药。', sellPrice: 15, edible: false },
   { id: 'firewood', name: '柴火', category: 'material', description: '烹饪用的燃料。', sellPrice: 5, edible: false },
+  { id: 'wild_meat', name: '野兽肉块', category: 'material', description: '竹林中惊走野兽或牧场动物取肉后得到的肉块，可用于需要荤香的料理。', sellPrice: 35, edible: false },
   {
     id: 'winter_bamboo_shoot',
     name: '冬笋',
@@ -2047,7 +2048,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'painted_pottery', name: '彩陶碎片', category: 'artifact', description: '绘有精美纹饰的彩陶碎片。', sellPrice: 200, edible: false },
 
   // ===== 酒馆物品 =====
-  { id: 'tavern_rice_wine', name: '桃源米酒', category: 'processed' as const, description: '老掌柜自酿的清甜米酒，入口绵软。', sellPrice: 80, edible: true, staminaRestore: 20, healthRestore: 8 },
+  { id: 'tavern_rice_wine', name: '桃源米酒', category: 'processed' as const, description: '桃源乡常见的清甜米酒，入口绵软。', sellPrice: 80, edible: true, staminaRestore: 20, healthRestore: 8 },
   { id: 'tavern_plum_wine', name: '青梅酒', category: 'processed' as const, description: '用青梅酿制的酸甜果酒，回味悠长。', sellPrice: 150, edible: true, staminaRestore: 30, healthRestore: 12 },
   { id: 'tavern_herbal_brew', name: '药草老酒', category: 'processed' as const, description: '浸泡多味草药的陈酿，强筋健体。', sellPrice: 280, edible: true, staminaRestore: 50, healthRestore: 25 },
   { id: 'tavern_snack_plate', name: '小食拼盘', category: 'food' as const, description: '花生、豆干和咸肉的下酒小食，补充体力。', sellPrice: 60, edible: true, staminaRestore: 15, healthRestore: 6 },
@@ -2366,6 +2367,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   manor_edge_bundle: '好友庄园照料：收拾掉落物时获得',
   herb: '山间采集',
   firewood: '砍树获得',
+  wild_meat: '竹林采集时惊动野兽后偶尔获得 / 牧场动物取肉',
   pine_cone: '砍树掉落',
   battery: '避雷针（雷雨天气）',
   copper_bar: '熔炉冶炼',

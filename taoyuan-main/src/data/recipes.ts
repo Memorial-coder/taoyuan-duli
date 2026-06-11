@@ -183,6 +183,7 @@ export const RECIPES: RecipeDef[] = [
     ingredients: [
       { itemId: 'chili', quantity: 2 },
       { itemId: 'cabbage', quantity: 1 },
+      { itemId: 'wild_meat', quantity: 1 },
       { itemId: 'firewood', quantity: 1 }
     ],
     effect: {
@@ -315,6 +316,7 @@ export const RECIPES: RecipeDef[] = [
     name: '冬笋炒肉',
     ingredients: [
       { itemId: 'winter_bamboo_shoot', quantity: 2 },
+      { itemId: 'wild_meat', quantity: 1 },
       { itemId: 'firewood', quantity: 1 }
     ],
     effect: { staminaRestore: 25, healthRestore: 10 },
@@ -727,6 +729,7 @@ export const RECIPES: RecipeDef[] = [
     name: '老萝卜炖肉',
     ingredients: [
       { itemId: 'radish', quantity: 3 },
+      { itemId: 'wild_meat', quantity: 1 },
       { itemId: 'firewood', quantity: 2 }
     ],
     effect: { staminaRestore: 40, healthRestore: 25 },
@@ -1050,6 +1053,7 @@ export const RECIPES: RecipeDef[] = [
     ingredients: [
       { itemId: 'wild_mushroom', quantity: 3 },
       { itemId: 'herb', quantity: 2 },
+      { itemId: 'wild_meat', quantity: 1 },
       { itemId: 'pine_cone', quantity: 1 }
     ],
     effect: {
@@ -1411,6 +1415,7 @@ export const RECIPES: RecipeDef[] = [
     ingredients: [
       { itemId: 'chili', quantity: 1 },
       { itemId: 'potato', quantity: 1 },
+      { itemId: 'wild_meat', quantity: 1 },
       { itemId: 'ginger', quantity: 1 }
     ],
     effect: {
@@ -1675,7 +1680,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 45,
       healthRestore: 20,
-      buff: { type: 'mining', value: 1, description: '挖矿体力消耗-1%（当天）' }
+      buff: { type: 'mining', value: 5, description: '挖矿体力消耗-5%（当天）' }
     },
     unlockSource: '冬至包饺子奖励',
     description: '冬至时节包的暖心饺子。'
@@ -1950,12 +1955,13 @@ export const RECIPES: RecipeDef[] = [
     name: '香料烤羊',
     ingredients: [
       { itemId: 'hanhai_spice', quantity: 1 },
+      { itemId: 'wild_meat', quantity: 1 },
       { itemId: 'goat_milk', quantity: 1 }
     ],
     effect: {
       staminaRestore: 60,
       healthRestore: 30,
-      buff: { type: 'mining', value: 2, description: '挖矿体力消耗-2%（当天）' }
+      buff: { type: 'mining', value: 6, description: '挖矿体力消耗-6%（当天）' }
     },
     unlockSource: '瀚海驿站购买香料后解锁',
     description: '西域风味的烤羊肉，香气扑鼻，力量倍增。'

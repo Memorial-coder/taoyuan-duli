@@ -93,6 +93,7 @@ export const ACTION_TIME_COSTS = {
   petAnimal: 0.17,
   batchPet: 0.5,
   graze: 1,
+  processAnimalForMeat: 1,
   // 农舍
   collectCave: 0.17,
   aging: 0.17,
