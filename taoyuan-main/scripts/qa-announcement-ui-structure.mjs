@@ -49,5 +49,7 @@ assert.match(mainMenu, /main-menu-announcements/, 'main menu should expose annou
 assert.match(historyDialog, /announcement-history-item/, 'history dialog should render announcement list items')
 assert.match(store, /taoyuan_announcement_suppressed_/, 'announcement suppress state should be persisted locally')
 assert.match(adminPanel, /已推送/, 'admin panel should surface realtime push count')
+assert.match(adminPanel, /删除公告/, 'admin panel should render delete announcement button')
+assert.match(adminPanel, /deleteAdminAnnouncement/, 'admin panel should call delete announcement API helper')
 
 console.log('qa-announcement-ui-structure passed')

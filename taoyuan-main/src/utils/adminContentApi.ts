@@ -269,6 +269,23 @@ export const offlineAdminAnnouncement = async (id: string, tokenOverride?: strin
   }
 }
 
+export const deleteAdminAnnouncement = async (id: string, tokenOverride?: string) => {
+  const data = await adminRequest<{
+    announcement?: Partial<TaoyuanAnnouncement>
+    deleted_event_count?: number
+    realtime_emitted?: number
+  }>(
+    `/api/admin/taoyuan/announcements/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    tokenOverride,
+  )
+  return {
+    announcement: normalizeAnnouncement(data.announcement || {}),
+    deletedEventCount: Number(data.deleted_event_count) || 0,
+    realtimeEmitted: Number(data.realtime_emitted) || 0,
+  }
+}
+
 export const fetchAdminAnnouncementStats = async (id: string, tokenOverride?: string): Promise<AdminAnnouncementStatsResult> => {
   const data = await adminRequest<{
     announcement?: Partial<TaoyuanAnnouncement>

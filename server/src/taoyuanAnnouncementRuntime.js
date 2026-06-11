@@ -492,6 +492,42 @@ async function offlineAnnouncement(id, actor = {}) {
   }, actor);
 }
 
+async function deleteAnnouncement(id) {
+  const current = await getAnnouncement(id);
+  if (!current) {
+    const error = new Error('公告不存在');
+    error.status = 404;
+    throw error;
+  }
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const pool = buildMysqlPool();
+    const [eventResult] = await pool.execute(
+      'DELETE FROM taoyuan_announcement_events WHERE announcement_id = ?',
+      [current.id],
+    );
+    await pool.execute(
+      'DELETE FROM taoyuan_announcements WHERE id = ?',
+      [current.id],
+    );
+    return {
+      announcement: current,
+      deleted_event_count: Number(eventResult?.affectedRows) || 0,
+    };
+  }
+
+  const store = loadLocalStore();
+  const beforeEventCount = store.events.length;
+  store.announcements = store.announcements.filter(item => item.id !== current.id);
+  store.events = store.events.filter(item => item.announcement_id !== current.id);
+  saveLocalStore(store);
+  return {
+    announcement: current,
+    deleted_event_count: beforeEventCount - store.events.length,
+  };
+}
+
 function targetMatches(list, value) {
   if (!Array.isArray(list) || list.length === 0) return true;
   const normalized = normalizeText(value, 64);
@@ -698,6 +734,7 @@ module.exports = {
   listAdminAnnouncements,
   publishAnnouncement,
   offlineAnnouncement,
+  deleteAnnouncement,
   listActiveAnnouncements,
   listPublicHistory,
   recordAnnouncementEvent,

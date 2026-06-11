@@ -7327,6 +7327,24 @@ router.post('/admin/taoyuan/announcements/:id/offline', userAdminAuth, async (re
   }
 });
 
+router.delete('/admin/taoyuan/announcements/:id', userAdminAuth, async (req, res) => {
+  try {
+    const result = await taoyuanAnnouncementRuntime.deleteAnnouncement(req.params.id);
+    await appendAdminAuditLog(req, 'delete_taoyuan_announcement', '', buildAnnouncementAuditDetail(result.announcement, {
+      deleted_event_count: result.deleted_event_count,
+    }));
+    const realtimeEmitted = emitAnnouncementRealtimeEvent('offline', result.announcement);
+    res.json({
+      ok: true,
+      announcement: result.announcement,
+      deleted_event_count: result.deleted_event_count,
+      realtime_emitted: realtimeEmitted,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to delete announcement' });
+  }
+});
+
 router.get('/admin/taoyuan/announcements/:id/stats', userAdminAuth, async (req, res) => {
   try {
     const result = await taoyuanAnnouncementRuntime.getAnnouncementStats(req.params.id);
@@ -7338,13 +7356,13 @@ router.get('/admin/taoyuan/announcements/:id/stats', userAdminAuth, async (req, 
 
 router.get('/admin/taoyuan/announcements/:id/audit-logs', userAdminAuth, async (req, res) => {
   try {
-    const announcement = await taoyuanAnnouncementRuntime.getAnnouncement(req.params.id);
-    if (!announcement) return res.status(404).json({ ok: false, msg: 'Announcement not found' });
+    const announcementId = sanitizeAuditValue(req.params.id || '', 80);
     const actions = [
       'create_taoyuan_announcement',
       'update_taoyuan_announcement',
       'publish_taoyuan_announcement',
       'offline_taoyuan_announcement',
+      'delete_taoyuan_announcement',
     ];
     const batches = await Promise.all(actions.map(action => db.listAdminAuditLogs({
       page: 1,
@@ -7355,7 +7373,7 @@ router.get('/admin/taoyuan/announcements/:id/audit-logs', userAdminAuth, async (
       .flatMap(batch => Array.isArray(batch.logs) ? batch.logs : [])
       .filter(log => {
         const detail = log?.detail && typeof log.detail === 'object' ? log.detail : {};
-        return detail.target_type === 'taoyuan_announcement' && detail.target_id === announcement.id;
+        return detail.target_type === 'taoyuan_announcement' && detail.target_id === announcementId;
       })
       .sort((left, right) => (Number(right.created_at) || 0) - (Number(left.created_at) || 0))
       .slice(0, 100);

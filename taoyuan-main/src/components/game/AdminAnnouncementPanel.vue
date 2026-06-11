@@ -128,6 +128,13 @@
         >
           下线公告
         </button>
+        <button
+          class="btn btn-danger !px-3 !py-2"
+          :disabled="saving || !selectedAnnouncement"
+          @click="deleteAnnouncement"
+        >
+          删除公告
+        </button>
       </div>
     </div>
 
@@ -207,6 +214,7 @@
   import { renderRichContent } from '@/utils/safeMarkdown'
   import {
     createAdminAnnouncement,
+    deleteAdminAnnouncement,
     fetchAdminAnnouncementAuditLogs,
     fetchAdminAnnouncements,
     fetchAdminAnnouncementStats,
@@ -390,6 +398,7 @@
       update_taoyuan_announcement: '更新公告',
       publish_taoyuan_announcement: '发布公告',
       offline_taoyuan_announcement: '下线公告',
+      delete_taoyuan_announcement: '删除公告',
     }
     return labels[action] || action
   }
@@ -530,6 +539,25 @@
       await loadAnnouncements()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '下线公告失败'
+      showFloat(errorMessage.value, 'danger')
+    } finally {
+      saving.value = false
+    }
+  }
+
+  const deleteAnnouncement = async () => {
+    if (!selectedAnnouncement.value) return
+    if (typeof window !== 'undefined' && !window.confirm('确认删除这条公告吗？删除后后台列表、玩家历史和这条公告的统计事件都会被移除，操作日志会保留。')) return
+    saving.value = true
+    errorMessage.value = ''
+    try {
+      const result = await deleteAdminAnnouncement(selectedAnnouncement.value.id)
+      showFloat(`公告已删除，清理 ${result.deletedEventCount} 条统计事件，已推送 ${result.realtimeEmitted} 个在线连接`, 'success')
+      selectedAnnouncement.value = null
+      applyAnnouncementToForm(null)
+      await loadAnnouncements()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '删除公告失败'
       showFloat(errorMessage.value, 'danger')
     } finally {
       saving.value = false

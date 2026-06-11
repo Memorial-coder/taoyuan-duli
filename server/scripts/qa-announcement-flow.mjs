@@ -348,6 +348,29 @@ try {
   assert.ok(auditActions.has('publish_taoyuan_announcement'), 'publish audit should be present');
   assert.ok(auditActions.has('offline_taoyuan_announcement'), 'offline audit should be present');
 
+  const deleteResult = await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${announcementId}`, { method: 'DELETE' });
+  assert.equal(deleteResult.response.status, 200, 'delete should succeed');
+  assert.equal(deleteResult.data?.announcement?.id, announcementId, 'delete should return deleted announcement');
+  assert.ok(Number(deleteResult.data?.deleted_event_count) >= 3, 'delete should remove announcement events');
+  assert.equal(typeof deleteResult.data?.realtime_emitted, 'number', 'delete should return realtime emitted count');
+
+  const deletedList = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements');
+  assert.equal(findAnnouncement(deletedList.data, announcementId), null, 'deleted announcement should be removed from admin list');
+
+  activeResult = await publicRequest(baseUrl, '/api/taoyuan/announcements/active?version=3.0.0&channel=web');
+  assert.equal(findAnnouncement(activeResult.data, announcementId), null, 'deleted announcement should not be active');
+
+  const deletedHistory = await publicRequest(baseUrl, '/api/taoyuan/announcements/history?version=3.0.0&channel=web');
+  assert.equal(findAnnouncement(deletedHistory.data, announcementId), null, 'deleted announcement should not appear in history');
+
+  const deletedStats = await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${announcementId}/stats`);
+  assert.equal(deletedStats.response.status, 404, 'deleted announcement stats should return 404');
+
+  const deleteAuditResult = await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${announcementId}/audit-logs`);
+  assert.equal(deleteAuditResult.response.status, 200, 'deleted announcement audit logs should still load');
+  const deleteAuditActions = new Set((deleteAuditResult.data?.logs || []).map(log => log.action));
+  assert.ok(deleteAuditActions.has('delete_taoyuan_announcement'), 'delete audit should be present');
+
   const invalidCta = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
     method: 'POST',
     body: {
