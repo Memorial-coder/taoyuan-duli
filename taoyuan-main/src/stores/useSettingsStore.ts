@@ -12,6 +12,7 @@ export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
 export type FarmPlotDisplayMode = 'classic' | 'image'
 export type PageWidthMode = 'responsive' | 'custom'
+export type DesktopLayoutMode = 'adaptive' | 'classic'
 
 export const DEFAULT_FONT_SIZE = 16
 export const MIN_FONT_SIZE = 8
@@ -24,6 +25,7 @@ export const DEFAULT_NPC_PORTRAITS_ENABLED = false
 export const DEFAULT_FARM_PLOT_DISPLAY_MODE: FarmPlotDisplayMode = 'classic'
 export const DEFAULT_PAGE_WIDTH_MODE: PageWidthMode = 'responsive'
 export const DEFAULT_PAGE_WIDTH_PERCENT = 100
+export const DEFAULT_DESKTOP_LAYOUT_MODE: DesktopLayoutMode = 'adaptive'
 const DEFAULT_THEME: ThemeKey = 'dark'
 const DEFAULT_QMSG_POSITION: QmsgPosition = 'top'
 const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
@@ -77,6 +79,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const farmPlotDisplayMode = ref<FarmPlotDisplayMode>(DEFAULT_FARM_PLOT_DISPLAY_MODE)
   const pageWidthMode = ref<PageWidthMode>(DEFAULT_PAGE_WIDTH_MODE)
   const pageWidthPercent = ref(DEFAULT_PAGE_WIDTH_PERCENT)
+  const desktopLayoutMode = ref<DesktopLayoutMode>(DEFAULT_DESKTOP_LAYOUT_MODE)
 
   /** 背包物品筛选：选中的分类（空数组 = 显示全部） */
   const inventoryFilter = ref<ItemCategory[]>([])
@@ -140,6 +143,18 @@ export const useSettingsStore = defineStore('settings', () => {
     root.style?.setProperty?.('--app-page-width', `${pageWidthPercent.value}vw`)
   }
 
+  const applyDesktopLayout = () => {
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    if (!root) return
+    desktopLayoutMode.value = desktopLayoutMode.value === 'classic' ? 'classic' : DEFAULT_DESKTOP_LAYOUT_MODE
+    if (typeof root.setAttribute === 'function') {
+      root.setAttribute('data-desktop-layout-mode', desktopLayoutMode.value)
+    } else if (root.dataset) {
+      root.dataset.desktopLayoutMode = desktopLayoutMode.value
+    }
+  }
+
   const changeFontSize = (delta: number) => {
     fontSize.value = clampFontSize(fontSize.value + delta)
     applyFontSize()
@@ -162,6 +177,11 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const changePageWidthPercent = (delta: number) => {
     setPageWidthPercent(pageWidthPercent.value + delta)
+  }
+
+  const setDesktopLayoutMode = (mode: DesktopLayoutMode) => {
+    desktopLayoutMode.value = mode === 'classic' ? 'classic' : DEFAULT_DESKTOP_LAYOUT_MODE
+    applyDesktopLayout()
   }
 
   const changeQmsgPosition = (pos: QmsgPosition) => {
@@ -263,6 +283,7 @@ export const useSettingsStore = defineStore('settings', () => {
       farmPlotDisplayMode: farmPlotDisplayMode.value,
       pageWidthMode: pageWidthMode.value,
       pageWidthPercent: pageWidthPercent.value,
+      desktopLayoutMode: desktopLayoutMode.value,
       inventoryFilter: inventoryFilter.value,
       inventoryCropUseFilter: selectedCropUseTags,
       cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION,
@@ -303,6 +324,10 @@ export const useSettingsStore = defineStore('settings', () => {
       : DEFAULT_PAGE_WIDTH_MODE
     pageWidthPercent.value = clampPageWidthPercent(data?.pageWidthPercent ?? DEFAULT_PAGE_WIDTH_PERCENT)
     applyPageWidth()
+    desktopLayoutMode.value = data?.desktopLayoutMode === 'classic'
+      ? 'classic'
+      : DEFAULT_DESKTOP_LAYOUT_MODE
+    applyDesktopLayout()
     inventoryFilter.value = data?.inventoryFilter ?? []
     const cropUseFilterState = normalizeCropUseFilterState(data)
     cropUseTagSaveVersion.value = cropUseFilterState.version
@@ -329,6 +354,7 @@ export const useSettingsStore = defineStore('settings', () => {
   applyFontSize()
   applyTheme()
   applyPageWidth()
+  applyDesktopLayout()
 
   return {
     fontSize,
@@ -348,6 +374,7 @@ export const useSettingsStore = defineStore('settings', () => {
     farmPlotDisplayMode,
     pageWidthMode,
     pageWidthPercent,
+    desktopLayoutMode,
     inventoryFilter,
     inventoryCropUseFilter,
     cropUseTagSaveVersion,
@@ -360,6 +387,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setPageWidthMode,
     setPageWidthPercent,
     changePageWidthPercent,
+    setDesktopLayoutMode,
     changeQmsgPosition,
     syncQmsgConfig,
     setLateGameFeatureBaselineSaveVersion,
@@ -375,6 +403,7 @@ export const useSettingsStore = defineStore('settings', () => {
     applyFontSize,
     applyTheme,
     applyPageWidth,
+    applyDesktopLayout,
     serialize,
     deserialize
   }
