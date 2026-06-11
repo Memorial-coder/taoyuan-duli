@@ -8,7 +8,7 @@
       </div>
       <span class="text-xs text-muted">铁匠·小满</span>
     </div>
-    <p class="text-xs text-muted mb-3">消耗金属锭和铜钱升级工具，锻造完成后会自动归还。</p>
+    <p class="text-xs text-muted mb-3">消耗金属锭和铜钱升级工具，锻造完成后会自动归还；水壶可加急立即完成。</p>
 
     <!-- 正在升级提示 -->
     <div v-if="inventoryStore.pendingUpgrade" class="border border-accent/30 rounded-xs px-3 py-2 mb-3 flex items-center justify-between">
@@ -150,6 +150,28 @@
               <ArrowUp :size="12" />
               升级 {{ selectedUpgradeCost.money }}文
             </button>
+
+            <div v-if="selectedTool === 'wateringCan'" class="border border-accent/10 rounded-xs p-2 mt-2">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="text-xs text-accent">加急锻造</span>
+                <span class="text-xs text-muted whitespace-nowrap">立即完成</span>
+              </div>
+              <p class="text-[0.6875rem] text-muted leading-5 mb-2">
+                多付一倍铜钱，不进入 2 天等待队列。
+              </p>
+              <p v-if="getRushUpgradeBlockReason(selectedTool)" class="text-xs text-danger mb-2">
+                {{ getRushUpgradeBlockReason(selectedTool) }}
+              </p>
+              <button
+                class="btn text-xs w-full justify-center"
+                :class="{ '!bg-accent !text-bg': canRushUpgrade(selectedTool) }"
+                :disabled="!canRushUpgrade(selectedTool)"
+                @click="handleRushUpgradeAndClose(selectedTool)"
+              >
+                <Zap :size="12" />
+                加急 {{ getRushUpgradeMoney(selectedUpgradeCost.money) }}文
+              </button>
+            </div>
           </template>
 
           <!-- 满级 -->
@@ -167,7 +189,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue'
-  import { ArrowUp, Wrench, Clock, CircleCheck, X } from 'lucide-vue-next'
+  import { ArrowUp, Wrench, Clock, CircleCheck, X, Zap } from 'lucide-vue-next'
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -191,6 +213,7 @@
   const STAMINA_MULTIPLIERS: Record<ToolTier, number> = { basic: 1.0, iron: 0.8, steel: 0.6, iridium: 0.4 }
   const ROD_HOOK: Record<ToolTier, number> = { basic: 40, iron: 45, steel: 50, iridium: 60 }
   const ROD_TIME: Record<ToolTier, number> = { basic: 30, iron: 33, steel: 36, iridium: 40 }
+  const RUSH_UPGRADE_MONEY_MULTIPLIER = 2
 
   const staminaText = (tier: ToolTier): string => {
     const r = Math.round((1 - STAMINA_MULTIPLIERS[tier]) * 100)
@@ -250,6 +273,28 @@
     return true
   }
 
+  const getRushUpgradeMoney = (baseMoney: number): number => baseMoney * RUSH_UPGRADE_MONEY_MULTIPLIER
+
+  const canRushUpgrade = (type: ToolType): boolean => {
+    if (type !== 'wateringCan') return false
+    if (!isShopOpen('upgrade', gameStore.day, gameStore.hour).open) return false
+    if (inventoryStore.pendingUpgrade) return false
+
+    const tool = inventoryStore.getTool(type)
+    if (!tool) return false
+    const cost = getUpgradeCost(type, tool.tier)
+    if (!cost) return false
+
+    const requiredLevel = TIER_FRIENDSHIP_REQ[cost.toTier]
+    if (requiredLevel && !meetsLevel(npcStore.getFriendshipLevel('xiao_man'), requiredLevel)) return false
+
+    if (playerStore.money < getRushUpgradeMoney(cost.money)) return false
+    for (const mat of cost.materials) {
+      if (getCombinedItemCount(mat.itemId) < mat.quantity) return false
+    }
+    return true
+  }
+
   /** 返回升级被阻止的原因（用于 UI 提示），可升级时返回空字符串 */
   const getUpgradeBlockReason = (type: ToolType): string => {
     if (inventoryStore.pendingUpgrade) return '小满正在锻造其他工具'
@@ -278,6 +323,19 @@
     return ''
   }
 
+  const getRushUpgradeBlockReason = (type: ToolType): string => {
+    if (type !== 'wateringCan') return ''
+
+    const baseReason = getUpgradeBlockReason(type)
+    const tool = inventoryStore.getTool(type)
+    const cost = tool ? getUpgradeCost(type, tool.tier) : null
+    if (!cost || baseReason) return baseReason
+
+    const rushMoney = getRushUpgradeMoney(cost.money)
+    if (playerStore.money < rushMoney) return `加急需要 ${rushMoney} 文铜钱`
+    return ''
+  }
+
   const handleUpgradeAndClose = (type: ToolType) => {
     const tool = inventoryStore.getTool(type)
     if (!tool) return
@@ -295,6 +353,39 @@
     inventoryStore.startUpgrade(type, cost.toTier)
 
     addLog(`你把${TOOL_NAMES[type]}和材料交给了小满，${cost.money}文。2天后会自动完成并归还。`)
+    selectedTool.value = null
+    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.toolUpgrade)
+    if (tr.message) addLog(tr.message)
+    if (tr.passedOut) {
+      handleEndDay()
+      return
+    }
+  }
+
+  const handleRushUpgradeAndClose = (type: ToolType) => {
+    const tool = inventoryStore.getTool(type)
+    if (!tool) return
+    const cost = getUpgradeCost(type, tool.tier)
+    if (!cost) return
+    if (!canRushUpgrade(type)) {
+      addLog(getRushUpgradeBlockReason(type) || getUpgradeBlockReason(type) || '条件不足，无法加急升级。')
+      return
+    }
+
+    const rushMoney = getRushUpgradeMoney(cost.money)
+    if (!playerStore.spendMoney(rushMoney)) {
+      addLog('铜钱不足，无法加急升级。')
+      return
+    }
+    for (const mat of cost.materials) {
+      removeCombinedItem(mat.itemId, mat.quantity)
+    }
+    if (!inventoryStore.upgradeTool(type)) {
+      addLog('水壶已无法继续升级。')
+      return
+    }
+
+    addLog(`你请小满加急锻造${TOOL_NAMES[type]}，支付${rushMoney}文，水壶立即升级为${TIER_NAMES[cost.toTier]}。`)
     selectedTool.value = null
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.toolUpgrade)
     if (tr.message) addLog(tr.message)

@@ -505,7 +505,7 @@
     <div class="grid gap-3 md:grid-cols-2">
       <section class="game-panel-muted p-3 space-y-2">
         <p class="text-xs text-accent">工具升级机制</p>
-        <p class="text-[0.6875rem] text-muted leading-5">工具升级需要金属锭和铜钱，并且要等待 2 天完成。这意味着升级是计划行为，而不是即刻强化。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">工具升级需要金属锭和铜钱，并且要等待 2 天完成。这意味着升级是计划行为，而不是即刻强化；水壶可选择加急，支付 2 倍铜钱立即完成。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-2">
         <p class="text-xs text-accent">升级预览</p>
@@ -517,7 +517,7 @@
       </section>
       <section class="game-panel-muted p-3 space-y-2">
         <p class="text-xs text-accent">锻造中状态</p>
-        <p class="text-[0.6875rem] text-muted leading-5">升级过程会显示剩余天数和进度条，提醒你近期规划要考虑工具暂时不可用或暂时不提升的窗口。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">升级过程会显示剩余天数和进度条，提醒你近期规划要考虑工具暂时不可用或暂时不提升的窗口。水壶加急不会进入等待队列。</p>
       </section>
     </div>
   </section>
