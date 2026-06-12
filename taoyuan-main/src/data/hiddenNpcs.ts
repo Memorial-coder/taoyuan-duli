@@ -356,7 +356,7 @@ export const HIDDEN_NPCS: HiddenNpcDef[] = [
       '「{player}，我做了新的草药丸子，味道可好了，你一定要尝！」',
       '「和你一起看月亮的时候，不会想念月宫了呢。」'
     ],
-    bondBonuses: [{ type: 'stamina_restore', amount: 15 }],
+    bondBonuses: [{ type: 'moon_rest', staminaRestore: 30, maxStaminaBonus: 30, moonHerbChanceBonus: 0.05 }],
     abilities: [
       {
         id: 'yue_tu_1',
@@ -365,8 +365,8 @@ export const HIDDEN_NPCS: HiddenNpcDef[] = [
         description: '草药采集数量翻倍',
         passive: { type: 'quality_boost', value: 2 }
       },
-      { id: 'yue_tu_2', affinityRequired: 1000, name: '药引', description: '茶与药的效果+50%', passive: { type: 'exp_boost', value: 50 } },
-      { id: 'yue_tu_3', affinityRequired: 1800, name: '月华', description: '采集概率获得月草', passive: { type: 'luck', value: 8 } }
+      { id: 'yue_tu_2', affinityRequired: 1000, name: '药引', description: '料理恢复、茶饮与丹药效果+50%', passive: { type: 'exp_boost', value: 50 } },
+      { id: 'yue_tu_3', affinityRequired: 1800, name: '月华', description: '采集概率获得月草，夜间更高', passive: { type: 'luck', value: 15 } }
     ],
     manifestationDay: { season: 'autumn', day: 14 }
   },

@@ -51,6 +51,8 @@
     "qa:game-deeplink-browser-smoke": "node scripts/qa-game-deeplink-browser-smoke.mjs",
     "qa:greenhouse-fruit-trees": "node scripts/qa-greenhouse-fruit-trees.mjs",
     "qa:item-data-guards": "node scripts/qa-item-data-guards.mjs",
+    "qa:yue-tu-balance": "node scripts/qa-yue-tu-balance.mjs",
+    "qa:skill-mastery-effect-guards": "node scripts/qa-skill-mastery-effect-guards.mjs",
     "qa:quest-guards": "node scripts/qa-quest-guards.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",
     "qa:crop-assets": "node scripts/qa-crop-assets.mjs",

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { RecipeDef, Quality } from '@/types'
+import type { RecipeDef, Quality, ProcessingRecipeDef } from '@/types'
 import { getItemById, getRecipeById } from '@/data'
 import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
 import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
@@ -76,6 +76,38 @@ type ActiveAlchemyElixir = {
   dialogueAffinityBonus?: number
   festivalRewardMultiplier?: number
   petCalmFriendshipBonus?: number
+}
+
+type AlchemyEffect = NonNullable<ProcessingRecipeDef['alchemy']>['effect']
+
+const YUE_TU_MEDICINE_EFFECT_MULTIPLIER = 1.5
+
+const getMoonRabbitMedicineMultiplier = () =>
+  useHiddenNpcStore().isAbilityActive('yue_tu_2') ? YUE_TU_MEDICINE_EFFECT_MULTIPLIER : 1.0
+
+const amplifyFlatInteger = (value: number | undefined, multiplier: number) =>
+  value === undefined ? undefined : Math.floor(value * multiplier)
+
+const amplifyFlatNumber = (value: number | undefined, multiplier: number) =>
+  value === undefined ? undefined : value * multiplier
+
+const amplifyBonusMultiplier = (value: number | undefined, multiplier: number) =>
+  value === undefined ? undefined : 1 + (value - 1) * multiplier
+
+const applyMoonRabbitAlchemyEffectBonus = (effect: AlchemyEffect, multiplier = getMoonRabbitMedicineMultiplier()): AlchemyEffect => {
+  if (multiplier === 1) return effect
+  return {
+    ...effect,
+    staminaRestore: amplifyFlatInteger(effect.staminaRestore, multiplier),
+    miningStaminaReduction: amplifyFlatNumber(effect.miningStaminaReduction, multiplier),
+    journeyStaminaReduction: amplifyFlatNumber(effect.journeyStaminaReduction, multiplier),
+    giftBonusMultiplier: amplifyBonusMultiplier(effect.giftBonusMultiplier, multiplier),
+    actionSpeedBonus: amplifyFlatNumber(effect.actionSpeedBonus, multiplier),
+    defenseReduction: amplifyFlatNumber(effect.defenseReduction, multiplier),
+    dialogueAffinityBonus: amplifyFlatInteger(effect.dialogueAffinityBonus, multiplier),
+    festivalRewardMultiplier: amplifyBonusMultiplier(effect.festivalRewardMultiplier, multiplier),
+    petCalmFriendshipBonus: amplifyFlatInteger(effect.petCalmFriendshipBonus, multiplier)
+  }
 }
 
 export type CookingStoryTriggerRecord = {
@@ -408,8 +440,8 @@ export const useCookingStore = defineStore('cooking', () => {
     const _foragingSkill = skillStore.getSkill('foraging')
     const alchemistBonus = _foragingSkill.perk20 === 'philosopher' ? 3.0 : _foragingSkill.perk15 === 'grand_alchemist' ? 2.25 : _foragingSkill.perk10 === 'alchemist' ? 1.5 : 1.0
     const kitchenBonus = homeStore.getKitchenBonus()
-    // 仙缘能力：月膳（yue_tu_2）食物恢复+50%
-    const moonRabbitBonus = useHiddenNpcStore().isAbilityActive('yue_tu_2') ? 1.5 : 1.0
+    // 仙缘能力：药引（yue_tu_2）料理恢复+50%
+    const moonRabbitBonus = getMoonRabbitMedicineMultiplier()
     const staminaRestore = Math.floor(
       recipe.effect.staminaRestore * qualityBonus * alchemistBonus * chefBonus * kitchenBonus * moonRabbitBonus
     )
@@ -462,11 +494,15 @@ export const useCookingStore = defineStore('cooking', () => {
       return { success: false, message: '背包中没有这枚丹药。' }
     }
 
-    const effect = recipe.alchemy.effect
+    const medicineMultiplier = getMoonRabbitMedicineMultiplier()
+    const effect = applyMoonRabbitAlchemyEffectBonus(recipe.alchemy.effect, medicineMultiplier)
+    const effectDescription = medicineMultiplier > 1
+      ? `${effect.description}（药引加成已生效）`
+      : effect.description
     const active: ActiveAlchemyElixir = {
       itemId,
       name: recipe.name,
-      description: effect.description,
+      description: effectDescription,
       staminaRestore: effect.staminaRestore,
       miningStaminaReduction: effect.miningStaminaReduction,
       journeyStaminaReduction: effect.journeyStaminaReduction,
@@ -481,7 +517,7 @@ export const useCookingStore = defineStore('cooking', () => {
     if (activeElixir.value?.staminaRestore) {
       playerStore.restoreStamina(activeElixir.value.staminaRestore)
     }
-    return { success: true, message: `服用了${itemName}：${effect.description}。今日不能再叠加其他丹药。` }
+    return { success: true, message: `服用了${itemName}：${effectDescription}。今日不能再叠加其他丹药。` }
   }
 
   /** 解锁食谱 */

@@ -11,12 +11,12 @@
 
       <!-- 当前场景 -->
       <div v-if="currentScene">
-        <p class="text-xs leading-relaxed mb-3">{{ currentScene.text }}</p>
+        <p class="text-xs leading-relaxed mb-3">{{ formatDialogueText(currentScene.text) }}</p>
 
         <!-- 选择项 -->
         <div v-if="currentScene.choices && !hasChosen" class="space-y-2 mt-3">
           <Button v-for="(choice, ci) in currentScene.choices" :key="ci" class="w-full text-left" @click="handleChoice(choice)">
-            {{ choice.text }}
+            {{ formatDialogueText(choice.text) }}
           </Button>
         </div>
 
@@ -35,6 +35,8 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import type { HeartEventDef, HeartEventScene } from '@/types'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { formatDialoguePlaceholders } from '@/utils/dialoguePlaceholders'
   import Button from '@/components/game/Button.vue'
 
   const props = defineProps<{
@@ -50,6 +52,7 @@
   const hasChosen = ref(false)
   const choiceResponse = ref<string | null>(null)
   const friendshipChanges = ref<{ npcId: string; amount: number }[]>([])
+  const playerStore = usePlayerStore()
 
   const currentScene = computed<HeartEventScene | null>(() => {
     return props.event.scenes[currentIndex.value] ?? null
@@ -59,9 +62,16 @@
     return currentIndex.value >= props.event.scenes.length - 1
   })
 
+  const formatDialogueText = (text: string): string => {
+    return formatDialoguePlaceholders(text, {
+      playerName: playerStore.playerName,
+      honorific: playerStore.honorific
+    })
+  }
+
   const handleChoice = (choice: { text: string; friendshipChange: number; response: string }) => {
     hasChosen.value = true
-    choiceResponse.value = choice.response
+    choiceResponse.value = formatDialogueText(choice.response)
     if (choice.friendshipChange !== 0) {
       friendshipChanges.value.push({
         npcId: props.event.npcId,
@@ -73,7 +83,7 @@
   const nextScene = () => {
     // 归档当前场景
     playedScenes.value.push({
-      text: currentScene.value?.text ?? '',
+      text: formatDialogueText(currentScene.value?.text ?? ''),
       chosenResponse: choiceResponse.value ?? undefined
     })
 

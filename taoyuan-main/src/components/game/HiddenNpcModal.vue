@@ -268,8 +268,10 @@
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGameStore } from '@/stores/useGameStore'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
   import { getItemById, getItemSource } from '@/data'
+  import { formatDialoguePlaceholders } from '@/utils/dialoguePlaceholders'
   import { INTERACTION_NAMES } from '@/types/hiddenNpc'
   import type { AffinityLevel, BondBonusType } from '@/types/hiddenNpc'
   import type { Quality } from '@/types'
@@ -302,6 +304,7 @@
   const hiddenNpcStore = useHiddenNpcStore()
   const inventoryStore = useInventoryStore()
   const gameStore = useGameStore()
+  const playerStore = usePlayerStore()
 
   const npcDef = computed(() => getHiddenNpcById(props.npcId)!)
   const state = computed(() => hiddenNpcStore.getHiddenNpcState(props.npcId)!)
@@ -337,6 +340,13 @@
 
   const showDissolveConfirm = ref(false)
 
+  const formatDialogueText = (text: string): string => {
+    return formatDialoguePlaceholders(text, {
+      playerName: playerStore.playerName,
+      honorific: playerStore.honorific
+    })
+  }
+
   const getCourtshipItemHint = computed(() => getItemSource(npcDef.value.courtshipItemId) || '需制作')
   const getBondItemHint = computed(() => getItemSource(npcDef.value.bondItemId) || '需制作')
 
@@ -350,6 +360,8 @@
         return `动物产品有${Math.round(bonus.chance * 100)}%概率提升品质`
       case 'stamina_restore':
         return `每天恢复${bonus.amount}点体力`
+      case 'moon_rest':
+        return `晨起获得月露体力储备：体力上限+${bonus.maxStaminaBonus}，恢复${bonus.staminaRestore}体力`
       case 'fish_attraction':
         return `有${Math.round(bonus.chance * 100)}%概率吸引灵鱼`
       case 'spirit_shield':
@@ -422,7 +434,8 @@
     if (success) {
       const level = hiddenNpcStore.getAffinityLevel(props.npcId)
       const dialogues = npcDef.value.dialogues[level]
-      dialogueText.value = dialogues[Math.floor(Math.random() * dialogues.length)] ?? null
+      const rawDialogue = dialogues[Math.floor(Math.random() * dialogues.length)] ?? null
+      dialogueText.value = rawDialogue ? formatDialogueText(rawDialogue) : null
       checkAndTriggerHeartEvent()
       checkPassout()
     }

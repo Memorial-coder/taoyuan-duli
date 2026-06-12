@@ -91,6 +91,7 @@ export type BondBonusType =
   | { type: 'crop_blessing'; chance: number }
   | { type: 'animal_blessing'; chance: number }
   | { type: 'stamina_restore'; amount: number }
+  | { type: 'moon_rest'; staminaRestore: number; maxStaminaBonus: number; moonHerbChanceBonus: number }
   | { type: 'fish_attraction'; chance: number }
   | { type: 'spirit_shield'; staminaSave: number; hpBonus: number }
   | { type: 'sell_bonus'; percent: number }

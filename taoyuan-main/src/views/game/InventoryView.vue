@@ -938,6 +938,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
+  import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { getItemById, getItemSource } from '@/data'
   import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
   import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
@@ -951,12 +952,26 @@
   import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
   import type { Quality, RingEffectType, ItemCategory } from '@/types'
 
+  const MOON_RABBIT_TEA_MEDICINE_ITEM_IDS = new Set([
+    'green_tea_drink',
+    'guest_green_tea',
+    'chrysanthemum_tea',
+    'processed_osmanthus_tea',
+    'ginseng_tea',
+    'herbal_tea_blend',
+    'fine_herbal_tea_blend',
+    'spirit_herbal_tea_blend',
+    'celestial_herbal_tea_blend',
+    'tavern_herbal_brew'
+  ])
+
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
   const gameStore = useGameStore()
   const cookingStore = useCookingStore()
   const settingsStore = useSettingsStore()
+  const hiddenNpcStore = useHiddenNpcStore()
 
   // === 页签 ===
 
@@ -1603,11 +1618,15 @@
     maxHp: playerStore.getMaxHp()
   })
 
-  const getInventoryRecoveryMultiplier = () =>
-    skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0
+  const getInventoryRecoveryMultiplier = (itemId?: string) => {
+    const alchemistBonus = skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0
+    const moonRabbitBonus =
+      itemId && MOON_RABBIT_TEA_MEDICINE_ITEM_IDS.has(itemId) && hiddenNpcStore.isAbilityActive('yue_tu_2') ? 1.5 : 1.0
+    return alchemistBonus * moonRabbitBonus
+  }
 
   const getEatRecoveryPlan = (itemId: string) =>
-    getItemRecoveryPlan(getItemById(itemId), getRecoveryVitals(), getInventoryRecoveryMultiplier())
+    getItemRecoveryPlan(getItemById(itemId), getRecoveryVitals(), getInventoryRecoveryMultiplier(itemId))
 
   const isEdible = (itemId: string): boolean => {
     const def = getItemById(itemId)
@@ -1647,7 +1666,7 @@
     const result = applyInventoryRecoveryItem({
       def,
       vitals: getRecoveryVitals(),
-      multiplier: getInventoryRecoveryMultiplier(),
+      multiplier: getInventoryRecoveryMultiplier(itemId),
       removeItem: () => inventoryStore.removeItem(itemId, 1, quality),
       restoreStamina: amount => playerStore.restoreStamina(amount),
       restoreHealth: amount => playerStore.restoreHealth(amount)

@@ -812,6 +812,13 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
           messages.push(`${def.name}为你恢复了${b.amount}点体力。`)
           break
         }
+        case 'moon_rest': {
+          const playerStore = usePlayerStore()
+          playerStore.setTemporarySpiritMaxStaminaBonus(b.maxStaminaBonus)
+          playerStore.restoreStamina(b.staminaRestore)
+          messages.push(`${def.name}为你留下月露，体力上限+${b.maxStaminaBonus}并恢复${b.staminaRestore}点体力。`)
+          break
+        }
         case 'spirit_shield': {
           messages.push(`${def.name}的灵力护盾环绕着你。`)
           break

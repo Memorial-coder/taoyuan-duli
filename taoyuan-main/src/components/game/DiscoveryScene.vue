@@ -11,7 +11,7 @@
         </div>
 
         <div v-if="currentScene">
-          <p class="text-xs leading-relaxed">{{ currentScene.text }}</p>
+          <p class="text-xs leading-relaxed">{{ formatDialogueText(currentScene.text) }}</p>
           <p v-if="choiceResponse" class="ml-2 mt-2 text-xs text-accent">-> {{ choiceResponse }}</p>
         </div>
       </div>
@@ -24,7 +24,7 @@
             class="w-full text-left"
             @click="handleChoice(choice)"
           >
-            {{ choice.text }}
+            {{ formatDialogueText(choice.text) }}
           </Button>
         </div>
         <Button v-else class="w-full justify-center" @click="nextScene">
@@ -41,6 +41,8 @@
   import type { DiscoveryPhase, DiscoveryStep } from '@/types/hiddenNpc'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { formatDialoguePlaceholders } from '@/utils/dialoguePlaceholders'
   import Button from '@/components/game/Button.vue'
 
   type SceneChoice = NonNullable<HeartEventScene['choices']>[number]
@@ -76,6 +78,7 @@
   const playedScenes = ref<{ text: string; chosenResponse?: string }[]>([])
   const hasChosen = ref(false)
   const choiceResponse = ref<string | null>(null)
+  const playerStore = usePlayerStore()
 
   const currentScene = computed<HeartEventScene | null>(() => props.step.scenes[currentIndex.value] ?? null)
   const hasChoices = computed(() => (currentScene.value?.choices?.length ?? 0) > 0)
@@ -104,9 +107,16 @@
     scrollToBottom()
   }
 
+  const formatDialogueText = (text: string): string => {
+    return formatDialoguePlaceholders(text, {
+      playerName: playerStore.playerName,
+      honorific: playerStore.honorific
+    })
+  }
+
   const handleChoice = (choice: SceneChoice) => {
     hasChosen.value = true
-    choiceResponse.value = choice.response
+    choiceResponse.value = formatDialogueText(choice.response)
 
     if (!props.readonly && choice.friendshipChange !== 0) {
       const hiddenNpcStore = useHiddenNpcStore()
@@ -121,7 +131,7 @@
     }
 
     playedScenes.value.push({
-      text: currentScene.value.text,
+      text: formatDialogueText(currentScene.value.text),
       chosenResponse: choiceResponse.value ?? undefined
     })
 

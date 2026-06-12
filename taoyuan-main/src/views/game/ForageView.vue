@@ -164,6 +164,8 @@
 
   const FOREST_BEAST_ENCOUNTER_CHANCE = 0.12
   const FOREST_BEAST_MEAT_DROP_CHANCE = 0.45
+  const MOON_HERB_BASE_CHANCE = 0.15
+  const MOON_HERB_MOONLIT_CHANCE = 0.25
   const FOREST_BEAST_SOURCE_ITEM_IDS = new Set(['wood', 'firewood', 'bamboo'])
   const FOREST_BEASTS = [
     { name: '竹林狼', challenge: 2, damage: 4, expReward: 6, meatQuantity: 1 },
@@ -310,7 +312,13 @@
     const forestXpBonus = forestFarm ? 1.25 : 1.0
     const hiddenNpcStore = useHiddenNpcStore()
     const herbDouble = hiddenNpcStore.isAbilityActive('yue_tu_1')
-    const moonHerbChance = hiddenNpcStore.isAbilityActive('yue_tu_3')
+    const moonHerbActive = hiddenNpcStore.isAbilityActive('yue_tu_3')
+    const moonRestBonus = hiddenNpcStore.getBondBonusByType('moon_rest')
+    const moonHerbChanceBonus = moonRestBonus?.type === 'moon_rest' ? moonRestBonus.moonHerbChanceBonus : 0
+    const moonlitWindow = gameStore.day === 14 || (gameStore.hour >= 20 && gameStore.hour < 24)
+    const moonHerbChance = moonHerbActive
+      ? Math.min(1, (moonlitWindow ? MOON_HERB_MOONLIT_CHANCE : MOON_HERB_BASE_CHANCE) + moonHerbChanceBonus)
+      : 0
     const questStore = useQuestStore()
     let beastSourceTouched = false
     let forestBeastMessage: string | null = null
@@ -407,8 +415,8 @@
       attemptGather(randomItem.itemId, extraItemQty, quality)
     }
 
-    // 仙缘能力：月华（yue_tu_3）采集8%概率获得月草
-    if (moonHerbChance && Math.random() < 0.08) {
+    // 仙缘能力：月华（yue_tu_3）采集概率获得月草，夜间或每月14日概率更高
+    if (moonHerbChance > 0 && Math.random() < moonHerbChance) {
       attemptGather('moon_herb', 1, 'normal', { expReward: 15 })
     }
 

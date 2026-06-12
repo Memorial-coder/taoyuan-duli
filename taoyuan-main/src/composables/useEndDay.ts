@@ -1395,13 +1395,14 @@ export const handleEndDay = () => {
     }
   }
 
+  playerStore.setTemporarySpiritMaxStaminaBonus(0)
   const { moneyLost, recoveryPct } = playerStore.dailyReset(recoveryMode, bedHour)
   if (deferredMoBaiStaminaBonus > 0) {
     playerStore.restoreStamina(deferredMoBaiStaminaBonus)
   }
   for (const msg of deferredLogs) addLog(msg)
 
-  // 仙灵结缘每日奖励（必须在 dailyReset 之后，否则 stamina_restore 会被覆盖）
+  // 仙灵结缘每日奖励（必须在 dailyReset 之后，否则晨间恢复会被睡眠恢复覆盖）
   const bondMessages = hiddenNpcStore.dailyBondBonus()
   for (const msg of bondMessages.messages) addLog(msg)
 

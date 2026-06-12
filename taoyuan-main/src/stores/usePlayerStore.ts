@@ -238,6 +238,7 @@ export const usePlayerStore = defineStore('player', () => {
   /** 额外体力上限加成（仙翁金丹等），不受仙桃阶梯覆盖 */
   const bonusMaxStamina = ref(0)
   const temporaryFoodMaxStaminaBonus = ref(0)
+  const temporarySpiritMaxStaminaBonus = ref(0)
   const shortRestRecoveredToday = ref(0)
 
   // HP 系统
@@ -289,7 +290,11 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const recomputeMaxStamina = () => {
-    maxStamina.value = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
+    maxStamina.value =
+      (STAMINA_CAPS[staminaCapLevel.value] ?? 120) +
+      bonusMaxStamina.value +
+      temporaryFoodMaxStaminaBonus.value +
+      temporarySpiritMaxStaminaBonus.value
     stamina.value = Math.min(Math.max(0, stamina.value), maxStamina.value)
   }
 
@@ -400,6 +405,11 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setTemporaryFoodMaxStaminaBonus = (amount: number) => {
     temporaryFoodMaxStaminaBonus.value = normalizeNonNegativeInteger(amount)
+    recomputeMaxStamina()
+  }
+
+  const setTemporarySpiritMaxStaminaBonus = (amount: number) => {
+    temporarySpiritMaxStaminaBonus.value = normalizeNonNegativeInteger(amount)
     recomputeMaxStamina()
   }
 
@@ -813,7 +823,11 @@ export const usePlayerStore = defineStore('player', () => {
   const markLifestyleUnlock = (id: string, dayTag = '') => recordLifestyleDiscovery('lifestyleUnlocks', id, dayTag)
 
   const normalizeDerivedState = () => {
-    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
+    const expectedMax =
+      (STAMINA_CAPS[staminaCapLevel.value] ?? 120) +
+      bonusMaxStamina.value +
+      temporaryFoodMaxStaminaBonus.value +
+      temporarySpiritMaxStaminaBonus.value
     if (maxStamina.value !== expectedMax) {
       maxStamina.value = expectedMax
     }
@@ -862,6 +876,7 @@ export const usePlayerStore = defineStore('player', () => {
     staminaCapLevel.value = Math.min(STAMINA_CAPS.length - 1, normalizeNonNegativeInteger(data.staminaCapLevel, 0))
     bonusMaxStamina.value = normalizeNonNegativeInteger((data as any).bonusMaxStamina ?? 0)
     temporaryFoodMaxStaminaBonus.value = 0
+    temporarySpiritMaxStaminaBonus.value = 0
     shortRestRecoveredToday.value = Math.min(
       SHORT_REST_DAILY_STAMINA_CAP,
       normalizeNonNegativeInteger((data as any).shortRestRecoveredToday ?? 0)
@@ -886,7 +901,11 @@ export const usePlayerStore = defineStore('player', () => {
       }
     }
     // 确保 maxStamina 与 staminaCapLevel + bonusMaxStamina 一致（修复旧存档）
-    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
+    const expectedMax =
+      (STAMINA_CAPS[staminaCapLevel.value] ?? 120) +
+      bonusMaxStamina.value +
+      temporaryFoodMaxStaminaBonus.value +
+      temporarySpiritMaxStaminaBonus.value
     if (maxStamina.value !== expectedMax) {
       maxStamina.value = expectedMax
     }
@@ -927,6 +946,7 @@ export const usePlayerStore = defineStore('player', () => {
     staminaCapLevel,
     bonusMaxStamina,
     temporaryFoodMaxStaminaBonus,
+    temporarySpiritMaxStaminaBonus,
     shortRestRecoveredToday,
     hp,
     baseMaxHp,
@@ -952,6 +972,7 @@ export const usePlayerStore = defineStore('player', () => {
     upgradeMaxStamina,
     addBonusMaxStamina,
     setTemporaryFoodMaxStaminaBonus,
+    setTemporarySpiritMaxStaminaBonus,
     spendMoney,
     recordSinkSpend,
     recordEconomyFlow,
