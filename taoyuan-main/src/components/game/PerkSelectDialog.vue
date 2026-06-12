@@ -90,7 +90,7 @@
         { id: 'tracker', name: '追踪者', description: '每次采集额外获得1件物品' }
       ],
       herbalist: [
-        { id: 'botanist', name: '植物学家', description: '采集物必定优质品质' },
+        { id: 'botanist', name: '植物学家', description: '采集物品质至少为优质' },
         { id: 'alchemist', name: '炼金师', description: '食物恢复+50%' }
       ]
     },

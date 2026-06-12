@@ -57,6 +57,8 @@ assert(forageViewSource.includes('item.chance <= 0.12 ? 1 + rareSignalBonus.valu
 assert(forageViewSource.includes('environmentWindow.value.forage.active ? 1 + weatherWindowBonus.value : 1'), '天候窗口只应在环境窗口激活时加成。')
 assert(forageViewSource.includes('rareSignalMult *'), '采集概率公式必须乘入稀有信号倍率。')
 assert(forageViewSource.includes('weatherWindowMult *'), '采集概率公式必须乘入天候窗口倍率。')
+assert(!skillStoreSource.includes("if (skill.perk10 === 'botanist') return 'fine'"), 'Foraging botanist must not short-circuit excellent/supreme rolls.')
+assert(skillStoreSource.includes("return skill.perk10 === 'botanist' && quality === 'normal' ? 'fine' : quality"), 'Foraging botanist should act as a minimum-quality floor.')
 
 assert(journeyBuildSource.includes("skillStore.getSkillMasteryEffectValue('journey_scout')"), '远行构筑必须读取旅途侦察效果。')
 assert(journeyBuildSource.includes("skillStore.getSkillMasteryEffectValue('escort_margin')"), '远行构筑必须读取护送余裕效果。')
@@ -125,6 +127,15 @@ const applyForageChance = ({ baseChance, rareBonus, weatherBonus, windowActive }
 assert(near(applyForageChance({ baseChance: 0.1, rareBonus: 0.2, weatherBonus: 0, windowActive: false }), 0.12), '模型用例：10% 稀有采集物应被稀有信号提高到 12%。')
 assert(near(applyForageChance({ baseChance: 0.5, rareBonus: 0.2, weatherBonus: 0, windowActive: false }), 0.5), '模型用例：普通采集物不应吃到稀有信号。')
 assert(near(applyForageChance({ baseChance: 0.1, rareBonus: 0.2, weatherBonus: 0.15, windowActive: true }), 0.138), '模型用例：稀有信号和天候窗口应可叠乘。')
+
+const applyForageQualityFloorModel = (rolledQuality, hasBotanist, walletBoost = 0) => {
+  const qualityOrder = ['normal', 'fine', 'excellent', 'supreme']
+  const flooredQuality = hasBotanist && rolledQuality === 'normal' ? 'fine' : rolledQuality
+  return qualityOrder[Math.min(qualityOrder.indexOf(flooredQuality) + walletBoost, qualityOrder.length - 1)]
+}
+assert(applyForageQualityFloorModel('supreme', true, 1) === 'supreme', 'Foraging botanist plus wallet boost must preserve supreme rolls.')
+assert(applyForageQualityFloorModel('excellent', true, 1) === 'supreme', 'Foraging botanist plus wallet boost should allow excellent rolls to upgrade to supreme.')
+assert(applyForageQualityFloorModel('normal', true, 1) === 'excellent', 'Foraging botanist plus wallet boost should still floor normal rolls to excellent.')
 
 const applyBossReward = (baseValue, bossPressureBonus) => Math.floor(baseValue * (1 + bossPressureBonus) + 1e-6)
 assert(applyBossReward(100, 0.15) === 115, '模型用例：100 点基础 Boss 奖励应正确提高到 115。')

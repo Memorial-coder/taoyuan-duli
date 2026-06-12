@@ -222,7 +222,7 @@
     shepherd: '畜产品品质提升一级',
     forester: '采集时必定额外获得木材',
     tracker: '每次采集额外+1物品',
-    botanist: '采集物品质必定为优质',
+    botanist: '采集物品质至少为优质',
     alchemist: '食物恢复效果+50%',
     angler: '传说鱼出现概率大幅提升',
     aquaculture: '鱼类售价+50%',

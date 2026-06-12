@@ -55,6 +55,14 @@
           <span class="text-xs text-muted">铜钱</span>
           <span class="text-xs text-accent">{{ playerStore.money }}文</span>
         </div>
+        <div class="pt-2 mt-1 border-t border-accent/10">
+          <div class="grid grid-cols-2 gap-x-3 gap-y-1" data-testid="character-derived-stats">
+            <div v-for="stat in characterStatRows" :key="stat.label" class="flex min-w-0 items-center justify-between gap-2">
+              <span class="text-[0.625rem] text-muted truncate">{{ stat.label }}</span>
+              <span class="text-xs text-accent tabular-nums whitespace-nowrap">{{ stat.value }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -354,6 +362,9 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWalletStore } from '@/stores/useWalletStore'
+  import { useCookingStore } from '@/stores/useCookingStore'
+  import { useGuildStore } from '@/stores/useGuildStore'
+  import { useMiningStore } from '@/stores/useMiningStore'
   import { TOOL_NAMES, TIER_NAMES, getNpcById } from '@/data'
   import { getWeaponById, getEnchantmentById, getWeaponDisplayName } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
@@ -366,11 +377,15 @@
   import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, ChildStage, OwnedWeapon } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { useAchievementStore } from '@/stores/useAchievementStore'
+  import { buildPlayerCombatRuntime } from '@/utils/combatRuntime'
 
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
   const walletStore = useWalletStore()
+  const cookingStore = useCookingStore()
+  const guildStore = useGuildStore()
+  const miningStore = useMiningStore()
   const npcStore = useNpcStore()
   const gameStore = useGameStore()
   const achievementStore = useAchievementStore()
@@ -405,6 +420,93 @@
     }
     return { attack, critRate }
   }
+
+  const clampRatio = (value: number | null | undefined): number => {
+    const numericValue = Number(value)
+    if (!Number.isFinite(numericValue)) return 0
+    return Math.min(1, Math.max(0, numericValue))
+  }
+
+  const formatPercent = (value: number, signed = false): string => {
+    const percent = Math.round((Number.isFinite(value) ? value : 0) * 100)
+    return `${signed && percent > 0 ? '+' : ''}${percent}%`
+  }
+
+  const formatFlatOrPercentBonus = (value: number): string => {
+    if (!Number.isFinite(value) || value === 0) return '0'
+    return value > 0 && value < 1 ? formatPercent(value, true) : `+${Math.round(value)}`
+  }
+
+  const currentCombatRuntime = computed(() => {
+    const owned = inventoryStore.getEquippedWeapon()
+    const weaponDef = getWeaponById(owned.defId)
+    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
+    const combatSkill = skillStore.getSkill('combat')
+    const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
+
+    return buildPlayerCombatRuntime({
+      weaponAttack: inventoryStore.getWeaponAttack(),
+      weaponCritRate: inventoryStore.getWeaponCritRate(),
+      weaponType: weaponDef?.type ?? null,
+      enchantSpecial: enchant?.special ?? null,
+      combatLevel: skillStore.combatLevel,
+      allSkillsBuff,
+      ringAttackBonus: inventoryStore.getRingEffectValue('attack_bonus'),
+      ringCritBonus: inventoryStore.getRingEffectValue('crit_rate_bonus'),
+      ringLuck: inventoryStore.getRingEffectValue('luck'),
+      ringDefenseBonus: inventoryStore.getRingEffectValue('defense_bonus'),
+      ringVampiric: inventoryStore.getRingEffectValue('vampiric'),
+      guildAttackBonus: guildStore.getGuildAttackBonus(),
+      guildBadgeBonusAttack: miningStore.guildBadgeBonusAttack,
+      guildDefenseBonus: miningStore.guildBonusDefense,
+      cookingDefenseReduction: cookingStore.getActiveDefenseReduction() + cookingStore.getActiveAlchemyDefenseReduction(),
+      cookingDefenseFlatBonus: cookingStore.getActiveDefenseFlatBonus(),
+      perk5: combatSkill.perk5,
+      perk10: combatSkill.perk10,
+      perk15: combatSkill.perk15,
+      perk20: combatSkill.perk20
+    })
+  })
+
+  const currentMonsterDropBonus = computed(() => {
+    const owned = inventoryStore.getEquippedWeapon()
+    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
+    return Math.max(
+      0,
+      (enchant?.special === 'lucky' ? 0.2 : 0) +
+        inventoryStore.getRingEffectValue('monster_drop_bonus') +
+        inventoryStore.getRingEffectValue('luck') * 0.5 +
+        skillStore.getBlessingEffectValue('luck') * 0.5 +
+        (miningStore.slayerCharmActive ? 0.2 : 0) +
+        miningStore.guildBonusDropRate
+    )
+  })
+
+  const currentDamageReduction = computed(() => {
+    const multipliers = currentCombatRuntime.value.defense.damageMultipliers ?? []
+    const finalMultiplier = multipliers.reduce((product, multiplier) => product * Math.max(0, Number.isFinite(multiplier) ? multiplier : 1), 1)
+    return clampRatio(1 - finalMultiplier)
+  })
+
+  const currentDefenseText = computed(() => {
+    const flatReduction = Math.floor(currentCombatRuntime.value.defense.flatReduction ?? 0)
+    const percentText = formatPercent(currentDamageReduction.value)
+    return flatReduction > 0 ? `${percentText}+${flatReduction}` : percentText
+  })
+
+  const characterStatRows = computed(() => [
+    { label: '攻击', value: `${currentCombatRuntime.value.attack.attack}` },
+    { label: '暴击率', value: formatPercent(clampRatio(currentCombatRuntime.value.attack.critRate)) },
+    { label: '减伤', value: currentDefenseText.value },
+    { label: '闪避', value: formatPercent(clampRatio(currentCombatRuntime.value.defense.dodgeRate)) },
+    { label: '吸血', value: formatPercent(currentCombatRuntime.value.attack.lifesteal ?? 0, true) },
+    { label: '怪物掉率', value: formatPercent(currentMonsterDropBonus.value, true) },
+    {
+      label: '宝箱发现',
+      value: formatPercent(inventoryStore.getRingEffectValue('treasure_find') + skillStore.getBlessingEffectValue('treasure_find'), true)
+    },
+    { label: '矿石加成', value: formatFlatOrPercentBonus(inventoryStore.getRingEffectValue('ore_bonus')) }
+  ])
 
   const getEnchantName = (enchantmentId: string): string => {
     return getEnchantmentById(enchantmentId)?.name ?? ''

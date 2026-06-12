@@ -499,14 +499,14 @@ export const useSkillStore = defineStore('skill', () => {
     if (skill.perk20 === 'world_tree') return 'supreme'
     // perk15: 上古植物学家 50%概率极品，否则必定优质；植物学家路线提高到75%
     if (skill.perk15 === 'ancient_botanist') return Math.random() < (skill.perk10 === 'botanist' ? 0.75 : 0.5) ? 'supreme' : 'fine'
-    if (skill.perk10 === 'botanist') return 'fine'
     const level = skill.level + levelBonus
     const roll = Math.random()
 
-    if (level >= 9 && roll < 0.05) return 'supreme'
-    if (level >= 6 && roll < 0.12) return 'excellent'
-    if (level >= 3 && roll < 0.25) return 'fine'
-    return 'normal'
+    let quality: 'normal' | 'fine' | 'excellent' | 'supreme' = 'normal'
+    if (level >= 9 && roll < 0.05) quality = 'supreme'
+    else if (level >= 6 && roll < 0.12) quality = 'excellent'
+    else if (level >= 3 && roll < 0.25) quality = 'fine'
+    return skill.perk10 === 'botanist' && quality === 'normal' ? 'fine' : quality
   }
 
   const serialize = () => {
