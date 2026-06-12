@@ -299,6 +299,7 @@ export const fetchAdminAnnouncementStats = async (id: string, tokenOverride?: st
       close_count: Number(data.stats?.close_count) || 0,
       suppress_count: Number(data.stats?.suppress_count) || 0,
       cta_click_count: Number(data.stats?.cta_click_count) || 0,
+      reward_claim_count: Number(data.stats?.reward_claim_count) || 0,
       read_count: Number(data.stats?.read_count) || 0,
       exposed_user_count: Number(data.stats?.exposed_user_count) || 0,
       event_count: Number(data.stats?.event_count) || 0,

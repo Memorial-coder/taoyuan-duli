@@ -1458,12 +1458,16 @@ function applyRewardsToSave(username, delivery) {
   const appliedDelivery = mailRewardState.appliedDeliveries[deliveryKey];
   if (appliedDelivery) {
     const previousResult = normalizeClaimResult(appliedDelivery.result);
-    return previousResult || {
+    const fallbackResult = {
       save_slot: context.slot,
       money_added: 0,
       duplicate_compensation_money: 0,
       applied_rewards: [],
       skipped_rewards: [{ type: 'mail_delivery', id: deliveryKey, reason: 'already_applied' }],
+    };
+    return {
+      ...(previousResult || fallbackResult),
+      already_applied: true,
     };
   }
 
@@ -1793,6 +1797,8 @@ async function saveSystemCampaignForUser(payload, actor, username, options = {})
 }
 
 module.exports = {
+  normalizeReward,
+  applyRewardsToSave,
   processPendingCampaigns,
   listUserMails,
   listUserSentMails,

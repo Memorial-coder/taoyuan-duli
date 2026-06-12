@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { buildScopedSingleKey, ensureCurrentAccount } from '@/utils/accountStorage'
 import {
+  claimAnnouncementReward,
   fetchActiveAnnouncements,
   fetchAnnouncementHistory,
   recordAnnouncementEvent,
@@ -85,9 +86,13 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     }
   }
 
-  const closeCurrent = () => {
+  const closeCurrent = async () => {
     const closing = [...popupQueue.value]
-    if (!closing.length) return
+    if (!closing.length) return { claimedCount: 0 }
+    const rewardAnnouncements = closing.filter(announcement => announcement.rewards.length > 0)
+    for (const announcement of rewardAnnouncements) {
+      await claimAnnouncementReward(announcement.id)
+    }
     for (const announcement of closing) {
       writeLocalSuppressed(announcement.id)
     }
@@ -95,6 +100,7 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     for (const announcement of closing) {
       void recordAnnouncementEvent(announcement.id, 'close').catch(() => {})
     }
+    return { claimedCount: rewardAnnouncements.length }
   }
 
   const suppressCurrent = async () => {

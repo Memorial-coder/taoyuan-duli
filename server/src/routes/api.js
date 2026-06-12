@@ -3068,6 +3068,8 @@ function buildAnnouncementAuditDetail(announcement = {}, extra = {}) {
     status: sanitizeAuditValue(announcement.status || '', 32),
     version: sanitizeAuditValue(announcement.version || '', 64),
     priority: Number(announcement.priority) || 0,
+    reward_count: Array.isArray(announcement.rewards) ? announcement.rewards.length : 0,
+    duplicate_compensation_money: Number(announcement.duplicate_compensation_money) || 0,
     target_versions: Array.isArray(announcement.target_versions) ? announcement.target_versions.slice(0, 20) : [],
     target_channels: Array.isArray(announcement.target_channels) ? announcement.target_channels.slice(0, 20) : [],
     start_at: announcement.start_at || null,
@@ -7412,6 +7414,22 @@ router.get('/taoyuan/announcements/history', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to load announcement history' });
+  }
+});
+
+router.post('/taoyuan/announcements/:id/claim-reward', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanAnnouncementRuntime.claimAnnouncementReward(req.session.username, req.params.id, {
+      version: req.body?.client_version || req.body?.clientVersion || req.query.version || '',
+      channel: req.body?.client_channel || req.body?.clientChannel || req.query.channel || '',
+    });
+    res.json({
+      ok: true,
+      announcement: taoyuanAnnouncementRuntime.toPublicAnnouncement(result.announcement),
+      result: result.result,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to claim announcement reward' });
   }
 });
 

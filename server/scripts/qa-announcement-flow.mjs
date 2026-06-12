@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -14,6 +15,15 @@ const fallbackAdminToken = 'qa_announcement_admin_token_20260611';
 const fallbackSuperAdminToken = 'qa_announcement_super_token_20260611';
 let adminToken = fallbackAdminToken;
 let serverProcess = null;
+
+process.env.DB_STORAGE = storageFile;
+process.env.QA_ONLINE_SMOKE_FORCE_LOCAL = 'true';
+process.env.MYSQL_HOST = '';
+process.env.MYSQL_USER = '';
+process.env.MYSQL_DATABASE = '';
+
+const require = createRequire(import.meta.url);
+const saveRuntime = require('../src/taoyuanSaveRuntime');
 
 function parseEnvContent(content) {
   const parsed = {};
@@ -145,6 +155,7 @@ class QaSession {
   constructor(baseUrl) {
     this.baseUrl = baseUrl;
     this.cookie = '';
+    this.csrfToken = '';
   }
 
   async request(pathname, init = {}) {
@@ -198,10 +209,51 @@ async function register(session, username) {
   });
   assert.equal(result.response.status, 200, `register ${username} should succeed`);
   assert.equal(result.data?.ok, true, `register ${username} should return ok=true`);
+  session.csrfToken = String(result.data?.csrf_token || '');
 }
 
 function findAnnouncement(data, id) {
   return (Array.isArray(data?.announcements) ? data.announcements : []).find(item => item.id === id) || null;
+}
+
+function seedRewardSave(username, money = 100) {
+  const saves = saveRuntime.loadUserSaveSlots(username);
+  saves.slots[0] = {
+    raw: saveRuntime.encryptTaoyuanData({
+      player: {
+        playerName: username,
+        money,
+      },
+      inventory: {
+        items: [],
+        tempItems: [],
+        capacity: 24,
+      },
+    }),
+    revision: 1,
+  };
+  saveRuntime.saveUserSaveSlots(username, saves);
+  saveRuntime.setActiveSaveSlot(username, 0);
+}
+
+function readRewardSave(username) {
+  const saves = saveRuntime.loadUserSaveSlots(username);
+  const decrypted = saveRuntime.decryptTaoyuanRaw(saves.slots[0]?.raw || '');
+  const data = decrypted?.data?.player
+    ? decrypted.data
+    : decrypted?.gameplayData?.player
+      ? decrypted.gameplayData
+      : decrypted?.player
+        ? decrypted
+        : {};
+  const items = Array.isArray(data?.inventory?.items) ? data.inventory.items : [];
+  return {
+    money: Number(data?.player?.money || 0),
+    wood: items
+      .filter(item => String(item?.itemId || item?.id || '') === 'wood')
+      .reduce((sum, item) => sum + Number(item?.quantity || 0), 0),
+    appliedDeliveries: data?.onlineMailRewards?.appliedDeliveries || {},
+  };
 }
 
 try {
@@ -266,6 +318,11 @@ try {
         cta: 'Details',
       },
       template_type: 'version_update',
+      rewards: [
+        { type: 'money', amount: 31 },
+        { type: 'item', id: 'wood', quantity: 2 },
+      ],
+      duplicate_compensation_money: 9,
     },
   });
   assert.equal(createResult.response.status, 200, 'ordinary admin token should create announcement draft');
@@ -273,6 +330,7 @@ try {
   const announcementId = createResult.data?.announcement?.id;
   assert.ok(announcementId, 'created announcement should have id');
   assert.equal(createResult.data.announcement.status, 'draft', 'new announcement should be draft');
+  assert.equal(createResult.data.announcement.rewards?.length, 2, 'created announcement should retain rewards');
 
   const templateResult = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements');
   assert.equal(templateResult.response.status, 200, 'announcement list should load');
@@ -295,10 +353,18 @@ try {
   assert.equal(findAnnouncement(activeResult.data, announcementId), null, 'channel filter should hide non-targeted announcements');
 
   activeResult = await publicRequest(baseUrl, '/api/taoyuan/announcements/active?version=3.0.0&channel=web');
-  assert.ok(findAnnouncement(activeResult.data, announcementId), 'published targeted announcement should be active');
+  const activeAnnouncement = findAnnouncement(activeResult.data, announcementId);
+  assert.ok(activeAnnouncement, 'published targeted announcement should be active');
+  assert.equal(activeAnnouncement.rewards?.length, 2, 'active announcement should expose reward preview');
 
   const historyResult = await publicRequest(baseUrl, '/api/taoyuan/announcements/history?version=3.0.0&channel=web');
   assert.ok(findAnnouncement(historyResult.data, announcementId), 'published announcement should appear in history');
+
+  const unauthClaim = await publicRequest(baseUrl, `/api/taoyuan/announcements/${announcementId}/claim-reward`, {
+    method: 'POST',
+    body: { client_version: '3.0.0', client_channel: 'web' },
+  });
+  assert.equal(unauthClaim.response.status, 401, 'guest claim should require login');
 
   const guestEvent = await publicRequest(baseUrl, `/api/taoyuan/announcements/${announcementId}/events`, {
     method: 'POST',
@@ -309,6 +375,28 @@ try {
 
   const session = new QaSession(baseUrl);
   await register(session, 'qa_announcement_user');
+  seedRewardSave('qa_announcement_user', 100);
+  const firstClaim = await session.request(`/api/taoyuan/announcements/${announcementId}/claim-reward`, {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': session.csrfToken },
+    body: { client_version: '3.0.0', client_channel: 'web' },
+  });
+  assert.equal(firstClaim.response.status, 200, 'logged-in claim should succeed');
+  assert.equal(firstClaim.data?.result?.money_added, 31, 'first claim should grant announcement money');
+  assert.equal(readRewardSave('qa_announcement_user').money, 131, 'first claim should persist announcement money');
+  assert.equal(readRewardSave('qa_announcement_user').wood, 2, 'first claim should persist announcement item reward');
+  assert.ok(readRewardSave('qa_announcement_user').appliedDeliveries[`announcement_reward:${announcementId}`], 'announcement reward should write save-side idempotency ledger');
+
+  const replayClaim = await session.request(`/api/taoyuan/announcements/${announcementId}/claim-reward`, {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': session.csrfToken },
+    body: { client_version: '3.0.0', client_channel: 'web' },
+  });
+  assert.equal(replayClaim.response.status, 200, 'replayed claim should be accepted idempotently');
+  assert.equal(replayClaim.data?.result?.already_applied, true, 'replayed claim should expose already_applied');
+  assert.equal(readRewardSave('qa_announcement_user').money, 131, 'replayed claim must not grant money twice');
+  assert.equal(readRewardSave('qa_announcement_user').wood, 2, 'replayed claim must not grant item twice');
+
   for (const event_type of ['impression', 'close', 'cta_click']) {
     const eventResult = await session.request(`/api/taoyuan/announcements/${announcementId}/events`, {
       method: 'POST',
@@ -323,6 +411,7 @@ try {
   assert.equal(statsResult.data?.stats?.impression_count, 1, 'stats should count logged-in impressions only');
   assert.equal(statsResult.data?.stats?.close_count, 1, 'stats should count closes');
   assert.equal(statsResult.data?.stats?.cta_click_count, 1, 'stats should count cta clicks');
+  assert.equal(statsResult.data?.stats?.reward_claim_count, 2, 'stats should count reward claim attempts');
   assert.equal(statsResult.data?.stats?.suppress_count, 0, 'stats should not require a separate suppress event');
   assert.equal(statsResult.data?.stats?.read_count, 1, 'stats should count distinct read users');
 

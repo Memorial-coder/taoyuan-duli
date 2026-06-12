@@ -1,4 +1,5 @@
 <template>
+  <Transition name="dialog-pop">
   <div
     v-if="open"
     class="game-modal-overlay fixed inset-0 z-[70] flex items-center justify-center bg-bg/80 p-3 md:p-4"
@@ -48,6 +49,7 @@
             </div>
             <div class="announcement-history-summary-side">
               <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
+              <span v-if="announcement.rewards.length" class="announcement-chip announcement-chip--reward">奖励 {{ announcement.rewards.length }}</span>
               <span class="announcement-history-toggle">
                 {{ isAnnouncementExpanded(announcement.id) ? '收起' : '展开' }}
                 <ChevronDown
@@ -68,6 +70,10 @@
               loading="lazy"
             />
             <div class="announcement-history-rich" v-html="renderBody(announcement.body)" />
+            <div v-if="announcement.rewards.length" class="announcement-history-rewards">
+              <span>公告奖励</span>
+              <strong>{{ announcement.rewards.map(rewardLabel).join(' / ') }}</strong>
+            </div>
             <Button
               v-if="announcement.cta_url"
               class="announcement-history-cta justify-center"
@@ -81,6 +87,7 @@
       </div>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -128,6 +135,13 @@
   }
 
   const renderBody = (body: string) => renderRichContent(body || '')
+
+  const rewardLabel = (reward: TaoyuanAnnouncement['rewards'][number]) => {
+    if (reward.type === 'money') return `铜钱 x${Number(reward.amount) || 0}`
+    const quantity = Number(reward.quantity) || 0
+    const quality = reward.type === 'item' || reward.type === 'seed' ? `/${reward.quality || 'normal'}` : ''
+    return `${reward.type}:${reward.id || '-'} x${quantity}${quality}`
+  }
 
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '未发布'
@@ -252,6 +266,12 @@
     white-space: nowrap;
   }
 
+  .announcement-chip--reward {
+    border-color: rgba(104, 211, 145, 0.28);
+    color: rgb(var(--color-success));
+    background: rgba(104, 211, 145, 0.1);
+  }
+
   .announcement-history-toggle {
     display: inline-flex;
     min-height: 28px;
@@ -313,6 +333,25 @@
     max-width: 100%;
     max-height: 260px;
     object-fit: contain;
+  }
+
+  .announcement-history-rewards {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+    border: 1px solid rgba(104, 211, 145, 0.22);
+    border-radius: 4px;
+    background: rgba(104, 211, 145, 0.08);
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+    padding: 8px;
+  }
+
+  .announcement-history-rewards strong {
+    color: rgb(var(--color-success));
+    font-size: 0.75rem;
+    line-height: 1.45;
+    word-break: break-word;
   }
 
   .announcement-history-cta {

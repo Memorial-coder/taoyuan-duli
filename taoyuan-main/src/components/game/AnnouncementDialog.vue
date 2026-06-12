@@ -42,6 +42,7 @@
             </div>
             <div class="announcement-summary-side">
               <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
+              <span v-if="announcement.rewards.length" class="announcement-chip announcement-chip--reward">奖励 {{ announcement.rewards.length }}</span>
               <span class="announcement-toggle">
                 {{ isAnnouncementExpanded(announcement.id) ? '收起' : '展开' }}
                 <ChevronDown
@@ -62,6 +63,10 @@
               loading="lazy"
             />
             <div class="announcement-rich" v-html="renderBody(announcement.body)" />
+            <div v-if="announcement.rewards.length" class="announcement-rewards" data-testid="announcement-popup-rewards">
+              <span>点击“知道并领取”后发放</span>
+              <strong>{{ announcement.rewards.map(rewardLabel).join(' / ') }}</strong>
+            </div>
             <Button
               v-if="announcement.cta_url"
               class="announcement-item-cta justify-center"
@@ -75,12 +80,13 @@
       </div>
 
       <div class="announcement-actions">
-        <Button class="announcement-button justify-center" :icon="Check" @click="$emit('close')">
-          {{ primaryAnnouncement.button_texts.close || '知道了' }}
+        <Button class="announcement-button justify-center" :icon="Check" :disabled="closing" @click="$emit('close')">
+          {{ closeButtonLabel }}
         </Button>
         <Button
           class="announcement-button announcement-button-update justify-center"
           :icon="RefreshCw"
+          :disabled="closing"
           @click="$emit('saveUpdate')"
         >
           保存存档并更新
@@ -99,6 +105,7 @@
 
   const props = defineProps<{
     announcements: TaoyuanAnnouncement[]
+    closing?: boolean
   }>()
 
   defineEmits<{
@@ -109,6 +116,11 @@
 
   const expandedAnnouncementIds = ref<Set<string>>(new Set())
   const primaryAnnouncement = computed(() => props.announcements[0] || null)
+  const hasAnnouncementRewards = computed(() => props.announcements.some(announcement => announcement.rewards.length > 0))
+  const closeButtonLabel = computed(() => {
+    if (props.closing && hasAnnouncementRewards.value) return '领取中...'
+    return hasAnnouncementRewards.value ? '知道并领取' : (primaryAnnouncement.value?.button_texts.close || '知道了')
+  })
 
   const syncExpandedAnnouncements = () => {
     const firstId = props.announcements[0]?.id || ''
@@ -125,6 +137,13 @@
   }
 
   const renderBody = (body: string) => renderRichContent(body || '')
+
+  const rewardLabel = (reward: TaoyuanAnnouncement['rewards'][number]) => {
+    if (reward.type === 'money') return `铜钱 x${Number(reward.amount) || 0}`
+    const quantity = Number(reward.quantity) || 0
+    const quality = reward.type === 'item' || reward.type === 'seed' ? `/${reward.quality || 'normal'}` : ''
+    return `${reward.type}:${reward.id || '-'} x${quantity}${quality}`
+  }
 
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '未发布'
@@ -201,6 +220,12 @@
   .announcement-chip {
     color: rgb(var(--color-accent));
     font-size: 0.6875rem;
+  }
+
+  .announcement-chip--reward {
+    border-color: rgba(104, 211, 145, 0.28);
+    color: rgb(var(--color-success));
+    background: rgba(104, 211, 145, 0.1);
   }
 
   .announcement-scroll {
@@ -341,6 +366,25 @@
     border: 1px solid rgba(200, 164, 92, 0.16);
     padding: 6px 8px;
     vertical-align: top;
+  }
+
+  .announcement-rewards {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+    border: 1px solid rgba(104, 211, 145, 0.22);
+    border-radius: 4px;
+    background: rgba(104, 211, 145, 0.08);
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+    padding: 8px;
+  }
+
+  .announcement-rewards strong {
+    color: rgb(var(--color-success));
+    font-size: 0.75rem;
+    line-height: 1.45;
+    word-break: break-word;
   }
 
   .announcement-item-cta {

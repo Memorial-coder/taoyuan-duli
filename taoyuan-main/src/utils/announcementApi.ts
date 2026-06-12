@@ -3,8 +3,12 @@ import { Browser } from '@capacitor/browser'
 import type { Router } from 'vue-router'
 import _pkg from '../../package.json'
 import { apiFetch } from '@/utils/apiClient'
+import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
+import { fetchProtectedJson } from '@/utils/protectedApi'
 import type {
   AnnouncementEventType,
+  AnnouncementReward,
+  AnnouncementRewardClaimResult,
   TaoyuanAnnouncement,
   TaoyuanAnnouncementPayload,
 } from '@/types/announcement'
@@ -43,6 +47,24 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return data as T
 }
 
+const normalizeAnnouncementReward = (raw: Partial<AnnouncementReward> = {}): AnnouncementReward | null => {
+  const type = String(raw.type || '')
+  if (!['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe', 'decoration'].includes(type)) return null
+  if (type === 'money') {
+    const amount = Math.max(0, Math.floor(Number(raw.amount ?? raw.quantity) || 0))
+    return amount > 0 ? { type: 'money', amount } : null
+  }
+  const id = String(raw.id || '').trim()
+  const quantity = Math.max(1, Math.floor(Number(raw.quantity) || 1))
+  if (!id) return null
+  return {
+    type: type as AnnouncementReward['type'],
+    id,
+    quantity,
+    ...(type === 'item' || type === 'seed' ? { quality: String(raw.quality || 'normal') } : {}),
+  }
+}
+
 export const normalizeAnnouncement = (raw: Partial<TaoyuanAnnouncement> = {}): TaoyuanAnnouncement => ({
   id: String(raw.id || ''),
   title: String(raw.title || ''),
@@ -63,6 +85,10 @@ export const normalizeAnnouncement = (raw: Partial<TaoyuanAnnouncement> = {}): T
     cta: String(raw.button_texts?.cta || raw.cta_text || '查看详情'),
   },
   template_type: String(raw.template_type || ''),
+  rewards: Array.isArray(raw.rewards)
+    ? raw.rewards.map(item => normalizeAnnouncementReward(item)).filter((item): item is AnnouncementReward => !!item)
+    : [],
+  duplicate_compensation_money: Math.max(0, Math.floor(Number(raw.duplicate_compensation_money) || 0)),
   created_at: Number(raw.created_at) || 0,
   updated_at: Number(raw.updated_at) || 0,
   published_at: raw.published_at === null || raw.published_at === undefined ? null : Number(raw.published_at) || null,
@@ -90,6 +116,10 @@ export const normalizeAnnouncementPayload = (payload: TaoyuanAnnouncementPayload
     cta: String(payload.button_texts?.cta || '查看详情').trim() || '查看详情',
   },
   template_type: String(payload.template_type || '').trim(),
+  rewards: Array.isArray(payload.rewards)
+    ? payload.rewards.map(item => normalizeAnnouncementReward(item)).filter((item): item is AnnouncementReward => !!item)
+    : [],
+  duplicate_compensation_money: Math.max(0, Math.floor(Number(payload.duplicate_compensation_money) || 0)),
 })
 
 const buildAnnouncementSearch = (params: { version?: string; channel?: string; limit?: number } = {}) => {
@@ -132,6 +162,41 @@ export const recordAnnouncementEvent = async (
     },
   )
   return Boolean(data.recorded)
+}
+
+export const claimAnnouncementReward = async (announcementId: string) => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') throw new Error('请先登录账号后再领取公告奖励')
+  const { data } = await fetchProtectedJson<{
+    result?: Partial<AnnouncementRewardClaimResult>
+  }>(async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return fetch(`/api/taoyuan/announcements/${encodeURIComponent(announcementId)}/claim-reward`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({
+        client_version: getAnnouncementClientVersion(),
+        client_channel: getAnnouncementClientChannel(),
+      }),
+    })
+  }, {
+    fallbackMessage: '公告奖励领取失败',
+    networkErrorMessage: '公告奖励服务连接失败，请稍后重试',
+  })
+
+  const result = data?.result || {}
+  return {
+    save_slot: result.save_slot === null || result.save_slot === undefined ? null : Number(result.save_slot),
+    money_added: Math.max(0, Math.floor(Number(result.money_added) || 0)),
+    duplicate_compensation_money: Math.max(0, Math.floor(Number(result.duplicate_compensation_money) || 0)),
+    applied_rewards: Array.isArray(result.applied_rewards) ? result.applied_rewards as AnnouncementReward[] : [],
+    skipped_rewards: Array.isArray(result.skipped_rewards) ? result.skipped_rewards as AnnouncementReward[] : [],
+    already_applied: result.already_applied === true,
+  } satisfies AnnouncementRewardClaimResult
 }
 
 export const openAnnouncementTarget = async (url: string, router: Router) => {

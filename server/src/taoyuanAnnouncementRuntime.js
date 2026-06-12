@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
+const taoyuanMailbox = require('./taoyuanMailbox');
+const { createError } = require('./taoyuanSaveRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -13,7 +15,7 @@ const MYSQL_ENABLED = !QA_FORCE_LOCAL && Boolean(process.env.MYSQL_HOST && proce
 const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
 
 const ANNOUNCEMENT_STATUS = new Set(['draft', 'published', 'offline']);
-const ANNOUNCEMENT_EVENT_TYPES = new Set(['impression', 'close', 'suppress', 'cta_click']);
+const ANNOUNCEMENT_EVENT_TYPES = new Set(['impression', 'close', 'suppress', 'cta_click', 'reward_claim']);
 const DEFAULT_BUTTON_TEXTS = Object.freeze({
   close: '知道了',
   suppress: '本条不再提示',
@@ -123,6 +125,16 @@ function buildMysqlPool() {
   return mysqlPool;
 }
 
+async function ensureMysqlColumn(pool, tableName, columnName, definition) {
+  if (!/^[a-z0-9_]+$/i.test(tableName) || !/^[a-z0-9_]+$/i.test(columnName)) return;
+  const [rows] = await pool.query(
+    `SHOW COLUMNS FROM \`${tableName}\` LIKE ?`,
+    [columnName],
+  );
+  if (Array.isArray(rows) && rows.length > 0) return;
+  await pool.query(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`);
+}
+
 async function ensureMysqlReady() {
   if (!MYSQL_ENABLED) return false;
   if (!mysqlReadyPromise) {
@@ -145,6 +157,8 @@ async function ensureMysqlReady() {
           cta_url VARCHAR(512) NOT NULL DEFAULT '',
           button_texts_json LONGTEXT NULL,
           template_type VARCHAR(64) NOT NULL DEFAULT '',
+          rewards_json LONGTEXT NULL,
+          duplicate_compensation_money INT NOT NULL DEFAULT 0,
           created_at BIGINT NOT NULL,
           updated_at BIGINT NOT NULL,
           published_at BIGINT NULL DEFAULT NULL,
@@ -156,6 +170,8 @@ async function ensureMysqlReady() {
           KEY idx_updated_at (updated_at)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
       `);
+      await ensureMysqlColumn(pool, 'taoyuan_announcements', 'rewards_json', 'LONGTEXT NULL');
+      await ensureMysqlColumn(pool, 'taoyuan_announcements', 'duplicate_compensation_money', 'INT NOT NULL DEFAULT 0');
       await pool.query(`
         CREATE TABLE IF NOT EXISTS taoyuan_announcement_events (
           id VARCHAR(96) NOT NULL,
@@ -234,6 +250,19 @@ function normalizePriority(value) {
   return Math.max(0, Math.min(999, priority));
 }
 
+function clampPositiveInt(value, fallback = 0) {
+  const normalized = Math.floor(Number(value) || 0);
+  return normalized > 0 ? normalized : fallback;
+}
+
+function normalizeAnnouncementRewards(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => taoyuanMailbox.normalizeReward(item))
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
 function normalizeStatus(value, fallback = 'draft') {
   const status = String(value || fallback).trim().toLowerCase();
   return ANNOUNCEMENT_STATUS.has(status) ? status : fallback;
@@ -278,6 +307,11 @@ function normalizeAnnouncementInput(input = {}, previous = null, actor = {}) {
     cta_url: sanitizeUrl(input.cta_url ?? input.ctaUrl ?? previous?.cta_url ?? ''),
     button_texts: normalizeButtonTexts(input.button_texts ?? input.buttonTexts ?? previous?.button_texts ?? {}),
     template_type: normalizeText(input.template_type ?? input.templateType ?? previous?.template_type ?? '', 64),
+    rewards: normalizeAnnouncementRewards(input.rewards ?? previous?.rewards ?? []),
+    duplicate_compensation_money: clampPositiveInt(
+      input.duplicate_compensation_money ?? input.duplicateCompensationMoney ?? previous?.duplicate_compensation_money,
+      0,
+    ),
     created_at: createdAt,
     updated_at: nowSeconds(),
     published_at: parseTimestamp(input.published_at ?? input.publishedAt ?? previous?.published_at ?? null),
@@ -321,6 +355,8 @@ function mapMysqlAnnouncement(row = {}) {
     cta_url: row.cta_url,
     button_texts: parseJson(row.button_texts_json, DEFAULT_BUTTON_TEXTS),
     template_type: row.template_type,
+    rewards: parseJson(row.rewards_json, []),
+    duplicate_compensation_money: row.duplicate_compensation_money,
   }, {
     id: row.id,
     created_at: Number(row.created_at) || nowSeconds(),
@@ -380,6 +416,8 @@ function toMysqlParams(announcement) {
     announcement.cta_url,
     JSON.stringify(announcement.button_texts),
     announcement.template_type,
+    JSON.stringify(announcement.rewards),
+    announcement.duplicate_compensation_money,
     announcement.created_at,
     announcement.updated_at,
     announcement.published_at,
@@ -398,8 +436,9 @@ async function upsertAnnouncement(input = {}, actor = {}) {
     await buildMysqlPool().execute(
       `INSERT INTO taoyuan_announcements
        (id, title, body, image_url, version, target_versions_json, target_channels_json, start_at, end_at, priority, status,
-        cta_text, cta_url, button_texts_json, template_type, created_at, updated_at, published_at, offline_at, operator_name, operator_role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        cta_text, cta_url, button_texts_json, template_type, rewards_json, duplicate_compensation_money,
+        created_at, updated_at, published_at, offline_at, operator_name, operator_role)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
         title = VALUES(title),
         body = VALUES(body),
@@ -415,6 +454,8 @@ async function upsertAnnouncement(input = {}, actor = {}) {
         cta_url = VALUES(cta_url),
         button_texts_json = VALUES(button_texts_json),
         template_type = VALUES(template_type),
+        rewards_json = VALUES(rewards_json),
+        duplicate_compensation_money = VALUES(duplicate_compensation_money),
         updated_at = VALUES(updated_at),
         published_at = VALUES(published_at),
         offline_at = VALUES(offline_at),
@@ -675,6 +716,7 @@ async function getAnnouncementStats(announcementId) {
     close_count: 0,
     suppress_count: 0,
     cta_click_count: 0,
+    reward_claim_count: 0,
     read_count: 0,
     exposed_user_count: 0,
     event_count: events.length,
@@ -694,11 +736,56 @@ async function getAnnouncementStats(announcementId) {
     } else if (event.event_type === 'cta_click') {
       counts.cta_click_count += 1;
       if (event.username) readUsers.add(event.username);
+    } else if (event.event_type === 'reward_claim') {
+      counts.reward_claim_count += 1;
+      if (event.username) readUsers.add(event.username);
     }
   }
   counts.read_count = readUsers.size;
   counts.exposed_user_count = exposedUsers.size;
   return { announcement, stats: counts, recent_events: events.slice(0, 80) };
+}
+
+async function claimAnnouncementReward(username, announcementId, options = {}) {
+  const normalizedUsername = normalizeText(username, 64);
+  if (!normalizedUsername) throw createError('请先登录后再领取公告奖励', 401);
+
+  const announcement = await getAnnouncement(announcementId);
+  if (!announcement) throw createError('公告不存在', 404);
+  if (!isAnnouncementActive(announcement)) throw createError('这条公告奖励当前不可领取', 400);
+  if (!targetMatches(announcement.target_versions, options.version)) {
+    throw createError('这条公告奖励不适用于当前版本', 403);
+  }
+  if (!targetMatches(announcement.target_channels, options.channel)) {
+    throw createError('这条公告奖励不适用于当前渠道', 403);
+  }
+  if (!Array.isArray(announcement.rewards) || announcement.rewards.length === 0) {
+    throw createError('这条公告没有可领取奖励', 400);
+  }
+
+  const result = taoyuanMailbox.applyRewardsToSave(normalizedUsername, {
+    id: `announcement_reward:${announcement.id}`,
+    campaign_id: `announcement:${announcement.id}`,
+    username: normalizedUsername,
+    title: announcement.title,
+    content: announcement.body,
+    rewards: announcement.rewards.map(item => ({ ...item })),
+    target_slot: null,
+    duplicate_compensation_money: announcement.duplicate_compensation_money,
+  });
+
+  await recordAnnouncementEvent(announcement.id, {
+    username: normalizedUsername,
+    event_type: 'reward_claim',
+    client_version: options.version || '',
+    client_channel: options.channel || '',
+    detail: {
+      reward_count: announcement.rewards.length,
+      already_applied: result?.already_applied === true,
+    },
+  }).catch(() => {});
+
+  return { announcement, result };
 }
 
 function toPublicAnnouncement(announcement) {
@@ -718,6 +805,8 @@ function toPublicAnnouncement(announcement) {
     cta_url: announcement.cta_url,
     button_texts: announcement.button_texts,
     template_type: announcement.template_type,
+    rewards: Array.isArray(announcement.rewards) ? announcement.rewards.map(item => ({ ...item })) : [],
+    duplicate_compensation_money: announcement.duplicate_compensation_money,
     published_at: announcement.published_at,
     created_at: announcement.created_at,
   };
@@ -739,6 +828,7 @@ module.exports = {
   listPublicHistory,
   recordAnnouncementEvent,
   getAnnouncementStats,
+  claimAnnouncementReward,
   toPublicAnnouncement,
   ensureMysqlReady,
   MYSQL_ENABLED,

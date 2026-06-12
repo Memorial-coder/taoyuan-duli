@@ -114,6 +114,68 @@
         </label>
       </div>
 
+      <div class="announcement-reward-panel" data-testid="announcement-reward-config">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p class="text-sm text-accent">公告奖励</p>
+            <p class="text-xs text-muted leading-5">玩家点击“知道并领取”后发放；无奖励公告仍显示“知道了”。</p>
+          </div>
+          <button class="btn !px-3 !py-2" type="button" @click="addReward">添加奖励</button>
+        </div>
+        <label class="admin-label">
+          <span>重复装备补偿铜钱</span>
+          <input v-model.number="form.duplicate_compensation_money" type="number" min="0" class="admin-input" placeholder="重复武器/戒指/帽子/鞋子时补偿" />
+        </label>
+        <div v-if="!form.rewards.length" class="announcement-reward-empty">未配置奖励，公告只做已读提示。</div>
+        <div v-else class="announcement-reward-list">
+          <div v-for="(reward, index) in form.rewards" :key="`announcement-reward-${index}`" class="announcement-reward-row">
+            <select v-model="reward.type" class="admin-input" @change="normalizeRewardRow(reward)">
+              <option value="money">铜钱</option>
+              <option value="item">物品</option>
+              <option value="seed">种子</option>
+              <option value="weapon">武器</option>
+              <option value="ring">戒指</option>
+              <option value="hat">帽子</option>
+              <option value="shoe">鞋子</option>
+              <option value="decoration">装饰</option>
+            </select>
+            <input
+              v-if="reward.type !== 'money'"
+              v-model="reward.id"
+              maxlength="80"
+              class="admin-input"
+              placeholder="奖励 ID，如 wood / seed_peach / wooden_stick"
+              @blur="normalizeRewardRow(reward)"
+            />
+            <input
+              v-if="reward.type === 'money'"
+              v-model.number="reward.amount"
+              type="number"
+              min="1"
+              class="admin-input"
+              placeholder="金额"
+              @blur="normalizeRewardRow(reward)"
+            />
+            <input
+              v-else
+              v-model.number="reward.quantity"
+              type="number"
+              min="1"
+              class="admin-input"
+              placeholder="数量"
+              @blur="normalizeRewardRow(reward)"
+            />
+            <select v-if="reward.type === 'item' || reward.type === 'seed'" v-model="reward.quality" class="admin-input">
+              <option value="normal">普通</option>
+              <option value="fine">优良</option>
+              <option value="excellent">精品</option>
+              <option value="supreme">极品</option>
+            </select>
+            <button class="btn btn-danger !px-3 !py-2" type="button" @click="removeReward(index)">删除</button>
+          </div>
+        </div>
+      </div>
+
       <div class="announcement-admin-actions">
         <button class="btn !px-3 !py-2" :disabled="saving" @click="saveDraft">
           {{ saving ? '保存中...' : '保存草稿' }}
@@ -150,8 +212,12 @@
           <img v-if="form.image_url" :src="form.image_url" :alt="form.title || '公告图片'" class="announcement-preview-image" />
           <h3>{{ form.title || '未命名公告' }}</h3>
           <div class="announcement-preview-body" v-html="previewHtml" />
+          <div v-if="form.rewards.length" class="announcement-preview-rewards" data-testid="announcement-reward-preview">
+            <span>奖励</span>
+            <strong>{{ form.rewards.map(rewardLabel).join(' / ') }}</strong>
+          </div>
           <div class="announcement-preview-actions">
-            <span>{{ form.button_texts.close || '知道了' }}</span>
+            <span>{{ previewCloseButtonLabel }}</span>
             <span v-if="form.cta_url">{{ form.cta_text || form.button_texts.cta || '查看详情' }}</span>
           </div>
         </div>
@@ -175,6 +241,8 @@
             <span class="announcement-list-title">{{ announcement.title }}</span>
             <span class="announcement-list-meta">
               {{ statusLabel(announcement.status) }} · {{ formatTime(announcement.updated_at || announcement.created_at) }}
+              <template v-if="announcement.version"> · v{{ announcement.version }}</template>
+              <template v-if="announcement.rewards.length"> · 奖励 {{ announcement.rewards.length }}</template>
             </span>
           </button>
         </div>
@@ -225,6 +293,7 @@
   } from '@/utils/adminContentApi'
   import { showFloat } from '@/composables/useGameLog'
   import type {
+    AnnouncementReward,
     TaoyuanAnnouncement,
     TaoyuanAnnouncementAuditLog,
     TaoyuanAnnouncementPayload,
@@ -257,6 +326,8 @@
       cta: '查看详情',
     },
     template_type: '',
+    rewards: [],
+    duplicate_compensation_money: 0,
   })
 
   const announcements = ref<TaoyuanAnnouncement[]>([])
@@ -278,11 +349,15 @@
     close_count: 0,
     suppress_count: 0,
     cta_click_count: 0,
+    reward_claim_count: 0,
     read_count: 0,
     exposed_user_count: 0,
     event_count: 0,
   })
   const auditLogs = ref<TaoyuanAnnouncementAuditLog[]>([])
+  const previewCloseButtonLabel = computed(() => (
+    form.value.rewards.length ? '知道并领取' : (form.value.button_texts.close || '知道了')
+  ))
 
   const parseDelimitedList = (value: string) => [...new Set(
     value
@@ -304,6 +379,59 @@
     return Number.isFinite(timestamp) ? Math.floor(timestamp / 1000) : null
   }
 
+  const createEmptyReward = (): AnnouncementReward => ({
+    type: 'money',
+    amount: 100,
+  })
+
+  const normalizeRewardDraft = (reward: AnnouncementReward): AnnouncementReward | null => {
+    const type = reward.type
+    if (type === 'money') {
+      const amount = Math.max(1, Math.floor(Number(reward.amount ?? reward.quantity) || 0))
+      return amount > 0 ? { type: 'money', amount } : null
+    }
+    const id = String(reward.id || '').trim()
+    if (!id) return null
+    const quantity = Math.max(1, Math.floor(Number(reward.quantity) || 1))
+    if (type === 'item' || type === 'seed') {
+      return { type, id, quantity, quality: String(reward.quality || 'normal') }
+    }
+    return { type, id, quantity }
+  }
+
+  const normalizeRewardRow = (reward: AnnouncementReward) => {
+    const normalized = normalizeRewardDraft(reward)
+    if (!normalized) {
+      if (reward.type === 'money') reward.amount = 100
+      else reward.quantity = Math.max(1, Math.floor(Number(reward.quantity) || 1))
+      return
+    }
+    Object.assign(reward, normalized)
+    if (reward.type === 'money') {
+      delete reward.id
+      delete reward.quantity
+      delete reward.quality
+      return
+    }
+    delete reward.amount
+    if (reward.type !== 'item' && reward.type !== 'seed') delete reward.quality
+  }
+
+  const addReward = () => {
+    form.value.rewards = [...form.value.rewards, createEmptyReward()]
+  }
+
+  const removeReward = (index: number) => {
+    form.value.rewards = form.value.rewards.filter((_, rewardIndex) => rewardIndex !== index)
+  }
+
+  const rewardLabel = (reward: AnnouncementReward) => {
+    if (reward.type === 'money') return `铜钱 x${Math.max(0, Number(reward.amount) || 0)}`
+    const count = Math.max(0, Number(reward.quantity) || 0)
+    const quality = reward.type === 'item' || reward.type === 'seed' ? `/${reward.quality || 'normal'}` : ''
+    return `${reward.type}:${reward.id || '-'} x${count}${quality}`
+  }
+
   const payloadFromForm = (): TaoyuanAnnouncementPayload => ({
     ...form.value,
     target_versions: parseDelimitedList(targetVersionsText.value),
@@ -316,6 +444,8 @@
       suppress: form.value.button_texts.suppress || '本条不再提示',
       cta: form.value.button_texts.cta || '查看详情',
     },
+    rewards: form.value.rewards.map(normalizeRewardDraft).filter((item): item is AnnouncementReward => !!item),
+    duplicate_compensation_money: Math.max(0, Math.floor(Number(form.value.duplicate_compensation_money) || 0)),
   })
 
   const applyAnnouncementToForm = (announcement: TaoyuanAnnouncement | null) => {
@@ -342,6 +472,8 @@
       cta_url: announcement.cta_url,
       button_texts: { ...announcement.button_texts },
       template_type: announcement.template_type,
+      rewards: announcement.rewards.map(item => ({ ...item })),
+      duplicate_compensation_money: announcement.duplicate_compensation_money,
     }
     targetVersionsText.value = announcement.target_versions.join('\n')
     targetChannelsText.value = announcement.target_channels.join('\n')
@@ -354,6 +486,7 @@
     { label: '曝光数', value: stats.value.impression_count },
     { label: '关闭数', value: stats.value.close_count },
     { label: '点击数', value: stats.value.cta_click_count },
+    { label: '领奖数', value: stats.value.reward_claim_count },
     { label: '已读人数', value: stats.value.read_count },
     { label: '曝光人数', value: stats.value.exposed_user_count },
   ])
@@ -410,6 +543,7 @@
         close_count: 0,
         suppress_count: 0,
         cta_click_count: 0,
+        reward_claim_count: 0,
         read_count: 0,
         exposed_user_count: 0,
         event_count: 0,
@@ -469,6 +603,7 @@
       close_count: 0,
       suppress_count: 0,
       cta_click_count: 0,
+      reward_claim_count: 0,
       read_count: 0,
       exposed_user_count: 0,
       event_count: 0,
@@ -635,6 +770,33 @@
     gap: 8px;
   }
 
+  .announcement-reward-panel {
+    display: grid;
+    gap: 10px;
+    border: 1px solid rgba(200, 164, 92, 0.16);
+    border-radius: 6px;
+    background: rgba(16, 20, 30, 0.28);
+    padding: 12px;
+  }
+
+  .announcement-reward-empty {
+    color: rgb(var(--color-muted));
+    font-size: 0.75rem;
+    line-height: 1.6;
+  }
+
+  .announcement-reward-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .announcement-reward-row {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr) 100px 100px auto;
+    gap: 8px;
+    align-items: center;
+  }
+
   .announcement-template {
     border: 1px solid rgba(200, 164, 92, 0.22);
     border-radius: 999px;
@@ -702,6 +864,25 @@
     max-width: 100%;
     max-height: 220px;
     object-fit: contain;
+  }
+
+  .announcement-preview-rewards {
+    display: grid;
+    gap: 4px;
+    margin-top: 10px;
+    border: 1px solid rgba(104, 211, 145, 0.22);
+    border-radius: 4px;
+    background: rgba(104, 211, 145, 0.08);
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+    padding: 8px;
+  }
+
+  .announcement-preview-rewards strong {
+    color: rgb(var(--color-success));
+    font-size: 0.75rem;
+    line-height: 1.45;
+    word-break: break-word;
   }
 
   .announcement-preview-actions {
@@ -805,6 +986,10 @@
   }
 
   @media (max-width: 520px) {
+    .announcement-reward-row {
+      grid-template-columns: 1fr;
+    }
+
     .announcement-preview-actions,
     .announcement-stats-grid {
       grid-template-columns: 1fr;

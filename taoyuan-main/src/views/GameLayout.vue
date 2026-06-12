@@ -19,15 +19,12 @@
     <div
       ref="contentViewport"
       class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto"
-      :class="{ 'game-layout-content--rebounding': bottomRevealRebounding }"
-      :style="bottomRevealStyle"
       @touchstart.passive="handleContentTouchStart"
       @touchmove.passive="handleContentTouchMove"
       @touchend.passive="releaseBottomReveal"
       @touchcancel.passive="releaseBottomReveal"
     >
       <div class="game-layout-body">
-        <TopGoalsPanel class="mb-0.5 md:mb-3 xl:mb-4" />
         <div ref="sceneContentAnchor">
           <router-view v-slot="{ Component }">
             <Transition name="panel-fade" mode="out-in">
@@ -73,7 +70,8 @@
       <AnnouncementDialog
         v-if="announcementStore.popupQueue.length > 0 && !blockAnnouncementDialogs"
         :announcements="announcementStore.popupQueue"
-        @close="announcementStore.closeCurrent"
+        :closing="announcementClosing"
+        @close="handleAnnouncementClose"
         @cta="handleAnnouncementCta"
         @save-update="handleAnnouncementSaveUpdate"
       />
@@ -509,7 +507,7 @@
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
   import { handleEndDay } from '@/composables/useEndDay'
-  import { addLog, setQmsgParent, _registerDayLabelGetter } from '@/composables/useGameLog'
+  import { addLog, showFloat, setQmsgParent, _registerDayLabelGetter } from '@/composables/useGameLog'
   import {
     LATE_NIGHT_RECOVERY_MAX,
     LATE_NIGHT_RECOVERY_MIN,
@@ -535,7 +533,6 @@
   import MobileMapMenu from '@/components/game/MobileMapMenu.vue'
   import PlayerRecordCenterPanel from '@/components/game/PlayerRecordCenterPanel.vue'
   import StatusBar from '@/components/game/StatusBar.vue'
-  import TopGoalsPanel from '@/components/game/TopGoalsPanel.vue'
   import EventDialog from '@/components/game/EventDialog.vue'
   import HeartEventDialog from '@/components/game/HeartEventDialog.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
@@ -557,9 +554,9 @@
 
   const BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000
   const MOBILE_BOTTOM_REVEAL_MAX_PX = 150
-  const MOBILE_BOTTOM_REVEAL_DAMPING = 0.55
+  const MOBILE_BOTTOM_REVEAL_DAMPING = 0.5
   const MOBILE_BOTTOM_REVEAL_EDGE_PX = 4
-  const MOBILE_BOTTOM_REVEAL_REBOUND_MS = 180
+  const MOBILE_BOTTOM_REVEAL_REBOUND_MS = 160
   type ShortRestOption = (typeof SHORT_REST_OPTIONS)[number]
 
   type FullscreenDocument = Document & {
@@ -590,15 +587,13 @@
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
-  const bottomRevealOffset = ref(0)
-  const bottomRevealRebounding = ref(false)
-  const bottomRevealStyle = computed(() => ({
-    '--game-bottom-reveal-offset': `${bottomRevealOffset.value}px`
-  }))
+  let bottomRevealOffset = 0
+  let bottomRevealPendingOffset = 0
   let bottomRevealStartY = 0
   let bottomRevealTouchId: number | null = null
   let bottomRevealTracking = false
   let bottomRevealReleaseTimer: number | null = null
+  let bottomRevealFrame: number | null = null
 
   const {
     currentEvent,
@@ -775,16 +770,30 @@
     bottomRevealReleaseTimer = null
   }
 
-  const setBottomRevealOffset = (value: number) => {
-    bottomRevealOffset.value = Math.round(Math.max(0, Math.min(MOBILE_BOTTOM_REVEAL_MAX_PX, value)))
+  const clearBottomRevealFrame = () => {
+    if (bottomRevealFrame === null) return
+    window.cancelAnimationFrame(bottomRevealFrame)
+    bottomRevealFrame = null
   }
 
-  const stickContentViewportToBottom = () => {
+  const flushBottomRevealOffset = () => {
+    bottomRevealFrame = null
+    bottomRevealOffset = bottomRevealPendingOffset
     const viewport = contentViewport.value
     if (!viewport) return
-    window.requestAnimationFrame(() => {
-      viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
-    })
+    viewport.style.setProperty('--game-bottom-reveal-offset', `${bottomRevealOffset}px`)
+    viewport.classList.toggle('game-layout-content--revealing', bottomRevealOffset > 0)
+  }
+
+  const setBottomRevealOffset = (value: number, immediate = false) => {
+    bottomRevealPendingOffset = Math.round(Math.max(0, Math.min(MOBILE_BOTTOM_REVEAL_MAX_PX, value)))
+    if (immediate) {
+      clearBottomRevealFrame()
+      flushBottomRevealOffset()
+      return
+    }
+    if (bottomRevealFrame !== null) return
+    bottomRevealFrame = window.requestAnimationFrame(flushBottomRevealOffset)
   }
 
   const findBottomRevealTouch = (touchList: TouchList) => {
@@ -798,8 +807,8 @@
 
   const handleContentTouchStart = (event: TouchEvent) => {
     clearBottomRevealTimer()
-    bottomRevealRebounding.value = false
-    setBottomRevealOffset(0)
+    contentViewport.value?.classList.remove('game-layout-content--rebounding')
+    setBottomRevealOffset(0, true)
 
     if (!isMobileBottomRevealViewport() || event.touches.length !== 1) {
       bottomRevealTracking = false
@@ -837,7 +846,6 @@
     }
 
     setBottomRevealOffset(dragUpDistance * MOBILE_BOTTOM_REVEAL_DAMPING)
-    stickContentViewportToBottom()
   }
 
   const releaseBottomReveal = () => {
@@ -845,16 +853,18 @@
     bottomRevealTouchId = null
     clearBottomRevealTimer()
 
-    if (bottomRevealOffset.value <= 0) {
-      bottomRevealRebounding.value = false
+    if (bottomRevealOffset <= 0 && bottomRevealPendingOffset <= 0) {
+      contentViewport.value?.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
       return
     }
 
-    bottomRevealRebounding.value = true
-    void nextTick(() => {
-      setBottomRevealOffset(0)
+    clearBottomRevealFrame()
+    const viewport = contentViewport.value
+    viewport?.classList.add('game-layout-content--rebounding')
+    window.requestAnimationFrame(() => {
+      setBottomRevealOffset(0, true)
       bottomRevealReleaseTimer = window.setTimeout(() => {
-        bottomRevealRebounding.value = false
+        viewport?.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
         bottomRevealReleaseTimer = null
       }, MOBILE_BOTTOM_REVEAL_REBOUND_MS)
     })
@@ -866,9 +876,31 @@
   const showDailyDigestSummary = ref(false)
   const latestUnreadDailyDigest = computed(() => (playerRecordCenterStore.hasUnreadDailyDigest ? playerRecordCenterStore.latestDailyDigest : null))
   const recordCenterInitialTab = ref<RecordCenterTabId>(playerRecordCenterStore.getPreferredOpenTab())
+  const announcementClosing = ref(false)
   const currentAnnouncement = computed(() => announcementStore.currentAnnouncement)
   const blockAnnouncementDialogs = computed(() => showDailyDigestSummary.value || showRecordCenter.value || showSaveManager.value || showSavePrompt.value)
   const blockFollowupDialogs = computed(() => blockAnnouncementDialogs.value || !!currentAnnouncement.value)
+
+  const closeAnnouncementsWithRewards = async () => {
+    if (announcementClosing.value) return false
+    announcementClosing.value = true
+    try {
+      const result = await announcementStore.closeCurrent()
+      if (result.claimedCount > 0) {
+        showFloat(`公告奖励已领取 ${result.claimedCount} 份`, 'success')
+      }
+      return true
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '公告奖励领取失败，请稍后重试', 'danger')
+      return false
+    } finally {
+      announcementClosing.value = false
+    }
+  }
+
+  const handleAnnouncementClose = async () => {
+    await closeAnnouncementsWithRewards()
+  }
 
   const handleAnnouncementCta = async (selectedAnnouncement: TaoyuanAnnouncement) => {
     const announcement = announcementStore.clickAnnouncementCta(selectedAnnouncement.id) || selectedAnnouncement
@@ -880,8 +912,8 @@
     }
   }
 
-  const handleAnnouncementSaveUpdate = () => {
-    announcementStore.closeCurrent()
+  const handleAnnouncementSaveUpdate = async () => {
+    if (!(await closeAnnouncementsWithRewards())) return
     openSaveManager({
       intent: 'save-refresh',
       returnUrl: window.location.href,
@@ -1011,6 +1043,7 @@
   })
   onUnmounted(() => {
     clearBottomRevealTimer()
+    clearBottomRevealFrame()
     stopClock()
     realtimeStore.stop()
     document.removeEventListener('fullscreenchange', syncFullscreenState)
@@ -1547,12 +1580,26 @@
     .game-layout-body::after {
       content: '';
       display: block;
-      height: var(--game-bottom-reveal-offset, 0px);
+      height: 0;
       pointer-events: none;
     }
 
+    .game-layout-content--revealing .game-layout-body,
+    .game-layout-content--rebounding .game-layout-body {
+      will-change: transform;
+    }
+
+    .game-layout-content--revealing .game-layout-body,
+    .game-layout-content--rebounding .game-layout-body {
+      transform: translate3d(0, calc(var(--game-bottom-reveal-offset, 0px) * -1), 0);
+    }
+
     .game-layout-content--rebounding .game-layout-body::after {
-      transition: height 180ms ease-out;
+      transition: none;
+    }
+
+    .game-layout-content--rebounding .game-layout-body {
+      transition: transform 160ms ease-out;
     }
   }
 </style>

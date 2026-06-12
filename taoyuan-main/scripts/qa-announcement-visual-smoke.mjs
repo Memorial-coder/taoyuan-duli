@@ -105,6 +105,8 @@ async function writeAnnouncementStore() {
             cta: '查看详情',
           },
           template_type: 'version_update',
+          rewards: [{ type: 'money', amount: 120 }],
+          duplicate_compensation_money: 0,
           created_at: now - 120,
           updated_at: now - 120,
           published_at: now - 120,
@@ -132,6 +134,8 @@ async function writeAnnouncementStore() {
             cta: 'Details',
           },
           template_type: 'hotfix',
+          rewards: [],
+          duplicate_compensation_money: 0,
           created_at: now - 180,
           updated_at: now - 180,
           published_at: now - 180,
@@ -241,6 +245,11 @@ async function verifyPopup(page, viewport, name, frontendPort) {
     return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height }
   }))
   assert.equal(buttons.length, 2, `${name} should render two persistent announcement action buttons`)
+  await assert.match(
+    await page.locator('.announcement-actions button').first().innerText(),
+    /知道并领取/,
+    `${name} reward popup should use claim-aware primary button text`,
+  )
   for (const button of buttons) {
     assert(button.width > 20 && button.height > 20, `${name} button should have stable size`)
     assert(button.left >= -1 && button.right <= viewport.width + 1, `${name} button should stay inside viewport`)
