@@ -761,6 +761,177 @@ const createOpenWorldTile = (
   revealsRadius: options.revealsRadius ?? 1
 })
 
+const OUTSKIRTS_OPEN_WORLD_WIDTH = 12
+const OUTSKIRTS_OPEN_WORLD_HEIGHT = 10
+
+const getOpenWorldTileCoordKey = (x: number, y: number) => `${x}:${y}`
+
+const createOpenWorldEmptyTile = (
+  regionId: RegionOpenWorldId,
+  x: number,
+  y: number,
+  terrain: RegionOpenWorldTileDef['terrain'],
+  label: string,
+  description: string
+) => createOpenWorldTile(`${regionId}:empty_${x}_${y}`, x, y, terrain, label, description)
+
+const getOutskirtsEmptyTerrain = (x: number, y: number): RegionOpenWorldTileDef['terrain'] => {
+  if (x <= 2 && y >= 4 && y <= 6) return 'road'
+  if (y >= 8 || (x <= 1 && y >= 7)) return 'water'
+  if ((x >= 3 && x <= 8 && y <= 4) || (x >= 7 && y === 6)) return 'bamboo'
+  if (x >= 7 || (x >= 5 && y >= 6)) return 'forest'
+  return 'grass'
+}
+
+const OUTSKIRTS_EMPTY_TILE_COPY: Record<RegionOpenWorldTileDef['terrain'], { labels: string[]; descriptions: string[] }> = {
+  grass: {
+    labels: ['浅草地', '野花坡', '草径', '空草坪'],
+    descriptions: ['浅草没过脚面，暂时没有可采的东西。', '野花贴着土坡开着，只适合经过和辨路。', '草径分出细小岔路，远处还压着雾。', '空草坪视野开阔，可以作为临时落脚点。']
+  },
+  bamboo: {
+    labels: ['竹影地', '疏竹间', '竹林边', '竹叶坪'],
+    descriptions: ['竹影落在地上，这一格暂时没有成熟竹材。', '稀疏竹子之间能看见更深的林路。', '竹林边缘有风声，适合继续摸索。', '竹叶铺成软地，只留下浅浅脚印。']
+  },
+  forest: {
+    labels: ['林间空地', '树影径', '松土坡', '林缘草处'],
+    descriptions: ['林间留出一小块空地，没有明显资源。', '树影遮住小径，适合绕行观察。', '松土上有旧脚印，但今天没有新东西。', '草叶贴着林缘生长，深处还有空间。']
+  },
+  road: {
+    labels: ['旧路弯', '土路口', '碎石径', '行旅岔口'],
+    descriptions: ['旧路在这里轻轻拐弯，可以继续往外走。', '土路口没有人影，只留下车辙。', '碎石铺成窄径，脚步声很清楚。', '几条小路在这里分开，适合选择方向。']
+  },
+  ruin: {
+    labels: ['旧石痕', '断墙角', '残瓦地', '荒基'],
+    descriptions: ['旧石痕埋在草里，暂时只能作为地标。', '断墙角挡住一点风，没有可处理对象。', '残瓦散在脚边，像是早年屋舍留下的。', '荒基只剩浅浅轮廓，后续也许能接上旧事。']
+  },
+  water: {
+    labels: ['浅溪湾', '溪边石', '湿草滩', '小水洼'],
+    descriptions: ['浅溪在这里放缓，暂时没有可拾取物。', '溪边石被水磨得很圆，可以踩着经过。', '湿草滩留下水痕，需要慢慢辨路。', '小水洼映出竹影，只是近郊地貌。']
+  },
+  marsh: {
+    labels: ['湿草窝', '软泥边', '芦叶隙', '潮痕地'],
+    descriptions: ['湿草伏在地面，暂时没有生态对象。', '软泥边能留下脚印，适合观察方向。', '芦叶之间有空隙，可以继续前进。', '潮痕停在这里，像一条自然边界。']
+  },
+  ridge: {
+    labels: ['石脊', '风口石', '缓坡', '断岩边'],
+    descriptions: ['石脊露出地面，暂时没有可互动对象。', '风从石缝里穿过，只提供地貌提示。', '缓坡能看见更远的竹林和溪线。', '断岩边适合停步观察。']
+  },
+  camp: {
+    labels: ['空营地', '旧火塘', '草棚影', '歇脚处'],
+    descriptions: ['空营地暂时无人使用，后续可作为据点线索。', '旧火塘已经冷透，只能辨认有人来过。', '草棚影落在地上，还没修成据点。', '歇脚处很安静，适合调整路线。']
+  },
+  gate: {
+    labels: ['小门径', '村外口', '竹门影', '归路口'],
+    descriptions: ['小门径连接村外，不含额外对象。', '村外口能看见回村方向。', '竹门影压在路面上，是安全边界。', '归路口标着回程方向。']
+  }
+}
+
+const getOutskirtsEmptyTileCopy = (
+  terrain: RegionOpenWorldTileDef['terrain'],
+  x: number,
+  y: number
+) => {
+  const copy = OUTSKIRTS_EMPTY_TILE_COPY[terrain]
+  const index = Math.abs(x * 7 + y * 3) % copy.labels.length
+  return {
+    label: copy.labels[index]!,
+    description: copy.descriptions[index]!
+  }
+}
+
+const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
+  const specialTiles = [
+    createOpenWorldTile('outskirts:village_gate', 1, 5, 'gate', '村口', '从桃源村外踏进竹径，行旅从这里开始。', {
+      objectType: 'story',
+      actionId: 'inspect',
+      revealsRadius: 2
+    }),
+    createOpenWorldTile('outskirts:bamboo_1', 3, 4, 'bamboo', '青竹丛', '一小片适合练手的竹子，砍下后当天会留下竹茬。', {
+      objectType: 'bamboo',
+      actionId: 'gather',
+      staminaCost: 3,
+      timeCostHours: 0.25,
+      rewardItems: [{ itemId: 'bamboo', quantity: 2 }],
+      dailyRefresh: true
+    }),
+    createOpenWorldTile('outskirts:herb_1', 2, 7, 'grass', '草药坡', '草丛里夹着几株能入药的野草。', {
+      objectType: 'herb',
+      actionId: 'gather',
+      staminaCost: 2,
+      timeCostHours: 0.2,
+      rewardItems: [{ itemId: 'herb', quantity: 1 }],
+      dailyRefresh: true
+    }),
+    createOpenWorldTile('outskirts:wild_tree', 5, 5, 'forest', '野树根', '靠近林缘的野树，适合顺手收木材。', {
+      objectType: 'tree',
+      actionId: 'gather',
+      staminaCost: 4,
+      timeCostHours: 0.34,
+      rewardItems: [{ itemId: 'wood', quantity: 2 }],
+      dailyRefresh: true
+    }),
+    createOpenWorldTile('outskirts:shallow_chest', 5, 3, 'grass', '旧藤箱', '被藤蔓缠住的小箱子，像是以前赶路人留下的。', {
+      objectType: 'chest',
+      actionId: 'open_chest',
+      staminaCost: 2,
+      timeCostHours: 0.25,
+      rewardItems: [{ itemId: 'stone', quantity: 2 }],
+      rewardFamilyId: 'ancient_archive',
+      rewardFamilyAmount: 1,
+      dailyRefresh: true
+    }),
+    createOpenWorldTile('outskirts:hare_trace', 4, 7, 'grass', '兽迹草窝', '草叶被压出浅浅的窝，能观察到近郊小兽的去向。', {
+      objectType: 'animal',
+      actionId: 'observe',
+      staminaCost: 1,
+      timeCostHours: 0.17,
+      rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
+      dailyRefresh: true
+    }),
+    createOpenWorldTile('outskirts:fallen_branch', 7, 5, 'forest', '挡路枝', '枯枝挡住了更深处的竹径，可以清开。', {
+      objectType: 'roadblock',
+      actionId: 'drive_off',
+      staminaCost: 3,
+      timeCostHours: 0.25,
+      rewardItems: [{ itemId: 'firewood', quantity: 2 }],
+      dailyRefresh: true
+    }),
+    createOpenWorldTile('outskirts:quiet_outpost', 8, 3, 'camp', '旧凉棚', '半塌的小凉棚，修好后可作为近郊据点。', {
+      objectType: 'outpost',
+      actionId: 'repair',
+      staminaCost: 3,
+      timeCostHours: 0.34,
+      rewardItems: [],
+      rewardFamilyId: 'ancient_archive',
+      rewardFamilyAmount: 1,
+      outpostId: 'outskirts_shed'
+    }),
+    createOpenWorldTile('outskirts:story_bamboo_path', 8, 6, 'bamboo', '竹径标记', '竹叶间有新的脚印，提示更远处会出现区域地标。', {
+      objectType: 'story',
+      actionId: 'inspect'
+    }),
+    createOpenWorldTile('outskirts:forest_edge', 10, 5, 'forest', '林缘', '近郊地图的边缘，后续会连接更大的区域。', {
+      objectType: 'shortcut',
+      actionId: 'inspect'
+    })
+  ]
+  const specialByCoord = new Map(specialTiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
+  const tiles: RegionOpenWorldTileDef[] = []
+  for (let y = 0; y < OUTSKIRTS_OPEN_WORLD_HEIGHT; y += 1) {
+    for (let x = 0; x < OUTSKIRTS_OPEN_WORLD_WIDTH; x += 1) {
+      const specialTile = specialByCoord.get(getOpenWorldTileCoordKey(x, y))
+      if (specialTile) {
+        tiles.push(specialTile)
+        continue
+      }
+      const terrain = getOutskirtsEmptyTerrain(x, y)
+      const copy = getOutskirtsEmptyTileCopy(terrain, x, y)
+      tiles.push(createOpenWorldEmptyTile('taoyuan_outskirts', x, y, terrain, copy.label, copy.description))
+    }
+  }
+  return tiles
+}
+
 const getRegionRouteIds = (regionId: RegionId) => REGION_ROUTE_DEFS.filter(route => route.regionId === regionId).map(route => route.id)
 
 const getRegionEventIds = (regionId: RegionId) => REGION_EVENT_DEFS.filter(event => event.regionId === regionId).map(event => event.id)
@@ -782,88 +953,14 @@ export const REGION_OPEN_WORLD_DEFS: RegionOpenWorldRegionDef[] = [
     id: 'taoyuan_outskirts',
     name: '近郊竹林',
     description: '村口外的竹径、野树和浅草地，作为开放行旅图的第一张教学地图。',
-    width: 9,
-    height: 6,
+    width: OUTSKIRTS_OPEN_WORLD_WIDTH,
+    height: OUTSKIRTS_OPEN_WORLD_HEIGHT,
     startTileId: 'outskirts:village_gate',
     unlockRegionId: null,
     pressureKind: 'safe',
     pressureLabel: '低压',
     pressureDescription: '近郊安全，只会遇到轻量资源、动物和小路障。',
-    tiles: [
-      createOpenWorldTile('outskirts:village_gate', 1, 3, 'gate', '村口', '从桃源村外踏进竹径，行旅从这里开始。', {
-        objectType: 'story',
-        actionId: 'inspect',
-        revealsRadius: 2
-      }),
-      createOpenWorldTile('outskirts:bamboo_1', 2, 2, 'bamboo', '青竹丛', '一小片适合练手的竹子，砍下后当天会留下竹茬。', {
-        objectType: 'bamboo',
-        actionId: 'gather',
-        staminaCost: 3,
-        timeCostHours: 0.25,
-        rewardItems: [{ itemId: 'bamboo', quantity: 2 }],
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('outskirts:herb_1', 2, 4, 'grass', '草药坡', '草丛里夹着几株能入药的野草。', {
-        objectType: 'herb',
-        actionId: 'gather',
-        staminaCost: 2,
-        timeCostHours: 0.2,
-        rewardItems: [{ itemId: 'herb', quantity: 1 }],
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('outskirts:wild_tree', 3, 3, 'forest', '野树根', '靠近林缘的野树，适合顺手收木材。', {
-        objectType: 'tree',
-        actionId: 'gather',
-        staminaCost: 4,
-        timeCostHours: 0.34,
-        rewardItems: [{ itemId: 'wood', quantity: 2 }],
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('outskirts:shallow_chest', 4, 2, 'grass', '旧藤箱', '被藤蔓缠住的小箱子，像是以前赶路人留下的。', {
-        objectType: 'chest',
-        actionId: 'open_chest',
-        staminaCost: 2,
-        timeCostHours: 0.25,
-        rewardItems: [{ itemId: 'stone', quantity: 2 }],
-        rewardFamilyId: 'ancient_archive',
-        rewardFamilyAmount: 1,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('outskirts:hare_trace', 4, 4, 'grass', '兽迹草窝', '草叶被压出浅浅的窝，能观察到近郊小兽的去向。', {
-        objectType: 'animal',
-        actionId: 'observe',
-        staminaCost: 1,
-        timeCostHours: 0.17,
-        rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('outskirts:fallen_branch', 5, 3, 'forest', '挡路枝', '枯枝挡住了更深处的竹径，可以清开。', {
-        objectType: 'roadblock',
-        actionId: 'drive_off',
-        staminaCost: 3,
-        timeCostHours: 0.25,
-        rewardItems: [{ itemId: 'firewood', quantity: 2 }],
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('outskirts:quiet_outpost', 6, 2, 'camp', '旧凉棚', '半塌的小凉棚，修好后可作为近郊据点。', {
-        objectType: 'outpost',
-        actionId: 'repair',
-        staminaCost: 3,
-        timeCostHours: 0.34,
-        rewardItems: [],
-        rewardFamilyId: 'ancient_archive',
-        rewardFamilyAmount: 1,
-        outpostId: 'outskirts_shed'
-      }),
-      createOpenWorldTile('outskirts:story_bamboo_path', 6, 4, 'bamboo', '竹径标记', '竹叶间有新的脚印，提示更远处会出现区域地标。', {
-        objectType: 'story',
-        actionId: 'inspect'
-      }),
-      createOpenWorldTile('outskirts:forest_edge', 7, 3, 'forest', '林缘', '近郊地图的边缘，后续会连接更大的区域。', {
-        objectType: 'shortcut',
-        actionId: 'inspect'
-      })
-    ]
+    tiles: createOutskirtsOpenWorldTiles()
   }),
   createOpenWorldRegionDef({
     id: 'ancient_road',

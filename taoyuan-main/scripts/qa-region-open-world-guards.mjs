@@ -16,6 +16,8 @@ const regionStore = read('src/stores/useRegionMapStore.ts')
 const regionView = read('src/views/game/RegionMapView.vue')
 const openWorldComponent = read('src/components/game/regionMap/RegionOpenWorldMap.vue')
 
+const readNumberConst = name => Number(regionData.match(new RegExp(`const ${name} = (\\d+)`))?.[1] ?? 0)
+
 addCheck('RegionMapSaveData has openWorld field', /interface RegionMapSaveData[\s\S]*openWorld:\s*RegionOpenWorldSaveData/.test(regionTypes))
 addCheck('Open world save type exists', /interface RegionOpenWorldSaveData/.test(regionTypes))
 addCheck('Open world defs exported', /export const REGION_OPEN_WORLD_DEFS/.test(regionData))
@@ -23,6 +25,23 @@ addCheck('Open world defs exported', /export const REGION_OPEN_WORLD_DEFS/.test(
 for (const regionId of ['taoyuan_outskirts', 'ancient_road', 'mirage_marsh', 'cloud_highland']) {
   addCheck(`Open world region exists: ${regionId}`, regionData.includes(`id: '${regionId}'`))
 }
+
+const outskirtsWidth = readNumberConst('OUTSKIRTS_OPEN_WORLD_WIDTH')
+const outskirtsHeight = readNumberConst('OUTSKIRTS_OPEN_WORLD_HEIGHT')
+addCheck('Outskirts grid has at least 100 selectable slots', outskirtsWidth * outskirtsHeight >= 100, `${outskirtsWidth}x${outskirtsHeight}`)
+addCheck('Outskirts uses generated empty tiles', /const createOpenWorldEmptyTile/.test(regionData) && /tiles:\s*createOutskirtsOpenWorldTiles\(\)/.test(regionData))
+addCheck('Outskirts keeps legacy key tile ids', [
+  'outskirts:village_gate',
+  'outskirts:bamboo_1',
+  'outskirts:herb_1',
+  'outskirts:wild_tree',
+  'outskirts:shallow_chest',
+  'outskirts:hare_trace',
+  'outskirts:fallen_branch',
+  'outskirts:quiet_outpost',
+  'outskirts:story_bamboo_path',
+  'outskirts:forest_edge'
+].every(tileId => regionData.includes(tileId)))
 
 addCheck('Default region save includes openWorld', /openWorld:\s*createDefaultRegionOpenWorldSaveData\(\)/.test(regionData))
 addCheck('createDefaultRegionOpenWorldSaveData exported', /export const createDefaultRegionOpenWorldSaveData/.test(regionData))

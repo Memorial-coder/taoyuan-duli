@@ -2934,8 +2934,7 @@ const HIDDEN_WINE_TIERS: HiddenOutputTier[] = [
   { itemId: 'seasonal_fruit_wine', value: 1800, edible: true, stamina: 120, health: 60 },
   { itemId: 'spirit_fruit_brew', value: 2400, edible: true, stamina: 160, health: 80 },
   { itemId: 'mystic_fruit_wine', value: 7600, edible: true, stamina: 420, health: 210 },
-  { itemId: 'celestial_fruit_wine', value: 18500, edible: true, stamina: 720, health: 360 },
-  { itemId: 'ancient_fruit_wine', value: 24000, edible: true, stamina: 900, health: 450 }
+  { itemId: 'celestial_fruit_wine', value: 18500, edible: true, stamina: 720, health: 360 }
 ]
 
 const HIDDEN_PICKLE_TIERS: HiddenOutputTier[] = [

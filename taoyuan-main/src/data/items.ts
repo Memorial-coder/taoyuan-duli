@@ -20,7 +20,7 @@ const getRawCropRecovery = (crop: (typeof CROPS)[number]) => {
     healthRestore: Math.floor(crop.sellPrice / 10)
   }
 
-  if (!crop.regrowth || crop.seedPrice <= 0) return baseRecovery
+  if (!crop.regrowth || (crop.seedPrice <= 0 && crop.id !== 'ancient_fruit')) return baseRecovery
 
   return {
     staminaRestore: Math.min(baseRecovery.staminaRestore, MARKET_REGROWTH_RAW_CROP_RECOVERY_CAP.staminaRestore),
@@ -470,10 +470,10 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '远古果酒',
     category: 'processed',
     description: '远古水果慢酿出的幽蓝果酒，酒液里像封着亘古生命力，可陈酿也适合高阶供礼。',
-    sellPrice: 24000,
+    sellPrice: 12000,
     edible: true,
-    staminaRestore: 900,
-    healthRestore: 450
+    staminaRestore: 180,
+    healthRestore: 90
   },
   {
     id: 'pickled_chili',

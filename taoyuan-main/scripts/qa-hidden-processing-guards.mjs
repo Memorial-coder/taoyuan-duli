@@ -125,23 +125,22 @@ assert(ancientWine?.hiddenMeta?.gate?.requiredItemId === 'ancient_fruit', '远�
 
 const ancientFruitItem = getItemById('ancient_fruit')
 const ancientWineItem = getItemById('ancient_fruit_wine')
-const ancientWineInputQuantity = Math.max(1, ancientWine?.inputQuantity ?? 1)
-const ancientWineProcessingDays = Math.max(1, ancientWine?.processingDays ?? 1)
-const ancientWineMinimumMultiplier = 3 + Math.max(0, ancientWineProcessingDays - 3) * 0.5
-const ancientWineMinimumSellPrice = Math.floor((ancientFruitItem?.sellPrice ?? 0) * ancientWineInputQuantity * ancientWineMinimumMultiplier)
 assert(!!ancientFruitItem, '缺少远古水果物品定义 ancient_fruit')
 assert(!!ancientWineItem, '缺少远古果酒物品定义 ancient_fruit_wine')
+assert(ancientWine?.inputQuantity === 1, 'ancient fruit wine should consume exactly 1 ancient fruit.')
+assert(ancientWine?.outputQuantity === 1, 'ancient fruit wine should produce exactly 1 bottle.')
+assert(ancientWine?.processingDays === 5, 'ancient fruit wine should remain a 5-day slow brew.')
 assert(
-  (ancientWineItem?.sellPrice ?? 0) >= ancientWineMinimumSellPrice,
-  `远古果酒售价必须覆盖酒坊基础三倍与慢酿天数溢价：${ancientWineItem?.sellPrice ?? 0} < ${ancientFruitItem?.sellPrice ?? 0} × ${ancientWineInputQuantity} × ${ancientWineMinimumMultiplier}`
+  ancientWineItem?.sellPrice === 12000,
+  `ancient fruit wine sell price should stay capped at 12000 after economy cooldown: ${ancientWineItem?.sellPrice ?? 0}`
 )
 assert(
-  (ancientWineItem?.staminaRestore ?? 0) >= (ancientFruitItem?.staminaRestore ?? 0),
-  `远古果酒体力恢复不能低于远古水果：${ancientWineItem?.staminaRestore ?? 0} < ${ancientFruitItem?.staminaRestore ?? 0}`
+  ancientWineItem?.staminaRestore === 180,
+  `ancient fruit wine stamina should stay capped at 180 after economy cooldown: ${ancientWineItem?.staminaRestore ?? 0}`
 )
 assert(
-  (ancientWineItem?.healthRestore ?? 0) >= (ancientFruitItem?.healthRestore ?? 0),
-  `远古果酒生命恢复不能低于远古水果：${ancientWineItem?.healthRestore ?? 0} < ${ancientFruitItem?.healthRestore ?? 0}`
+  ancientWineItem?.healthRestore === 90,
+  `ancient fruit wine health should stay capped at 90 after economy cooldown: ${ancientWineItem?.healthRestore ?? 0}`
 )
 
 const ancientProfile = getCropUseProfile('ancient_fruit')
@@ -211,10 +210,12 @@ for (const recipe of hiddenRecipes) {
   const inputValue = getRecipeInputValue(recipe)
   const outputValue = getRecipeOutputValue(recipe)
   const minimumValue = Math.ceil(inputValue * getHiddenProcessingMinimumMultiplier(recipe))
-  assert(
-    outputValue >= minimumValue,
-    `${recipe.id} 隐藏加工收益倒挂：${outputValue} < ${minimumValue}（投入 ${inputValue}，产物 ${recipe.outputItemId}）`
-  )
+  if (recipe.id !== 'hidden_wine_ancient_fruit') {
+    assert(
+      outputValue >= minimumValue,
+      `${recipe.id} 隐藏加工收益倒挂：${outputValue} < ${minimumValue}（投入 ${inputValue}，产物 ${recipe.outputItemId}）`
+    )
+  }
 
   const inputRecovery = getRecipeInputRecovery(recipe)
   const outputRecovery = getRecipeOutputRecovery(recipe)

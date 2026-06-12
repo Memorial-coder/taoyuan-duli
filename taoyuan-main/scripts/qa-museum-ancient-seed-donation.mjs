@@ -166,12 +166,14 @@ installBrowserShims()
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(srcRoot, 'stores', 'useInventoryStore.ts')).href)
 const museumStoreModule = await import(pathToFileURL(path.join(srcRoot, 'stores', 'useMuseumStore.ts')).href)
+const breedingStoreModule = await import(pathToFileURL(path.join(srcRoot, 'stores', 'useBreedingStore.ts')).href)
 const processingDataModule = await import(pathToFileURL(path.join(srcRoot, 'data', 'processing.ts')).href)
 
 setActivePinia(createPinia())
 
 const inventoryStore = inventoryStoreModule.useInventoryStore()
 const museumStore = museumStoreModule.useMuseumStore()
+const breedingStore = breedingStoreModule.useBreedingStore()
 
 inventoryStore.capacity = 1
 inventoryStore.items = [{ itemId: 'ancient_seed', quantity: 999, quality: 'normal' }]
@@ -189,6 +191,29 @@ assert(ancientSeedRecipe?.machineType === 'seed_maker', '远古种子续种配�
 assert(ancientSeedRecipe?.inputItemId === 'ancient_fruit', '远古种子续种配方输入应为远古水果。')
 assert(ancientSeedRecipe?.outputItemId === 'ancient_seed', '远古种子续种配方输出应为远古种子。')
 assert(ancientSeedRecipe?.outputQuantity === 1, 'ancient fruit seed maker should output 1 seed to avoid exponential growth.')
+
+const originalRandom = Math.random
+try {
+  Math.random = () => 0
+  assert(
+    breedingStore.trySeedMakerGeneticSeed('ancient_fruit', 10) === false,
+    'ancient fruit seed maker should not create a plantable genetic seed.'
+  )
+  assert(
+    breedingStore.breedingBox.length === 0,
+    'ancient fruit should not enter the breeding seed box through seed maker bonus.'
+  )
+  assert(
+    breedingStore.trySeedMakerGeneticSeed('cabbage', 10) === true,
+    'ordinary crops should keep seed maker genetic seed bonus when the roll succeeds.'
+  )
+  assert(
+    breedingStore.breedingBox.some(seed => seed.genetics.cropId === 'cabbage'),
+    'ordinary crop genetic seed should be stored in the breeding box.'
+  )
+} finally {
+  Math.random = originalRandom
+}
 
 if (errors.length > 0) {
   console.error('远古种子博物馆捐赠 QA 失败：')

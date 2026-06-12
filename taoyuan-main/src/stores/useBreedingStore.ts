@@ -71,6 +71,8 @@ type SpendMoneyFn = (amount: number) => boolean
 type RefundMoneyFn = (amount: number) => void
 type RemoveMaterialsFn = (materials: BreedingMaterialRequirement[]) => boolean
 
+const SEED_MAKER_GENETIC_SEED_EXCLUDED_CROP_IDS = new Set(['ancient_fruit'])
+
 export const useBreedingStore = defineStore('breeding', () => {
   const npcStore = useNpcStore()
   // === 状态 ===
@@ -763,6 +765,7 @@ export const useBreedingStore = defineStore('breeding', () => {
   // === 种子制造机增强 ===
 
   const trySeedMakerGeneticSeed = (cropId: string, farmingLevel: number): boolean => {
+    if (SEED_MAKER_GENETIC_SEED_EXCLUDED_CROP_IDS.has(cropId)) return false
     if (breedingBox.value.length >= maxSeedBox.value) return false
 
     const chance = getSeedMakerGeneticChance(farmingLevel)
