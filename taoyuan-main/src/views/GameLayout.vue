@@ -20,9 +20,9 @@
       ref="contentViewport"
       class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto"
       @touchstart.passive="handleContentTouchStart"
-      @touchmove.passive="handleContentTouchMove"
       @touchend.passive="releaseBottomReveal"
       @touchcancel.passive="releaseBottomReveal"
+      @scroll.passive="handleContentScroll"
     >
       <div class="game-layout-body">
         <div ref="sceneContentAnchor">
@@ -553,10 +553,10 @@
   import { Capacitor } from '@capacitor/core'
 
   const BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000
-  const MOBILE_BOTTOM_REVEAL_MAX_PX = 150
-  const MOBILE_BOTTOM_REVEAL_DAMPING = 0.5
+  const MOBILE_BOTTOM_REVEAL_POCKET_PX = 144
   const MOBILE_BOTTOM_REVEAL_EDGE_PX = 4
-  const MOBILE_BOTTOM_REVEAL_REBOUND_MS = 160
+  const MOBILE_BOTTOM_REVEAL_RELEASE_DELAY_MS = 64
+  const MOBILE_BOTTOM_REVEAL_REBOUND_MS = 220
   type ShortRestOption = (typeof SHORT_REST_OPTIONS)[number]
 
   type FullscreenDocument = Document & {
@@ -587,13 +587,9 @@
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
-  let bottomRevealOffset = 0
-  let bottomRevealPendingOffset = 0
-  let bottomRevealStartY = 0
-  let bottomRevealTouchId: number | null = null
-  let bottomRevealTracking = false
+  let bottomRevealActive = false
+  let bottomRevealTouching = false
   let bottomRevealReleaseTimer: number | null = null
-  let bottomRevealFrame: number | null = null
 
   const {
     currentEvent,
@@ -761,7 +757,7 @@
   const isContentViewportAtBottom = () => {
     const viewport = contentViewport.value
     if (!viewport) return false
-    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= MOBILE_BOTTOM_REVEAL_EDGE_PX
+    return viewport.scrollTop >= getBottomRevealRestScrollTop(viewport) - MOBILE_BOTTOM_REVEAL_EDGE_PX
   }
 
   const clearBottomRevealTimer = () => {
@@ -770,104 +766,115 @@
     bottomRevealReleaseTimer = null
   }
 
-  const clearBottomRevealFrame = () => {
-    if (bottomRevealFrame === null) return
-    window.cancelAnimationFrame(bottomRevealFrame)
-    bottomRevealFrame = null
+  const getBottomRevealRestScrollTop = (viewport: HTMLDivElement) => {
+    return Math.max(0, viewport.scrollHeight - viewport.clientHeight - MOBILE_BOTTOM_REVEAL_POCKET_PX)
   }
 
-  const flushBottomRevealOffset = () => {
-    bottomRevealFrame = null
-    bottomRevealOffset = bottomRevealPendingOffset
-    const viewport = contentViewport.value
-    if (!viewport) return
-    viewport.style.setProperty('--game-bottom-reveal-offset', `${bottomRevealOffset}px`)
-    viewport.classList.toggle('game-layout-content--revealing', bottomRevealOffset > 0)
-  }
-
-  const setBottomRevealOffset = (value: number, immediate = false) => {
-    bottomRevealPendingOffset = Math.round(Math.max(0, Math.min(MOBILE_BOTTOM_REVEAL_MAX_PX, value)))
-    if (immediate) {
-      clearBottomRevealFrame()
-      flushBottomRevealOffset()
-      return
-    }
-    if (bottomRevealFrame !== null) return
-    bottomRevealFrame = window.requestAnimationFrame(flushBottomRevealOffset)
-  }
-
-  const findBottomRevealTouch = (touchList: TouchList) => {
-    if (bottomRevealTouchId === null) return touchList[0] ?? null
-    for (let index = 0; index < touchList.length; index += 1) {
-      const touch = touchList.item(index)
-      if (touch?.identifier === bottomRevealTouchId) return touch
-    }
-    return null
+  const getBottomRevealOverscroll = (viewport: HTMLDivElement) => {
+    return Math.max(0, viewport.scrollTop - getBottomRevealRestScrollTop(viewport))
   }
 
   const handleContentTouchStart = (event: TouchEvent) => {
+    const viewport = contentViewport.value
     clearBottomRevealTimer()
-    contentViewport.value?.classList.remove('game-layout-content--rebounding')
-    setBottomRevealOffset(0, true)
+    viewport?.classList.remove('game-layout-content--rebounding')
 
     if (!isMobileBottomRevealViewport() || event.touches.length !== 1) {
-      bottomRevealTracking = false
-      bottomRevealTouchId = null
+      bottomRevealActive = false
+      bottomRevealTouching = false
+      viewport?.classList.remove('game-layout-content--revealing')
       return
     }
 
-    const touch = event.touches.item(0)
-    if (!touch) return
-    bottomRevealStartY = touch.clientY
-    bottomRevealTouchId = touch.identifier
-    bottomRevealTracking = isContentViewportAtBottom()
+    bottomRevealTouching = true
+    if (!viewport || !isContentViewportAtBottom()) {
+      bottomRevealActive = false
+      viewport?.classList.remove('game-layout-content--revealing')
+      return
+    }
+
+    viewport.classList.add('game-layout-content--revealing')
+    bottomRevealActive = true
   }
 
-  const handleContentTouchMove = (event: TouchEvent) => {
-    if (!isMobileBottomRevealViewport() || event.touches.length !== 1) {
-      releaseBottomReveal()
+  const runBottomRevealRebound = (viewport: HTMLDivElement) => {
+    const targetTop = getBottomRevealRestScrollTop(viewport)
+    const overscroll = getBottomRevealOverscroll(viewport)
+    if (overscroll <= MOBILE_BOTTOM_REVEAL_EDGE_PX) {
+      viewport.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
+      bottomRevealActive = false
       return
     }
 
-    const touch = findBottomRevealTouch(event.touches)
-    if (!touch) return
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false
 
-    const dragUpDistance = bottomRevealStartY - touch.clientY
-    if (!bottomRevealTracking) {
-      if (dragUpDistance <= 0 || !isContentViewportAtBottom()) return
-      bottomRevealStartY = touch.clientY
-      bottomRevealTracking = true
-      return
-    }
+    viewport.classList.add('game-layout-content--revealing', 'game-layout-content--rebounding')
+    viewport.scrollTo({
+      top: targetTop,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth'
+    })
 
-    if (dragUpDistance <= 0) {
-      setBottomRevealOffset(0)
-      return
-    }
+    bottomRevealReleaseTimer = window.setTimeout(() => {
+      viewport.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
+      if (viewport.scrollTop > targetTop + MOBILE_BOTTOM_REVEAL_EDGE_PX) {
+        viewport.scrollTop = targetTop
+      }
+      bottomRevealActive = false
+      bottomRevealReleaseTimer = null
+    }, MOBILE_BOTTOM_REVEAL_REBOUND_MS)
+  }
 
-    setBottomRevealOffset(dragUpDistance * MOBILE_BOTTOM_REVEAL_DAMPING)
+  const scheduleBottomRevealRebound = (viewport: HTMLDivElement) => {
+    clearBottomRevealTimer()
+    viewport.classList.add('game-layout-content--revealing')
+    bottomRevealReleaseTimer = window.setTimeout(() => {
+      bottomRevealReleaseTimer = null
+      runBottomRevealRebound(viewport)
+    }, MOBILE_BOTTOM_REVEAL_RELEASE_DELAY_MS)
   }
 
   const releaseBottomReveal = () => {
-    bottomRevealTracking = false
-    bottomRevealTouchId = null
-    clearBottomRevealTimer()
+    bottomRevealTouching = false
 
-    if (bottomRevealOffset <= 0 && bottomRevealPendingOffset <= 0) {
-      contentViewport.value?.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
+    const viewport = contentViewport.value
+    if (!viewport) {
+      bottomRevealActive = false
       return
     }
 
-    clearBottomRevealFrame()
+    const overscroll = getBottomRevealOverscroll(viewport)
+    if (!bottomRevealActive && overscroll <= MOBILE_BOTTOM_REVEAL_EDGE_PX) {
+      viewport.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
+      return
+    }
+
+    if (overscroll <= MOBILE_BOTTOM_REVEAL_EDGE_PX) {
+      clearBottomRevealTimer()
+      viewport.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
+      bottomRevealActive = false
+      return
+    }
+
+    scheduleBottomRevealRebound(viewport)
+  }
+
+  const handleContentScroll = () => {
     const viewport = contentViewport.value
-    viewport?.classList.add('game-layout-content--rebounding')
-    window.requestAnimationFrame(() => {
-      setBottomRevealOffset(0, true)
-      bottomRevealReleaseTimer = window.setTimeout(() => {
-        viewport?.classList.remove('game-layout-content--rebounding', 'game-layout-content--revealing')
-        bottomRevealReleaseTimer = null
-      }, MOBILE_BOTTOM_REVEAL_REBOUND_MS)
-    })
+    if (
+      bottomRevealTouching ||
+      !viewport ||
+      !isMobileBottomRevealViewport() ||
+      viewport.classList.contains('game-layout-content--rebounding') ||
+      getBottomRevealOverscroll(viewport) <= MOBILE_BOTTOM_REVEAL_EDGE_PX
+    ) {
+      return
+    }
+
+    bottomRevealActive = true
+    scheduleBottomRevealRebound(viewport)
   }
 
   /** 日志弹窗 */
@@ -1043,7 +1050,6 @@
   })
   onUnmounted(() => {
     clearBottomRevealTimer()
-    clearBottomRevealFrame()
     stopClock()
     realtimeStore.stop()
     document.removeEventListener('fullscreenchange', syncFullscreenState)
@@ -1560,8 +1566,9 @@
   }
 
   .game-layout-content {
-    --game-bottom-reveal-offset: 0px;
+    --game-bottom-reveal-pocket: 0px;
     overflow-x: hidden;
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -1577,29 +1584,16 @@
       min-height: 100dvh;
     }
 
+    .game-layout-content {
+      --game-bottom-reveal-pocket: 144px;
+      touch-action: pan-y;
+    }
+
     .game-layout-body::after {
       content: '';
       display: block;
-      height: 0;
+      height: var(--game-bottom-reveal-pocket, 0px);
       pointer-events: none;
-    }
-
-    .game-layout-content--revealing .game-layout-body,
-    .game-layout-content--rebounding .game-layout-body {
-      will-change: transform;
-    }
-
-    .game-layout-content--revealing .game-layout-body,
-    .game-layout-content--rebounding .game-layout-body {
-      transform: translate3d(0, calc(var(--game-bottom-reveal-offset, 0px) * -1), 0);
-    }
-
-    .game-layout-content--rebounding .game-layout-body::after {
-      transition: none;
-    }
-
-    .game-layout-content--rebounding .game-layout-body {
-      transition: transform 160ms ease-out;
     }
   }
 </style>

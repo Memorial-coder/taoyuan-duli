@@ -169,6 +169,8 @@ const miningStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src
 const itemDataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
 const inventoryUseRulesModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryUseRules.ts')).href)
 const inventoryCapacityModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryCapacity.ts')).href)
+const shopViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ShopView.vue'), 'utf8')
+const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
 
 const freshInventoryStore = () => {
   setActivePinia(createPinia())
@@ -245,6 +247,31 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
   assert(inventoryCapacityModule.getNextInventoryCapacity(496) === 500, '496 格下一次普通扩容目标应为 500 格。')
   assert(inventoryCapacityModule.getNextInventoryCapacity(498) === 500, '498 格下一次普通扩容目标应钳制为 500 格。')
   assert(inventoryCapacityModule.getNextInventoryCapacity(500) === 500, '500 格之后普通扩容目标应保持 500 格。')
+}
+
+{
+  assert(shopViewSource.includes('@click="openBagExpansionModal"'), '背包扩容入口应使用专用打开函数，避免内联静态价格快照。')
+  assert(
+    shopViewSource.includes('() => `当前${inventoryStore.capacity}格 → ${nextBagCapacity.value}格`'),
+    '背包扩容弹窗描述应随当前背包容量刷新。'
+  )
+  assert(
+    shopViewSource.includes('() => discounted(bagPrice.value)'),
+    '背包扩容弹窗价格应随当前背包容量刷新。'
+  )
+  assert(
+    shopViewSource.includes('{{ buyModalPrice }}文') && shopViewSource.includes('return buyModalPrice.value * buyQuantity.value'),
+    '购买弹窗展示和总价应读取实时价格。'
+  )
+}
+
+{
+  assert(
+    inventoryViewSource.includes("import { useMiningStore } from '@/stores/useMiningStore'") &&
+      inventoryViewSource.includes('miningStore.isGuildGrowthItem(itemId)') &&
+      inventoryViewSource.includes('miningStore.useGuildGrowthItem(itemId, quality)'),
+    '背包页应允许公会永久成长道具直接使用，并复用 miningStore 永久加成入口。'
+  )
 }
 
 {
@@ -358,6 +385,39 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
   const used = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'stamina_elixir' })
   assert(used.success === true && playerStore.stamina === playerStore.maxStamina, '体力-only 道具在体力未满时应恢复体力。')
   assert(inventoryStore.getItemCount('stamina_elixir') === 0, '体力-only 道具成功使用后应消耗。')
+}
+
+{
+  setActivePinia(createPinia())
+  const inventoryStore = inventoryStoreModule.useInventoryStore()
+  const playerStore = playerStoreModule.usePlayerStore()
+  const miningStore = miningStoreModule.useMiningStore()
+  const baseMaxHp = playerStore.getMaxHp()
+  inventoryStore.items = [
+    { itemId: 'guild_badge', quantity: 1, quality: 'normal' },
+    { itemId: 'life_talisman', quantity: 1, quality: 'normal' },
+    { itemId: 'defense_charm', quantity: 1, quality: 'normal' },
+    { itemId: 'lucky_coin', quantity: 1, quality: 'normal' }
+  ]
+
+  assert(miningStore.isExploring === false && miningStore.inCombat === false, '公会永久成长道具背包用例应从非矿洞状态开始。')
+
+  const badge = miningStore.useGuildGrowthItem('guild_badge', 'normal')
+  assert(badge.success === true && miningStore.guildBadgeBonusAttack === 3, '背包使用公会徽章应在非矿洞状态永久增加攻击力。')
+  assert(inventoryStore.getItemCount('guild_badge') === 0, '背包使用公会徽章后应消耗 1 个。')
+
+  const talisman = miningStore.useGuildGrowthItem('life_talisman', 'normal')
+  assert(talisman.success === true && miningStore.guildBonusMaxHp === 15, '背包使用生命护符应在非矿洞状态永久增加最大生命值。')
+  assert(playerStore.getMaxHp() === baseMaxHp + 15, '生命护符背包使用后玩家最大生命值应立即读取到新增加成。')
+  assert(inventoryStore.getItemCount('life_talisman') === 0, '背包使用生命护符后应消耗 1 个。')
+
+  const charm = miningStore.useGuildGrowthItem('defense_charm', 'normal')
+  assert(charm.success === true && Math.abs(miningStore.guildBonusDefense - 0.03) < 0.000001, '背包使用守护符应在非矿洞状态永久增加防御。')
+  assert(inventoryStore.getItemCount('defense_charm') === 0, '背包使用守护符后应消耗 1 个。')
+
+  const coin = miningStore.useGuildGrowthItem('lucky_coin', 'normal')
+  assert(coin.success === true && Math.abs(miningStore.guildBonusDropRate - 0.05) < 0.000001, '背包使用幸运铜钱应在非矿洞状态永久增加怪物掉落收益。')
+  assert(inventoryStore.getItemCount('lucky_coin') === 0, '背包使用幸运铜钱后应消耗 1 个。')
 }
 
 {

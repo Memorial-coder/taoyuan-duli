@@ -704,94 +704,8 @@
 
     <!-- 林木标签 -->
     <div v-if="farmTab === 'tree'">
-      <!-- 果树区 -->
-      <div class="border border-accent/20 rounded-xs p-3">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center space-x-1.5 text-sm text-accent">
-            <TreeDeciduous :size="14" />
-            <span>果树</span>
-          </div>
-          <span class="text-xs text-muted">{{ farmStore.fruitTrees.length }}/{{ MAX_FRUIT_TREES }}</span>
-        </div>
-        <div v-if="farmStore.fruitTrees.length > 0" class="flex flex-col space-y-1.5 mb-2">
-          <div v-for="tree in farmStore.fruitTrees" :key="tree.id" class="border border-accent/10 rounded-xs px-3 py-2">
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-xs font-bold" :class="tree.mature ? 'text-accent' : 'text-muted'">{{ getTreeName(tree.type) }}</span>
-              <span v-if="tree.mature" class="text-[0.625rem] text-muted">{{ tree.yearAge }}年</span>
-            </div>
-            <template v-if="!tree.mature">
-              <div class="flex items-center space-x-2 mb-1.5">
-                <div class="flex-1 h-1 bg-bg rounded-xs border border-accent/10">
-                  <div
-                    class="h-full rounded-xs bg-success transition-all"
-                    :style="{ width: Math.min(100, Math.floor((tree.growthDays / 28) * 100)) + '%' }"
-                  />
-                </div>
-                <span class="text-[0.625rem] text-muted whitespace-nowrap">{{ tree.growthDays }}/28天</span>
-              </div>
-              <div class="flex justify-end">
-                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type, area: 'outdoor' }">砍伐</Button>
-              </div>
-            </template>
-            <template v-else>
-              <div class="flex items-center justify-between">
-                <span v-if="tree.todayFruit" class="text-[0.625rem] text-accent">今日已结果</span>
-                <span v-else class="text-[0.625rem] text-success">{{ getTreeFruitSeason(tree.type) }}产果</span>
-                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type, area: 'outdoor' }">砍伐</Button>
-              </div>
-            </template>
-          </div>
-        </div>
-        <div v-else class="flex flex-col items-center justify-center py-4 text-muted mb-2">
-          <TreeDeciduous :size="32" class="text-muted/30" />
-          <p class="text-xs mt-2">暂无果树</p>
-          <p class="text-[0.625rem] text-muted/60 mt-0.5">可在商店购买树苗种植</p>
-        </div>
-        <div v-if="plantableSaplings.length > 0 && farmStore.fruitTrees.length < MAX_FRUIT_TREES" class="flex space-x-1.5 flex-wrap">
-          <Button v-for="s in plantableSaplings" :key="s.saplingId" :icon-size="12" :icon="TreePine" @click="handlePlantTree(s.type)">
-            种{{ s.name }} (×{{ s.count }})
-          </Button>
-        </div>
-      </div>
-
-      <!-- 野树伐木确认弹窗 -->
-      <Transition name="panel-fade">
-        <div
-          v-if="chopWildTreeTarget"
-          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          @click.self="chopWildTreeTarget = null"
-        >
-          <div class="game-panel max-w-xs w-full relative">
-            <button class="absolute top-2 right-2 text-muted hover:text-text" @click="chopWildTreeTarget = null">
-              <X :size="14" />
-            </button>
-            <p class="text-accent text-sm mb-2">伐木</p>
-            <p class="text-xs text-text mb-2">
-              确定要对
-              <span class="text-accent">{{ getWildTreeName(chopWildTreeTarget.type) }}</span>
-              伐木吗？
-            </p>
-            <p class="text-xs text-danger mb-3">
-              已伐木 {{ chopWildTreeTarget.chopCount }}/3 次，再伐 {{ 3 - chopWildTreeTarget.chopCount }} 次后树将消失。
-            </p>
-            <div class="flex space-x-2">
-              <Button class="flex-1" @click="chopWildTreeTarget = null">取消</Button>
-              <Button
-                class="flex-1"
-                :class="chopWildTreeTarget.chopCount >= 2 ? '!bg-danger !text-text' : '!bg-accent !text-bg'"
-                :icon-size="12"
-                :icon="Axe"
-                @click="confirmChopWildTree"
-              >
-                {{ chopWildTreeTarget.chopCount >= 2 ? '确认' : '确认伐木' }}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
       <!-- 野树区 -->
-      <div class="mt-3 border border-accent/20 rounded-xs p-3">
+      <div class="border border-accent/20 rounded-xs p-3">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center space-x-1.5 text-sm text-accent">
             <TreePine :size="14" />
@@ -880,6 +794,97 @@
           </Button>
         </div>
       </div>
+
+      <!-- 野树伐木确认弹窗 -->
+      <Transition name="panel-fade">
+        <div
+          v-if="chopWildTreeTarget"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          @click.self="chopWildTreeTarget = null"
+        >
+          <div class="game-panel max-w-xs w-full relative">
+            <button class="absolute top-2 right-2 text-muted hover:text-text" @click="chopWildTreeTarget = null">
+              <X :size="14" />
+            </button>
+            <p class="text-accent text-sm mb-2">伐木</p>
+            <p class="text-xs text-text mb-2">
+              确定要对
+              <span class="text-accent">{{ getWildTreeName(chopWildTreeTarget.type) }}</span>
+              伐木吗？
+            </p>
+            <p class="text-xs text-danger mb-3">
+              已伐木 {{ chopWildTreeTarget.chopCount }}/3 次，再伐 {{ 3 - chopWildTreeTarget.chopCount }} 次后树将消失。
+            </p>
+            <div class="flex space-x-2">
+              <Button class="flex-1" @click="chopWildTreeTarget = null">取消</Button>
+              <Button
+                class="flex-1"
+                :class="chopWildTreeTarget.chopCount >= 2 ? '!bg-danger !text-text' : '!bg-accent !text-bg'"
+                :icon-size="12"
+                :icon="Axe"
+                @click="confirmChopWildTree"
+              >
+                {{ chopWildTreeTarget.chopCount >= 2 ? '确认' : '确认伐木' }}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- 果树区 -->
+      <div class="mt-3 border border-accent/20 rounded-xs p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center space-x-1.5 text-sm text-accent">
+            <TreeDeciduous :size="14" />
+            <span>果树</span>
+          </div>
+          <span class="text-xs text-muted">{{ farmStore.fruitTrees.length }}/{{ MAX_FRUIT_TREES }}</span>
+        </div>
+        <div v-if="farmStore.fruitTrees.length > 0" class="flex flex-col space-y-1.5 mb-2">
+          <div v-for="tree in farmStore.fruitTrees" :key="tree.id" class="border border-accent/10 rounded-xs px-3 py-2">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold" :class="tree.mature ? 'text-accent' : 'text-muted'">{{ getTreeName(tree.type) }}</span>
+              <div v-if="tree.mature" class="flex items-center gap-1 text-[0.625rem]">
+                <span class="text-muted">{{ tree.yearAge }}年</span>
+                <span :class="qualityTextClass(getFruitTreeQuality(tree.yearAge)) || 'text-muted'">
+                  {{ QUALITY_NAMES[getFruitTreeQuality(tree.yearAge)] }}
+                </span>
+              </div>
+            </div>
+            <template v-if="!tree.mature">
+              <div class="flex items-center space-x-2 mb-1.5">
+                <div class="flex-1 h-1 bg-bg rounded-xs border border-accent/10">
+                  <div
+                    class="h-full rounded-xs bg-success transition-all"
+                    :style="{ width: Math.min(100, Math.floor((tree.growthDays / 28) * 100)) + '%' }"
+                  />
+                </div>
+                <span class="text-[0.625rem] text-muted whitespace-nowrap">{{ tree.growthDays }}/28天</span>
+              </div>
+              <div class="flex justify-end">
+                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type, area: 'outdoor' }">砍伐</Button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="flex items-center justify-between">
+                <span v-if="tree.todayFruit" class="text-[0.625rem] text-accent">今日已结果 · {{ QUALITY_NAMES[getFruitTreeQuality(tree.yearAge)] }}</span>
+                <span v-else class="text-[0.625rem] text-success">{{ getTreeFruitSeason(tree.type) }}产果 · {{ QUALITY_NAMES[getFruitTreeQuality(tree.yearAge)] }}</span>
+                <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type, area: 'outdoor' }">砍伐</Button>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center justify-center py-4 text-muted mb-2">
+          <TreeDeciduous :size="32" class="text-muted/30" />
+          <p class="text-xs mt-2">暂无果树</p>
+          <p class="text-[0.625rem] text-muted/60 mt-0.5">可在商店购买树苗种植</p>
+        </div>
+        <div v-if="plantableSaplings.length > 0 && farmStore.fruitTrees.length < MAX_FRUIT_TREES" class="flex space-x-1.5 flex-wrap">
+          <Button v-for="s in plantableSaplings" :key="s.saplingId" :icon-size="12" :icon="TreePine" @click="handlePlantTree(s.type)">
+            种{{ s.name }} (×{{ s.count }})
+          </Button>
+        </div>
+      </div>
     </div>
 
     <!-- 温室弹窗 -->
@@ -964,6 +969,13 @@
                   </div>
                   <p v-else-if="slot.tree.todayFruit" class="mt-1 text-accent">今日已结果</p>
                   <p v-else class="mt-1 text-success">全年结果</p>
+                  <p
+                    v-if="slot.tree.mature"
+                    class="mt-0.5"
+                    :class="qualityTextClass(getFruitTreeQuality(slot.tree.yearAge)) || 'text-muted'"
+                  >
+                    {{ slot.tree.yearAge }}年 · {{ QUALITY_NAMES[getFruitTreeQuality(slot.tree.yearAge)] }}
+                  </p>
                 </template>
                 <template v-else>
                   <div class="flex h-full min-h-[3rem] flex-col items-center justify-center text-center">
@@ -1578,6 +1590,14 @@
     if (quality === 'excellent') return 'text-quality-excellent'
     if (quality === 'supreme') return 'text-quality-supreme'
     return ''
+  }
+
+  const getFruitTreeQuality = (yearAge: number): Quality => {
+    const age = Math.max(0, Math.floor(Number(yearAge) || 0))
+    if (age >= 3) return 'supreme'
+    if (age >= 2) return 'excellent'
+    if (age >= 1) return 'fine'
+    return 'normal'
   }
 
   type ShippableInventoryItem = { itemId: string; quantity: number; quality: Quality; locked?: boolean; def: ItemDef }

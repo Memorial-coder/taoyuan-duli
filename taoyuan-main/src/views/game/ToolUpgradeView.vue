@@ -61,7 +61,7 @@
           <!-- 当前状态 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
-              <span class="text-xs text-muted">{{ selectedTool === 'scythe' ? '批量收割范围' : '体力减免' }}</span>
+              <span class="text-xs text-muted">{{ toolUpgradeEffectLabel(selectedTool) }}</span>
               <span class="text-xs">{{ selectedTool === 'scythe' ? `${inventoryStore.getToolBatchCount('scythe')}格` : staminaText(selectedToolObj!.tier) }}</span>
             </div>
             <template v-if="selectedTool === 'fishingRod'">
@@ -95,7 +95,7 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">升级至 {{ TIER_NAMES[selectedUpgradeCost.toTier] }}</p>
               <div class="flex items-center justify-between">
-                <span class="text-xs text-muted">{{ selectedTool === 'scythe' ? '批量收割范围' : '体力减免' }}</span>
+                <span class="text-xs text-muted">{{ toolUpgradeEffectLabel(selectedTool) }}</span>
                 <span class="text-xs">
                   <template v-if="selectedTool === 'scythe'">
                     {{ inventoryStore.getToolBatchCount('scythe') }}格 →
@@ -216,6 +216,17 @@
   const ROD_HOOK: Record<ToolTier, number> = { basic: 40, iron: 45, steel: 50, iridium: 60 }
   const ROD_TIME: Record<ToolTier, number> = { basic: 30, iron: 33, steel: 36, iridium: 40 }
   const RUSH_UPGRADE_MONEY_MULTIPLIER = 2
+  const TOOL_UPGRADE_EFFECT_LABELS: Record<ToolType, string> = {
+    wateringCan: '浇水体力减免',
+    hoe: '开垦/播种体力减免',
+    pickaxe: '挖矿体力减免',
+    fishingRod: '钓鱼体力减免',
+    scythe: '批量收割范围',
+    axe: '采集/砍树体力减免',
+    pan: '淘金体力减免'
+  }
+
+  const toolUpgradeEffectLabel = (type: ToolType): string => TOOL_UPGRADE_EFFECT_LABELS[type]
 
   const staminaText = (tier: ToolTier): string => {
     const r = Math.round((1 - STAMINA_MULTIPLIERS[tier]) * 100)

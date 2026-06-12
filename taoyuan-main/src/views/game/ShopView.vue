@@ -847,15 +847,7 @@
             <div
               v-if="canExpandBag"
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBuyModal(
-                  '背包扩容',
-                  `当前${inventoryStore.capacity}格 → ${nextBagCapacity}格`,
-                  discounted(bagPrice),
-                  handleBuyBag,
-                  () => playerStore.money >= discounted(bagPrice)
-                )
-              "
+              @click="openBagExpansionModal"
             >
               <div>
                 <p class="text-sm">背包扩容</p>
@@ -1621,14 +1613,14 @@
           </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-xs text-muted">{{ buyModalData.description }}</p>
-            <p v-for="(line, i) in buyModalData.extraLines" :key="i" class="text-xs text-muted mt-0.5">{{ line }}</p>
+            <p class="text-xs text-muted">{{ buyModalDescription }}</p>
+            <p v-for="(line, i) in buyModalExtraLines" :key="i" class="text-xs text-muted mt-0.5">{{ line }}</p>
           </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">{{ buyModalData.batchBuy ? '单价' : '价格' }}</span>
-              <span class="text-xs text-accent">{{ buyModalData.price }}文</span>
+              <span class="text-xs text-accent">{{ buyModalPrice }}文</span>
             </div>
             <div v-if="buyModalData.itemId" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">持有</span>
@@ -2739,11 +2731,14 @@
 
   // === 弹窗系统 ===
 
+  type BuyModalText = string | (() => string)
+  type BuyModalPrice = number | (() => number)
+
   type BuyModalState = {
     type: 'buy'
     name: string
-    description: string
-    price: number
+    description: BuyModalText
+    price: BuyModalPrice
     onBuy: () => void
     canBuy: () => boolean
     extraLines?: string[]
@@ -2767,6 +2762,28 @@
   const buyModalData = computed(() => {
     if (!shopModal.value || shopModal.value.type !== 'buy') return null
     return shopModal.value
+  })
+
+  const resolveBuyModalText = (value: BuyModalText): string => {
+    return typeof value === 'function' ? value() : value
+  }
+
+  const resolveBuyModalPrice = (value: BuyModalPrice): number => {
+    const rawPrice = typeof value === 'function' ? value() : value
+    const normalized = Number(rawPrice)
+    return Number.isFinite(normalized) ? Math.max(0, Math.floor(normalized)) : 0
+  }
+
+  const buyModalDescription = computed(() => {
+    const data = buyModalData.value
+    return data ? resolveBuyModalText(data.description) : ''
+  })
+
+  const buyModalExtraLines = computed(() => buyModalData.value?.extraLines ?? [])
+
+  const buyModalPrice = computed(() => {
+    const data = buyModalData.value
+    return data ? resolveBuyModalPrice(data.price) : 0
   })
 
   const buyModalItemDef = computed(() => {
@@ -2797,7 +2814,7 @@
 
   const buyTotalPrice = computed(() => {
     if (!buyModalData.value) return 0
-    return buyModalData.value.price * buyQuantity.value
+    return buyModalPrice.value * buyQuantity.value
   })
 
   const maxBuyQuantity = computed(() => {
@@ -2911,8 +2928,8 @@
 
   const openBuyModal = (
     name: string,
-    description: string,
-    price: number,
+    description: BuyModalText,
+    price: BuyModalPrice,
     onBuy: () => void,
     canBuy: () => boolean,
     extraLines?: string[],
@@ -3184,6 +3201,16 @@
   const canExpandBag = computed(() => inventoryStore.capacity < inventoryStore.MAX_CAPACITY)
   const nextBagCapacity = computed(() => getNextInventoryCapacity(inventoryStore.capacity))
   const bagPrice = computed(() => getInventoryExpansionPrice(inventoryStore.capacity))
+
+  const openBagExpansionModal = () => {
+    openBuyModal(
+      '背包扩容',
+      () => `当前${inventoryStore.capacity}格 → ${nextBagCapacity.value}格`,
+      () => discounted(bagPrice.value),
+      handleBuyBag,
+      () => canExpandBag.value && playerStore.money >= discounted(bagPrice.value)
+    )
+  }
 
   const farmExpandInfo = computed(() => {
     const prices: Record<number, { newSize: number; price: number }> = {

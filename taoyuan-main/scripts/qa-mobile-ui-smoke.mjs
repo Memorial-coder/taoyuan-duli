@@ -2746,6 +2746,16 @@ async function createPage(browser, viewport, options = {}) {
     })
   })
 
+  await page.route('**/api/taoyuan/announcements/**', async route => {
+    const requestUrl = route.request().url()
+    const isAnnouncementList = requestUrl.includes('/active') || requestUrl.includes('/history')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(isAnnouncementList ? { ok: true, announcements: [] } : { ok: true })
+    })
+  })
+
   await page.route('**/api/taoyuan/logs/gameplay/batch', async route => {
     await route.fulfill({
       status: 200,
@@ -3298,8 +3308,8 @@ async function assertGameBottomRevealGesture(page) {
     if (!viewport) return { missingViewport: true }
 
     const previousScrollTop = viewport.scrollTop
-    const readRevealOffset = () => Number.parseFloat(
-      getComputedStyle(viewport).getPropertyValue('--game-bottom-reveal-offset')
+    const readRevealPocket = () => Number.parseFloat(
+      getComputedStyle(viewport).getPropertyValue('--game-bottom-reveal-pocket')
     ) || 0
     const isVisible = element => {
       const rect = element.getBoundingClientRect()
@@ -3358,51 +3368,71 @@ async function assertGameBottomRevealGesture(page) {
       }))
     }
 
-    viewport.scrollTop = viewport.scrollHeight
+    const revealPocketBeforeGesture = readRevealPocket()
+    const restMaxScrollTop = Math.max(
+      0,
+      viewport.scrollHeight - viewport.clientHeight - revealPocketBeforeGesture
+    )
+    viewport.scrollTop = restMaxScrollTop
     await waitForFrames()
-    const bottomBefore = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const bottomBefore = Math.abs(viewport.scrollTop - restMaxScrollTop)
+    const actualMaxScrollTop = viewport.scrollHeight - viewport.clientHeight
     const startY = Math.min(window.innerHeight - 96, 680)
     const moveY = Math.max(32, startY - 120)
 
     dispatchTouch('touchstart', startY)
-    dispatchTouch('touchmove', moveY)
     await waitForFrames()
 
-    const revealOffset = readRevealOffset()
-    const revealScrollBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const revealPocket = readRevealPocket()
+    const scrollIntoPocketTarget = Math.min(
+      actualMaxScrollTop,
+      restMaxScrollTop + Math.min(120, Math.max(72, revealPocket - 12))
+    )
+    viewport.scrollTop = scrollIntoPocketTarget
+    await waitForFrames()
+
+    const revealScrollIntoPocket = viewport.scrollTop - restMaxScrollTop
     const controlIssuesDuringReveal = getControlIssues()
     const horizontalOverflowDuringReveal = document.documentElement.scrollWidth > window.innerWidth + 4
 
     dispatchTouch('touchend', moveY)
-    await wait(260)
+    await wait(380)
     await waitForFrames()
 
-    const reboundOffset = readRevealOffset()
+    const reboundPocket = readRevealPocket()
     const reboundClassStillActive = viewport.classList.contains('game-layout-content--rebounding')
+    const revealClassStillActive = viewport.classList.contains('game-layout-content--revealing')
+    const reboundDistanceFromRest = Math.abs(viewport.scrollTop - restMaxScrollTop)
     viewport.scrollTop = previousScrollTop
 
     return {
       missingViewport: false,
-      scrollable: viewport.scrollHeight > viewport.clientHeight + 8,
+      scrollable: viewport.scrollHeight - revealPocketBeforeGesture > viewport.clientHeight + 8,
       bottomBefore,
-      revealOffset,
-      revealScrollBottom,
+      restMaxScrollTop,
+      actualMaxScrollTop,
+      revealPocket,
+      revealScrollIntoPocket,
       controlIssuesDuringReveal,
       horizontalOverflowDuringReveal,
-      reboundOffset,
-      reboundClassStillActive
+      reboundPocket,
+      reboundClassStillActive,
+      revealClassStillActive,
+      reboundDistanceFromRest
     }
   })
 
   expect(metrics.missingViewport).toBeFalsy()
   expect(metrics.scrollable).toBeTruthy()
   expect(metrics.bottomBefore).toBeLessThanOrEqual(4)
-  expect(metrics.revealOffset).toBeGreaterThan(48)
-  expect(metrics.revealScrollBottom).toBeLessThanOrEqual(metrics.revealOffset + 8)
+  expect(metrics.revealPocket).toBeGreaterThan(96)
+  expect(metrics.revealScrollIntoPocket).toBeGreaterThan(48)
   expect(metrics.controlIssuesDuringReveal).toEqual([])
   expect(metrics.horizontalOverflowDuringReveal).toBeFalsy()
-  expect(metrics.reboundOffset).toBeLessThanOrEqual(1)
+  expect(metrics.reboundPocket).toBeGreaterThan(96)
   expect(metrics.reboundClassStillActive).toBeFalsy()
+  expect(metrics.revealClassStillActive).toBeFalsy()
+  expect(metrics.reboundDistanceFromRest).toBeLessThanOrEqual(4)
 }
 
 async function assertShopTradeDefault(page) {
