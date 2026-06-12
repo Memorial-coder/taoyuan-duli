@@ -1,4 +1,5 @@
 <template>
+  <Teleport :to="teleportTarget">
   <Transition name="panel-fade">
     <div
       v-if="showAndroidUpdateDialog"
@@ -105,6 +106,7 @@
       </div>
     </div>
   </Transition>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -117,6 +119,7 @@
   import { createDefaultAndroidAppReleaseConfig, normalizeAndroidAppReleaseConfig } from '@/utils/androidRelease'
   import { parseJsonSafe } from '@/utils/protectedApi'
   import { showFloat } from '@/composables/useGameLog'
+  import { useFullscreenTeleportTarget } from '@/composables/useFullscreenTeleportTarget'
 
   const route = useRoute()
   const router = useRouter()
@@ -128,6 +131,7 @@
   const currentAndroidVersionCode = ref(0)
   const syncingRequiredUpdateSaves = ref(false)
   const localExportSlots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
+  const { teleportTarget } = useFullscreenTeleportTarget()
   let visibilityHandler: (() => void) | null = null
   let onlineHandler: (() => void) | null = null
   let backButtonListener: { remove: () => Promise<void> } | null = null

@@ -23,6 +23,8 @@
     </div>
 
     <!-- 村民 Tab -->
+    <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="activeTab">
     <div v-if="activeTab === 'villager'">
       <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
       <!-- 固定村民快捷区：手机端先给聊天和送礼入口，再展示长线关系信息。 -->
@@ -1392,7 +1394,7 @@
     </div>
 
     <!-- 仙灵 Tab -->
-    <div v-if="activeTab === 'spirit'">
+    <div v-else-if="activeTab === 'spirit'">
       <div class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
         <p class="text-xs text-accent mb-1">仙灵指引</p>
         <p class="text-[0.625rem] text-muted/80 leading-4">
@@ -1586,6 +1588,9 @@
     </div>
 
     <!-- 传闻回顾弹窗 -->
+      </div>
+    </Transition>
+
     <Transition name="panel-fade">
       <DiscoveryScene
         v-if="reviewingRumorStep"
@@ -3196,7 +3201,11 @@
   const unavailableInteractionReason = computed(() => (selectedNpc.value ? getNpcUnavailableReason(selectedNpc.value) : ''))
   const npcAvailable = (npcId: string): boolean => canInteractWithNpc(npcId)
   const canQuickTalkWithNpc = (npcId: string): boolean => canInteractWithNpc(npcId) && !npcStore.getNpcState(npcId)?.talkedToday
-  const canQuickGiftWithNpc = (npcId: string): boolean => canInteractWithNpc(npcId)
+  const canGiftWithNpc = (npcId: string): boolean => {
+    const state = npcStore.getNpcState(npcId)
+    return canInteractWithNpc(npcId) && !state?.giftedToday && (state?.giftsThisWeek ?? 0) < 2
+  }
+  const canQuickGiftWithNpc = (npcId: string): boolean => canGiftWithNpc(npcId)
   const npcDetailSectionClass = (tab: NpcDetailTabId): string => (selectedNpcDetailTab.value === tab ? 'block' : 'hidden md:block')
 
   const openNpcPanel = (npcId: string, tab: NpcDetailTabId = 'interact') => {
@@ -3214,6 +3223,7 @@
   }
 
   const handleQuickGiftNpc = (npcId: string) => {
+    if (!canQuickGiftWithNpc(npcId)) return
     openNpcPanel(npcId, 'gift')
   }
 

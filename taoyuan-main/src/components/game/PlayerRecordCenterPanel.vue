@@ -26,6 +26,8 @@
     </div>
 
     <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+      <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="activeTab">
       <section v-if="activeTab === 'daily'" class="space-y-3">
         <div v-if="!dailyDigests.length" class="record-empty">
           <BookOpenText :size="32" class="mb-2 text-accent/30" />
@@ -242,6 +244,8 @@
           </div>
         </article>
       </section>
+      </div>
+      </Transition>
     </div>
 
     <Transition name="panel-fade">

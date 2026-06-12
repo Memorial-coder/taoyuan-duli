@@ -114,6 +114,19 @@ registerHooks({
 const { useFarmStore } = await import(pathToFileURL(path.join(srcRoot, 'stores', 'useFarmStore.ts')).href)
 const { GREENHOUSE_FRUIT_TREE_SLOT_COUNT } = await import(pathToFileURL(path.join(srcRoot, 'data', 'fruitTrees.ts')).href)
 
+const farmViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'FarmView.vue'), 'utf8')
+const greenhouseModalIndex = farmViewSource.indexOf('v-if="showGreenhouseModal"')
+const chopFruitTreeModalIndex = farmViewSource.indexOf('<!-- 砍伐果树确认弹窗 -->')
+const scriptSetupIndex = farmViewSource.indexOf('<script setup')
+
+assert(greenhouseModalIndex >= 0, '农场页应保留温室弹窗。')
+assert(chopFruitTreeModalIndex > greenhouseModalIndex, '砍伐果树确认弹窗应挂在温室弹窗之后，避免温室内点击果树后被页签或弹窗层级挡住。')
+assert(chopFruitTreeModalIndex < scriptSetupIndex, '砍伐果树确认弹窗应位于 template 内。')
+assert(
+  farmViewSource.slice(chopFruitTreeModalIndex, scriptSetupIndex).includes('z-[60]'),
+  '砍伐果树确认弹窗层级应高于温室弹窗的 z-50。'
+)
+
 const createPlots = () =>
   Array.from({ length: 16 }, (_, id) => ({
     id,

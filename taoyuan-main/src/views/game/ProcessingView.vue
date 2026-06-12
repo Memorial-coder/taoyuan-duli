@@ -24,6 +24,8 @@
     </div>
 
     <!-- 加工区 -->
+    <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="activeTab">
     <div v-if="activeTab === 'process'" class="border border-accent/20 rounded-xs p-3">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center space-x-1.5 text-sm text-accent">
@@ -279,7 +281,7 @@
     </div>
 
     <!-- 制造区 -->
-    <div v-if="activeTab === 'craft'" class="border border-accent/20 rounded-xs p-3">
+    <div v-else-if="activeTab === 'craft'" class="border border-accent/20 rounded-xs p-3">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center space-x-1.5 text-sm text-accent">
           <Hammer :size="14" />
@@ -309,6 +311,9 @@
     </div>
 
     <!-- 工坊扩建弹窗 -->
+      </div>
+    </Transition>
+
     <Transition name="panel-fade">
       <div
         v-if="showUpgradeModal"

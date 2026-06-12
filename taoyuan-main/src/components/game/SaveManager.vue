@@ -135,10 +135,11 @@
                 :icon-size="12"
                 @click.stop="menuOpen = menuOpen === info.slot ? null : info.slot"
               />
-              <div
-                v-if="menuOpen === info.slot"
-                class="absolute right-0 top-full mt-1 z-10 flex flex-col border border-accent/30 rounded-xs overflow-hidden w-30"
-              >
+              <Transition name="menu-pop">
+                <div
+                  v-if="menuOpen === info.slot"
+                  class="absolute right-0 top-full mt-1 z-10 flex flex-col border border-accent/30 rounded-xs overflow-hidden w-30"
+                >
                 <Button
                   v-if="webdavReady && saveStore.storageMode === 'local'"
                   :icon="CloudUpload"
@@ -175,7 +176,8 @@
                 >
                   删除存档
                 </Button>
-              </div>
+                </div>
+              </Transition>
             </div>
           </div>
           <div v-else-if="info.readBlocked" class="flex w-full min-w-0 gap-1">

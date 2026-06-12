@@ -128,7 +128,9 @@
       </aside>
 
       <main class="min-w-0 space-y-3" data-testid="online-cohabitation-main-stage">
+        <Transition name="tab-panel-switch" mode="out-in">
         <section
+          :key="activeTab"
           class="space-y-3"
           role="tabpanel"
           :id="`online-module-panel-${activeTab}`"
@@ -3479,6 +3481,7 @@
         </div>
       </div>
         </section>
+        </Transition>
       </main>
 
       <aside class="game-panel-muted space-y-3 p-3 xl:sticky xl:top-4" data-testid="online-cohabitation-right-status">

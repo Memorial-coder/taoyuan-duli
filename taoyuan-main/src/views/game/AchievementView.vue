@@ -23,6 +23,8 @@
     <p class="text-[0.625rem] text-muted mb-3">{{ currentTabHint }}</p>
 
     <!-- 收集大奖章 -->
+    <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="tab">
     <template v-if="tab === 'medals'">
       <div class="border border-accent/20 rounded-xs p-3 mb-3">
         <div class="flex items-center justify-between gap-3 mb-2">
@@ -542,6 +544,8 @@
     <template v-if="tab === 'glossary'">
       <GlossaryTab :preset="glossaryPreset" @preset-applied="glossaryPreset = null" />
     </template>
+      </div>
+    </Transition>
 
     <!-- 完成度 -->
     <div class="mt-3 border border-accent/20 rounded-xs p-2">

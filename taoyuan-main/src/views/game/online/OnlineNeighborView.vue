@@ -28,7 +28,9 @@
       </template>
     </OnlineModuleShell>
 
+    <Transition name="tab-panel-switch" mode="out-in">
     <section
+      :key="activeTab"
       class="space-y-3"
       role="tabpanel"
       :id="`online-module-panel-${activeTab}`"
@@ -695,6 +697,7 @@
         </div>
       </div>
     </section>
+    </Transition>
 
     <OnlineActionDialog
       :open="profileEditorOpen"

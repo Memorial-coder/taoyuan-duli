@@ -668,17 +668,148 @@ input[type='number'] {
 }
 
 /* 面板切换过渡 */
-.panel-fade-enter-active {
-  transition: opacity 0.2s ease-in;
-}
-
+.panel-fade-enter-active,
 .panel-fade-leave-active {
-  transition: opacity 0.15s ease-out;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
 .panel-fade-enter-from,
 .panel-fade-leave-to {
   opacity: 0;
+}
+
+.panel-fade-enter-from > .game-panel,
+.panel-fade-leave-to > .game-panel {
+  transform: translateY(8px) scale(0.98);
+}
+
+.panel-fade-enter-active > .game-panel,
+.panel-fade-leave-active > .game-panel {
+  transition: transform 0.18s ease;
+}
+
+.route-fade-enter-active,
+.route-fade-leave-active,
+.tab-panel-switch-enter-active,
+.tab-panel-switch-leave-active,
+.dialog-pop-enter-active,
+.dialog-pop-leave-active,
+.menu-pop-enter-active,
+.menu-pop-leave-active,
+.sheet-slide-enter-active,
+.sheet-slide-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.route-fade-enter-from,
+.route-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.tab-panel-switch-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.tab-panel-switch-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.dialog-pop-enter-active,
+.dialog-pop-leave-active {
+  transition-duration: 0.2s;
+}
+
+.dialog-pop-enter-from,
+.dialog-pop-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+.menu-pop-enter-active,
+.menu-pop-leave-active {
+  transform-origin: right top;
+  transition-duration: 0.14s;
+}
+
+.menu-pop-enter-from,
+.menu-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.sheet-slide-enter-active,
+.sheet-slide-leave-active {
+  transition-duration: 0.22s;
+}
+
+.sheet-slide-enter-from,
+.sheet-slide-leave-to {
+  opacity: 0;
+}
+
+.sheet-slide-enter-from .online-bottom-sheet__panel--bottom,
+.sheet-slide-leave-to .online-bottom-sheet__panel--bottom {
+  transform: translateY(18px);
+}
+
+.sheet-slide-enter-from .online-bottom-sheet__panel--right,
+.sheet-slide-leave-to .online-bottom-sheet__panel--right {
+  transform: translateX(18px);
+}
+
+.sheet-slide-enter-from .online-bottom-sheet__panel--center,
+.sheet-slide-leave-to .online-bottom-sheet__panel--center {
+  transform: translateY(10px) scale(0.98);
+}
+
+.online-bottom-sheet__panel {
+  transition: transform 0.22s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-fade-enter-active,
+  .panel-fade-leave-active,
+  .route-fade-enter-active,
+  .route-fade-leave-active,
+  .tab-panel-switch-enter-active,
+  .tab-panel-switch-leave-active,
+  .dialog-pop-enter-active,
+  .dialog-pop-leave-active,
+  .menu-pop-enter-active,
+  .menu-pop-leave-active,
+  .sheet-slide-enter-active,
+  .sheet-slide-leave-active,
+  .panel-fade-enter-active > .game-panel,
+  .panel-fade-leave-active > .game-panel,
+  .online-bottom-sheet__panel {
+    transition-duration: 1ms;
+  }
+
+  .route-fade-enter-from,
+  .route-fade-leave-to,
+  .tab-panel-switch-enter-from,
+  .tab-panel-switch-leave-to,
+  .dialog-pop-enter-from,
+  .dialog-pop-leave-to,
+  .menu-pop-enter-from,
+  .menu-pop-leave-to,
+  .panel-fade-enter-from > .game-panel,
+  .panel-fade-leave-to > .game-panel,
+  .sheet-slide-enter-from .online-bottom-sheet__panel--bottom,
+  .sheet-slide-leave-to .online-bottom-sheet__panel--bottom,
+  .sheet-slide-enter-from .online-bottom-sheet__panel--right,
+  .sheet-slide-leave-to .online-bottom-sheet__panel--right,
+  .sheet-slide-enter-from .online-bottom-sheet__panel--center,
+  .sheet-slide-leave-to .online-bottom-sheet__panel--center {
+    transform: none;
+  }
 }
 
 /* 按钮禁用状态 */

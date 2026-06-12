@@ -1,5 +1,6 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="teleportTarget">
+    <Transition name="dialog-pop">
     <div
       v-if="open"
       class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70"
@@ -89,11 +90,13 @@
         </footer>
       </section>
     </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
   import { computed, nextTick, onBeforeUnmount, ref, useSlots, watch } from 'vue'
+  import { useFullscreenTeleportTarget } from '@/composables/useFullscreenTeleportTarget'
 
   type DialogTone = 'default' | 'danger' | 'warning' | 'success'
 
@@ -130,6 +133,7 @@
   const titleRef = ref<HTMLElement | null>(null)
   const requiredTextInput = ref('')
   const previousFocus = ref<HTMLElement | null>(null)
+  const { teleportTarget, syncTeleportTarget } = useFullscreenTeleportTarget()
   const dialogId = `online-action-dialog-${Math.random().toString(36).slice(2, 10)}`
   const titleId = `${dialogId}-title`
   const descriptionId = `${dialogId}-description`
@@ -196,6 +200,7 @@
     () => props.open,
     isOpen => {
       if (isOpen) {
+        syncTeleportTarget()
         previousFocus.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
         requiredTextInput.value = ''
         window.addEventListener('keydown', handleGlobalKeydown)

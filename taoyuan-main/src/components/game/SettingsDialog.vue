@@ -33,6 +33,8 @@
         </div>
 
         <div class="settings-dialog-body flex flex-col space-y-3">
+          <Transition name="tab-panel-switch" mode="out-in">
+          <div :key="activeTab" class="settings-dialog-tab-panel">
           <!-- ===== 通用 ===== -->
           <template v-if="activeTab === 'general'">
             <div class="settings-dialog-scroll max-h-[40vh] overflow-y-auto">
@@ -489,6 +491,8 @@
               </div>
             </div>
           </template>
+          </div>
+          </Transition>
         </div>
 
         <!-- 存档管理（全局底部） -->

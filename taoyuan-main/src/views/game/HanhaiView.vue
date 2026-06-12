@@ -162,6 +162,8 @@
       </div>
 
       <!-- 驿站商店 -->
+      <Transition name="tab-panel-switch" mode="out-in">
+        <div :key="activeTab">
       <template v-if="activeTab === 'shop'">
         <div class="flex flex-col space-y-1 max-h-80 overflow-y-auto">
           <div
@@ -194,7 +196,7 @@
       </template>
 
       <!-- 遗迹 -->
-      <template v-if="activeTab === 'relic'">
+      <template v-else-if="activeTab === 'relic'">
         <div class="border border-accent/20 rounded-xs p-2 mb-3">
           <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
             <div class="flex items-center justify-between">
@@ -258,7 +260,7 @@
       </template>
 
       <!-- 赌坊 -->
-      <template v-if="activeTab === 'casino'">
+      <template v-else-if="activeTab === 'casino'">
         <div class="border border-accent/20 rounded-xs p-2 mb-3">
           <div class="flex items-center justify-between">
             <span class="text-xs text-muted">今日剩余次数</span>
@@ -410,6 +412,9 @@
       </template>
 
       <!-- 底部统计 -->
+        </div>
+      </Transition>
+
       <div class="mt-3 border border-accent/20 rounded-xs p-2">
         <div class="grid grid-cols-2 gap-x-3 gap-y-0.5">
           <div class="flex items-center justify-between">

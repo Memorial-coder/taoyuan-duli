@@ -1,5 +1,9 @@
 <template>
-  <RouterView />
+  <RouterView v-slot="{ Component, route: routedRoute }">
+    <Transition name="route-fade" mode="out-in">
+      <component :is="Component" :key="routedRoute.path" />
+    </Transition>
+  </RouterView>
   <AsyncAppShellGuards v-if="showAppShellGuards" />
   <IdleAiAssistantWidget v-if="showAiAssistantWidget" />
 </template>

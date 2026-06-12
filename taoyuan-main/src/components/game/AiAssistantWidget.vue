@@ -1,5 +1,5 @@
 <template>
-  <template v-if="store.canRender">
+  <Teleport v-if="store.canRender" :to="teleportTarget">
     <button
       ref="fabButton"
       type="button"
@@ -218,7 +218,7 @@
         </div>
       </div>
     </Transition>
-  </template>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -248,6 +248,7 @@
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
+  import { useFullscreenTeleportTarget } from '@/composables/useFullscreenTeleportTarget'
   import { getItemById } from '@/data/items'
   import { getCropById } from '@/data/crops'
   import { getAnimalDef, getBuildingDef } from '@/data/animals'
@@ -266,6 +267,7 @@
   import type { AiAssistantActionSuggestion, AiAssistantAnswerBlock, AiAssistantDebugTrace, AiAssistantMessage, FarmPlot, MainQuestObjective, QuestInstance, Season } from '@/types'
 
   const store = useAiAssistantStore()
+  const { teleportTarget } = useFullscreenTeleportTarget()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const goalStore = useGoalStore()

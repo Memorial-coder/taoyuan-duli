@@ -1515,7 +1515,7 @@
             </span>
           </div>
         </div>
-        <div class="flex flex-col space-y-2">
+        <div class="flex max-h-[56vh] flex-col space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y md:max-h-[34rem]">
           <div
             v-for="item in sellableItems"
             :key="item.originalIndex"

@@ -25,7 +25,8 @@
       </template>
     </OnlineModuleShell>
 
-    <section class="space-y-3">
+    <Transition name="tab-panel-switch" mode="out-in">
+    <section :key="activeTab" class="space-y-3">
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -1735,6 +1736,7 @@
         </div>
       </div>
     </section>
+    </Transition>
 
     <OnlineRoomWizard
       :open="showFestivalRoomWizard"

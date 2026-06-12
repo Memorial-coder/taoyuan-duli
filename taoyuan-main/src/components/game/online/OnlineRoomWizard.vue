@@ -17,8 +17,10 @@
         </li>
       </ol>
 
+      <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="activeStepId">
       <section
-        v-show="activeStepId === 'gameplay'"
+        v-if="activeStepId === 'gameplay'"
         class="space-y-3"
         data-testid="online-room-wizard-step-gameplay"
         aria-labelledby="online-room-wizard-step-gameplay-title"
@@ -53,7 +55,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'config'"
+        v-else-if="activeStepId === 'config'"
         class="space-y-3"
         data-testid="online-room-wizard-step-config"
         aria-labelledby="online-room-wizard-step-config-title"
@@ -140,7 +142,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'invite'"
+        v-else-if="activeStepId === 'invite'"
         class="space-y-3"
         data-testid="online-room-wizard-step-invite"
         aria-labelledby="online-room-wizard-step-invite-title"
@@ -195,7 +197,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'review'"
+        v-else-if="activeStepId === 'review'"
         class="space-y-3"
         data-testid="online-room-wizard-step-review"
         aria-labelledby="online-room-wizard-step-review-title"
@@ -233,6 +235,8 @@
           <p class="mt-1">{{ selectedGameplay?.summary || selectedTemplate?.summary || domainCopy.rewardPreviewSummary }}</p>
         </div>
       </section>
+      </div>
+      </Transition>
     </div>
 
     <template #footer>

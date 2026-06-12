@@ -754,32 +754,6 @@
         </div>
       </div>
 
-      <!-- 砍伐果树确认弹窗 -->
-      <Transition name="panel-fade">
-        <div
-          v-if="chopFruitTreeTarget"
-          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          @click.self="chopFruitTreeTarget = null"
-        >
-          <div class="game-panel max-w-xs w-full relative">
-            <button class="absolute top-2 right-2 text-muted hover:text-text" @click="chopFruitTreeTarget = null">
-              <X :size="14" />
-            </button>
-            <p class="text-accent text-sm mb-2">砍伐果树</p>
-            <p class="text-xs text-text mb-3">
-              确定要砍掉
-              <span v-if="chopFruitTreeTarget.area === 'greenhouse'">温室中的</span>
-              <span class="text-accent">{{ getTreeName(chopFruitTreeTarget.type) }}</span>
-              吗？砍伐后不可恢复。
-            </p>
-            <div class="flex space-x-2">
-              <Button class="flex-1" @click="chopFruitTreeTarget = null">取消</Button>
-              <Button class="flex-1 !bg-danger !text-text" :icon-size="12" :icon="Axe" @click="confirmChopFruitTree">确认砍伐</Button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
       <!-- 野树伐木确认弹窗 -->
       <Transition name="panel-fade">
         <div
@@ -1314,6 +1288,32 @@
             >
               收获
             </Button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 砍伐果树确认弹窗 -->
+    <Transition name="panel-fade">
+      <div
+        v-if="chopFruitTreeTarget"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+        @click.self="chopFruitTreeTarget = null"
+      >
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="chopFruitTreeTarget = null">
+            <X :size="14" />
+          </button>
+          <p class="text-accent text-sm mb-2">砍伐果树</p>
+          <p class="text-xs text-text mb-3">
+            确定要砍掉
+            <span v-if="chopFruitTreeTarget.area === 'greenhouse'">温室中的</span>
+            <span class="text-accent">{{ getTreeName(chopFruitTreeTarget.type) }}</span>
+            吗？砍伐后不可恢复。
+          </p>
+          <div class="flex space-x-2">
+            <Button class="flex-1" @click="chopFruitTreeTarget = null">取消</Button>
+            <Button class="flex-1 !bg-danger !text-text" :icon-size="12" :icon="Axe" @click="confirmChopFruitTree">确认砍伐</Button>
           </div>
         </div>
       </div>

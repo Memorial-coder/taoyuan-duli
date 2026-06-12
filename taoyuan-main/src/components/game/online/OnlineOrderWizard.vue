@@ -27,8 +27,10 @@
         :description="errorMessage"
       />
 
+      <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="activeStepId">
       <section
-        v-show="activeStepId === 'type'"
+        v-if="activeStepId === 'type'"
         class="space-y-3"
         data-testid="online-order-wizard-step-type"
         aria-labelledby="online-order-wizard-step-type-title"
@@ -63,7 +65,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'need'"
+        v-else-if="activeStepId === 'need'"
         class="space-y-3"
         data-testid="online-order-wizard-step-need"
         aria-labelledby="online-order-wizard-step-need-title"
@@ -111,7 +113,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'mode'"
+        v-else-if="activeStepId === 'mode'"
         class="space-y-3"
         data-testid="online-order-wizard-step-mode"
         aria-labelledby="online-order-wizard-step-mode-title"
@@ -212,7 +214,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'reward'"
+        v-else-if="activeStepId === 'reward'"
         class="space-y-3"
         data-testid="online-order-wizard-step-reward"
         aria-labelledby="online-order-wizard-step-reward-title"
@@ -258,7 +260,7 @@
       </section>
 
       <section
-        v-show="activeStepId === 'review'"
+        v-else-if="activeStepId === 'review'"
         class="space-y-3"
         data-testid="online-order-wizard-step-review"
         aria-labelledby="online-order-wizard-step-review-title"
@@ -291,6 +293,8 @@
           </div>
         </dl>
       </section>
+      </div>
+      </Transition>
     </div>
 
     <template #footer>

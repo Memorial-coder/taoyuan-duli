@@ -49,28 +49,30 @@
             <MoreHorizontal :size="13" />
             更多
           </button>
-          <div
-            v-if="moreOpen"
-            id="online-sticky-more-menu"
-            class="game-panel absolute bottom-full right-0 mb-2 grid min-w-[12rem] gap-2 p-2"
-            data-testid="online-sticky-more-menu"
-            role="menu"
-          >
-            <button
-              v-for="action in moreActions"
-              :key="action.id"
-              type="button"
-              class="online-action-btn online-action-btn--compact justify-start"
-              :class="buttonToneClass(action)"
-              :data-testid="`online-sticky-more-action-${action.id}`"
-              :disabled="action.disabled"
-              role="menuitem"
-              @click="emitMore(action)"
+          <Transition name="menu-pop">
+            <div
+              v-if="moreOpen"
+              id="online-sticky-more-menu"
+              class="game-panel absolute bottom-full right-0 mb-2 grid min-w-[12rem] gap-2 p-2"
+              data-testid="online-sticky-more-menu"
+              role="menu"
             >
-              <component v-if="action.icon" :is="action.icon" :size="13" />
-              {{ action.label }}
-            </button>
-          </div>
+              <button
+                v-for="action in moreActions"
+                :key="action.id"
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-start"
+                :class="buttonToneClass(action)"
+                :data-testid="`online-sticky-more-action-${action.id}`"
+                :disabled="action.disabled"
+                role="menuitem"
+                @click="emitMore(action)"
+              >
+                <component v-if="action.icon" :is="action.icon" :size="13" />
+                {{ action.label }}
+              </button>
+            </div>
+          </Transition>
         </div>
 
         <button

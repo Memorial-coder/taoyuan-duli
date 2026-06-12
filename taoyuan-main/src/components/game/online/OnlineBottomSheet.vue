@@ -1,5 +1,6 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="teleportTarget">
+    <Transition name="sheet-slide">
     <div
       v-if="open"
       class="game-modal-overlay online-bottom-sheet fixed inset-0 z-50 flex bg-black/70"
@@ -66,12 +67,14 @@
         </footer>
       </section>
     </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
   import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
   import { X } from 'lucide-vue-next'
+  import { useFullscreenTeleportTarget } from '@/composables/useFullscreenTeleportTarget'
 
   type BottomSheetSide = 'bottom' | 'right' | 'center'
 
@@ -100,6 +103,7 @@
   const closeButtonRef = ref<HTMLElement | null>(null)
   const previousFocus = ref<HTMLElement | null>(null)
   const previousBodyOverflow = ref('')
+  const { teleportTarget, syncTeleportTarget } = useFullscreenTeleportTarget()
   const sheetId = `online-bottom-sheet-${Math.random().toString(36).slice(2, 10)}`
   const titleId = `${sheetId}-title`
   const descriptionId = `${sheetId}-description`
@@ -157,6 +161,7 @@
     () => props.open,
     async isOpen => {
       if (isOpen) {
+        syncTeleportTarget()
         previousFocus.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
         lockPageScroll()
         await focusSheet()

@@ -33,6 +33,7 @@ assertIncludes(npcView, 'grid grid-cols-2 md:grid-cols-3', 'quick grid should us
 assertIncludes(npcView, ':data-testid="`npc-quick-card-${npc.id}`"', 'quick cards need stable test ids')
 assertIncludes(npcView, ':data-testid="`npc-quick-talk-${npc.id}`"', 'quick talk buttons need stable test ids')
 assertIncludes(npcView, ':data-testid="`npc-quick-gift-${npc.id}`"', 'quick gift buttons need stable test ids')
+assertIncludes(npcView, ':disabled="!canQuickGiftWithNpc(npc.id)"', 'quick gift buttons should disable when gift is unavailable')
 assertIncludes(npcView, '@click.stop="handleQuickTalkNpc(npc.id)"', 'quick talk button should stop card click propagation')
 assertIncludes(npcView, '@click.stop="handleQuickGiftNpc(npc.id)"', 'quick gift button should stop card click propagation')
 
@@ -49,6 +50,8 @@ assertBefore(npcView, 'data-testid="npc-detail-section-gift"', 'data-testid="npc
 assertBefore(npcView, 'data-testid="npc-detail-section-relationship"', 'data-testid="npc-detail-section-schedule"', 'schedule section should render last')
 
 assertIncludes(npcView, "const openNpcPanel = (npcId: string, tab: NpcDetailTabId = 'interact')", 'NPC panel opening helper should accept a target tab')
+assertIncludes(npcView, "return canInteractWithNpc(npcId) && !state?.giftedToday && (state?.giftsThisWeek ?? 0) < 2", 'quick gift should respect daily and weekly gift limits')
+assertIncludes(npcView, 'if (!canQuickGiftWithNpc(npcId)) return', 'quick gift handler should guard against unavailable gift state')
 assertIncludes(npcView, "openNpcPanel(npcId, 'gift')", 'quick gift should open the gift tab without gifting immediately')
 assertIncludes(npcView, 'performTalkWithNpc(npcId)', 'quick talk should reuse the shared talk helper')
 assertIncludes(npcView, 'const handleTalk = () => {', 'modal talk button should keep its existing handler entrypoint')
