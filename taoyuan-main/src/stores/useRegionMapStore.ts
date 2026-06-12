@@ -4,9 +4,11 @@ import {
   REGION_BOSS_DEFS,
   REGION_DEFS,
   REGION_EVENT_DEFS,
+  REGION_OPEN_WORLD_DEFS,
   REGION_ROUTE_DEFS,
   REGIONAL_RESOURCE_FAMILY_DEFS,
   createDefaultRegionExpeditionSupplyState,
+  createDefaultRegionOpenWorldSaveData,
   createDefaultRegionMapSaveData,
   getBossMapNodeKey,
   getCampSiteKey,
@@ -54,6 +56,18 @@ import type {
   RegionMapSaveData,
   RegionMapSessionState,
   RegionMapSettlementState,
+  RegionOpenWorldActionId,
+  RegionOpenWorldActionResult,
+  RegionOpenWorldId,
+  RegionOpenWorldLandmarkStage,
+  RegionOpenWorldLogEntry,
+  RegionOpenWorldRegionEntry,
+  RegionOpenWorldRegionState,
+  RegionOpenWorldSaveData,
+  RegionOpenWorldTileDef,
+  RegionOpenWorldTileState,
+  RegionOpenWorldTileStatus,
+  RegionOpenWorldTileView,
   RegionJourneyActionState,
   RegionRumorBoardEntry,
   RegionRouteDef,
@@ -123,6 +137,113 @@ const BOSS_ITEM_REWARDS: Record<RegionId, Array<{ itemId: string; quantity: numb
   mirage_marsh: [{ itemId: 'luminous_algae', quantity: 2 }],
   cloud_highland: [{ itemId: 'wind_etched_core', quantity: 2 }]
 }
+
+const OPEN_WORLD_REGION_IDS = REGION_OPEN_WORLD_DEFS.map(region => region.id) as RegionOpenWorldId[]
+
+const OPEN_WORLD_OBJECT_LABELS: Partial<Record<NonNullable<RegionOpenWorldTileDef['objectType']>, string>> = {
+  tree: '野树',
+  bamboo: '竹丛',
+  herb: '采集物',
+  chest: '宝箱',
+  animal: '动物',
+  monster: '野外遭遇',
+  story: '故事点',
+  route_landmark: '路线地标',
+  event_landmark: '事件地标',
+  boss_landmark: '首领地标',
+  outpost: '据点',
+  shortcut: '捷径',
+  roadblock: '路障'
+}
+
+const OPEN_WORLD_ACTION_LABELS: Record<RegionOpenWorldActionId, string> = {
+  inspect: '查看',
+  gather: '采集',
+  open_chest: '开箱',
+  observe: '观察',
+  drive_off: '处理',
+  repair: '修复',
+  fast_travel: '传送'
+}
+
+const OPEN_WORLD_STATUS_LABELS: Record<RegionOpenWorldTileStatus, string> = {
+  fresh: '可互动',
+  depleted: '已采集',
+  opened: '已开启',
+  resolved: '已处理',
+  repaired: '已修复'
+}
+
+const OPEN_WORLD_LANDMARK_STAGE_ORDER: RegionOpenWorldLandmarkStage[] = ['unknown', 'heard', 'surveyed', 'completed', 'mastered']
+
+const isOpenWorldRegionId = (value: unknown): value is RegionOpenWorldId =>
+  typeof value === 'string' && OPEN_WORLD_REGION_IDS.includes(value as RegionOpenWorldId)
+
+const isOpenWorldTileStatus = (value: unknown): value is RegionOpenWorldTileStatus =>
+  value === 'depleted' || value === 'opened' || value === 'resolved' || value === 'repaired' || value === 'fresh'
+
+const isOpenWorldLandmarkStage = (value: unknown): value is RegionOpenWorldLandmarkStage =>
+  value === 'heard' || value === 'surveyed' || value === 'completed' || value === 'mastered' || value === 'unknown'
+
+const uniqueStrings = (values: unknown[]): string[] =>
+  [...new Set(values.filter((value): value is string => typeof value === 'string'))]
+
+const getMoreAdvancedLandmarkStage = (
+  current: RegionOpenWorldLandmarkStage,
+  next: RegionOpenWorldLandmarkStage
+): RegionOpenWorldLandmarkStage =>
+  OPEN_WORLD_LANDMARK_STAGE_ORDER.indexOf(next) > OPEN_WORLD_LANDMARK_STAGE_ORDER.indexOf(current) ? next : current
+
+const getOpenWorldRegionDef = (regionId: RegionOpenWorldId) =>
+  REGION_OPEN_WORLD_DEFS.find(region => region.id === regionId) ?? REGION_OPEN_WORLD_DEFS[0]!
+
+const getOpenWorldTileDef = (regionId: RegionOpenWorldId, tileId: string) =>
+  getOpenWorldRegionDef(regionId).tiles.find(tile => tile.id === tileId) ?? null
+
+const getOpenWorldTileStateFallback = (tile: RegionOpenWorldTileDef, discovered = false): RegionOpenWorldTileState => ({
+  tileId: tile.id,
+  discovered,
+  status: 'fresh',
+  landmarkStage: discovered && tile.objectType?.endsWith('_landmark') ? 'heard' : 'unknown',
+  actionCount: 0,
+  lastActionDayTag: '',
+  lastRefreshDayTag: ''
+})
+
+const cloneOpenWorldSaveData = (state: RegionOpenWorldSaveData): RegionOpenWorldSaveData => ({
+  activeRegionId: state.activeRegionId,
+  selectedTileId: state.selectedTileId,
+  lastRefreshDayTag: state.lastRefreshDayTag,
+  regionStates: Object.fromEntries(
+    OPEN_WORLD_REGION_IDS.map(regionId => {
+      const regionState = state.regionStates[regionId]
+      return [
+        regionId,
+        {
+          regionId,
+          playerTileId: regionState.playerTileId,
+          selectedTileId: regionState.selectedTileId,
+          discoveredTileIds: [...regionState.discoveredTileIds],
+          repairedOutpostIds: [...regionState.repairedOutpostIds],
+          tileStates: Object.fromEntries(
+            Object.entries(regionState.tileStates).map(([tileId, tileState]) => [tileId, { ...tileState }])
+          ),
+          lastRefreshDayTag: regionState.lastRefreshDayTag
+        }
+      ]
+    })
+  ) as Record<RegionOpenWorldId, RegionOpenWorldRegionState>,
+  handbook: {
+    discoveredTileIds: Object.fromEntries(
+      OPEN_WORLD_REGION_IDS.map(regionId => [regionId, [...(state.handbook.discoveredTileIds[regionId] ?? [])]])
+    ) as Record<RegionOpenWorldId, string[]>,
+    discoveredObjectKeys: [...state.handbook.discoveredObjectKeys],
+    completedLandmarkKeys: [...state.handbook.completedLandmarkKeys],
+    repairedOutpostIds: [...state.handbook.repairedOutpostIds],
+    claimedRewardKeys: [...state.handbook.claimedRewardKeys]
+  },
+  log: state.log.map(entry => ({ ...entry }))
+})
 
 const createEmptyActiveEventMap = () => ({
   ancient_road: [] as string[],
@@ -878,6 +999,578 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     journeyActionState: saveData.value.journeyActionState,
     lastBossOutcome: saveData.value.lastBossOutcome
   }))
+
+  const openWorldDefs = REGION_OPEN_WORLD_DEFS
+  const openWorldState = computed(() => saveData.value.openWorld)
+
+  const getOpenWorldRegionUnlockInfo = (regionId: RegionOpenWorldId) => {
+    const def = getOpenWorldRegionDef(regionId)
+    if (!def.unlockRegionId) return { unlocked: true, reason: '近郊教学地图默认开放。' }
+    const unlocked = saveData.value.unlockStates[def.unlockRegionId]?.unlocked ?? false
+    return {
+      unlocked,
+      reason: unlocked ? '已解锁。' : `需要先解锁「${REGION_DEFS.find(region => region.id === def.unlockRegionId)?.name ?? def.name}」。`
+    }
+  }
+
+  const getOpenWorldRegionState = (regionId: RegionOpenWorldId) =>
+    saveData.value.openWorld.regionStates[regionId] ?? createDefaultRegionOpenWorldSaveData().regionStates[regionId]
+
+  const activeOpenWorldRegion = computed(() => getOpenWorldRegionDef(saveData.value.openWorld.activeRegionId))
+
+  const activeOpenWorldRegionState = computed(() => getOpenWorldRegionState(saveData.value.openWorld.activeRegionId))
+
+  const activeOpenWorldTile = computed(() =>
+    getOpenWorldTileDef(saveData.value.openWorld.activeRegionId, activeOpenWorldRegionState.value.playerTileId)
+  )
+
+  const selectedOpenWorldTile = computed(() =>
+    getOpenWorldTileDef(saveData.value.openWorld.activeRegionId, activeOpenWorldRegionState.value.selectedTileId)
+  )
+
+  const openWorldRegionEntries = computed<RegionOpenWorldRegionEntry[]>(() =>
+    REGION_OPEN_WORLD_DEFS.map(def => {
+      const unlock = getOpenWorldRegionUnlockInfo(def.id)
+      return {
+        id: def.id,
+        name: def.name,
+        description: def.description,
+        unlocked: unlock.unlocked,
+        unlockReason: unlock.reason,
+        pressureLabel: def.pressureLabel,
+        active: saveData.value.openWorld.activeRegionId === def.id
+      }
+    })
+  )
+
+  const getOpenWorldTileState = (regionId: RegionOpenWorldId, tileId: string): RegionOpenWorldTileState | null => {
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    if (!tile) return null
+    return getOpenWorldRegionState(regionId).tileStates[tileId] ?? getOpenWorldTileStateFallback(tile)
+  }
+
+  const getOpenWorldTileDistance = (a: RegionOpenWorldTileDef, b: RegionOpenWorldTileDef) =>
+    Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
+
+  const getOpenWorldRevealTileIds = (regionId: RegionOpenWorldId, tileId: string, radius = 1) => {
+    const def = getOpenWorldRegionDef(regionId)
+    const center = getOpenWorldTileDef(regionId, tileId)
+    if (!center) return []
+    const safeRadius = Math.max(0, Math.floor(Number(radius) || 0))
+    return def.tiles.filter(tile => getOpenWorldTileDistance(center, tile) <= safeRadius).map(tile => tile.id)
+  }
+
+  const markOpenWorldTileDiscovered = (regionId: RegionOpenWorldId, tileId: string) => {
+    const regionState = getOpenWorldRegionState(regionId)
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    if (!tile) return
+    const current = regionState.tileStates[tileId] ?? getOpenWorldTileStateFallback(tile)
+    regionState.tileStates[tileId] = {
+      ...current,
+      discovered: true,
+      landmarkStage: tile.objectType?.endsWith('_landmark')
+        ? getMoreAdvancedLandmarkStage(current.landmarkStage, 'heard')
+        : current.landmarkStage
+    }
+    if (!regionState.discoveredTileIds.includes(tileId)) regionState.discoveredTileIds.push(tileId)
+    const handbookTiles = saveData.value.openWorld.handbook.discoveredTileIds[regionId] ?? []
+    if (!handbookTiles.includes(tileId)) {
+      saveData.value.openWorld.handbook.discoveredTileIds[regionId] = [...handbookTiles, tileId]
+    }
+    if (tile.objectType) {
+      const objectKey = `${regionId}:${tile.objectType}:${tile.routeId ?? tile.eventId ?? tile.bossId ?? tile.outpostId ?? tile.id}`
+      if (!saveData.value.openWorld.handbook.discoveredObjectKeys.includes(objectKey)) {
+        saveData.value.openWorld.handbook.discoveredObjectKeys.push(objectKey)
+      }
+    }
+  }
+
+  const revealOpenWorldAround = (regionId: RegionOpenWorldId, tileId: string, radius = 1) => {
+    for (const revealTileId of getOpenWorldRevealTileIds(regionId, tileId, radius)) {
+      markOpenWorldTileDiscovered(regionId, revealTileId)
+    }
+  }
+
+  const recordOpenWorldLog = (
+    regionId: RegionOpenWorldId,
+    tileId: string,
+    dayTag: string,
+    title: string,
+    summary: string,
+    tone: RegionOpenWorldLogEntry['tone'] = 'accent'
+  ) => {
+    saveData.value.openWorld.log = [
+      {
+        id: `open-world:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+        dayTag,
+        regionId,
+        tileId,
+        title,
+        summary,
+        tone
+      },
+      ...saveData.value.openWorld.log
+    ].slice(0, 24)
+  }
+
+  const setOpenWorldLandmarkStage = (
+    regionId: RegionOpenWorldId,
+    tileId: string,
+    stage: RegionOpenWorldLandmarkStage
+  ) => {
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    if (!tile) return
+    const regionState = getOpenWorldRegionState(regionId)
+    const current = regionState.tileStates[tileId] ?? getOpenWorldTileStateFallback(tile)
+    regionState.tileStates[tileId] = {
+      ...current,
+      discovered: stage !== 'unknown' || current.discovered,
+      landmarkStage: getMoreAdvancedLandmarkStage(current.landmarkStage, stage)
+    }
+    if (stage !== 'unknown') markOpenWorldTileDiscovered(regionId, tileId)
+    if (stage === 'completed' || stage === 'mastered') {
+      const landmarkKey = `${regionId}:${tile.routeId ?? tile.eventId ?? tile.bossId ?? tile.id}`
+      if (!saveData.value.openWorld.handbook.completedLandmarkKeys.includes(landmarkKey)) {
+        saveData.value.openWorld.handbook.completedLandmarkKeys.push(landmarkKey)
+      }
+    }
+  }
+
+  const normalizeOpenWorldTileState = (
+    tile: RegionOpenWorldTileDef,
+    raw: any,
+    discoveredFromList: boolean
+  ): RegionOpenWorldTileState => {
+    if (!raw || typeof raw !== 'object') return getOpenWorldTileStateFallback(tile, discoveredFromList)
+    const discovered = Boolean(raw.discovered) || discoveredFromList
+    return {
+      tileId: tile.id,
+      discovered,
+      status: isOpenWorldTileStatus(raw.status) ? raw.status : 'fresh',
+      landmarkStage: isOpenWorldLandmarkStage(raw.landmarkStage)
+        ? raw.landmarkStage
+        : discovered && tile.objectType?.endsWith('_landmark')
+          ? 'heard'
+          : 'unknown',
+      actionCount: Math.max(0, Math.floor(Number(raw.actionCount) || 0)),
+      lastActionDayTag: typeof raw.lastActionDayTag === 'string' ? raw.lastActionDayTag : '',
+      lastRefreshDayTag: typeof raw.lastRefreshDayTag === 'string' ? raw.lastRefreshDayTag : ''
+    }
+  }
+
+  const normalizeOpenWorldRegionState = (
+    def: (typeof REGION_OPEN_WORLD_DEFS)[number],
+    raw: any,
+    fallback: RegionOpenWorldRegionState
+  ): RegionOpenWorldRegionState => {
+    const validTileIds = new Set(def.tiles.map(tile => tile.id))
+    const rawDiscoveredTileIds = Array.isArray(raw?.discoveredTileIds)
+      ? raw.discoveredTileIds.filter((tileId: unknown): tileId is string => typeof tileId === 'string' && validTileIds.has(tileId))
+      : fallback.discoveredTileIds
+    const discoveredTileIds = [...new Set([def.startTileId, ...rawDiscoveredTileIds])]
+    const playerTileId = typeof raw?.playerTileId === 'string' && validTileIds.has(raw.playerTileId) ? raw.playerTileId : fallback.playerTileId
+    const selectedTileId = typeof raw?.selectedTileId === 'string' && validTileIds.has(raw.selectedTileId) ? raw.selectedTileId : playerTileId
+    return {
+      regionId: def.id,
+      playerTileId,
+      selectedTileId,
+      discoveredTileIds,
+      repairedOutpostIds: Array.isArray(raw?.repairedOutpostIds)
+        ? uniqueStrings(raw.repairedOutpostIds)
+        : [...fallback.repairedOutpostIds],
+      tileStates: Object.fromEntries(
+        def.tiles.map(tile => [
+          tile.id,
+          normalizeOpenWorldTileState(tile, raw?.tileStates?.[tile.id], discoveredTileIds.includes(tile.id))
+        ])
+      ),
+      lastRefreshDayTag: typeof raw?.lastRefreshDayTag === 'string' ? raw.lastRefreshDayTag : fallback.lastRefreshDayTag
+    }
+  }
+
+  const normalizeOpenWorldSaveData = (raw: any): RegionOpenWorldSaveData => {
+    const fallback = createDefaultRegionOpenWorldSaveData()
+    const regionStates = Object.fromEntries(
+      REGION_OPEN_WORLD_DEFS.map(def => [
+        def.id,
+        normalizeOpenWorldRegionState(def, raw?.regionStates?.[def.id], fallback.regionStates[def.id]!)
+      ])
+    ) as Record<RegionOpenWorldId, RegionOpenWorldRegionState>
+    const activeRegionId: RegionOpenWorldId = isOpenWorldRegionId(raw?.activeRegionId)
+      ? raw.activeRegionId
+      : fallback.activeRegionId
+    const activeState = regionStates[activeRegionId] ?? regionStates.taoyuan_outskirts
+    const selectedTileId =
+      typeof raw?.selectedTileId === 'string' && getOpenWorldTileDef(activeRegionId, raw.selectedTileId)
+        ? raw.selectedTileId
+        : activeState.selectedTileId
+    const handbook = {
+      discoveredTileIds: Object.fromEntries(
+        OPEN_WORLD_REGION_IDS.map(regionId => {
+          const def = getOpenWorldRegionDef(regionId)
+          const validTileIds = new Set(def.tiles.map(tile => tile.id))
+          const rawIds = Array.isArray(raw?.handbook?.discoveredTileIds?.[regionId])
+            ? raw.handbook.discoveredTileIds[regionId].filter((tileId: unknown): tileId is string => typeof tileId === 'string' && validTileIds.has(tileId))
+            : []
+          return [regionId, [...new Set([...(regionStates[regionId]?.discoveredTileIds ?? []), ...rawIds])]]
+        })
+      ) as Record<RegionOpenWorldId, string[]>,
+      discoveredObjectKeys: Array.isArray(raw?.handbook?.discoveredObjectKeys)
+        ? uniqueStrings(raw.handbook.discoveredObjectKeys)
+        : [],
+      completedLandmarkKeys: Array.isArray(raw?.handbook?.completedLandmarkKeys)
+        ? uniqueStrings(raw.handbook.completedLandmarkKeys)
+        : [],
+      repairedOutpostIds: Array.isArray(raw?.handbook?.repairedOutpostIds)
+        ? uniqueStrings(raw.handbook.repairedOutpostIds)
+        : [],
+      claimedRewardKeys: Array.isArray(raw?.handbook?.claimedRewardKeys)
+        ? uniqueStrings(raw.handbook.claimedRewardKeys)
+        : []
+    }
+    const log = Array.isArray(raw?.log)
+      ? raw.log
+          .filter((entry: unknown) => entry && typeof entry === 'object')
+          .map((entry: any) => ({
+            id: typeof entry.id === 'string' ? entry.id : createSessionToken(),
+            dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+            regionId: isOpenWorldRegionId(entry.regionId) ? entry.regionId : 'taoyuan_outskirts',
+            tileId: typeof entry.tileId === 'string' ? entry.tileId : '',
+            title: typeof entry.title === 'string' ? entry.title : '行旅记录',
+            summary: typeof entry.summary === 'string' ? entry.summary : '',
+            tone: entry.tone === 'success' || entry.tone === 'danger' ? entry.tone : 'accent'
+          }))
+          .slice(0, 24)
+      : []
+    return {
+      activeRegionId,
+      selectedTileId,
+      lastRefreshDayTag: typeof raw?.lastRefreshDayTag === 'string' ? raw.lastRefreshDayTag : fallback.lastRefreshDayTag,
+      regionStates,
+      handbook,
+      log
+    }
+  }
+
+  const migrateLegacyProgressIntoOpenWorld = (
+    routeStates: RegionMapSaveData['routeStates'],
+    eventStates: RegionMapSaveData['eventStates'],
+    bossClearCounts: RegionMapSaveData['bossClearCounts'],
+    campStates: RegionMapSaveData['campStates']
+  ) => {
+    for (const def of REGION_OPEN_WORLD_DEFS) {
+      for (const tile of def.tiles) {
+        if (tile.routeId) {
+          const routeState = routeStates[tile.routeId]
+          if ((routeState?.completions ?? 0) > 0) {
+            setOpenWorldLandmarkStage(def.id, tile.id, 'completed')
+          } else if (routeState?.unlocked) {
+            setOpenWorldLandmarkStage(def.id, tile.id, 'surveyed')
+          }
+        }
+        if (tile.eventId) {
+          const eventState = eventStates[tile.eventId]
+          if ((eventState?.totalCompletions ?? 0) > 0) {
+            setOpenWorldLandmarkStage(def.id, tile.id, 'completed')
+          }
+        }
+        if (tile.bossId && def.unlockRegionId && (bossClearCounts[def.unlockRegionId] ?? 0) > 0) {
+          setOpenWorldLandmarkStage(def.id, tile.id, 'mastered')
+        }
+        if (tile.outpostId && def.unlockRegionId) {
+          const hasLegacyCampProgress = Object.values(campStates).some(
+            camp =>
+              camp.regionId === def.unlockRegionId &&
+              ((camp.stashTier ?? 0) > 0 || (camp.safetyProgress ?? 0) > 0 || (camp.visitCount ?? 0) > 0)
+          )
+          if (hasLegacyCampProgress) {
+            const regionState = getOpenWorldRegionState(def.id)
+            if (!regionState.repairedOutpostIds.includes(tile.outpostId)) regionState.repairedOutpostIds.push(tile.outpostId)
+            if (!saveData.value.openWorld.handbook.repairedOutpostIds.includes(tile.outpostId)) {
+              saveData.value.openWorld.handbook.repairedOutpostIds.push(tile.outpostId)
+            }
+            const current = regionState.tileStates[tile.id] ?? getOpenWorldTileStateFallback(tile)
+            regionState.tileStates[tile.id] = { ...current, discovered: true, status: 'repaired', landmarkStage: 'completed' }
+            markOpenWorldTileDiscovered(def.id, tile.id)
+          }
+        }
+      }
+    }
+  }
+
+  const isOpenWorldTileSpentToday = (tile: RegionOpenWorldTileDef, state: RegionOpenWorldTileState, dayTag: string) => {
+    if (tile.actionId === 'inspect') return false
+    if (tile.objectType === 'outpost') return state.status === 'repaired'
+    return state.lastActionDayTag === dayTag && state.status !== 'fresh'
+  }
+
+  const getOpenWorldTileView = (regionId: RegionOpenWorldId, tileId: string): RegionOpenWorldTileView | null => {
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    if (!tile) return null
+    const regionState = getOpenWorldRegionState(regionId)
+    const state = getOpenWorldTileState(regionId, tileId) ?? getOpenWorldTileStateFallback(tile)
+    const unlock = getOpenWorldRegionUnlockInfo(regionId)
+    const discovered = state.discovered || regionState.discoveredTileIds.includes(tileId)
+    const current = regionState.playerTileId === tileId
+    const selected = regionState.selectedTileId === tileId
+    const actionLabel = tile.actionId ? OPEN_WORLD_ACTION_LABELS[tile.actionId] : '查看'
+    const spent = isOpenWorldTileSpentToday(tile, state, `${useGameStore().year}-${useGameStore().season}-${useGameStore().day}`)
+    const disabledReason = !unlock.unlocked
+      ? unlock.reason
+      : !discovered
+        ? '还未发现这个格子。'
+        : !current && tile.actionId && tile.actionId !== 'inspect'
+          ? '先走到这个格子再行动。'
+          : spent
+            ? '今天已经处理过这里。'
+            : ''
+    return {
+      ...tile,
+      discovered,
+      current,
+      selected,
+      locked: !unlock.unlocked || !discovered,
+      status: state.status,
+      landmarkStage: state.landmarkStage,
+      actionLabel,
+      statusLabel: spent ? OPEN_WORLD_STATUS_LABELS[state.status] : state.landmarkStage !== 'unknown' ? state.landmarkStage : OPEN_WORLD_STATUS_LABELS[state.status],
+      objectLabel: tile.objectType ? (OPEN_WORLD_OBJECT_LABELS[tile.objectType] ?? tile.objectType) : '地形',
+      disabledReason,
+      canMove: unlock.unlocked && discovered && !current,
+      canAct: unlock.unlocked && discovered && Boolean(tile.actionId) && !disabledReason
+    }
+  }
+
+  const getOpenWorldRegionView = (regionId: RegionOpenWorldId) => {
+    const def = getOpenWorldRegionDef(regionId)
+    const state = getOpenWorldRegionState(regionId)
+    const unlock = getOpenWorldRegionUnlockInfo(regionId)
+    return {
+      def,
+      state,
+      unlocked: unlock.unlocked,
+      unlockReason: unlock.reason,
+      tiles: def.tiles.map(tile => getOpenWorldTileView(regionId, tile.id)).filter((tile): tile is RegionOpenWorldTileView => Boolean(tile))
+    }
+  }
+
+  const ensureOpenWorldState = (dayTag = '') => {
+    saveData.value.openWorld = normalizeOpenWorldSaveData(saveData.value.openWorld)
+    if (dayTag) refreshOpenWorldDailyEcology(dayTag)
+  }
+
+  const refreshOpenWorldDailyEcology = (dayTag: string) => {
+    if (!dayTag || saveData.value.openWorld.lastRefreshDayTag === dayTag) return false
+    for (const def of REGION_OPEN_WORLD_DEFS) {
+      const regionState = getOpenWorldRegionState(def.id)
+      if (regionState.lastRefreshDayTag === dayTag) continue
+      for (const tile of def.tiles) {
+        const current = regionState.tileStates[tile.id] ?? getOpenWorldTileStateFallback(tile)
+        if (tile.dailyRefresh && current.lastActionDayTag !== dayTag) {
+          regionState.tileStates[tile.id] = {
+            ...current,
+            status: 'fresh',
+            lastRefreshDayTag: dayTag
+          }
+        } else {
+          regionState.tileStates[tile.id] = {
+            ...current,
+            lastRefreshDayTag: dayTag
+          }
+        }
+      }
+      regionState.lastRefreshDayTag = dayTag
+    }
+    saveData.value.openWorld.lastRefreshDayTag = dayTag
+    return true
+  }
+
+  const setActiveOpenWorldRegion = (regionId: RegionOpenWorldId, dayTag = ''): RegionOpenWorldActionResult => {
+    if (!isOpenWorldRegionId(regionId)) {
+      return { success: false, message: '开放地图区域不存在。', title: '无法切换区域', lines: ['开放地图区域不存在。'], tone: 'danger' }
+    }
+    ensureOpenWorldState(dayTag)
+    const unlock = getOpenWorldRegionUnlockInfo(regionId)
+    if (!unlock.unlocked) {
+      return { success: false, message: unlock.reason, title: '区域尚未开放', lines: [unlock.reason], tone: 'accent' }
+    }
+    const def = getOpenWorldRegionDef(regionId)
+    const regionState = getOpenWorldRegionState(regionId)
+    saveData.value.openWorld.activeRegionId = regionId
+    saveData.value.openWorld.selectedTileId = regionState.selectedTileId || regionState.playerTileId || def.startTileId
+    revealOpenWorldAround(regionId, regionState.playerTileId || def.startTileId, 1)
+    return {
+      success: true,
+      message: `已切换到「${def.name}」。`,
+      title: '区域切换',
+      lines: [def.description, def.pressureDescription],
+      tone: 'accent'
+    }
+  }
+
+  const selectOpenWorldTile = (tileId: string): RegionOpenWorldActionResult => {
+    const regionId = saveData.value.openWorld.activeRegionId
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    const state = tile ? getOpenWorldTileState(regionId, tileId) : null
+    if (!tile || !state?.discovered) {
+      return { success: false, message: '这格还在迷雾里。', title: '无法选中', lines: ['先移动到附近，把这格显形。'], tone: 'accent' }
+    }
+    const regionState = getOpenWorldRegionState(regionId)
+    regionState.selectedTileId = tileId
+    saveData.value.openWorld.selectedTileId = tileId
+    return { success: true, message: `已选中「${tile.label}」。`, title: tile.label, lines: [tile.description], tone: 'accent' }
+  }
+
+  const moveOpenWorldPlayer = (tileId: string, dayTag = ''): RegionOpenWorldActionResult => {
+    ensureOpenWorldState(dayTag)
+    const regionId = saveData.value.openWorld.activeRegionId
+    const unlock = getOpenWorldRegionUnlockInfo(regionId)
+    if (!unlock.unlocked) {
+      return { success: false, message: unlock.reason, title: '无法移动', lines: [unlock.reason], tone: 'danger' }
+    }
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    const state = tile ? getOpenWorldTileState(regionId, tileId) : null
+    if (!tile || !state?.discovered) {
+      return { success: false, message: '这格还没发现，先走到相邻区域。', title: '无法移动', lines: ['未发现格不能直接前往。'], tone: 'accent' }
+    }
+    const regionState = getOpenWorldRegionState(regionId)
+    regionState.playerTileId = tileId
+    regionState.selectedTileId = tileId
+    saveData.value.openWorld.selectedTileId = tileId
+    revealOpenWorldAround(regionId, tileId, tile.revealsRadius)
+    recordOpenWorldLog(regionId, tileId, dayTag, `抵达${tile.label}`, tile.description, 'accent')
+    return {
+      success: true,
+      message: `已前往「${tile.label}」。`,
+      title: '移动',
+      lines: [tile.description, '移动不消耗体力和时间，周围格子已显形。'],
+      tone: 'accent'
+    }
+  }
+
+  const performOpenWorldAction = (
+    tileId: string,
+    actionId: RegionOpenWorldActionId,
+    dayTag = ''
+  ): RegionOpenWorldActionResult => {
+    ensureOpenWorldState(dayTag)
+    const regionId = saveData.value.openWorld.activeRegionId
+    const tile = getOpenWorldTileDef(regionId, tileId)
+    const regionState = getOpenWorldRegionState(regionId)
+    const state = tile ? getOpenWorldTileState(regionId, tileId) : null
+    if (!tile || !state) {
+      return { success: false, message: '地图格不存在。', title: '无法行动', lines: ['地图格不存在。'], tone: 'danger' }
+    }
+    const unlock = getOpenWorldRegionUnlockInfo(regionId)
+    if (!unlock.unlocked) {
+      return { success: false, message: unlock.reason, title: '区域尚未开放', lines: [unlock.reason], tone: 'danger' }
+    }
+    if (!state.discovered) {
+      return { success: false, message: '这格还在迷雾里。', title: '无法行动', lines: ['先走到附近发现它。'], tone: 'accent' }
+    }
+    if (tile.actionId !== actionId) {
+      return { success: false, message: '这个格子没有对应行动。', title: '无法行动', lines: ['请选择格子当前提供的行动。'], tone: 'accent' }
+    }
+    if (actionId !== 'inspect' && regionState.playerTileId !== tileId) {
+      return { success: false, message: '先走到这个格子再行动。', title: '距离太远', lines: ['移动不消耗体力，可以先前往该格。'], tone: 'accent' }
+    }
+    if (isOpenWorldTileSpentToday(tile, state, dayTag)) {
+      return { success: false, message: '今天已经处理过这里。', title: '今日已处理', lines: ['这格会保留痕迹，等次日生态刷新。'], tone: 'accent' }
+    }
+    const rewardItems = tile.rewardItems.filter(item => item.itemId && item.quantity > 0)
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    const gameStore = useGameStore()
+    if (tile.staminaCost > 0 && playerStore.stamina < tile.staminaCost) {
+      return {
+        success: false,
+        message: `体力不足，需要 ${tile.staminaCost} 点体力。`,
+        title: '体力不足',
+        lines: ['可以继续移动和查看手册，但不能获得本次行动收益。'],
+        tone: 'danger'
+      }
+    }
+    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+      return {
+        success: false,
+        message: '背包空间不足，无法安全带回奖励。',
+        title: '背包已满',
+        lines: ['本次行动未扣体力和时间，也没有标记格子完成。'],
+        tone: 'danger'
+      }
+    }
+    if (tile.staminaCost > 0 && !playerStore.consumeStamina(tile.staminaCost)) {
+      return {
+        success: false,
+        message: `体力不足，需要 ${tile.staminaCost} 点体力。`,
+        title: '体力不足',
+        lines: ['可以继续移动和查看手册，但不能获得本次行动收益。'],
+        tone: 'danger'
+      }
+    }
+    const inventorySnapshot = inventoryStore.serialize()
+    if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
+      inventoryStore.deserialize(inventorySnapshot)
+      return {
+        success: false,
+        message: '背包空间不足，奖励未发放。',
+        title: '背包已满',
+        lines: ['本次行动没有标记格子完成。'],
+        tone: 'danger'
+      }
+    }
+    if (tile.rewardFamilyId && tile.rewardFamilyAmount > 0) {
+      addFamilyResources(tile.rewardFamilyId, tile.rewardFamilyAmount)
+    }
+    const nextStatus: RegionOpenWorldTileStatus =
+      actionId === 'gather'
+        ? 'depleted'
+        : actionId === 'open_chest'
+          ? 'opened'
+          : actionId === 'repair'
+            ? 'repaired'
+            : actionId === 'inspect'
+              ? state.status
+              : 'resolved'
+    regionState.tileStates[tile.id] = {
+      ...state,
+      discovered: true,
+      status: nextStatus,
+      landmarkStage: tile.objectType?.endsWith('_landmark')
+        ? getMoreAdvancedLandmarkStage(state.landmarkStage, 'surveyed')
+        : state.landmarkStage,
+      actionCount: state.actionCount + 1,
+      lastActionDayTag: dayTag,
+      lastRefreshDayTag: state.lastRefreshDayTag
+    }
+    if (tile.outpostId && actionId === 'repair') {
+      if (!regionState.repairedOutpostIds.includes(tile.outpostId)) regionState.repairedOutpostIds.push(tile.outpostId)
+      if (!saveData.value.openWorld.handbook.repairedOutpostIds.includes(tile.outpostId)) {
+        saveData.value.openWorld.handbook.repairedOutpostIds.push(tile.outpostId)
+      }
+    }
+    markOpenWorldTileDiscovered(regionId, tile.id)
+    revealOpenWorldAround(regionId, tile.id, tile.revealsRadius)
+    const timeResult = tile.timeCostHours > 0 ? gameStore.advanceTime(tile.timeCostHours) : { ok: true, passedOut: false, message: '' }
+    const rewardSummary = [
+      ...rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`),
+      tile.rewardFamilyId && tile.rewardFamilyAmount > 0
+        ? `${REGIONAL_RESOURCE_FAMILY_DEFS.find(family => family.id === tile.rewardFamilyId)?.label ?? tile.rewardFamilyId}×${tile.rewardFamilyAmount}`
+        : ''
+    ].filter(Boolean)
+    const message = `${OPEN_WORLD_ACTION_LABELS[actionId]}「${tile.label}」完成。${rewardSummary.length > 0 ? `获得 ${rewardSummary.join('、')}。` : ''}${timeResult.message ? ` ${timeResult.message}` : ''}`.trim()
+    recordOpenWorldLog(regionId, tile.id, dayTag, tile.label, message, 'success')
+    showFloat(message, 'success')
+    addLog(`【行旅图】${message}`)
+    return {
+      success: true,
+      message,
+      title: tile.label,
+      lines: [tile.description, rewardSummary.length > 0 ? `收获：${rewardSummary.join('、')}` : '已记录到区域手册。'],
+      tone: 'success',
+      timeResult
+    }
+  }
 
   const syncJourneyActionStateWithHistory = () => {
     const validEntryIds = new Set(saveData.value.journeyHistory.map(entry => entry.id))
@@ -4477,6 +5170,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     unlockStates: { ...saveData.value.unlockStates },
     routeStates: { ...saveData.value.routeStates },
     eventStates: { ...saveData.value.eventStates },
+    openWorld: cloneOpenWorldSaveData(saveData.value.openWorld),
     weeklyFocusState: {
       weekId: saveData.value.weeklyFocusState.weekId,
       focusedRegionId: saveData.value.weeklyFocusState.focusedRegionId,
@@ -5038,6 +5732,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
 
+    const openWorld = normalizeOpenWorldSaveData(data.openWorld)
+
     const journeyCraftingUnlocks = { ...fallback.journeyCraftingUnlocks }
     for (const recipe of JOURNEY_CRAFTING_RECIPES) {
       journeyCraftingUnlocks[recipe.id] = Boolean(data.journeyCraftingUnlocks?.[recipe.id])
@@ -5424,6 +6120,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       unlockStates,
       routeStates,
       eventStates,
+      openWorld,
       weeklyFocusState,
       weeklyEventState,
       resourceLedger,
@@ -5459,6 +6156,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     syncJourneyActionStateWithHistory()
     refreshRouteUnlocks()
     syncStructuralState()
+    migrateLegacyProgressIntoOpenWorld(routeStates, eventStates, bossClearCounts, campStates)
     ensureFrontierWorldSignals()
     if (saveData.value.weeklyFocusState.weekId && saveData.value.weeklyEventState.weekId !== saveData.value.weeklyFocusState.weekId) {
       refreshWeeklyEventRuntime(saveData.value.weeklyFocusState.weekId, saveData.value.weeklyFocusState.focusedRegionId, '')
@@ -5484,6 +6182,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           applyLockedRegionState(regionId)
         }
         return true
+      },
+      setOpenWorldRegion: (regionId: RegionOpenWorldId) => {
+        const gameStore = useGameStore()
+        return setActiveOpenWorldRegion(regionId, `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
       },
       startFirstManualSession: () => {
         clearExpedition()
@@ -5516,6 +6218,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     sessionState,
     settlementState,
     saveData,
+    openWorldDefs,
+    openWorldState,
+    activeOpenWorldRegion,
+    activeOpenWorldRegionState,
+    activeOpenWorldTile,
+    selectedOpenWorldTile,
+    openWorldRegionEntries,
     regionSummaries,
     unlockedRegionCount,
     hasActiveExpedition,
@@ -5543,6 +6252,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     getBossNodeVisibilityStage,
     getRegionVariantSnapshot,
     peekRegionVariantSnapshot,
+    getOpenWorldTileView,
+    getOpenWorldRegionView,
     getRumorBoardForRegion,
     peekRumorBoardForRegion,
     getCompanionContractCandidates,
@@ -5577,6 +6288,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     setWeeklyFocus,
     refreshWeeklyEventRuntime,
     ensureWeeklyEventRuntime,
+    ensureOpenWorldState,
+    setActiveOpenWorldRegion,
+    selectOpenWorldTile,
+    moveOpenWorldPlayer,
+    performOpenWorldAction,
+    refreshOpenWorldDailyEcology,
     markRouteCompleted,
     addFamilyResources,
     consumeFamilyResources,

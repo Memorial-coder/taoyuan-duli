@@ -6,19 +6,33 @@
         <span>行旅图</span>
       </div>
       <span class="text-xs" :class="regionMapStore.unlockedRegionCount > 0 ? 'text-success' : 'text-muted'">
-        {{ regionMapStore.unlockedRegionCount > 0 ? '已开放' : '按进度开放' }}
+        {{ regionMapStore.unlockedRegionCount > 0 ? '已开放' : '近郊开放' }}
       </span>
     </div>
+
+    <RegionOpenWorldMap
+      class="mb-3"
+      :regions="regionMapStore.openWorldRegionEntries"
+      :active-region="activeOpenWorldRegionView"
+      :selected-tile="selectedOpenWorldTileView"
+      :day-tag="currentDayTag"
+      :logs="regionMapStore.openWorldState.log"
+      :repaired-outpost-count="regionMapStore.openWorldState.handbook.repairedOutpostIds.length"
+      @select-region="handleSelectOpenWorldRegion"
+      @select-tile="handleSelectOpenWorldTile"
+      @move="handleMoveOpenWorldPlayer"
+      @perform-action="handlePerformOpenWorldAction"
+    />
 
     <div v-if="regionMapStore.unlockedRegionCount <= 0" class="border border-accent/20 rounded-xs p-3 mb-3">
       <div class="flex items-center gap-2 mb-2 text-accent/70">
         <Map :size="18" />
-        <span class="text-xs">未开放时也可先查看开放条件</span>
+        <span class="text-xs">远方区域开放条件</span>
       </div>
-      <p class="text-sm text-muted">行旅图会随着玩家进度逐步开放。</p>
+      <p class="text-sm text-muted">近郊 / 竹林已可探索，古驿荒道、蜃潮泽地、云岚高地会随着玩家进度逐步开放。</p>
       <p class="text-xs text-muted mt-1 leading-5">
-        当任意区域满足解锁条件后，这里会自动切换成正式可推进的区域总入口，不再需要额外开关。      </p>
-      <p class="text-xs text-accent/80 mt-2 leading-5">现在不再需要额外开关，任一区域满足条件后会自动进入可用状态。</p>
+        满足条件后，对应开放地图会直接在上方区域切换中亮起。
+      </p>
       <div class="mt-3 space-y-2">
         <div
           v-for="entry in lockedRegionUnlockGuides"
@@ -40,7 +54,10 @@
       </div>
     </div>
 
-    <template v-else>
+    <template v-if="regionMapStore.unlockedRegionCount > 0">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <p class="text-xs text-muted">旧远征、旅后处理和资源整备仍保留在下方，作为开放地图的承接入口。</p>
+      </div>
       <div class="mb-3 border border-accent/20 rounded-xs p-1 bg-bg/70" data-testid="region-map-tabs">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-1">
           <button
@@ -1257,6 +1274,7 @@
   import { Map } from 'lucide-vue-next'
   import FishBossImage from '@/components/game/FishBossImage.vue'
   import RegionExplorationTree from '@/components/game/regionMap/RegionExplorationTree.vue'
+  import RegionOpenWorldMap from '@/components/game/regionMap/RegionOpenWorldMap.vue'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import RegionJourneyAftermathPanel from '@/components/game/regionMap/RegionJourneyAftermathPanel.vue'
@@ -1294,6 +1312,8 @@
     RegionExplorationTreeNode,
     RegionId,
     RegionLinkedSystem,
+    RegionOpenWorldActionId,
+    RegionOpenWorldId,
     RegionRouteDef,
     RegionalResourceFamilyId
   } from '@/types/region'
@@ -1493,6 +1513,10 @@
 
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const currentWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
+  const activeOpenWorldRegionView = computed(() => regionMapStore.getOpenWorldRegionView(regionMapStore.openWorldState.activeRegionId))
+  const selectedOpenWorldTileView = computed(() =>
+    regionMapStore.getOpenWorldTileView(regionMapStore.openWorldState.activeRegionId, regionMapStore.openWorldState.selectedTileId)
+  )
 
   const currentFocusLabel = computed(() => {
     const focusedId = regionMapStore.metaState.weeklyFocusState.focusedRegionId
@@ -2505,6 +2529,7 @@
   const ensureWeeklyEventRuntime = () => {
     regionMapStore.refreshUnlocksFromProgress(currentDayTag.value)
     regionMapStore.ensureWeeklyEventRuntime(currentWeekId.value, regionMapStore.currentWeeklyFocus.focusedRegionId, currentDayTag.value)
+    regionMapStore.ensureOpenWorldState(currentDayTag.value)
     regionMapStore.ensureFrontierWorldSignals(currentDayTag.value)
   }
 
@@ -3904,6 +3929,30 @@
     const result = regionMapStore.runRegionEvent(eventId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     openSettlementDialog(result.success ? '区域事件结算' : '区域事件未完成', [result.message], result.success ? 'success' : 'danger')
+  }
+
+  const handleSelectOpenWorldRegion = (regionId: RegionOpenWorldId) => {
+    const result = regionMapStore.setActiveOpenWorldRegion(regionId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'accent' : 'danger')
+  }
+
+  const handleSelectOpenWorldTile = (tileId: string) => {
+    const result = regionMapStore.selectOpenWorldTile(tileId)
+    if (!result.success) setActionSummary(result.message, result.tone)
+  }
+
+  const handleMoveOpenWorldPlayer = (tileId: string) => {
+    const result = regionMapStore.moveOpenWorldPlayer(tileId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'accent' : result.tone)
+  }
+
+  const handlePerformOpenWorldAction = (tileId: string, actionId: RegionOpenWorldActionId) => {
+    const result = regionMapStore.performOpenWorldAction(tileId, actionId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : result.tone)
+    if (!result.success) {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
+    handleRegionActionEndDay(result)
   }
 
 

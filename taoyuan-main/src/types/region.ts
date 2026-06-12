@@ -1,10 +1,180 @@
 import type { Season, Weather } from './game'
 import type { RelationshipStage } from './npc'
 import type { SkillType } from './skill'
-import type { WeaponType } from './item'
+import type { Quality, WeaponType } from './item'
 import type { EquipmentEffectType } from './ring'
 
 export type RegionId = 'ancient_road' | 'mirage_marsh' | 'cloud_highland'
+
+export type RegionOpenWorldId = 'taoyuan_outskirts' | RegionId
+
+export type RegionOpenWorldPressureKind = 'safe' | 'sand_heat' | 'miasma' | 'wind_chill'
+
+export type RegionOpenWorldTerrain =
+  | 'grass'
+  | 'bamboo'
+  | 'forest'
+  | 'road'
+  | 'ruin'
+  | 'water'
+  | 'marsh'
+  | 'ridge'
+  | 'camp'
+  | 'gate'
+
+export type RegionOpenWorldObjectType =
+  | 'tree'
+  | 'bamboo'
+  | 'herb'
+  | 'chest'
+  | 'animal'
+  | 'monster'
+  | 'story'
+  | 'route_landmark'
+  | 'event_landmark'
+  | 'boss_landmark'
+  | 'outpost'
+  | 'shortcut'
+  | 'roadblock'
+
+export type RegionOpenWorldActionId =
+  | 'inspect'
+  | 'gather'
+  | 'open_chest'
+  | 'observe'
+  | 'drive_off'
+  | 'repair'
+  | 'fast_travel'
+
+export type RegionOpenWorldTileStatus = 'fresh' | 'depleted' | 'opened' | 'resolved' | 'repaired'
+
+export type RegionOpenWorldLandmarkStage = 'unknown' | 'heard' | 'surveyed' | 'completed' | 'mastered'
+
+export interface RegionOpenWorldRewardItem {
+  itemId: string
+  quantity: number
+  quality?: Quality
+}
+
+export interface RegionOpenWorldTileDef {
+  id: string
+  x: number
+  y: number
+  terrain: RegionOpenWorldTerrain
+  label: string
+  description: string
+  objectType?: RegionOpenWorldObjectType
+  actionId?: RegionOpenWorldActionId
+  staminaCost: number
+  timeCostHours: number
+  rewardItems: RegionOpenWorldRewardItem[]
+  rewardFamilyId: RegionalResourceFamilyId | null
+  rewardFamilyAmount: number
+  dailyRefresh: boolean
+  routeId?: string | null
+  eventId?: string | null
+  bossId?: string | null
+  outpostId?: string | null
+  revealsRadius: number
+}
+
+export interface RegionOpenWorldRegionDef {
+  id: RegionOpenWorldId
+  name: string
+  description: string
+  width: number
+  height: number
+  startTileId: string
+  unlockRegionId: RegionId | null
+  pressureKind: RegionOpenWorldPressureKind
+  pressureLabel: string
+  pressureDescription: string
+  tiles: RegionOpenWorldTileDef[]
+  landmarkRouteIds: string[]
+  landmarkEventIds: string[]
+  landmarkBossId: string | null
+}
+
+export interface RegionOpenWorldTileState {
+  tileId: string
+  discovered: boolean
+  status: RegionOpenWorldTileStatus
+  landmarkStage: RegionOpenWorldLandmarkStage
+  actionCount: number
+  lastActionDayTag: string
+  lastRefreshDayTag: string
+}
+
+export interface RegionOpenWorldRegionState {
+  regionId: RegionOpenWorldId
+  playerTileId: string
+  selectedTileId: string
+  discoveredTileIds: string[]
+  repairedOutpostIds: string[]
+  tileStates: Record<string, RegionOpenWorldTileState>
+  lastRefreshDayTag: string
+}
+
+export interface RegionOpenWorldHandbookState {
+  discoveredTileIds: Record<RegionOpenWorldId, string[]>
+  discoveredObjectKeys: string[]
+  completedLandmarkKeys: string[]
+  repairedOutpostIds: string[]
+  claimedRewardKeys: string[]
+}
+
+export interface RegionOpenWorldLogEntry {
+  id: string
+  dayTag: string
+  regionId: RegionOpenWorldId
+  tileId: string
+  title: string
+  summary: string
+  tone: 'accent' | 'success' | 'danger'
+}
+
+export interface RegionOpenWorldSaveData {
+  activeRegionId: RegionOpenWorldId
+  selectedTileId: string
+  lastRefreshDayTag: string
+  regionStates: Record<RegionOpenWorldId, RegionOpenWorldRegionState>
+  handbook: RegionOpenWorldHandbookState
+  log: RegionOpenWorldLogEntry[]
+}
+
+export interface RegionOpenWorldRegionEntry {
+  id: RegionOpenWorldId
+  name: string
+  description: string
+  unlocked: boolean
+  unlockReason: string
+  pressureLabel: string
+  active: boolean
+}
+
+export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
+  discovered: boolean
+  current: boolean
+  selected: boolean
+  locked: boolean
+  status: RegionOpenWorldTileStatus
+  landmarkStage: RegionOpenWorldLandmarkStage
+  actionLabel: string
+  statusLabel: string
+  objectLabel: string
+  disabledReason: string
+  canMove: boolean
+  canAct: boolean
+}
+
+export interface RegionOpenWorldActionResult {
+  success: boolean
+  message: string
+  title: string
+  lines: string[]
+  tone: 'accent' | 'success' | 'danger'
+  timeResult?: { ok: boolean; passedOut: boolean; message: string }
+}
 
 export type RegionNodeType = 'route' | 'event' | 'elite' | 'boss' | 'camp' | 'handoff'
 
@@ -648,6 +818,7 @@ export interface RegionMapSaveData {
   unlockStates: Record<RegionId, RegionUnlockState>
   routeStates: Record<string, RegionRouteState>
   eventStates: Record<string, RegionEventState>
+  openWorld: RegionOpenWorldSaveData
   weeklyFocusState: RegionWeeklyFocusState
   weeklyEventState: RegionWeeklyEventState
   resourceLedger: Record<RegionalResourceFamilyId, number>
