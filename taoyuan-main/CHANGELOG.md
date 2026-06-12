@@ -4,6 +4,38 @@
 
 ## [未发布]
 
+### 0612 背包锁定售卖保护
+- 农场出货箱候选列表现在会跳过锁定背包槽位，锁定物品不再能从农场入口放入出货箱。
+- 商圈出售在列表、出售弹窗解析和确认出售前都拦截锁定槽位；`useShopStore.sellItem()` 与 `addToShippingBox()` 统一只扣未锁定库存，为直接卖店、一键出售和出货箱入口提供 store 层兜底。
+- 本轮验证：`npm --prefix taoyuan-main run qa:inventory-guards`、`npx eslint src/stores/useInventoryStore.ts src/stores/useShopStore.ts src/views/game/FarmView.vue src/views/game/ShopView.vue` 通过；`npm --prefix taoyuan-main run type-check` 当前被既有 `src/views/game/AchievementView.vue(847,142)` 类型错误阻塞。
+
+### 0612 装备方案饰品显示与护符加成提示
+- 装备方案弹窗补充武器、戒指、帽子、鞋子和饰品槽位摘要，保存或应用方案前可以直接看到护符/饰品配置，不再只能看到方案按钮。
+- 商店、出售弹窗和出货箱里的“戒指加成”提示统一改为“装备加成”，避免护符实际已进入统一装备加成计算但 UI 文案误导玩家。
+- `qa:equipment-guards` 新增市场护符解锁、装备、商店折扣/售价加成、方案保存和方案恢复断言；本轮验证：`npm --prefix taoyuan-main run qa:equipment-guards`、目标文件 `git diff --check` 通过；`npm --prefix taoyuan-main run type-check` 当前被既有 `src/views/game/AchievementView.vue` 类型错误阻塞。
+
+### 0612 动物宠物马心情收益
+- 动物心情现在不再只是显示：开心动物产出时有小概率额外获得 1 份同类产物，心情越高额外产物概率越高，原有好感品质、技能品质和草甸额外产出规则保持不变。
+- 宠物新增心情字段与旧存档默认补值；抚摸和特别喂食会提升宠物心情，心情会影响礼物、节日提醒、传闻和特别喂食寻宝概率，宠物卡片补充心情条展示。
+- 马的出行收益改为读取马的心情和好感：低心情仍有基础代步收益，开心马进一步减少旅行时间，高心情且高好感时额外降低出行体力消耗。
+- 本轮验证：`node scripts/qa-animal-mood-guards.mjs`、`npm run qa:reward-delivery-control`、`npm run qa:navigation-clock-guards`、`node scripts/qa-animal-meat-guards.mjs`、目标文件 `eslint`、`git diff --check` 通过；`npm run type-check` 当前被既有 `src/views/game/AchievementView.vue` 类型错误阻塞。
+
+### 0612 好友大厅发现入口
+- 好友驿站下方新增好友大厅，可查看全服公开玩家并按全部、在线、最近活跃筛选；大厅卡片展示头像、昵称、在线状态、最近登录、等级和共同好友数，并支持搜索昵称、用户名或 9 位存档 ID。
+- 好友大厅接入查看资料、私聊、发送好友申请、屏蔽和举报；推荐顺序优先在线与最近活跃玩家，同时参考等级接近、共同好友和随机刷新。
+- 服务端新增好友发现与举报接口，发现列表复用公开资料、好友关系、屏蔽关系、实时在线记录和全服存档身份，单个异常候选会被跳过，避免影响整页大厅。
+- 本轮验证：`node --check server/src/taoyuanSaveRuntime.js`、`node --check server/src/taoyuanSocialRuntime.js`、`node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/src/routes/api.js`、`npm --prefix taoyuan-main run qa:friend-lobby-guards`、`npm exec -- eslint src/views/game/FriendStationView.vue src/stores/useSocialStore.ts src/utils/onlineProfileApi.ts` 通过；`npm --prefix taoyuan-main run check` 当前被既有 `src/views/game/AchievementView.vue` 类型错误阻塞。
+
+### 0612 公会永久成长道具背包使用
+- 公会徽章、生命护符、守护符和幸运铜钱现在可直接在背包里使用，不再要求先进入矿洞；背包入口复用矿洞 store 的永久加成落点，使用后会立即消耗道具并刷新攻击、最大生命、防御或掉落收益。
+- `qa:inventory-guards` 覆盖非矿洞状态直接使用公会永久成长道具的断言；原矿洞批量食物守护改用恢复值稳定的冒险口粮，避免复收作物恢复降温后玉米数值变动影响测试意图。
+- 本轮验证：`npm --prefix taoyuan-main run qa:inventory-guards`、`npm --prefix taoyuan-main run type-check` 通过。
+
+### 0612 果树品质显示补齐
+- 果树日结日志和睡眠摘要现在会按水果与品质聚合展示，例如 `鲜桃（优良）×2`，让成熟年限带来的品质提升能在产出反馈中直接看见。
+- 农场果树卡片与温室果树位显示当前树龄对应的预计品质：0 年普通、1 年优良、2 年精品、3 年及以上极品；仅补充展示，不改变果树成熟、跨年涨龄或产果规则。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:greenhouse-fruit-trees`、`git diff --check -- taoyuan-main/src/composables/useEndDay.ts taoyuan-main/src/views/game/FarmView.vue` 通过。
+
 ### 0612 鱼塘传说鱼保护养殖
 - 鱼塘新增金甲龟和娃娃鱼两类保护型传说鱼驻塘：金甲龟要求 Lv.5 鱼塘，娃娃鱼要求 Lv.4 鱼塘；它们可以用于展示、周赛和长期养护，但不会产出自身本体。
 - 保护型传说鱼禁止繁殖，读档归一化也会丢弃这类鱼的繁殖中状态；稀有副产物改为低概率、硬上限产出，且不吃体重基因和钓鱼精通产率加成，避免把龙玉、夜光藻团刷成日常物资。
@@ -22,7 +54,9 @@
 ### 0612 远古水果经济降温
 - 远古水果续种从 `1 果 -> 2 种` 调整为 `1 果 -> 1 种`，单株最大收获次数从 6 次降至 4 次，保留 7 天再生节奏，避免稀有种子入手后指数扩张。
 - 深渊宝箱不再从通用古物三选一中顺带掉落远古种子，改为独立 2.5% 小概率掉落；龙牙化石与骨骸碎片仍保留原有深渊古物池权重。
-- 本轮验证：`node --check taoyuan-main/scripts/qa-item-data-guards.mjs`、`node --check taoyuan-main/scripts/qa-museum-ancient-seed-donation.mjs`、`npm --prefix taoyuan-main run qa:item-data-guards`、`npm --prefix taoyuan-main run qa:museum-ancient-seed-donation` 通过。
+- 远古水果原果恢复纳入复收作物上限，固定为 14 体力 / 5 生命；远古果酒从 24000 铜币降至 12000 铜币，恢复值降至 180 体力 / 90 生命，避免酿酒品质倍率把稀有作物变成百万级现金机。
+- 种子制造机不再为远古水果额外生成可种植的遗传种子；普通作物仍保留成功掷骰后的育种箱奖励路径。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-item-data-guards.mjs`、`node --check taoyuan-main/scripts/qa-hidden-processing-guards.mjs`、`node --check taoyuan-main/scripts/qa-museum-ancient-seed-donation.mjs`、`npm --prefix taoyuan-main run qa:item-data-guards`、`npm --prefix taoyuan-main run qa:museum-ancient-seed-donation`、`node taoyuan-main/scripts/qa-hidden-processing-guards.mjs` 通过；`npm --prefix taoyuan-main run type-check` / `check` 当前被既有 `src/views/game/AchievementView.vue` 类型错误阻断。
 
 ### 0612 雨天淘金收益上调
 - 雨天可淘金的基础产出从每次固定 1 份改为按淘金盘等级结算：初始 2 份、铁制 3 份、精钢 3 份、铱金 4 份；原有矿砂 / 宝石 / 金砂概率池不变，避免前期雨天 1 小时只换 1 块铜矿。
