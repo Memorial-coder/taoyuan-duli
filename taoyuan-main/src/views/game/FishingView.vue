@@ -473,7 +473,7 @@
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { getBaitById, getTackleById } from '@/data/processing'
   import { FISHING_LOCATIONS } from '@/data/fish'
-  import type { BaitType, TackleType, FishingLocation, FishDef, MiniGameParams, MiniGameResult, Quality } from '@/types'
+  import type { BaitType, TackleType, FishingLocation, FishDef, MiniGameParams, MiniGameResult, Quality, ToolTier } from '@/types'
   import { ACTION_TIME_COSTS, TOOL_TIME_SAVINGS, SKILL_TIME_REDUCTION_PER_LEVEL, MIN_ACTION_MINUTES } from '@/data/timeConstants'
   import { sfxFishCatch, sfxLineBroken, sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
@@ -800,6 +800,14 @@
 
   // === Panning ===
 
+  const PAN_TOOL_TIERS: ToolTier[] = ['basic', 'iron', 'steel', 'iridium']
+  const PAN_BASE_QUANTITY_BY_TIER: Record<ToolTier, number> = {
+    basic: 2,
+    iron: 3,
+    steel: 3,
+    iridium: 4
+  }
+
   const handlePan = () => {
     if (gameStore.isPastBedtime) {
       addLog('太晚了，没法淘金了。')
@@ -820,60 +828,55 @@
     }
 
     const panTier = inventoryStore.getTool('pan')?.tier ?? 'basic'
-    const tiers: string[] = ['basic', 'iron', 'steel', 'iridium']
-    const tierIndex = tiers.indexOf(panTier)
+    const tierIndex = PAN_TOOL_TIERS.indexOf(panTier)
+    const baseQuantity = PAN_BASE_QUANTITY_BY_TIER[panTier] ?? PAN_BASE_QUANTITY_BY_TIER.basic
 
     const roll = Math.random()
     let itemId: string
-    let qty = 1
+    let qty = baseQuantity
     let name: string
 
     if (roll < 0.4) {
       itemId = 'copper_ore'
-      qty = 1
       name = '铜矿'
     } else if (roll < 0.62) {
       itemId = tierIndex >= 1 ? 'iron_ore' : 'copper_ore'
-      qty = 1
       name = tierIndex >= 1 ? '铁矿' : '铜矿'
     } else if (roll < 0.75) {
       itemId = tierIndex >= 2 ? 'gold_ore' : 'iron_ore'
-      qty = 1
       name = tierIndex >= 2 ? '金矿' : '铁矿'
     } else if (roll < 0.84) {
       itemId = 'quartz'
-      qty = 1
       name = '石英'
     } else if (roll < 0.9) {
       itemId = 'jade'
-      qty = 1
       name = '翡翠'
     } else if (roll < 0.95) {
       itemId = 'ruby'
-      qty = 1
       name = '红宝石'
     } else {
       const goldNuggetChance = tierIndex >= 3 ? 0.12 : 0.04
       if (Math.random() < goldNuggetChance / 0.05) {
         itemId = 'gold_nugget'
-        qty = 1
         name = '金砂'
       } else {
         itemId = 'copper_ore'
-        qty = 1
         name = '铜矿'
       }
     }
+    qty += Math.random() < fishingStore.environmentWindow.fishing.panBonusChance ? 1 : 0
+
+    const rewardLabel = `${name}×${qty}`
 
     const added = inventoryStore.addItemExact(itemId, qty)
     if (added) {
       achievementStore.discoverItem(itemId)
       skillStore.addExp('mining', 5)
-      panResult.value = `淘到了${name}！(-${cost}体力)`
-      addLog(`淘金获得了${name}。(-${cost}体力)`)
+      panResult.value = `淘到了${rewardLabel}！(-${cost}体力)`
+      addLog(`淘金获得了${rewardLabel}。(-${cost}体力)`)
     } else {
-      panResult.value = `淘到了${name}，但背包空间不足，没能带走。(-${cost}体力)`
-      addLog(`淘金发现了${name}，但背包空间不足，没能带走。(-${cost}体力)`)
+      panResult.value = `淘到了${rewardLabel}，但背包空间不足，没能带走。(-${cost}体力)`
+      addLog(`淘金发现了${rewardLabel}，但背包空间不足，没能带走。(-${cost}体力)`)
     }
 
     const tr = gameStore.advanceTime(panTime.value)

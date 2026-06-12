@@ -111,6 +111,21 @@ const farmActionsSource = readSource('composables', 'useFarmActions.ts')
 assert.match(farmActionsSource, /if \(farmStore\.plantCrop\(plot\.id, cropDef\.id\)\) \{\s*planted\+\+/s, 'field batch planting should only count successful plant calls')
 assert.match(farmActionsSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(cropDef\.seedId\)/s, 'field batch planting should refund failed plant attempts')
 
+const fishingViewSource = readSource('views', 'game', 'FishingView.vue')
+assert.match(
+  fishingViewSource,
+  /const PAN_BASE_QUANTITY_BY_TIER: Record<ToolTier, number> = \{\s*basic: 2,\s*iron: 3,\s*steel: 3,\s*iridium: 4\s*\}/,
+  'rain-gated panning should pay at least two resources and scale with pan tier'
+)
+assert.match(fishingViewSource, /let qty = baseQuantity/, 'panning rewards should start from tier-based base quantity')
+assert.match(
+  fishingViewSource,
+  /qty \+= Math\.random\(\) < fishingStore\.environmentWindow\.fishing\.panBonusChance \? 1 : 0/,
+  'panning rewards should apply the active weather window pan bonus chance'
+)
+assert.match(fishingViewSource, /const rewardLabel = `\$\{name\}×\$\{qty\}`/, 'panning logs should show reward quantity')
+assert.doesNotMatch(fishingViewSource, /淘金获得了\$\{name\}/, 'panning logs should not hide multi-item quantities')
+
 const processing = await import(pathToFileURL(path.join(srcRoot, 'data', 'processing.ts')).href)
 const journeyHub = await import(pathToFileURL(path.join(srcRoot, 'data', 'journeyHub.ts')).href)
 const upgrades = await import(pathToFileURL(path.join(srcRoot, 'data', 'upgrades.ts')).href)

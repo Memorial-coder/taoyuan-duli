@@ -83,6 +83,7 @@ export const getSkullCavernMushroomTileItems = (floor: number): { itemId: string
 /** 宝箱层奖励 */
 export const FOX_BEAD_MIN_FLOOR = 50
 export const FOX_BEAD_DEEP_TREASURE_CHANCE = 0.12
+export const ANCIENT_SEED_ABYSS_TREASURE_CHANCE = 0.025
 export const canTreasureDropFoxBead = (floor: number): boolean => floor >= FOX_BEAD_MIN_FLOOR
 
 export const getTreasureRewards = (floor: number): { items: { itemId: string; quantity: number }[]; money: number } => {
@@ -111,7 +112,7 @@ export const getTreasureRewards = (floor: number): { items: { itemId: string; qu
       lava: ['ammonite_fossil', 'bronze_mirror', 'painted_pottery'],
       crystal: ['ammonite_fossil', 'jade_disc', 'jade_pendant'],
       shadow: ['oracle_bone', 'amber', 'ancient_coin'],
-      abyss: ['dragon_tooth', 'bone_fragment', 'ancient_seed']
+      abyss: ['dragon_tooth', 'bone_fragment']
     }
     const pool = ZONE_TREASURE_DROPS[zone]
     if (pool && pool.length > 0) {
@@ -122,6 +123,10 @@ export const getTreasureRewards = (floor: number): { items: { itemId: string; qu
 
   if (canTreasureDropFoxBead(floor) && Math.random() < FOX_BEAD_DEEP_TREASURE_CHANCE) {
     items.push({ itemId: 'fox_bead', quantity: 1 })
+  }
+
+  if (zone === 'abyss' && Math.random() < ANCIENT_SEED_ABYSS_TREASURE_CHANCE) {
+    items.push({ itemId: 'ancient_seed', quantity: 1 })
   }
 
   // 深渊层宝箱极小概率掉落仙桃

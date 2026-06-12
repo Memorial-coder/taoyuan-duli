@@ -188,6 +188,7 @@ assert(!!ancientSeedRecipe, '应存在远古水果制远古种子的加工配方
 assert(ancientSeedRecipe?.machineType === 'seed_maker', '远古种子续种配方应由种子制造机处理。')
 assert(ancientSeedRecipe?.inputItemId === 'ancient_fruit', '远古种子续种配方输入应为远古水果。')
 assert(ancientSeedRecipe?.outputItemId === 'ancient_seed', '远古种子续种配方输出应为远古种子。')
+assert(ancientSeedRecipe?.outputQuantity === 1, 'ancient fruit seed maker should output 1 seed to avoid exponential growth.')
 
 if (errors.length > 0) {
   console.error('远古种子博物馆捐赠 QA 失败：')

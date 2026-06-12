@@ -74,6 +74,7 @@ const wildTrees = await import(pathToFileURL(path.join(srcRoot, 'data', 'wildTre
 
 const {
   ITEMS,
+  CROPS,
   getItemById,
   migrateLegacyItemId,
   LEGACY_AMBIGUOUS_ITEM_ID_COMPATIBILITY,
@@ -89,6 +90,7 @@ const {
   HANHAI_SHOP_ITEMS,
   MUSEUM_ITEMS,
   MUSEUM_MILESTONES,
+  ANCIENT_SEED_ABYSS_TREASURE_CHANCE,
   canTreasureDropFoxBead,
   getTreasureRewards
 } = data
@@ -117,7 +119,8 @@ expectItem('osmanthus_tea', { category: 'crop', sellPrice: 420, edible: true })
 expectItem('processed_osmanthus_tea', { category: 'processed', sellPrice: 900, edible: true })
 expectItem('dragon_pearl', { category: 'crop', sellPrice: 900, edible: true })
 expectItem('spirit_dragon_pearl', { category: 'misc', sellPrice: 0, edible: false })
-expectItem('lychee', { category: 'crop', sellPrice: 270, edible: true })
+expectItem('peach', { category: 'crop', sellPrice: 210, edible: true, staminaRestore: 14, healthRestore: 5 })
+expectItem('lychee', { category: 'crop', sellPrice: 270, edible: true, staminaRestore: 14, healthRestore: 5 })
 expectItem('tree_lychee', { category: 'fruit', sellPrice: 120, edible: true })
 expectItem('persimmon', { category: 'crop', sellPrice: 225, edible: true })
 expectItem('tree_persimmon', { category: 'fruit', sellPrice: 127, edible: true })
@@ -126,6 +129,36 @@ expectItem('wild_mulberry', { category: 'misc', sellPrice: 25, edible: true })
 expectItem('wild_meat', { category: 'material', sellPrice: 35, edible: false })
 expectItem('skull_mushroom', { category: 'misc', sellPrice: 120, edible: true })
 expectItem('food_skull_mushroom_soup', { category: 'food', edible: true })
+
+const marketRegrowthRawCropLimits = {
+  staminaPerItem: 14,
+  healthPerItem: 5,
+  staminaPerSeedCycle: 80,
+  healthPerSeedCycle: 30
+}
+
+for (const crop of CROPS.filter(crop => crop.seedPrice > 0 && crop.regrowth && crop.maxHarvests)) {
+  const item = getItemById(crop.id)
+  assert(!!item, `Missing generated crop item for market regrowth crop: ${crop.id}`)
+  if (!item) continue
+
+  assert(
+    (item.staminaRestore ?? 0) <= marketRegrowthRawCropLimits.staminaPerItem,
+    `Raw market regrowth crop ${crop.id} restores too much stamina per item: ${item.staminaRestore ?? 0}`
+  )
+  assert(
+    (item.healthRestore ?? 0) <= marketRegrowthRawCropLimits.healthPerItem,
+    `Raw market regrowth crop ${crop.id} restores too much HP per item: ${item.healthRestore ?? 0}`
+  )
+  assert(
+    (item.staminaRestore ?? 0) * crop.maxHarvests <= marketRegrowthRawCropLimits.staminaPerSeedCycle,
+    `Raw market regrowth crop ${crop.id} restores too much stamina per seed cycle: ${(item.staminaRestore ?? 0) * crop.maxHarvests}`
+  )
+  assert(
+    (item.healthRestore ?? 0) * crop.maxHarvests <= marketRegrowthRawCropLimits.healthPerSeedCycle,
+    `Raw market regrowth crop ${crop.id} restores too much HP per seed cycle: ${(item.healthRestore ?? 0) * crop.maxHarvests}`
+  )
+}
 expectItem('tavern_rice_wine', { name: '桃源米酒', category: 'processed', sellPrice: 80, edible: true })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
@@ -231,6 +264,7 @@ assert(skullMushroomSoup?.effect.buff?.description.includes('矿石产出+1'), '
 
 assert(canTreasureDropFoxBead(49) === false, '狐珠不应在矿洞50层前的宝箱掉落')
 assert(canTreasureDropFoxBead(50) === true, '狐珠应从矿洞50层后的深层宝箱开放掉落')
+assert(ANCIENT_SEED_ABYSS_TREASURE_CHANCE === 0.025, 'ancient seed abyss treasure drop chance should stay at 2.5%')
 
 const originalRandom = Math.random
 try {
@@ -240,6 +274,18 @@ try {
   assert(
     deepTreasure.items.some(item => item.itemId === 'fox_bead' && item.quantity === 1),
     '矿洞50层后的深层宝箱概率命中时应产出狐珠'
+  )
+} finally {
+  Math.random = originalRandom
+}
+
+try {
+  const sequence = [0, 0.99, 0.99, 0.01, 0.99, 0]
+  Math.random = () => sequence.shift() ?? 0
+  const abyssTreasure = getTreasureRewards(101)
+  assert(
+    abyssTreasure.items.some(item => item.itemId === 'ancient_seed' && item.quantity === 1),
+    'abyss treasure should be able to drop ancient_seed through the independent 2.5% roll'
   )
 } finally {
   Math.random = originalRandom

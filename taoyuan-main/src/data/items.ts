@@ -9,6 +9,25 @@ import { RINGS } from './rings'
 import { HATS } from './hats'
 import { SHOES } from './shoes'
 
+const MARKET_REGROWTH_RAW_CROP_RECOVERY_CAP = {
+  staminaRestore: 14,
+  healthRestore: 5
+} as const
+
+const getRawCropRecovery = (crop: (typeof CROPS)[number]) => {
+  const baseRecovery = {
+    staminaRestore: Math.floor(crop.sellPrice / 5),
+    healthRestore: Math.floor(crop.sellPrice / 10)
+  }
+
+  if (!crop.regrowth || crop.seedPrice <= 0) return baseRecovery
+
+  return {
+    staminaRestore: Math.min(baseRecovery.staminaRestore, MARKET_REGROWTH_RAW_CROP_RECOVERY_CAP.staminaRestore),
+    healthRestore: Math.min(baseRecovery.healthRestore, MARKET_REGROWTH_RAW_CROP_RECOVERY_CAP.healthRestore)
+  }
+}
+
 /** 从作物定义自动生成种子物品（排除已手动定义的种子） */
 const SEED_ITEMS: ItemDef[] = CROPS.filter(
   crop => crop.seedId !== 'ancient_seed' && crop.seedId !== 'hanhai_cactus_seed' && crop.seedId !== 'hanhai_date_seed'
@@ -27,16 +46,20 @@ const SEED_ITEMS: ItemDef[] = CROPS.filter(
 }))
 
 /** 从作物定义自动生成收获物品 */
-const CROP_ITEMS: ItemDef[] = CROPS.map(crop => ({
-  id: crop.id,
-  name: crop.name,
-  category: 'crop',
-  description: crop.description,
-  sellPrice: Math.floor(crop.sellPrice * 1.5),
-  edible: true,
-  staminaRestore: Math.floor(crop.sellPrice / 5),
-  healthRestore: Math.floor(crop.sellPrice / 10)
-}))
+const CROP_ITEMS: ItemDef[] = CROPS.map(crop => {
+  const recovery = getRawCropRecovery(crop)
+
+  return {
+    id: crop.id,
+    name: crop.name,
+    category: 'crop',
+    description: crop.description,
+    sellPrice: Math.floor(crop.sellPrice * 1.5),
+    edible: true,
+    staminaRestore: recovery.staminaRestore,
+    healthRestore: recovery.healthRestore
+  }
+})
 
 /** 矿石物品 */
 const ORE_ITEMS: ItemDef[] = [

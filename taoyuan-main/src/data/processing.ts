@@ -3560,7 +3560,7 @@ const _autoSeedRecipes: ProcessingRecipeDef[] = CROPS
     inputItemId: crop.id,
     inputQuantity: 1,
     outputItemId: crop.seedId,
-    outputQuantity: 2,
+    outputQuantity: crop.id === 'ancient_fruit' ? 1 : 2,
     processingDays: 1,
     description: `从${crop.name}中提取种子。`
   }))

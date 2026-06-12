@@ -4911,7 +4911,7 @@ export const CROPS: CropDef[] = [
     description: '远古种子孕育的神秘果实，蕴含亘古生命力，可在春夏秋三季生长。',
     regrowth: true,
     regrowthDays: 7,
-    maxHarvests: 6
+    maxHarvests: 4
   },
   // === 瀚海作物 ===
   {
