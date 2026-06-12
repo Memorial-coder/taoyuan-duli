@@ -62,7 +62,7 @@ import type {
   Season,
   Weather
 } from '@/types'
-import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent, getCropById } from '@/data'
+import { FEED_DEFS, HAY_ITEM_ID, NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent, getCropById } from '@/data'
 import { RANDOM_NPC_LONG_STAY_STORY_EVENTS, RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS, RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
 import {
   createDefaultChildTrainingState,
@@ -128,6 +128,14 @@ const RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
 const RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT = 24
 const RANDOM_NPC_GENERATION_ANOMALY_AUDIT_LIMIT = 12
+const SECRET_NOTE_GIFT_CLUE_LINKS = [
+  { noteId: 3, npcId: 'li_yu', clueId: 'li_yu_note_koi' },
+  { noteId: 7, npcId: 'sun_tiejiang', clueId: 'sun_tiejiang_note_copper' },
+  { noteId: 11, npcId: 'liu_niang', clueId: 'liu_niang_note_osmanthus' },
+  { noteId: 15, npcId: 'wang_dashen', clueId: 'wang_dashen_note_rice' },
+  { noteId: 19, npcId: 'zhou_xiucai', clueId: 'zhou_xiucai_note_tea' },
+  { noteId: 23, npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng' }
+] as const
 const CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_CHAIN_STAGE_LIMIT = 3
@@ -4963,6 +4971,14 @@ export const useNpcStore = defineStore('npc', () => {
     weed: '除草除虫'
   }
 
+  const HELPER_FEED_DEFS = FEED_DEFS
+  const HELPER_FEED_ITEM_IDS = new Set(HELPER_FEED_DEFS.map(feed => feed.id))
+  const normalizeHelperFeedItemId = (feedItemId?: string | null): string =>
+    feedItemId && HELPER_FEED_ITEM_IDS.has(feedItemId) ? feedItemId : HAY_ITEM_ID
+  const getHelperFeedItemId = (feedItemId?: string | null): string => normalizeHelperFeedItemId(feedItemId)
+  const getHelperFeedName = (feedItemId?: string | null): string =>
+    HELPER_FEED_DEFS.find(feed => feed.id === normalizeHelperFeedItemId(feedItemId))?.name ?? '干草'
+
   const relationshipCompanionshipBaselineAudit = WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT
   const relationshipTuning = WS09_RELATIONSHIP_TUNING_CONFIG
   const relationshipFeatureFlags = relationshipTuning.featureFlags
@@ -5030,7 +5046,7 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   /** 雇佣NPC */
-  const hireHelper = (npcId: string, task: FarmHelperTask): { success: boolean; message: string } => {
+  const hireHelper = (npcId: string, task: FarmHelperTask, feedItemId?: string): { success: boolean; message: string } => {
     const state = getNpcState(npcId)
     if (!state) return { success: false, message: 'NPC不存在。' }
     if (state.friendship < 1000) return { success: false, message: '好感度不足（需要4心/1000）。' }
@@ -5040,7 +5056,9 @@ export const useNpcStore = defineStore('npc', () => {
 
     const npcDef = getNpcById(npcId)
     const name = npcDef?.name ?? npcId
-    hiredHelpers.value.push({ npcId, task, dailyWage: HELPER_WAGES[task] })
+    const helper: HiredHelper = { npcId, task, dailyWage: HELPER_WAGES[task] }
+    if (task === 'feed') helper.feedItemId = normalizeHelperFeedItemId(feedItemId)
+    hiredHelpers.value.push(helper)
     return { success: true, message: `${name}开始帮你${HELPER_TASK_NAMES[task]}了！(日薪${HELPER_WAGES[task]}文)` }
   }
 
@@ -5053,6 +5071,15 @@ export const useNpcStore = defineStore('npc', () => {
     const name = npcDef?.name ?? npcId
     hiredHelpers.value.splice(idx, 1)
     return { success: true, message: `${name}已离开。` }
+  }
+
+  const setHelperFeedItem = (npcId: string, feedItemId: string): { success: boolean; message: string } => {
+    const helper = hiredHelpers.value.find(h => h.npcId === npcId)
+    if (!helper) return { success: false, message: '此人未被雇佣。' }
+    if (helper.task !== 'feed') return { success: false, message: '只有喂食雇工可以设置自动饲料。' }
+    helper.feedItemId = normalizeHelperFeedItemId(feedItemId)
+    const npcDef = getNpcById(npcId)
+    return { success: true, message: `${npcDef?.name ?? '雇工'}会改用${getHelperFeedName(helper.feedItemId)}自动喂食。` }
   }
 
   /** 每日雇工结算（useEndDay调用） */
@@ -5100,7 +5127,9 @@ export const useNpcStore = defineStore('npc', () => {
           break
         }
         case 'feed': {
-          const result = animalStore.feedAll()
+          const feedItemId = normalizeHelperFeedItemId(helper.feedItemId)
+          const feedName = getHelperFeedName(feedItemId)
+          const result = animalStore.feedAll(feedItemId)
           const fishPondStore = useFishPondStore()
           const fedFish = fishPondStore.pond.built && !fishPondStore.pond.fedToday ? fishPondStore.feedFish() : false
           allFed = result.noFeedCount === 0 && result.fedCount > 0
@@ -5111,7 +5140,7 @@ export const useNpcStore = defineStore('npc', () => {
           } else if (fedFish) {
             messages.push(`${name}帮你喂了鱼塘的鱼。(-${helper.dailyWage}文)`)
           } else if (result.noFeedCount > 0) {
-            messages.push(`${name}发现草料不足，${result.noFeedCount}只牲畜未能喂食。(-${helper.dailyWage}文)`)
+            messages.push(`${name}发现${feedName}不足，${result.noFeedCount}只牲畜未能喂食。(-${helper.dailyWage}文)`)
           } else {
             messages.push(`${name}今天没什么需要喂的。(-${helper.dailyWage}文)`)
           }
@@ -5314,20 +5343,33 @@ export const useNpcStore = defineStore('npc', () => {
 
   const syncSecretNoteGiftClues = (npcId: string) => {
     const secretNoteStore = useSecretNoteStore()
-    const noteGiftClueMap: Array<{ noteId: number; npcId: string; clueId: string }> = [
-      { noteId: 3, npcId: 'li_yu', clueId: 'li_yu_note_koi' },
-      { noteId: 7, npcId: 'sun_tiejiang', clueId: 'sun_tiejiang_note_copper' },
-      { noteId: 11, npcId: 'liu_niang', clueId: 'liu_niang_note_osmanthus' },
-      { noteId: 15, npcId: 'wang_dashen', clueId: 'wang_dashen_note_rice' },
-      { noteId: 19, npcId: 'zhou_xiucai', clueId: 'zhou_xiucai_note_tea' },
-      { noteId: 23, npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng' }
-    ]
-    const mapping = noteGiftClueMap.filter(entry => entry.npcId === npcId)
+    const mapping = SECRET_NOTE_GIFT_CLUE_LINKS.filter(entry => entry.npcId === npcId)
     mapping.forEach(entry => {
       if (!secretNoteStore.isCollected(entry.noteId)) return
       const template = getNpcGiftClueTemplates(npcId).find(candidate => candidate.clueId === entry.clueId)
       if (template) unlockGiftClueTemplate(template)
     })
+  }
+
+  const resolveSecretNoteGiftLead = (npcId: string, itemId: string, preference: Exclude<GiftPreference, 'neutral'>): boolean => {
+    const secretNoteStore = useSecretNoteStore()
+    let resolved = false
+    for (const entry of SECRET_NOTE_GIFT_CLUE_LINKS.filter(candidate => candidate.npcId === npcId)) {
+      if (!secretNoteStore.isCollected(entry.noteId) || secretNoteStore.isUsed(entry.noteId)) continue
+      const template = getNpcGiftClueTemplates(npcId).find(candidate =>
+        candidate.clueId === entry.clueId &&
+        candidate.itemId === itemId &&
+        candidate.preference === preference
+      )
+      if (!template) continue
+      unlockGiftClueTemplate(template)
+      const npcName = getNpcById(npcId)?.name ?? npcId
+      const itemName = getItemById(itemId)?.name ?? itemId
+      if (secretNoteStore.resolveCollectedLead(entry.noteId, `你把「${itemName}」送给${npcName}后，确认了这条秘密纸条的礼物线索。`)) {
+        resolved = true
+      }
+    }
+    return resolved
   }
 
   const unlockAmbientGiftClue = (npcId: string, preferredSources: RelationshipClueSource[]) => {
@@ -5750,9 +5792,20 @@ export const useNpcStore = defineStore('npc', () => {
     state.friendship = Math.min(Math.max(0, state.friendship + gain), getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
     const cookingTopic = gain > 0 ? cookingStore.consumeStoryTriggerRecord(FIXED_NPC_GIFT_COOKING_TOPIC_LABELS) : null
-    if (npcDef.lovedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'loved')
-    else if (npcDef.likedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'liked')
-    else if (npcDef.hatedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'hated')
+    let verifiedGiftPreference: Exclude<GiftPreference, 'neutral'> | null = null
+    if (npcDef.lovedItems.includes(itemId)) {
+      verifiedGiftPreference = 'loved'
+    } else if (npcDef.likedItems.includes(itemId)) {
+      verifiedGiftPreference = 'liked'
+    } else if (npcDef.hatedItems.includes(itemId)) {
+      verifiedGiftPreference = 'hated'
+    }
+    if (verifiedGiftPreference) {
+      unlockScriptedGiftClue(npcId, itemId, verifiedGiftPreference)
+      if (resolveSecretNoteGiftLead(npcId, itemId, verifiedGiftPreference)) {
+        unlockedMessages.push('秘密笔记中的礼物线索已验证，可在秘藏记录里查看。')
+      }
+    }
 
     let birthdayMessage: string | undefined
     if (isBirthday(npcId) && gain > 0) {
@@ -7355,11 +7408,13 @@ export const useNpcStore = defineStore('npc', () => {
       .filter((helper: any) => helper && typeof helper === 'object' && typeof helper.npcId === 'string' && validNpcIds.has(helper.npcId))
       .map((helper: any) => {
         const task: FarmHelperTask = ['water', 'feed', 'harvest', 'weed'].includes(helper.task) ? helper.task : 'water'
-        return {
+        const nextHelper: HiredHelper = {
           npcId: helper.npcId,
           task,
           dailyWage: Math.max(0, Number(helper.dailyWage) || HELPER_WAGES[task])
         }
+        if (task === 'feed') nextHelper.feedItemId = normalizeHelperFeedItemId(helper.feedItemId)
+        return nextHelper
       })
     randomNpcBoard.value = (() => {
       const raw = (data as any).randomNpcBoard
@@ -7678,6 +7733,10 @@ export const useNpcStore = defineStore('npc', () => {
     randomNpcBoard,
     HELPER_WAGES,
     HELPER_TASK_NAMES,
+    HELPER_FEED_DEFS,
+    getHelperFeedItemId,
+    getHelperFeedName,
+    setHelperFeedItem,
     getNpcState,
     getFriendshipLevel,
     getRelationshipStage,

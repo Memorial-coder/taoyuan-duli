@@ -17,6 +17,7 @@ const assert = (condition, message) => {
 const storeSource = read('src/stores/useSecretNoteStore.ts')
 const noteSource = read('src/data/secretNotes.ts')
 const timeSource = read('src/data/timeConstants.ts')
+const npcStoreSource = read('src/stores/useNpcStore.ts')
 
 assert(
   /TAB_TO_LOCATION_GROUP/.test(storeSource),
@@ -46,5 +47,34 @@ for (const panel of new Set(requiredPanels)) {
 for (const panel of ['forage', 'fishing', 'mining', 'village']) {
   assert(requiredPanels.includes(panel), `Secret note QA should keep coverage for "${panel}" verification.`)
 }
+
+assert(
+  /resolveCollectedLead/.test(storeSource),
+  'Secret note store must expose an external resolver for gameplay-verified leads.'
+)
+assert(
+  /const SECRET_NOTE_GIFT_CLUE_LINKS = \[/.test(npcStoreSource),
+  'NPC gift clue verification must keep a shared secret-note gift clue map.'
+)
+assert(
+  /noteId:\s*7,\s*npcId:\s*'sun_tiejiang',\s*clueId:\s*'sun_tiejiang_note_copper'/.test(npcStoreSource),
+  'Secret note #7 must stay linked to Sun Tiejiang copper ore gift clue.'
+)
+assert(
+  /resolveSecretNoteGiftLead/.test(npcStoreSource),
+  'NPC gift flow must resolve collected secret-note gift leads after matching gifts.'
+)
+assert(
+  /candidate\.itemId === itemId/.test(npcStoreSource) && /candidate\.preference === preference/.test(npcStoreSource),
+  'Secret-note gift resolution must match both item id and verified preference.'
+)
+assert(
+  /secretNoteStore\.resolveCollectedLead\(entry\.noteId/.test(npcStoreSource),
+  'Secret-note gift resolution must mark the collected note as resolved.'
+)
+assert(
+  /resolveSecretNoteGiftLead\(npcId,\s*itemId,\s*verifiedGiftPreference\)/.test(npcStoreSource),
+  'giveGift must invoke secret-note gift resolution with the verified gift preference.'
+)
 
 console.log('qa-secret-note-verification-guards: ok')

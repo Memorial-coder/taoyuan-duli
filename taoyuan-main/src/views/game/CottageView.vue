@@ -259,15 +259,34 @@
         <div
           v-for="h in currentHelpers"
           :key="h.npcId"
-          class="flex items-center justify-between border border-accent/10 rounded-xs px-3 py-1.5"
+          class="border border-accent/10 rounded-xs px-3 py-1.5"
         >
-          <div>
-            <span class="text-xs text-accent">{{ getNpcById(h.npcId)?.name }}</span>
-            <span class="text-xs text-muted ml-1">{{ npcStore.HELPER_TASK_NAMES[h.task] }}</span>
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-accent">{{ getNpcById(h.npcId)?.name }}</span>
+                <span class="text-xs text-muted">{{ npcStore.HELPER_TASK_NAMES[h.task] }}</span>
+              </div>
+              <p v-if="h.task === 'feed'" class="mt-0.5 text-[0.625rem] text-muted">
+                自动饲料：{{ getHelperFeedName(h.feedItemId) }}
+              </p>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[0.625rem] text-muted">{{ h.dailyWage }}文/天</span>
+              <Button class="py-0 px-1 btn-danger" :icon="X" :icon-size="10" @click="dismissConfirmNpcId = h.npcId" />
+            </div>
           </div>
-          <div class="flex items-center space-x-1.5">
-            <span class="text-[0.625rem] text-muted">{{ h.dailyWage }}文/天</span>
-            <Button class="py-0 px-1 btn-danger" :icon="X" :icon-size="10" @click="dismissConfirmNpcId = h.npcId" />
+          <div v-if="h.task === 'feed'" class="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4">
+            <button
+              v-for="feed in helperFeedOptions"
+              :key="`${h.npcId}-${feed.id}`"
+              type="button"
+              class="rounded-xs border px-2 py-1 text-[0.625rem] transition-colors"
+              :class="getHelperFeedItemId(h.feedItemId) === feed.id ? 'border-accent bg-accent/10 text-accent' : 'border-accent/20 text-muted hover:bg-accent/5'"
+              @click="handleSetHelperFeed(h.npcId, feed.id)"
+            >
+              {{ feed.name }}
+            </button>
           </div>
         </div>
       </div>
@@ -624,6 +643,24 @@
           </div>
           <p class="text-xs text-muted mb-2">日薪：{{ npcStore.HELPER_WAGES[selectedHireTask] }}文</p>
 
+          <div v-if="selectedHireTask === 'feed'" class="mb-3">
+            <p class="text-xs text-muted mb-1">自动喂食饲料</p>
+            <div class="grid grid-cols-2 gap-1">
+              <button
+                v-for="feed in helperFeedOptions"
+                :key="feed.id"
+                type="button"
+                class="min-h-12 rounded-xs border px-2 py-1 text-left transition-colors"
+                :class="selectedHelperFeedItemId === feed.id ? 'border-accent bg-accent/10 text-accent' : 'border-accent/20 text-muted hover:bg-accent/5'"
+                @click="selectedHelperFeedItemId = feed.id"
+              >
+                <span class="block text-xs">{{ feed.name }}</span>
+                <span class="block truncate text-[0.625rem] opacity-75">{{ feed.description }}</span>
+                <span class="block text-[0.625rem] opacity-70">库存：{{ getCombinedItemCount(feed.id) }}</span>
+              </button>
+            </div>
+          </div>
+
           <!-- 确认雇佣 -->
           <div v-if="hireConfirmNpc" class="border border-accent/30 rounded-xs p-3 mb-2">
             <p class="text-xs text-accent mb-2">
@@ -634,6 +671,9 @@
               吗？
             </p>
             <p class="text-[0.625rem] text-muted mb-2">日薪：{{ npcStore.HELPER_WAGES[selectedHireTask] }}文</p>
+            <p v-if="selectedHireTask === 'feed'" class="text-[0.625rem] text-muted mb-2">
+              自动喂食使用：{{ selectedHelperFeedName }}
+            </p>
             <div class="flex space-x-2">
               <Button class="py-0.5 px-2 text-xs" @click="handleHire(hireConfirmNpcId!)">确定</Button>
               <Button class="py-0.5 px-2 text-xs" @click="hireConfirmNpcId = null">取消</Button>
@@ -716,7 +756,7 @@
   import { SEASON_NAMES } from '@/stores/useGameStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
-  import { getItemById, getNpcById, NPCS } from '@/data'
+  import { HAY_ITEM_ID, getItemById, getNpcById, NPCS } from '@/data'
   import { getSeasonEventsForDay, getSeasonalActivitiesForDay } from '@/data/events'
   import { getRareVisitorsForDay, getUpcomingRareVisitors } from '@/data/bookseller'
   import { getUpcomingTravelingMerchantVisits } from '@/data/travelingMerchant'
@@ -740,7 +780,7 @@
   const dailyBlessingPreview = computed(() => skillStore.dailyBlessingPreview)
 
   const goToCohabitationManor = () => {
-    router.push({ name: 'online-cohabitation' })
+    void router.push({ name: 'online-cohabitation' })
   }
 
   const releaseConfirmChildId = ref<number | null>(null)
@@ -750,6 +790,7 @@
   const showSpouseGiftModal = ref(false)
   const showHireModal = ref(false)
   const selectedHireTask = ref<FarmHelperTask>('water')
+  const selectedHelperFeedItemId = ref(HAY_ITEM_ID)
   const hireConfirmNpcId = ref<string | null>(null)
   const dismissConfirmNpcId = ref<string | null>(null)
   const removeAgingConfirmIdx = ref<number | null>(null)
@@ -765,9 +806,17 @@
   const hireableNpcs = computed(() => npcStore.getHireableNpcs())
   const currentHelpers = computed(() => npcStore.hiredHelpers)
   const hireConfirmNpc = computed(() => (hireConfirmNpcId.value ? getNpcById(hireConfirmNpcId.value) : null))
+  const helperFeedOptions = computed(() => npcStore.HELPER_FEED_DEFS)
+  const getHelperFeedItemId = (feedItemId?: string | null) => npcStore.getHelperFeedItemId(feedItemId)
+  const getHelperFeedName = (feedItemId?: string | null) => npcStore.getHelperFeedName(feedItemId)
+  const selectedHelperFeedName = computed(() => getHelperFeedName(selectedHelperFeedItemId.value))
 
   const handleHire = (npcId: string) => {
-    const result = npcStore.hireHelper(npcId, selectedHireTask.value)
+    const result = npcStore.hireHelper(
+      npcId,
+      selectedHireTask.value,
+      selectedHireTask.value === 'feed' ? selectedHelperFeedItemId.value : undefined
+    )
     addLog(result.message)
     if (result.success) {
       hireConfirmNpcId.value = null
@@ -783,6 +832,12 @@
   const selectHireTask = (task: FarmHelperTask) => {
     selectedHireTask.value = task
     hireConfirmNpcId.value = null
+    if (task === 'feed' && !selectedHelperFeedItemId.value) selectedHelperFeedItemId.value = HAY_ITEM_ID
+  }
+
+  const handleSetHelperFeed = (npcId: string, feedItemId: string) => {
+    const result = npcStore.setHelperFeedItem(npcId, feedItemId)
+    addLog(result.message)
   }
 
   const handleDismiss = (npcId: string) => {

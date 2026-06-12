@@ -812,6 +812,8 @@ export interface HiredHelper {
   npcId: string
   task: FarmHelperTask
   dailyWage: number
+  /** 自动喂食任务使用的饲料；旧存档缺省为干草。 */
+  feedItemId?: string
 }
 
 /** 孕期状态 */

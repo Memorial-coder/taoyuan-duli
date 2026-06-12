@@ -102,6 +102,16 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     }
   }
 
+  const resolveCollectedLead = (noteId: number, recordText = ''): boolean => {
+    if (!validNoteIds.has(noteId) || !isCollected(noteId)) return false
+    if (!isUsed(noteId)) {
+      usedNotes.value.push(noteId)
+    }
+    resolveLead(noteId, recordText)
+    usePlayerStore().markSecretLeadUnlocked(`record:${noteId}`, buildCurrentDayTag())
+    return true
+  }
+
   const evaluateVerification = (note: SecretNoteDef) => {
     const verification = note.verification
     if (!verification) {
@@ -369,6 +379,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     getVerificationPreview,
     tryCollectNote,
     useNote,
+    resolveCollectedLead,
     serialize,
     deserialize
   }
