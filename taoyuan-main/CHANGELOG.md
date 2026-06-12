@@ -4,6 +4,31 @@
 
 ## [未发布]
 
+### 0612 鱼塘传说鱼保护养殖
+- 鱼塘新增金甲龟和娃娃鱼两类保护型传说鱼驻塘：金甲龟要求 Lv.5 鱼塘，娃娃鱼要求 Lv.4 鱼塘；它们可以用于展示、周赛和长期养护，但不会产出自身本体。
+- 保护型传说鱼禁止繁殖，读档归一化也会丢弃这类鱼的繁殖中状态；稀有副产物改为低概率、硬上限产出，且不吃体重基因和钓鱼精通产率加成，避免把龙玉、夜光藻团刷成日常物资。
+- 新增 `scripts/qa-fishpond-legendary-guards.mjs` 守护“不能复制”和“稀有副产物限速”规则；本轮验证：`node taoyuan-main/scripts/qa-fishpond-legendary-guards.mjs`、目标 `eslint`、`npm --prefix taoyuan-main run type-check`、`git diff --check` 通过。
+
+### 0612 原始复收作物恢复降温
+- 普通商店可买且可复收的原始作物直接食用恢复设上限：单个最高 14 体力 / 5 HP；水蜜桃、荔枝、龙眼、茶叶等保留种植收益，但不再压过料理、公会补给和加工品。
+- `qa:item-data-guards` 新增水蜜桃 / 荔枝固定恢复值断言，并扫描所有普通可买复收作物的单件与单颗种子周期恢复上限，防止同类作物接棒形成新的回体退化策略。
+- 本轮验证：`npm --prefix taoyuan-main run qa:item-data-guards`、`npm --prefix taoyuan-main run type-check` 通过；`npm --prefix taoyuan-main run lint` 通过但保留既有 2 条 warning（`src/utils/onlineProfileApi.ts`、`src/views/game/CottageView.vue`）。
+
+### 0612 节庆摊位购买同步修复
+- 修复节庆摊位购买后整档回读服务端槽位、覆盖当前运行态的问题；购买成功后现在只把本次摊位奖励/扣款增量合并进当前会话，并保留当天已推进的时间、体力、农田浇水和采集结果。
+- 服务端购买响应和幂等回放会返回本次写档后的 `save_revision`，前端合并前先确认该 revision，再保存当前运行态，避免因服务端先写档导致后续自动保存误报云档冲突。
+- 新增 `qa:festival-stall-save-sync` 守护节庆摊位同步不能再调用整档 `loadFromSlot` 回读；本轮验证：`npm --prefix taoyuan-main run qa:festival-stall-save-sync`、`node --check server/src/taoyuanFestivalStall.js`、`node --check taoyuan-main/scripts/qa-festival-stall-save-sync.mjs`、`npm --prefix taoyuan-main run type-check` 通过。
+
+### 0612 远古水果经济降温
+- 远古水果续种从 `1 果 -> 2 种` 调整为 `1 果 -> 1 种`，单株最大收获次数从 6 次降至 4 次，保留 7 天再生节奏，避免稀有种子入手后指数扩张。
+- 深渊宝箱不再从通用古物三选一中顺带掉落远古种子，改为独立 2.5% 小概率掉落；龙牙化石与骨骸碎片仍保留原有深渊古物池权重。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-item-data-guards.mjs`、`node --check taoyuan-main/scripts/qa-museum-ancient-seed-donation.mjs`、`npm --prefix taoyuan-main run qa:item-data-guards`、`npm --prefix taoyuan-main run qa:museum-ancient-seed-donation` 通过。
+
+### 0612 雨天淘金收益上调
+- 雨天可淘金的基础产出从每次固定 1 份改为按淘金盘等级结算：初始 2 份、铁制 3 份、精钢 3 份、铱金 4 份；原有矿砂 / 宝石 / 金砂概率池不变，避免前期雨天 1 小时只换 1 块铜矿。
+- `FishingView` 现在实际接入天气窗口的 `panBonusChance`，普通雨天额外 +1 的概率为 6%，绿雨为 10%；淘金结果和日志会显示 `物品×数量`，背包满时也保留数量反馈。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-resource-consumption-guards.mjs`、`npm --prefix taoyuan-main run qa:resource-consumption-guards` 通过；`npm --prefix taoyuan-main run type-check` 被当前工作区既有 `src/stores/useRegionMapStore.ts` openWorld / 未使用导入错误阻断。
+
 ### 0612 月兔采药炼丹加强
 - 月兔结缘奖励从每日固定回体改为晨起「月露体力储备」：每日睡眠恢复前清除旧仙缘临时上限，晨起获得临时体力上限+30并恢复30体力，同时结缘后月华采集月草概率额外+5%。
 - 月华采集月草从固定8%提升为常态15%，夜间20:00-24:00或每月14日提升到25%；药引从料理恢复扩展到茶饮/药饮直接食用和丹药实际效果，丹药送礼/节会倍率只放大超过1的增量。
@@ -14,7 +39,7 @@
 - `MobileMapMenu` 的“随身”栏在“钱包”和“邮箱”之间新增普通面板入口“目标”，进入 `/game/goals`；`goals` 归入随身页时间组，不触发地点移动或耗时。
 - 新增 `GoalsView`，把目标内容压缩为“今天先做 / 本周主线 / 里程碑进度”三条摘要，目标列表改为“今日 / 本周 / 本季 / 长期”标签切换，并将活动、任务收尾和市场提示合并为短句。
 - 玩家可见文案统一从“顶部目标规划面板 / 目标规划”改为“目标 / 目标页 / 右下角地图 / 随身 / 目标”；`qa-mobile-ui-smoke` 地图菜单场景新增“目标”位于钱包与邮箱之间、点击后跳转目标页、主内容区无 `top-goals-compact-card` 的断言。
-- 本轮验证：`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run lint`、`npm --prefix taoyuan-main run check` 通过；`TAOYUAN_MOBILE_SMOKE_ONLY=12-mobile-map-menu-390x844` 的 `qa:mobile-ui-smoke` 首次首页导航 30s 超时，调高导航/首页等待到 90s 后通过并写出 summary，结束时仍有本地公告代理 `127.0.0.1:4013` 拒连噪声。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs`、`npm --prefix taoyuan-main run check` 通过；`TAOYUAN_BASE_URL=http://127.0.0.1:4175 TAOYUAN_SKIP_DEV_SERVER=1 TAOYUAN_MOBILE_SMOKE_ONLY=12-mobile-map-menu-390x844 npm --prefix taoyuan-main run qa:mobile-ui-smoke` 通过并写出 summary，目标场景落到 `#/game/goals` 且无 console/page/request 错误。
 
 ### 0612 博物馆熔炉收藏补齐
 - 博物馆收藏目录同步新增熔炉产物 `bronze_bar`（青铜锭）、`refined_quartz`（精制石英）和 `mythril_bar`（秘银锭）；其中精制石英归入宝石展项，青铜锭 / 秘银锭归入金属锭展项，来源提示与熔炉配方保持一致。
