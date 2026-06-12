@@ -259,7 +259,7 @@ export const useGameStore = defineStore('game', () => {
     const baseCost = TRAVEL_TIME[key] ?? 0.5
     // 鎷ユ湁椹噺灏?0%鏃呰鏃堕棿
     const animalStore = useAnimalStore()
-    const horseMultiplier = animalStore.hasHorse ? 0.7 : 1
+    const horseMultiplier = animalStore.horseTravelMultiplier
     // 瑁呭鏃呰閫熷害鍔犳垚锛堜笌椹彔涔橈級
     const inventoryStore = useInventoryStore()
     const travelSpeedBonus = Math.min(
@@ -301,7 +301,9 @@ export const useGameStore = defineStore('game', () => {
     const reducedBaseStamina = Math.max(1, Math.floor(baseStamina * (1 - ringGlobalReduction)))
     const shortcutReduction = getShortcutStaminaReduction(currentLocationGroup.value, targetGroup)
     const staminaAfterShortcut = Math.max(1, reducedBaseStamina - shortcutReduction)
-    const staminaCost = animalStore.hasHorse ? Math.max(1, Math.floor(staminaAfterShortcut / 2)) : staminaAfterShortcut
+    const staminaCost = animalStore.hasHorse
+      ? Math.max(1, Math.floor(staminaAfterShortcut * animalStore.horseStaminaMultiplier))
+      : staminaAfterShortcut
     const playerStore = usePlayerStore()
     if (!playerStore.consumeStamina(staminaCost)) {
       return {

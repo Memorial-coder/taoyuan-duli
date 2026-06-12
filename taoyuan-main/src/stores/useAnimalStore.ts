@@ -43,6 +43,32 @@ import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 const PET_COOKING_TOPIC_LABELS = ['宠物反馈']
 const MEAT_ITEM_ID = 'wild_meat'
+const MOOD_MAX = 255
+const ANIMAL_MOOD_LOW_THRESHOLD = 80
+const ANIMAL_MOOD_HAPPY_THRESHOLD = 200
+const ANIMAL_MOOD_ELATED_THRESHOLD = 240
+const ANIMAL_HAPPY_EXTRA_PRODUCT_CHANCE = 0.1
+const ANIMAL_ELATED_EXTRA_PRODUCT_CHANCE = 0.2
+const PET_MOOD_DEFAULT = 160
+const PET_MOOD_HAPPY_THRESHOLD = 200
+const PET_MOOD_ELATED_THRESHOLD = 240
+const PET_PETTING_MOOD_GAIN = 20
+const PET_SPECIAL_FEED_MOOD_GAIN = 30
+const PET_PREFERRED_FEED_MOOD_GAIN = 10
+const PET_MISSED_PET_MOOD_LOSS = 25
+const PET_DAILY_MOOD_SETTLE_LOSS = 8
+const PET_HAPPY_EVENT_CHANCE_BONUS = 0.03
+const PET_ELATED_EVENT_CHANCE_BONUS = 0.05
+const PET_LOW_EVENT_CHANCE_PENALTY = 0.04
+const PET_HAPPY_RARE_FIND_BONUS = 0.01
+const PET_ELATED_RARE_FIND_BONUS = 0.02
+const PET_LOW_RARE_FIND_PENALTY = 0.02
+const HORSE_LOW_MOOD_TRAVEL_MULTIPLIER = 0.8
+const HORSE_NORMAL_TRAVEL_MULTIPLIER = 0.7
+const HORSE_HAPPY_TRAVEL_MULTIPLIER = 0.6
+const HORSE_ELATED_TRAVEL_MULTIPLIER = 0.55
+const HORSE_NORMAL_STAMINA_MULTIPLIER = 0.5
+const HORSE_HAPPY_STAMINA_MULTIPLIER = 0.4
 const MEAT_YIELD_BY_ANIMAL_TYPE: Partial<Record<AnimalType, { min: number; max: number }>> = {
   chicken: { min: 1, max: 2 },
   duck: { min: 2, max: 3 },
@@ -63,6 +89,35 @@ const MEAT_YIELD_BY_ANIMAL_TYPE: Partial<Record<AnimalType, { min: number; max: 
   donkey: { min: 3, max: 5 },
   camel: { min: 5, max: 8 },
   ostrich: { min: 5, max: 8 }
+}
+
+const clampMood = (value: number, fallback = PET_MOOD_DEFAULT): number => {
+  const nextValue = Number.isFinite(value) ? value : fallback
+  return Math.max(0, Math.min(MOOD_MAX, Math.floor(nextValue)))
+}
+
+const getAnimalMoodProductBonusChance = (mood: number): number => {
+  if (mood > ANIMAL_MOOD_ELATED_THRESHOLD) return ANIMAL_ELATED_EXTRA_PRODUCT_CHANCE
+  if (mood > ANIMAL_MOOD_HAPPY_THRESHOLD) return ANIMAL_HAPPY_EXTRA_PRODUCT_CHANCE
+  return 0
+}
+
+const getPetMoodChanceModifier = (mood: number): number => {
+  if (mood > PET_MOOD_ELATED_THRESHOLD) return PET_ELATED_EVENT_CHANCE_BONUS
+  if (mood > PET_MOOD_HAPPY_THRESHOLD) return PET_HAPPY_EVENT_CHANCE_BONUS
+  if (mood < ANIMAL_MOOD_LOW_THRESHOLD) return -PET_LOW_EVENT_CHANCE_PENALTY
+  return 0
+}
+
+const getPetMoodRareFindModifier = (mood: number): number => {
+  if (mood > PET_MOOD_ELATED_THRESHOLD) return PET_ELATED_RARE_FIND_BONUS
+  if (mood > PET_MOOD_HAPPY_THRESHOLD) return PET_HAPPY_RARE_FIND_BONUS
+  if (mood < ANIMAL_MOOD_LOW_THRESHOLD) return -PET_LOW_RARE_FIND_PENALTY
+  return 0
+}
+
+const rollPetMoodChance = (baseChance: number, mood: number): boolean => {
+  return Math.random() < Math.max(0, baseChance + getPetMoodChanceModifier(mood))
 }
 
 export const useAnimalStore = defineStore('animal', () => {
@@ -161,6 +216,21 @@ export const useAnimalStore = defineStore('animal', () => {
 
   /** 是否拥有马 */
   const hasHorse = computed(() => getHorse.value !== null)
+  const horseTravelMultiplier = computed(() => {
+    const horse = getHorse.value
+    if (!horse) return 1
+    if (horse.sick || horse.mood < ANIMAL_MOOD_LOW_THRESHOLD) return HORSE_LOW_MOOD_TRAVEL_MULTIPLIER
+    if (horse.mood > ANIMAL_MOOD_ELATED_THRESHOLD && horse.friendship >= 600) return HORSE_ELATED_TRAVEL_MULTIPLIER
+    if (horse.mood > ANIMAL_MOOD_HAPPY_THRESHOLD) return HORSE_HAPPY_TRAVEL_MULTIPLIER
+    return HORSE_NORMAL_TRAVEL_MULTIPLIER
+  })
+  const horseStaminaMultiplier = computed(() => {
+    const horse = getHorse.value
+    if (!horse) return 1
+    return horse.mood > ANIMAL_MOOD_HAPPY_THRESHOLD && horse.friendship >= 600
+      ? HORSE_HAPPY_STAMINA_MULTIPLIER
+      : HORSE_NORMAL_STAMINA_MULTIPLIER
+  })
 
   /** 建造畜舍 */
   const buildBuilding = (type: AnimalBuildingType): boolean => {
@@ -317,6 +387,7 @@ export const useAnimalStore = defineStore('animal', () => {
       if (companion.wasPetted) continue
       companion.wasPetted = true
       companion.friendship = Math.min(1000, companion.friendship + 5)
+      companion.mood = clampMood(companion.mood + PET_PETTING_MOOD_GAIN)
       count++
     }
     return count
@@ -521,6 +592,7 @@ export const useAnimalStore = defineStore('animal', () => {
       type,
       name: trimmed,
       friendship: 0,
+      mood: PET_MOOD_DEFAULT,
       wasPetted: false,
       specialFedToday: false,
       specialFeedItemId: null,
@@ -543,6 +615,7 @@ export const useAnimalStore = defineStore('animal', () => {
     const previousFriendship = companion.friendship
     companion.wasPetted = true
     companion.friendship = Math.min(1000, companion.friendship + 5)
+    companion.mood = clampMood(companion.mood + PET_PETTING_MOOD_GAIN)
     recordPetMilestones(companion, previousFriendship)
     return true
   }
@@ -599,8 +672,10 @@ export const useAnimalStore = defineStore('animal', () => {
     const cookingStore = useCookingStore()
     const petCalmBonus = cookingStore.getActiveAlchemyPetCalmFriendshipBonus()
     const friendshipGain = feed.friendshipGain + (preferred ? feed.preferredBonus : 0) + petCalmBonus
+    const moodGain = PET_SPECIAL_FEED_MOOD_GAIN + (preferred ? PET_PREFERRED_FEED_MOOD_GAIN : 0)
     const cookingTopic = cookingStore.consumeStoryTriggerRecord(PET_COOKING_TOPIC_LABELS)
     companion.friendship = Math.min(1000, companion.friendship + friendshipGain)
+    companion.mood = clampMood(companion.mood + moodGain)
     companion.specialFedToday = true
     companion.specialFeedItemId = feed.itemId
     companion.specialFeedType = feed.taste
@@ -620,7 +695,7 @@ export const useAnimalStore = defineStore('animal', () => {
     const spiritMoodText = getSpiritSpecialFeedMoodText(companion, feed.taste)
     return {
       success: true,
-      message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。${spiritMoodText}${alchemyCalmText}${cookingTopicText}`
+      message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}，心情+${moodGain}。${spiritMoodText}${alchemyCalmText}${cookingTopicText}`
     }
   }
 
@@ -660,6 +735,9 @@ export const useAnimalStore = defineStore('animal', () => {
       }
       if (!companion.wasPetted) {
         companion.friendship = Math.max(0, companion.friendship - 2)
+        companion.mood = clampMood(companion.mood - PET_MISSED_PET_MOOD_LOSS)
+      } else {
+        companion.mood = clampMood(companion.mood - PET_DAILY_MOOD_SETTLE_LOSS)
       }
       companion.wasPetted = false
       recordPetMilestones(companion, previousFriendship)
@@ -679,7 +757,10 @@ export const useAnimalStore = defineStore('animal', () => {
             ? Math.min(0.01, companion.favoriteSpecialFeedScore * 0.0015)
             : 0
         const spiritFruitCooldownBonus = companion.type === 'spirit' && specialFeed.taste === 'spirit_fruit' ? 1 : 0
-        const rareFindChance = Math.min(0.085, specialFeed.rareFindChance + (preferred ? 0.015 : 0) + learnedFavoriteBonus)
+        const rareFindChance = Math.max(
+          0,
+          Math.min(0.085, specialFeed.rareFindChance + (preferred ? 0.015 : 0) + learnedFavoriteBonus + getPetMoodRareFindModifier(companion.mood))
+        )
         if (companion.friendship >= 450 && companion.rareFindCooldownDays <= 0 && specialFeed.rareFindPool.length > 0 && Math.random() < rareFindChance) {
           const itemId = specialFeed.rareFindPool[Math.floor(Math.random() * specialFeed.rareFindPool.length)]!
           inventoryStore.addItem(itemId, 1)
@@ -704,7 +785,7 @@ export const useAnimalStore = defineStore('animal', () => {
       }
 
       let emittedFollowup = false
-      if (companion.friendship >= 850 && Math.random() < 0.12) {
+      if (companion.friendship >= 850 && rollPetMoodChance(0.12, companion.mood)) {
         const pool = findPools[companion.type]
         const itemId = pool[Math.floor(Math.random() * pool.length)]!
         inventoryStore.addItem(itemId, 1)
@@ -723,7 +804,7 @@ export const useAnimalStore = defineStore('animal', () => {
         emittedFollowup = true
       }
 
-      if (!emittedFollowup && todayEvent && companion.friendship >= 500 && Math.random() < 0.18) {
+      if (!emittedFollowup && todayEvent && companion.friendship >= 500 && rollPetMoodChance(0.18, companion.mood)) {
         events.push({
           petId: companion.id,
           petName: companion.name,
@@ -738,7 +819,7 @@ export const useAnimalStore = defineStore('animal', () => {
         emittedFollowup = true
       }
 
-      if (!emittedFollowup && companion.friendship >= 600 && Math.random() < 0.14) {
+      if (!emittedFollowup && companion.friendship >= 600 && rollPetMoodChance(0.14, companion.mood)) {
         const rumorPool = companion.type === 'dog' ? dogRumors : companion.type === 'spirit' ? spiritRumors : catRumors
         events.push({
           petId: companion.id,
@@ -1020,6 +1101,10 @@ export const useAnimalStore = defineStore('animal', () => {
           // 兽王：产量×2
           const productQty = hasBeastSovereign ? 2 : 1
           products.push({ itemId: def.productId, quality, quantity: productQty })
+          const moodBonusChance = getAnimalMoodProductBonusChance(animal.mood)
+          if (moodBonusChance > 0 && Math.random() < moodBonusChance) {
+            products.push({ itemId: def.productId, quality, quantity: 1 })
+          }
           animal.daysSinceProduct = 0
 
           // 草甸田庄：40%概率额外产出1件
@@ -1288,6 +1373,7 @@ export const useAnimalStore = defineStore('animal', () => {
       type: savedPet.type as PetType,
       name: typeof savedPet.name === 'string' && savedPet.name.trim() ? savedPet.name : getPetDefaultName(savedPet.type),
       friendship: Number.isFinite(savedPet.friendship) ? savedPet.friendship : 0,
+      mood: Number.isFinite(savedPet.mood) ? clampMood(savedPet.mood) : PET_MOOD_DEFAULT,
       wasPetted: Boolean(savedPet.wasPetted),
       specialFedToday: Boolean(savedPet.specialFedToday),
       specialFeedItemId: typeof savedPet.specialFeedItemId === 'string' ? savedPet.specialFeedItemId : null,
@@ -1356,6 +1442,8 @@ export const useAnimalStore = defineStore('animal', () => {
     barnAnimals,
     getHorse,
     hasHorse,
+    horseTravelMultiplier,
+    horseStaminaMultiplier,
     buildBuilding,
     upgradeBuilding,
     buyAnimal,

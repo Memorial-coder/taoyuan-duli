@@ -585,7 +585,7 @@
                 </div>
                 <p class="mt-1 text-xs text-muted">放入的物品将在次日结算，当前预计 {{ shippingBoxTotal }} 文。</p>
                 <p v-if="inventoryStore.getRingEffectValue('sell_price_bonus') > 0" class="mt-1 text-xs text-success">
-                  戒指加成中：售价 +{{ Math.round(inventoryStore.getRingEffectValue('sell_price_bonus') * 100) }}%
+                  装备加成中：售价 +{{ Math.round(inventoryStore.getRingEffectValue('sell_price_bonus') * 100) }}%
                 </p>
               </div>
               <button class="shrink-0 text-muted hover:text-text" @click="showShippingBox = false">
@@ -1607,7 +1607,7 @@
       .map(inv => ({ ...inv, def: getItemById(inv.itemId) }))
       .filter(
         (item): item is ShippableInventoryItem =>
-          !!item.def && item.def.category !== 'seed' && item.def.category !== 'machine' && item.def.category !== 'sprinkler'
+          !!item.def && !item.locked && item.def.category !== 'seed' && item.def.category !== 'machine' && item.def.category !== 'sprinkler'
       )
   })
 

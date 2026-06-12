@@ -40,7 +40,7 @@ import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
 import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
-import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone } from '@/types'
+import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone, Quality } from '@/types'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import {
   MORNING_NARRATIONS,
@@ -148,6 +148,30 @@ const MARRIAGE_RECIPE_MAP: Record<string, string> = {
   yun_fei: 'hunters_roast',
   da_niu: 'ranch_milk_soup',
   mo_bai: 'moonlit_tea_rice'
+}
+
+const FRUIT_QUALITY_NAMES: Record<Quality, string> = {
+  normal: '普通',
+  fine: '优良',
+  excellent: '精品',
+  supreme: '极品'
+}
+
+const summarizeFruitTreeYield = (fruits: { fruitId: string; quality: Quality }[]): string => {
+  const buckets = new Map<string, { name: string; quality: Quality; quantity: number }>()
+  for (const fruit of fruits) {
+    const itemName = getItemById(fruit.fruitId)?.name ?? fruit.fruitId
+    const key = `${fruit.fruitId}:${fruit.quality}`
+    const bucket = buckets.get(key)
+    if (bucket) {
+      bucket.quantity += 1
+    } else {
+      buckets.set(key, { name: itemName, quality: fruit.quality, quantity: 1 })
+    }
+  }
+  return [...buckets.values()]
+    .map(entry => `${entry.name}（${FRUIT_QUALITY_NAMES[entry.quality]}）×${entry.quantity}`)
+    .join('、')
 }
 
 /** 节日食谱映射 */
@@ -1259,11 +1283,12 @@ export const handleEndDay = () => {
 
   // 果树更新
   const fruitResult = farmStore.dailyFruitTreeUpdate(gameStore.season, { includeGreenhouse: homeStore.greenhouseUnlocked })
+  const fruitTreeYieldSummary = summarizeFruitTreeYield(fruitResult.fruits)
   for (const f of fruitResult.fruits) {
     inventoryStore.addItem(f.fruitId, 1, f.quality)
   }
   if (fruitResult.fruits.length > 0) {
-    addLog(`果树产出了${fruitResult.fruits.length}个水果。`)
+    addLog(`果树产出了${fruitResult.fruits.length}个水果：${fruitTreeYieldSummary}。`)
   }
 
   // 野生树木更新
@@ -2086,7 +2111,7 @@ export const handleEndDay = () => {
     pestResult.newInfestations > 0 ? `虫害来袭：${pestResult.newInfestations}块地遭到侵袭。` : '',
     pestResult.newWeeds > 0 ? `杂草蔓延：${pestResult.newWeeds}块地长出了杂草。` : '',
     giantCrops.length > 0 ? `发现了${giantCrops.length}株巨型作物。` : '',
-    fruitResult.fruits.length > 0 ? `果树产出了${fruitResult.fruits.length}个水果。` : '',
+    fruitResult.fruits.length > 0 ? `果树产出了${fruitResult.fruits.length}个水果：${fruitTreeYieldSummary}。` : '',
     wildTreeResult.products.length > 0 ? `采脂器收获了${wildTreeResult.products.length}项野生树产物。` : '',
     caveProducts.length > 0 ? `山洞中发现了${caveProducts.length}项产出。` : '',
   ])

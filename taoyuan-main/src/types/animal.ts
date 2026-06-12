@@ -111,6 +111,7 @@ export interface PetState {
   type: PetType
   name: string
   friendship: number
+  mood: number
   wasPetted: boolean
   specialFedToday: boolean
   specialFeedItemId: string | null

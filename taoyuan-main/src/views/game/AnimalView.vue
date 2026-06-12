@@ -112,6 +112,17 @@
               </div>
               <span class="text-[0.625rem] text-muted">{{ companion.friendship }}/1000</span>
             </div>
+            <div class="flex items-center space-x-1 mt-1">
+              <span class="text-[0.625rem] text-muted w-6">心情</span>
+              <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
+                <div
+                  class="h-full rounded-xs transition-all"
+                  :class="getMoodBarColor(companion.mood)"
+                  :style="{ width: Math.floor((companion.mood / 255) * 100) + '%' }"
+                />
+              </div>
+              <span class="text-[0.625rem] text-muted w-6">{{ getMoodText(companion.mood) }}</span>
+            </div>
             <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ getPetCompanionHint(companion) }}</p>
             <div class="mt-2 border-t border-accent/10 pt-2">
               <div class="flex items-center justify-between gap-2 mb-1">
