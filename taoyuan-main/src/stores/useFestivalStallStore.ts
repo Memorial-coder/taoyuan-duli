@@ -1,10 +1,15 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import type { Quality, RewardTicketLedger } from '@/types'
+import { useInventoryStore } from '@/stores/useInventoryStore'
+import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useSaveStore } from '@/stores/useSaveStore'
+import { useWalletStore } from '@/stores/useWalletStore'
 import {
   fetchFestivalStall,
   purchaseFestivalStallOffer,
   type FestivalStallActionResponse,
+  type FestivalStallBundleEntry,
   type FestivalStallOffer,
   type FestivalStallRecord,
   type FestivalStallSnapshot
@@ -37,6 +42,69 @@ export interface FestivalStallSaveSyncState {
 }
 
 const buildSaveSyncState = (state: FestivalStallSaveSyncState): FestivalStallSaveSyncState => state
+const normalizePositiveInt = (value: unknown): number => {
+  const normalized = Math.floor(Number(value) || 0)
+  return normalized > 0 ? normalized : 0
+}
+const normalizeQuality = (value: unknown): Quality =>
+  value === 'fine' || value === 'excellent' || value === 'supreme' ? value : 'normal'
+
+const getMoneyDelta = (costs: FestivalStallBundleEntry[], rewards: FestivalStallBundleEntry[]): number => {
+  const spent = costs
+    .filter(entry => entry.type === 'money')
+    .reduce((sum, entry) => sum + normalizePositiveInt(entry.amount), 0)
+  const earned = rewards
+    .filter(entry => entry.type === 'money')
+    .reduce((sum, entry) => sum + normalizePositiveInt(entry.amount), 0)
+  return earned - spent
+}
+
+const getItemRewards = (rewards: FestivalStallBundleEntry[]): { itemId: string; quantity: number; quality: Quality }[] =>
+  rewards
+    .filter(entry => entry.type === 'item')
+    .map(entry => ({
+      itemId: String(entry.item_id || '').trim(),
+      quantity: normalizePositiveInt(entry.quantity),
+      quality: normalizeQuality(entry.quality)
+    }))
+    .filter(entry => entry.itemId && entry.quantity > 0)
+
+const getTicketRewards = (rewards: FestivalStallBundleEntry[]): RewardTicketLedger => {
+  const ledger: RewardTicketLedger = {}
+  for (const reward of rewards) {
+    if (reward.type !== 'ticket') continue
+    const ticketType = String(reward.ticket_type || '').trim() as keyof RewardTicketLedger
+    const quantity = normalizePositiveInt(reward.quantity)
+    if (!ticketType || quantity <= 0) continue
+    ledger[ticketType] = (ledger[ticketType] ?? 0) + quantity
+  }
+  return ledger
+}
+
+const applyPurchaseDeltaToCurrentSession = (result: FestivalStallActionResponse): boolean => {
+  const costs = result.record?.costs ?? []
+  const rewards = result.record?.rewards ?? []
+  const itemRewards = getItemRewards(rewards)
+  const ticketRewards = getTicketRewards(rewards)
+  const moneyDelta = getMoneyDelta(costs, rewards)
+  const inventoryStore = useInventoryStore()
+
+  if (itemRewards.length > 0 && !inventoryStore.addItemsExact(itemRewards)) return false
+
+  if (moneyDelta !== 0) {
+    const playerStore = usePlayerStore()
+    playerStore.setMoney(Math.max(0, Math.floor(Number(playerStore.money) || 0) + moneyDelta))
+  }
+
+  if (Object.keys(ticketRewards).length > 0) {
+    useWalletStore().addRewardTickets(ticketRewards, {
+      applyMultiplier: false,
+      source: 'festival_stall_local_sync'
+    })
+  }
+
+  return true
+}
 
 export const useFestivalStallStore = defineStore('festivalStall', () => {
   const stall = ref<FestivalStallSnapshot | null>(null)
@@ -48,8 +116,9 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
   const offers = computed<FestivalStallOffer[]>(() => stall.value?.offers ?? [])
   const records = computed<FestivalStallRecord[]>(() => stall.value?.my_records ?? [])
 
-  const syncAfterPurchase = async (saveSlot: number | null | undefined): Promise<FestivalStallSaveSyncState> => {
+  const syncAfterPurchase = async (result: FestivalStallActionResponse): Promise<FestivalStallSaveSyncState> => {
     const saveStore = useSaveStore()
+    const saveSlot = result.save_slot
     const normalizedSaveSlot = saveSlot !== null && saveSlot !== undefined && Number.isInteger(saveSlot) ? Number(saveSlot) : null
     const currentStorageMode = saveStore.storageMode
     const currentSessionMode = saveStore.runtimeSessionMode ?? null
@@ -126,6 +195,20 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
     }
 
     if (saveStore.hasPendingServerSave(currentSessionSlot)) {
+      if (applyPurchaseDeltaToCurrentSession(result)) {
+        await saveStore.saveToSlot(currentSessionSlot).catch(() => false)
+        return buildSaveSyncState({
+          attempted: true,
+          current_session_synced: true,
+          current_storage_mode: currentStorageMode,
+          current_session_mode: currentSessionMode,
+          current_session_slot: currentSessionSlot,
+          purchase_save_slot: normalizedSaveSlot,
+          reason: 'synced',
+          reason_detail: 'synced',
+          message: '节庆摊位结果已合并到当前运行态；本地待同步副本会按存档系统继续同步。'
+        })
+      }
       return buildSaveSyncState({
         attempted: false,
         current_session_synced: false,
@@ -135,7 +218,7 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
         purchase_save_slot: normalizedSaveSlot,
         reason: 'load_failed',
         reason_detail: 'current_runtime_session_has_pending_local_copy',
-        message: '节庆摊位结果已写入当前服务端槽位，但本地仍有待同步副本，已跳过自动回读以避免旧副本覆盖运行态。'
+        message: '节庆摊位结果已写入当前服务端槽位，但本地待同步副本未能合并本次奖励，请重新载入服务端存档确认。'
       })
     }
 
@@ -185,7 +268,7 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
     errorMessage.value = ''
     try {
       const result = await purchaseFestivalStallOffer(offerId)
-      const saveSyncState = await syncAfterPurchase(result.save_slot)
+      const saveSyncState = await syncAfterPurchase(result)
       await refreshStall().catch(() => {})
       return {
         ...result,

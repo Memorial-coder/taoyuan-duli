@@ -1380,7 +1380,7 @@ const BAR_ITEMS: ItemDef[] = [
   { id: 'iron_bar', name: '铁锭', category: 'material', description: '冶炼出的铁锭。', sellPrice: 80, edible: false },
   { id: 'gold_bar', name: '金锭', category: 'material', description: '冶炼出的金锭。', sellPrice: 160, edible: false },
   { id: 'iridium_bar', name: '铱锭', category: 'material', description: '冶炼出的铱锭，极其珍贵。', sellPrice: 700, edible: false },
-  { id: 'bronze_bar', name: '青铜锭', category: 'material', description: '铜与锡合炼而成的青铜锭，坚固耐用。', sellPrice: 120, edible: false },
+  { id: 'bronze_bar', name: '青铜锭', category: 'material', description: '铜锭与铁锭合炼而成的青铜色金属锭，坚固耐用。', sellPrice: 120, edible: false },
   { id: 'refined_quartz', name: '精制石英', category: 'material', description: '高温提纯的石英，质地纯净透明。', sellPrice: 50, edible: false },
   { id: 'mythril_bar', name: '秘银锭', category: 'material', description: '由水晶矿与铁锭熔合而成，散发神秘光芒。', sellPrice: 350, edible: false }
 ]

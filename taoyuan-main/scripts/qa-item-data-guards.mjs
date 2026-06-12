@@ -87,6 +87,8 @@ const {
   ANIMAL_DEFS,
   FEED_DEFS,
   HANHAI_SHOP_ITEMS,
+  MUSEUM_ITEMS,
+  MUSEUM_MILESTONES,
   canTreasureDropFoxBead,
   getTreasureRewards
 } = data
@@ -176,6 +178,33 @@ assert(
 )
 assert(recipeById('spirit_forge_dragon_pearl')?.outputItemId === 'spirit_dragon_pearl', 'spirit_forge_dragon_pearl 应产出 spirit_dragon_pearl')
 assert(HIDDEN_NPCS.find(npc => npc.id === 'long_ling')?.bondItemId === 'spirit_dragon_pearl', '龙灵结缘应消耗 spirit_dragon_pearl')
+
+const expectedMuseumFurnaceItems = [
+  { id: 'bronze_bar', name: '青铜锭', category: 'bar', recipeId: 'smelt_bronze' },
+  { id: 'refined_quartz', name: '精制石英', category: 'gem', recipeId: 'smelt_refined_quartz' },
+  { id: 'mythril_bar', name: '秘银锭', category: 'bar', recipeId: 'smelt_mythril' }
+]
+for (const expected of expectedMuseumFurnaceItems) {
+  const recipe = recipeById(expected.recipeId)
+  const museumItem = MUSEUM_ITEMS.find(item => item.id === expected.id)
+  assert(recipe?.machineType === 'furnace', `${expected.recipeId} 应属于熔炉配方`)
+  assert(recipe?.outputItemId === expected.id, `${expected.recipeId} 应产出 ${expected.id}`)
+  assert(getItemById(expected.id)?.name === expected.name, `${expected.id} 物品名应为 ${expected.name}`)
+  assert(!!museumItem, `博物馆收藏缺少熔炉产物：${expected.id}`)
+  assert(museumItem?.name === expected.name, `博物馆 ${expected.id} 展示名应为 ${expected.name}`)
+  assert(museumItem?.category === expected.category, `博物馆 ${expected.id} 分类应为 ${expected.category}`)
+}
+const duplicateMuseumItemIds = [...MUSEUM_ITEMS.reduce((acc, item) => {
+  const next = (acc.get(item.id) ?? 0) + 1
+  acc.set(item.id, next)
+  return acc
+}, new Map()).entries()]
+  .filter(([, count]) => count > 1)
+  .map(([id, count]) => `${id}×${count}`)
+assert(duplicateMuseumItemIds.length === 0, `MUSEUM_ITEMS 存在重复 ID：${duplicateMuseumItemIds.join(', ')}`)
+const finalMuseumMilestoneCount = Math.max(...MUSEUM_MILESTONES.map(milestone => milestone.count))
+assert(finalMuseumMilestoneCount === MUSEUM_ITEMS.length, `博物馆最终里程碑应覆盖全部 ${MUSEUM_ITEMS.length} 件收藏，实际为 ${finalMuseumMilestoneCount}`)
+
 assert(FRUIT_TREE_DEFS.find(tree => tree.type === 'lychee_tree')?.fruitId === 'tree_lychee', '荔枝树应产出 tree_lychee')
 assert(FRUIT_TREE_DEFS.find(tree => tree.type === 'persimmon_tree')?.fruitId === 'tree_persimmon', '柿树应产出 tree_persimmon')
 assert(FORAGE_ITEMS.some(item => item.itemId === 'wild_mulberry'), '觅食表应产出 wild_mulberry')

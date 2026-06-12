@@ -34,8 +34,9 @@ export const MUSEUM_ITEMS: MuseumItemDef[] = [
   { id: 'void_ore', name: '虚空矿', category: 'ore', sourceHint: '矿洞深渊层采集' },
   { id: 'iridium_ore', name: '铱矿', category: 'ore', sourceHint: '骷髅矿穴采集' },
 
-  // ===== 宝石 (7) =====
+  // ===== 宝石 (8) =====
   { id: 'quartz', name: '石英', category: 'gem', sourceHint: '矿洞各层采集' },
+  { id: 'refined_quartz', name: '精制石英', category: 'gem', sourceHint: '熔炉提纯石英与木炭' },
   { id: 'jade', name: '翡翠', category: 'gem', sourceHint: '矿洞冰霜层以下' },
   { id: 'ruby', name: '红宝石', category: 'gem', sourceHint: '矿洞熔岩层以下' },
   { id: 'moonstone', name: '月光石', category: 'gem', sourceHint: '矿洞水晶层' },
@@ -43,11 +44,13 @@ export const MUSEUM_ITEMS: MuseumItemDef[] = [
   { id: 'dragon_jade', name: '龙玉', category: 'gem', sourceHint: '矿洞深渊层' },
   { id: 'prismatic_shard', name: '五彩碎片', category: 'gem', sourceHint: '极其稀有，深层宝箱' },
 
-  // ===== 金属锭 (4) =====
+  // ===== 金属锭 (6) =====
   { id: 'copper_bar', name: '铜锭', category: 'bar', sourceHint: '熔炉冶炼铜矿' },
   { id: 'iron_bar', name: '铁锭', category: 'bar', sourceHint: '熔炉冶炼铁矿' },
   { id: 'gold_bar', name: '金锭', category: 'bar', sourceHint: '熔炉冶炼金矿' },
   { id: 'iridium_bar', name: '铱锭', category: 'bar', sourceHint: '熔炉冶炼铱矿' },
+  { id: 'bronze_bar', name: '青铜锭', category: 'bar', sourceHint: '熔炉合炼铜锭与铁锭' },
+  { id: 'mythril_bar', name: '秘银锭', category: 'bar', sourceHint: '熔炉合炼水晶矿与铁锭' },
 
   // ===== 化石 (8) =====
   { id: 'trilobite_fossil', name: '三叶虫化石', category: 'fossil', sourceHint: '矿洞浅层/冰霜层宝箱' },
@@ -97,7 +100,19 @@ export const MUSEUM_MILESTONES: MuseumMilestone[] = [
   { count: 25, name: '文物守护者', reward: { money: 3000 } },
   { count: 30, name: '远古探秘', reward: { money: 5000, items: [{ itemId: 'iridium_bar', quantity: 3 }] } },
   { count: 36, name: '博物馆之星', reward: { money: 10000 } },
-  { count: 40, name: '灵物全鉴', reward: { money: 8000, items: [{ itemId: 'moonstone', quantity: 3 }] } }
+  { count: 40, name: '灵物通鉴', reward: { money: 8000, items: [{ itemId: 'moonstone', quantity: 3 }] } },
+  {
+    count: 43,
+    name: '炉火全鉴',
+    reward: {
+      money: 12000,
+      items: [
+        { itemId: 'bronze_bar', quantity: 2 },
+        { itemId: 'refined_quartz', quantity: 3 },
+        { itemId: 'mythril_bar', quantity: 1 }
+      ]
+    }
+  }
 ]
 
 export const MUSEUM_EXHIBIT_SLOTS: MuseumExhibitSlotDef[] = [
