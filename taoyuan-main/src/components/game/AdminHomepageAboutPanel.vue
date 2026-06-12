@@ -4,7 +4,7 @@
       <div class="flex items-center justify-between gap-3">
         <div>
           <p class="text-sm text-accent">首页「关于游戏」内容管理</p>
-          <p class="text-xs text-muted mt-1">支持像交流大厅一样分段编辑图文内容，每个文字段可混用 Markdown 与安全 HTML。</p>
+          <p class="text-xs text-muted mt-1">支持像交流大厅一样分段编辑图文内容，每个文字段可混用 GitHub README 风格 Markdown 与安全 HTML。</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button class="btn !px-3 !py-2" @click="loadContent" :disabled="loading">
@@ -48,7 +48,7 @@
           <span>内容正文（图文块）</span>
           <span class="text-[0.6875rem] text-muted">共 {{ aboutBlocks.length }} 段</span>
         </div>
-        <p class="text-[0.6875rem] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持标题、列表、链接等 Markdown，也支持大部分富文本 HTML 与常见样式，如 <code>&lt;div style="text-align:center;color:#fff"&gt;</code>、<code>&lt;table&gt;</code>、<code>&lt;a&gt;</code>、<code>&lt;img&gt;</code>。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持 GitHub README 常见语法，如标题、列表、任务列表、表格、引用、分割线、代码块、删除线、脚注和链接，也支持安全富文本 HTML 与常见样式。</p>
 
         <div class="space-y-3">
           <div
@@ -87,7 +87,7 @@
               class="admin-textarea"
               :disabled="aboutContentReadonly"
               readonly
-              placeholder="输入这一段正文。支持 Markdown，也支持大部分富文本 HTML 与常见样式。"
+              placeholder="输入这一段正文。支持 GitHub README 风格 Markdown，也支持安全富文本 HTML 与常见样式。"
             />
 
             <div v-else class="space-y-2">
@@ -129,7 +129,7 @@
           <p class="text-[0.6875rem] text-accent mb-2">按钮文案：{{ form.aboutButtonText || '关于游戏' }}</p>
           <div class="admin-preview-body">
             <h3 class="text-sm text-accent mb-3">{{ form.aboutDialogTitle || '关于桃源乡' }}</h3>
-            <div class="admin-markdown-preview" v-html="previewHtml" />
+            <div class="admin-markdown-preview taoyuan-rich-markdown" v-html="previewHtml" />
           </div>
         </div>
       </div>

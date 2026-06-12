@@ -62,7 +62,7 @@
               class="announcement-image"
               loading="lazy"
             />
-            <div class="announcement-rich" v-html="renderBody(announcement.body)" />
+            <div class="announcement-rich taoyuan-rich-markdown" v-html="renderBody(announcement.body)" />
             <div v-if="announcement.rewards.length" class="announcement-rewards" data-testid="announcement-popup-rewards">
               <span>点击“知道并领取”后发放</span>
               <strong>{{ announcement.rewards.map(rewardLabel).join(' / ') }}</strong>

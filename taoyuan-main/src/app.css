@@ -95,6 +95,139 @@ button {
   background-image: none;
 }
 
+.taoyuan-rich-markdown {
+  overflow-wrap: anywhere;
+}
+
+.taoyuan-rich-markdown :where(h1, h2, h3, h4, h5, h6) {
+  color: rgb(var(--color-text));
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.taoyuan-rich-markdown :where(h1) {
+  font-size: 1.15em;
+}
+
+.taoyuan-rich-markdown :where(h2) {
+  font-size: 1.05em;
+}
+
+.taoyuan-rich-markdown :where(h3, h4, h5, h6) {
+  font-size: 1em;
+}
+
+.taoyuan-rich-markdown :where(a) {
+  color: rgb(var(--color-accent-rgb));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.taoyuan-rich-markdown :where(blockquote) {
+  border-left: 3px solid rgba(200, 164, 92, 0.34);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgb(var(--color-muted-rgb));
+  margin: 0 0 10px;
+  padding: 8px 10px;
+}
+
+.taoyuan-rich-markdown :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(200, 164, 92, 0.16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.22);
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+.taoyuan-rich-markdown :where(code) {
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  color: rgb(var(--color-highlight-rgb));
+  font-family: var(--font-game);
+  padding: 1px 4px;
+}
+
+.taoyuan-rich-markdown :where(pre code) {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.taoyuan-rich-markdown :where(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.taoyuan-rich-markdown :where(th, td) {
+  min-width: 6rem;
+  border: 1px solid rgba(200, 164, 92, 0.16);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.taoyuan-rich-markdown :where(th) {
+  background: rgba(200, 164, 92, 0.1);
+  color: rgb(var(--color-highlight-rgb));
+  font-weight: 700;
+}
+
+.taoyuan-rich-markdown :where(hr) {
+  border: 0;
+  border-top: 1px solid rgba(200, 164, 92, 0.2);
+  margin: 12px 0;
+}
+
+.taoyuan-rich-markdown :where(del) {
+  color: rgb(var(--color-muted-rgb));
+}
+
+.taoyuan-rich-markdown :where(input[type='checkbox']) {
+  width: 1em;
+  height: 1em;
+  margin: 0 6px 0 0;
+  accent-color: rgb(var(--color-accent-rgb));
+  vertical-align: -0.12em;
+}
+
+.taoyuan-rich-markdown :where(details) {
+  border: 1px solid rgba(200, 164, 92, 0.16);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.035);
+  margin: 0 0 10px;
+  padding: 8px 10px;
+}
+
+.taoyuan-rich-markdown :where(summary) {
+  cursor: pointer;
+  color: rgb(var(--color-accent-rgb));
+}
+
+.taoyuan-rich-markdown :where(kbd) {
+  border: 1px solid rgba(200, 164, 92, 0.28);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.22);
+  color: rgb(var(--color-highlight-rgb));
+  padding: 1px 5px;
+}
+
+.taoyuan-rich-markdown :where(.footnotes) {
+  margin-top: 12px;
+  color: rgb(var(--color-muted-rgb));
+  font-size: 0.92em;
+}
+
+.taoyuan-rich-markdown :where(.footnote-ref, .footnote-backref) {
+  font-size: 0.9em;
+  word-break: keep-all;
+}
+
 #app {
   width: 100%;
   max-width: 1000px;

@@ -211,7 +211,7 @@
         <div class="announcement-preview" data-testid="announcement-admin-preview">
           <img v-if="form.image_url" :src="form.image_url" :alt="form.title || '公告图片'" class="announcement-preview-image" />
           <h3>{{ form.title || '未命名公告' }}</h3>
-          <div class="announcement-preview-body" v-html="previewHtml" />
+          <div class="announcement-preview-body taoyuan-rich-markdown" v-html="previewHtml" />
           <div v-if="form.rewards.length" class="announcement-preview-rewards" data-testid="announcement-reward-preview">
             <span>奖励</span>
             <strong>{{ form.rewards.map(rewardLabel).join(' / ') }}</strong>

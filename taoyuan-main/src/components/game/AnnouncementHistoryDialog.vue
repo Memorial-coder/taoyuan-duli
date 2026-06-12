@@ -69,7 +69,7 @@
               class="announcement-history-image"
               loading="lazy"
             />
-            <div class="announcement-history-rich" v-html="renderBody(announcement.body)" />
+            <div class="announcement-history-rich taoyuan-rich-markdown" v-html="renderBody(announcement.body)" />
             <div v-if="announcement.rewards.length" class="announcement-history-rewards">
               <span>公告奖励</span>
               <strong>{{ announcement.rewards.map(rewardLabel).join(' / ') }}</strong>

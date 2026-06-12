@@ -1,3 +1,5 @@
+import { marked } from 'marked'
+
 const TEXT_NODE = 3
 const ELEMENT_NODE = 1
 const HTML_PLACEHOLDER_PREFIX = '@@TAOYUANHTML'
@@ -14,7 +16,12 @@ const STRICT_ALLOWED_HTML_TAGS = new Set([
   'blockquote',
   'br',
   'code',
+  'dd',
+  'del',
+  'details',
   'div',
+  'dl',
+  'dt',
   'em',
   'figcaption',
   'figure',
@@ -24,12 +31,17 @@ const STRICT_ALLOWED_HTML_TAGS = new Set([
   'hr',
   'i',
   'img',
+  'input',
+  'kbd',
   'li',
   'ol',
   'p',
   'pre',
   'span',
   'strong',
+  'sub',
+  'summary',
+  'sup',
   'table',
   'tbody',
   'td',
@@ -57,7 +69,6 @@ const DROP_HTML_TAGS = new Set([
   'embed',
   'form',
   'iframe',
-  'input',
   'link',
   'meta',
   'object',
@@ -67,8 +78,8 @@ const DROP_HTML_TAGS = new Set([
   'textarea',
   'video',
 ])
-const VOID_HTML_TAGS = new Set(['br', 'hr', 'img'])
-const GLOBAL_ALLOWED_ATTRS = new Set(['title'])
+const VOID_HTML_TAGS = new Set(['br', 'hr', 'img', 'input'])
+const GLOBAL_ALLOWED_ATTRS = new Set(['class', 'id', 'title'])
 const SAFE_TARGETS = new Set(['_blank', '_self'])
 const SAFE_LOADING = new Set(['eager', 'lazy'])
 const SAFE_ALIGN = new Set(['center', 'left', 'right'])
@@ -82,9 +93,19 @@ const SAFE_BORDER_STYLE_RE = /^(?:none|solid|dashed|dotted|double)$/i
 const SAFE_OBJECT_FIT_RE = /^(?:fill|contain|cover|none|scale-down)$/i
 const SAFE_COLOR_RE = /^(?:#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*(?:,\s*\d{1,3}\s*){2}(?:,\s*(?:0|1|0?\.\d+)\s*)?\)|transparent|currentcolor|inherit|initial|unset|white|black|gray|grey|red|green|blue|yellow|orange|purple|pink|brown|teal|navy|maroon|silver|lime|aqua|fuchsia|olive)$/i
 const SAFE_LENGTH_RE = /^(?:\d+(?:\.\d+)?(?:px|%|em|rem)?|0)$/i
+const SAFE_CLASS_RE = /^[a-z0-9_-]+(?:\s+[a-z0-9_-]+)*$/i
+const SAFE_ID_RE = /^[a-z][\w:-]{0,96}$/i
+const SAFE_ORDER_START_RE = /^\d{1,4}$/
 const UNSAFE_STYLE_VALUE_RE = /(?:expression\s*\(|javascript:|url\s*\(|var\s*\()/i
 
 type HtmlMode = 'strict' | 'rich'
+
+type RichMarkdownFootnote = {
+  content: string
+  id: string
+  label: string
+  referenceIds: string[]
+}
 
 const RICH_STYLE_ALLOWLIST = new Set([
   'background-color',
@@ -139,8 +160,13 @@ const RICH_TAG_ALLOWED_ATTRS: Record<string, Set<string>> = {
   a: new Set(['href', 'rel', 'style', 'target']),
   b: new Set(['style']),
   blockquote: new Set(['style']),
-  code: new Set(['style']),
+  code: new Set(['class', 'style']),
+  dd: new Set(['style']),
+  del: new Set(['style']),
+  details: new Set(['open', 'style']),
   div: new Set(['align', 'style']),
+  dl: new Set(['style']),
+  dt: new Set(['style']),
   em: new Set(['style']),
   figcaption: new Set(['style']),
   figure: new Set(['style']),
@@ -153,15 +179,20 @@ const RICH_TAG_ALLOWED_ATTRS: Record<string, Set<string>> = {
   hr: new Set(['style']),
   i: new Set(['style']),
   img: new Set(['alt', 'height', 'loading', 'src', 'style', 'width']),
+  input: new Set(['checked', 'disabled', 'type']),
+  kbd: new Set(['style']),
   li: new Set(['style']),
   mark: new Set(['style']),
-  ol: new Set(['style']),
+  ol: new Set(['start', 'style']),
   p: new Set(['align', 'style']),
   pre: new Set(['style']),
   s: new Set(['style']),
   small: new Set(['style']),
   span: new Set(['style']),
   strong: new Set(['style']),
+  sub: new Set(['style']),
+  summary: new Set(['style']),
+  sup: new Set(['style']),
   table: new Set(['align', 'style', 'width']),
   tbody: new Set(['style']),
   td: new Set(['align', 'colspan', 'rowspan', 'style']),
@@ -173,6 +204,13 @@ const RICH_TAG_ALLOWED_ATTRS: Record<string, Set<string>> = {
 }
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const markedOptions = Object.freeze({
+  async: false,
+  breaks: false,
+  gfm: true,
+  pedantic: false,
+})
 
 const escapeHtml = (value: string): string => {
   return value
@@ -187,6 +225,81 @@ const normalizeLegacyUploadUrl = (value: string): string => {
   if (/^\/taoyuan\/hall\/uploads\//i.test(value)) return `/api${value}`
   if (/^taoyuan\/hall\/uploads\//i.test(value)) return `/api/${value}`
   return value
+}
+
+const normalizeRichMarkdownAnchor = (value: string, fallback: string): string => {
+  const slug = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+  return slug || fallback
+}
+
+const extractRichMarkdownFootnotes = (source: string): { markdown: string; footnotes: RichMarkdownFootnote[] } => {
+  const lines = source.split('\n')
+  const keptLines: string[] = []
+  const footnotes: RichMarkdownFootnote[] = []
+  const footnoteByLabel = new Map<string, RichMarkdownFootnote>()
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? ''
+    const match = line.match(/^\[\^([^\]]+)\]:\s*(.*)$/)
+    if (!match) {
+      keptLines.push(line)
+      continue
+    }
+
+    const label = String(match[1] || '').trim()
+    const contentLines = [String(match[2] || '').trim()]
+    while (index + 1 < lines.length && /^(?: {2,}|\t)\S/.test(lines[index + 1] ?? '')) {
+      index += 1
+      contentLines.push(String(lines[index] || '').replace(/^(?: {2,}|\t)/, '').trim())
+    }
+
+    const id = `fn-${normalizeRichMarkdownAnchor(label, String(footnotes.length + 1))}`
+    const footnote: RichMarkdownFootnote = {
+      content: contentLines.join('\n').trim(),
+      id,
+      label,
+      referenceIds: [],
+    }
+    footnotes.push(footnote)
+    footnoteByLabel.set(label, footnote)
+  }
+
+  const referenceCounts = new Map<string, number>()
+  const markdown = keptLines.join('\n').replace(/\[\^([^\]]+)\]/g, (token, rawLabel: string) => {
+    const label = String(rawLabel || '').trim()
+    const footnote = footnoteByLabel.get(label)
+    if (!footnote) return token
+
+    const count = (referenceCounts.get(label) || 0) + 1
+    referenceCounts.set(label, count)
+    const referenceId = count === 1 ? `fnref-${footnote.id}` : `fnref-${footnote.id}-${count}`
+    footnote.referenceIds.push(referenceId)
+    return `<sup id="${referenceId}"><a href="#${footnote.id}" class="footnote-ref">${escapeHtml(label)}</a></sup>`
+  })
+
+  return { markdown, footnotes }
+}
+
+const renderRichMarkdownFootnotes = (footnotes: RichMarkdownFootnote[]): string => {
+  const referencedFootnotes = footnotes.filter(footnote => footnote.referenceIds.length > 0)
+  if (!referencedFootnotes.length) return ''
+
+  const items = referencedFootnotes
+    .map(footnote => {
+      const contentHtml = marked.parseInline(footnote.content || footnote.label, markedOptions) as string
+      const backrefs = footnote.referenceIds
+        .map(referenceId => `<a href="#${referenceId}" class="footnote-backref" title="返回正文">return</a>`)
+        .join(' ')
+      return `<li id="${footnote.id}">${contentHtml} ${backrefs}</li>`
+    })
+    .join('')
+
+  return `<div class="footnotes"><hr /><ol>${items}</ol></div>`
 }
 
 const hasUnsafeUrlCharacter = (value: string): boolean => {
@@ -337,6 +450,16 @@ const sanitizeElementStartTag = (element: Element, tagName: string, mode: HtmlMo
       continue
     }
 
+    if (name === 'class') {
+      if (mode === 'rich' && SAFE_CLASS_RE.test(value)) attrs.set(name, value)
+      continue
+    }
+
+    if (name === 'id') {
+      if (mode === 'rich' && SAFE_ID_RE.test(value)) attrs.set(name, value)
+      continue
+    }
+
     if (name === 'style' && mode === 'rich') {
       const safeStyle = sanitizeStyleAttribute(value)
       if (safeStyle) attrs.set(name, safeStyle)
@@ -366,8 +489,28 @@ const sanitizeElementStartTag = (element: Element, tagName: string, mode: HtmlMo
       continue
     }
 
+    if (name === 'start') {
+      if (SAFE_ORDER_START_RE.test(value)) attrs.set(name, value)
+      continue
+    }
+
     if (name === 'colspan' || name === 'rowspan') {
       if (SAFE_SPAN_RE.test(value)) attrs.set(name, value)
+      continue
+    }
+
+    if (name === 'type' && tagName === 'input') {
+      if (value.toLowerCase() === 'checkbox') attrs.set(name, 'checkbox')
+      continue
+    }
+
+    if ((name === 'checked' || name === 'disabled') && tagName === 'input') {
+      attrs.set(name, name)
+      continue
+    }
+
+    if (name === 'open' && tagName === 'details') {
+      attrs.set(name, name)
       continue
     }
 
@@ -389,6 +532,11 @@ const sanitizeElementStartTag = (element: Element, tagName: string, mode: HtmlMo
   if (tagName === 'img') {
     if (!attrs.has('src')) return null
     if (!attrs.has('loading')) attrs.set('loading', 'lazy')
+  }
+
+  if (tagName === 'input') {
+    if (attrs.get('type') !== 'checkbox') return null
+    attrs.set('disabled', 'disabled')
   }
 
   return `<${tagName}${buildAttributeString(attrs)}>`
@@ -768,103 +916,9 @@ export const renderRichContent = (value: string): string => {
   const standaloneHtml = renderRichContentStandaloneHtml(trimmed)
   if (standaloneHtml !== null) return standaloneHtml || '<p></p>'
 
-  const codeBlocks: string[] = []
-  const placeholderPrefix = '__TAOYUAN_RICH_CODE_BLOCK_'
+  const { markdown, footnotes } = extractRichMarkdownFootnotes(source)
+  const rendered = `${marked.parse(markdown, markedOptions) as string}${renderRichMarkdownFootnotes(footnotes)}`
 
-  const withoutCode = source.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang: string, code: string) => {
-    const index = codeBlocks.length
-    const langClass = lang ? ` class="language-${escapeHtml(lang)}"` : ''
-    codeBlocks.push(`<pre><code${langClass}>${escapeHtml(code.trimEnd())}</code></pre>`)
-    return `${placeholderPrefix}${index}__`
-  })
-
-  const lines = withoutCode.split('\n')
-  const htmlParts: string[] = []
-  let paragraphBuffer: string[] = []
-  let listType: 'ul' | 'ol' | '' = ''
-  let listItems: string[] = []
-
-  const flushParagraph = () => {
-    if (!paragraphBuffer.length) return
-    const rawParagraph = paragraphBuffer.join('\n').trim()
-    const richHtml = renderRichContentStandaloneHtml(rawParagraph)
-    if (richHtml !== null) {
-      if (richHtml) htmlParts.push(richHtml)
-      paragraphBuffer = []
-      return
-    }
-    htmlParts.push(`<p>${paragraphBuffer.map(line => renderInlineMarkdown(line, 'rich')).join('<br />')}</p>`)
-    paragraphBuffer = []
-  }
-
-  const flushList = () => {
-    if (!listType || !listItems.length) return
-    htmlParts.push(`<${listType}>${listItems.map(item => `<li>${renderInlineMarkdown(item, 'rich')}</li>`).join('')}</${listType}>`)
-    listType = ''
-    listItems = []
-  }
-
-  for (const rawLine of lines) {
-    const line = rawLine.trimEnd()
-    const trimmedLine = line.trim()
-
-    if (!trimmedLine) {
-      flushParagraph()
-      flushList()
-      continue
-    }
-
-    if (trimmedLine.startsWith(placeholderPrefix)) {
-      flushParagraph()
-      flushList()
-      htmlParts.push(trimmedLine)
-      continue
-    }
-
-    const richStandaloneHtml = renderRichContentStandaloneHtml(trimmedLine)
-    if (richStandaloneHtml !== null) {
-      flushParagraph()
-      flushList()
-      if (richStandaloneHtml) htmlParts.push(richStandaloneHtml)
-      continue
-    }
-
-    const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      flushParagraph()
-      flushList()
-      const level = headingMatch[1]?.length || 1
-      const headingText = headingMatch[2] ?? ''
-      htmlParts.push(`<h${level}>${renderInlineMarkdown(headingText, 'rich')}</h${level}>`)
-      continue
-    }
-
-    const unorderedMatch = trimmedLine.match(/^[-*]\s+(.+)$/)
-    if (unorderedMatch) {
-      flushParagraph()
-      if (listType && listType !== 'ul') flushList()
-      listType = 'ul'
-      listItems.push(unorderedMatch[1] ?? '')
-      continue
-    }
-
-    const orderedMatch = trimmedLine.match(/^\d+[.)]\s+(.+)$/)
-    if (orderedMatch) {
-      flushParagraph()
-      if (listType && listType !== 'ol') flushList()
-      listType = 'ol'
-      listItems.push(orderedMatch[1] ?? '')
-      continue
-    }
-
-    if (listType) flushList()
-    paragraphBuffer.push(trimmedLine)
-  }
-
-  flushParagraph()
-  flushList()
-
-  return htmlParts
-    .join('')
-    .replace(new RegExp(`${placeholderPrefix}(\\d+)__`, 'g'), (_, index: string) => codeBlocks[Number(index)] || '')
+  const sanitized = sanitizeHtmlFragmentByMode(rendered, 'rich')
+  return sanitized || '<p></p>'
 }

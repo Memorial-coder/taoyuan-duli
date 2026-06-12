@@ -567,7 +567,7 @@
           </button>
           <Divider title class="my-4" :label="menuConfig.aboutDialogTitle" />
           <div class="flex-1 overflow-y-auto px-1 pb-3">
-            <div class="main-menu-about-markdown text-xs text-muted leading-6" v-html="aboutDialogHtml" />
+            <div class="main-menu-about-markdown taoyuan-rich-markdown text-xs text-muted leading-6" v-html="aboutDialogHtml" />
           </div>
           <div class="flex justify-center pb-2">
             <Button :icon="Info" :icon-size="12" @click="showAbout = false">我知道了</Button>
