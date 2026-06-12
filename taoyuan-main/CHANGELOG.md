@@ -4,6 +4,24 @@
 
 ## [未发布]
 
+### 0612 月兔采药炼丹加强
+- 月兔结缘奖励从每日固定回体改为晨起「月露体力储备」：每日睡眠恢复前清除旧仙缘临时上限，晨起获得临时体力上限+30并恢复30体力，同时结缘后月华采集月草概率额外+5%。
+- 月华采集月草从固定8%提升为常态15%，夜间20:00-24:00或每月14日提升到25%；药引从料理恢复扩展到茶饮/药饮直接食用和丹药实际效果，丹药送礼/节会倍率只放大超过1的增量。
+- 本轮验证：`npm --prefix taoyuan-main run qa:yue-tu-balance`、`npm --prefix taoyuan-main run qa:item-data-guards`、`npm --prefix taoyuan-main run qa:skill-mastery-effect-guards`、`npm --prefix taoyuan-main run check` 均通过；`check` 保留当前工作区既有 2 条 lint warning（`src/utils/onlineProfileApi.ts`、`src/views/game/CottageView.vue`）。
+
+### 0612 目标入口收纳到地图随身栏
+- 游戏主内容区不再常驻 `TopGoalsPanel`，右下角地图菜单只保留“目标”入口；`top_goals` 引导会跳转到独立 `goals` 页面并继续复用原有聚焦定位。
+- `MobileMapMenu` 的“随身”栏在“钱包”和“邮箱”之间新增普通面板入口“目标”，进入 `/game/goals`；`goals` 归入随身页时间组，不触发地点移动或耗时。
+- 新增 `GoalsView`，把目标内容压缩为“今天先做 / 本周主线 / 里程碑进度”三条摘要，目标列表改为“今日 / 本周 / 本季 / 长期”标签切换，并将活动、任务收尾和市场提示合并为短句。
+- 玩家可见文案统一从“顶部目标规划面板 / 目标规划”改为“目标 / 目标页 / 右下角地图 / 随身 / 目标”；`qa-mobile-ui-smoke` 地图菜单场景新增“目标”位于钱包与邮箱之间、点击后跳转目标页、主内容区无 `top-goals-compact-card` 的断言。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run lint`、`npm --prefix taoyuan-main run check` 通过；`TAOYUAN_MOBILE_SMOKE_ONLY=12-mobile-map-menu-390x844` 的 `qa:mobile-ui-smoke` 首次首页导航 30s 超时，调高导航/首页等待到 90s 后通过并写出 summary，结束时仍有本地公告代理 `127.0.0.1:4013` 拒连噪声。
+
+### 0612 博物馆熔炉收藏补齐
+- 博物馆收藏目录同步新增熔炉产物 `bronze_bar`（青铜锭）、`refined_quartz`（精制石英）和 `mythril_bar`（秘银锭）；其中精制石英归入宝石展项，青铜锭 / 秘银锭归入金属锭展项，来源提示与熔炉配方保持一致。
+- 博物馆里程碑保留 40 件旧奖励档并改名为「灵物通鉴」，新增 43 件「炉火全鉴」作为当前全收藏收尾奖励，避免旧存档已领取的 `40` 档奖励被迁移破坏。
+- `qa:item-data-guards` 新增熔炉产物必须有物品定义、熔炉配方、博物馆收藏和最终里程碑覆盖的断言；博物馆捐赠 QA 的浏览器 shim 补齐 `documentElement` 属性方法，以适配主题应用逻辑。
+- 本轮验证：`npm --prefix taoyuan-main run qa:item-data-guards`、`npm --prefix taoyuan-main run qa:museum-ancient-seed-donation`、`node --check taoyuan-main/scripts/qa-item-data-guards.mjs`、`node --check taoyuan-main/scripts/qa-museum-ancient-seed-donation.mjs` 通过；`npm --prefix taoyuan-main run check` 的 `type-check` 通过，随后 lint 被当前工作区 `src/stores/useFestivalStallStore.ts` 未使用 import 阻断。
+
 ### 0610 隐藏通配加工配方
 - 加工配方元数据新增 `visibility` 与 `hiddenMeta`，工坊现在先匹配显式配方，再为酒坊、酱缸、油坊、石磨、药碾、晒架、脱水机、蜂箱、糖渍罐、烟熏机等可实验机器按材料族生成隐藏通配配方；同一机器、输入和附加材料已有显式配方时不会生成隐藏配方。
 - 隐藏配方未发现时在工坊卡片显示「未知酿造 / 未知腌制 / 未知压榨」等伪装名称、剪影图标和材料需求，不提前泄露产物；批量加工也支持隐藏配方，首次成功收取成品后写入 `discoveredProcessingRecipeIds`，后续卡片、百科和机器资料会显示真实名称、输出和用途推荐。
