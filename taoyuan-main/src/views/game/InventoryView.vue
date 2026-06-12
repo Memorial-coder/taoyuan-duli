@@ -378,6 +378,16 @@
                 </template>
                 <span v-if="activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
+              <div class="mb-2 grid grid-cols-2 gap-1 text-[0.625rem] sm:grid-cols-3">
+                <div
+                  v-for="slot in getPresetEquipmentSummaries(preset)"
+                  :key="`${preset.id}-${slot.label}`"
+                  class="min-w-0 rounded-xs border border-accent/10 px-1.5 py-1"
+                >
+                  <span class="block text-muted">{{ slot.label }}</span>
+                  <span class="block truncate" :class="slot.value ? 'text-text' : 'text-muted/40'">{{ slot.value ?? '空' }}</span>
+                </div>
+              </div>
               <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 <Button
                   class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap"
@@ -934,7 +944,8 @@
   import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { useInventoryStore, type EquipmentPreset } from '@/stores/useInventoryStore'
+  import { useMiningStore } from '@/stores/useMiningStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
@@ -947,6 +958,7 @@
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
+  import { getTrinketById } from '@/data/trinkets'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
@@ -966,6 +978,7 @@
   ])
 
   const inventoryStore = useInventoryStore()
+  const miningStore = useMiningStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
   const gameStore = useGameStore()
@@ -1151,6 +1164,33 @@
     if (!activePresetId.value) return null
     return inventoryStore.equipmentPresets.find(p => p.id === activePresetId.value)?.name ?? null
   })
+
+  const getPresetEquipmentSummaries = (preset: EquipmentPreset): { label: string; value: string | null }[] => [
+    {
+      label: '武器',
+      value: preset.weaponDefId ? getWeaponDisplayName(preset.weaponDefId, preset.weaponEnchantmentId) : null
+    },
+    {
+      label: '戒指1',
+      value: preset.ringSlot1DefId ? getRingById(preset.ringSlot1DefId)?.name ?? preset.ringSlot1DefId : null
+    },
+    {
+      label: '戒指2',
+      value: preset.ringSlot2DefId ? getRingById(preset.ringSlot2DefId)?.name ?? preset.ringSlot2DefId : null
+    },
+    {
+      label: '帽子',
+      value: preset.hatDefId ? getHatById(preset.hatDefId)?.name ?? preset.hatDefId : null
+    },
+    {
+      label: '鞋子',
+      value: preset.shoeDefId ? getShoeById(preset.shoeDefId)?.name ?? preset.shoeDefId : null
+    },
+    {
+      label: '饰品',
+      value: preset.trinketDefId ? getTrinketById(preset.trinketDefId)?.name ?? preset.trinketDefId : null
+    }
+  ]
 
   const handleCreatePreset = () => {
     inventoryStore.createEquipmentPreset('方案' + (inventoryStore.equipmentPresets.length + 1))
@@ -1682,7 +1722,7 @@
   const USABLE_ITEMS = new Set(['rain_totem', 'stamina_fruit'])
 
   const isUsable = (itemId: string): boolean => {
-    return USABLE_ITEMS.has(itemId) || !!getAlchemyRecipeByOutputItemId(itemId)
+    return USABLE_ITEMS.has(itemId) || miningStore.isGuildGrowthItem(itemId) || !!getAlchemyRecipeByOutputItemId(itemId)
   }
 
   const isAlchemyElixirItem = (itemId: string): boolean => !!getAlchemyRecipeByOutputItemId(itemId)
@@ -1695,6 +1735,15 @@
     const alchemyRecipe = getAlchemyRecipeByOutputItemId(itemId)
     if (alchemyRecipe?.alchemy) {
       const result = cookingStore.useElixir(itemId, quality)
+      addLog(result.message)
+      if (result.success && !inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
+        activeItemIndex.value = null
+      }
+      return
+    }
+
+    if (miningStore.isGuildGrowthItem(itemId)) {
+      const result = miningStore.useGuildGrowthItem(itemId, quality)
       addLog(result.message)
       if (result.success && !inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
         activeItemIndex.value = null

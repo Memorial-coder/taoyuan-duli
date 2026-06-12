@@ -166,10 +166,12 @@ const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
 const miningStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useMiningStore.ts')).href)
+const shopStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useShopStore.ts')).href)
 const itemDataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
 const inventoryUseRulesModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryUseRules.ts')).href)
 const inventoryCapacityModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryCapacity.ts')).href)
 const shopViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ShopView.vue'), 'utf8')
+const farmViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/FarmView.vue'), 'utf8')
 const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
 
 const freshInventoryStore = () => {
@@ -182,6 +184,15 @@ const freshInventoryAndPlayerStores = () => {
   return {
     inventoryStore: inventoryStoreModule.useInventoryStore(),
     playerStore: playerStoreModule.usePlayerStore()
+  }
+}
+
+const freshInventoryPlayerAndShopStores = () => {
+  setActivePinia(createPinia())
+  return {
+    inventoryStore: inventoryStoreModule.useInventoryStore(),
+    playerStore: playerStoreModule.usePlayerStore(),
+    shopStore: shopStoreModule.useShopStore()
   }
 }
 
@@ -262,6 +273,50 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
   assert(
     shopViewSource.includes('{{ buyModalPrice }}文') && shopViewSource.includes('return buyModalPrice.value * buyQuantity.value'),
     '购买弹窗展示和总价应读取实时价格。'
+  )
+}
+
+{
+  assert(
+    farmViewSource.includes("!!item.def && !item.locked && item.def.category !== 'seed'"),
+    'Farm shipping-box candidates must exclude locked inventory slots.'
+  )
+  assert(
+    shopViewSource.includes('i.itemId === data.itemId && i.quality === data.quality && !i.locked'),
+    'Shop sell modal must not resolve locked inventory slots.'
+  )
+  assert(
+    shopViewSource.includes("!item.locked && !item.itemId.startsWith('seed_')"),
+    'Shop sell list must keep locked inventory slots hidden.'
+  )
+}
+
+{
+  const { inventoryStore, playerStore, shopStore } = freshInventoryPlayerAndShopStores()
+  const itemId = 'corn'
+  const quality = 'normal'
+  inventoryStore.items = [{ itemId, quantity: 3, quality, locked: true }]
+  const startingMoney = playerStore.money
+
+  assert(inventoryStore.getUnlockedItemCount(itemId, quality) === 0, 'Locked slots should not count as unlocked sellable stock.')
+  assert(shopStore.sellItem(itemId, 1, quality) === 0, 'Direct shop sale must reject locked inventory slots.')
+  assert(inventoryStore.getItemCount(itemId, quality) === 3, 'Direct shop sale must leave locked inventory quantity unchanged.')
+  assert(playerStore.money === startingMoney, 'Rejected locked direct sale must not grant money.')
+  assert(shopStore.addToShippingBox(itemId, 1, quality) === false, 'Shipping box must reject locked inventory slots.')
+  assert(inventoryStore.getItemCount(itemId, quality) === 3, 'Shipping box must leave locked inventory quantity unchanged.')
+  assert(shopStore.shippingBox.length === 0, 'Shipping box must not receive locked inventory items.')
+
+  inventoryStore.items = [{ itemId, quantity: 3, quality, locked: false }]
+  const earned = shopStore.sellItem(itemId, 1, quality)
+  assert(earned > 0, 'Direct shop sale should still work for unlocked inventory slots.')
+  assert(inventoryStore.getItemCount(itemId, quality) === 2, 'Direct shop sale should consume unlocked inventory quantity.')
+
+  inventoryStore.items = [{ itemId, quantity: 3, quality, locked: false }]
+  assert(shopStore.addToShippingBox(itemId, 2, quality) === true, 'Shipping box should still accept unlocked inventory slots.')
+  assert(inventoryStore.getItemCount(itemId, quality) === 1, 'Shipping box should consume unlocked inventory quantity.')
+  assert(
+    shopStore.shippingBox.some(entry => entry.itemId === itemId && entry.quality === quality && entry.quantity === 2),
+    'Shipping box should record accepted unlocked items.'
   )
 }
 
@@ -439,20 +494,20 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
   const miningStore = miningStoreModule.useMiningStore()
   const maxHp = playerStore.getMaxHp()
   miningStore.isExploring = true
-  playerStore.hp = maxHp - 16
+  playerStore.hp = maxHp - 30
   playerStore.stamina = playerStore.maxStamina - 30
-  inventoryStore.items = [{ itemId: 'corn', quantity: 3, quality: 'normal' }]
+  inventoryStore.items = [{ itemId: 'adventurer_ration', quantity: 3, quality: 'normal' }]
 
-  const result = miningStore.useCombatItem('corn', 3)
-  assert(result.success === true, '矿洞批量吃玉米应成功')
-  assert(result.message.includes('×2'), '矿洞批量吃玉米应汇总实际使用数量')
-  assert(playerStore.hp === maxHp, '矿洞批量吃玉米应在 HP 满时停止')
-  assert(playerStore.stamina === playerStore.maxStamina, '矿洞批量吃玉米应在体力满时停止')
-  assert(inventoryStore.getItemCount('corn') === 1, '请求吃 3 个玉米但满状态后应只消耗 2 个')
+  const result = miningStore.useCombatItem('adventurer_ration', 3)
+  assert(result.success === true, '矿洞批量吃冒险口粮应成功')
+  assert(result.message.includes('×2'), '矿洞批量吃冒险口粮应汇总实际使用数量')
+  assert(playerStore.hp === maxHp, '矿洞批量吃冒险口粮应在 HP 满时停止')
+  assert(playerStore.stamina === playerStore.maxStamina, '矿洞批量吃冒险口粮应在体力满时停止')
+  assert(inventoryStore.getItemCount('adventurer_ration') === 1, '请求吃 3 个冒险口粮但满状态后应只消耗 2 个')
 
-  const blocked = miningStore.useCombatItem('corn', 3)
+  const blocked = miningStore.useCombatItem('adventurer_ration', 3)
   assert(blocked.success === false, 'HP/体力已满时矿洞批量吃食物应被阻止')
-  assert(inventoryStore.getItemCount('corn') === 1, 'HP/体力已满时不应继续消耗玉米')
+  assert(inventoryStore.getItemCount('adventurer_ration') === 1, 'HP/体力已满时不应继续消耗冒险口粮')
 }
 
 if (errors.length > 0) {

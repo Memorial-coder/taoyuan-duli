@@ -2003,43 +2003,46 @@ export const useMiningStore = defineStore('mining', () => {
     return '已强制结束本次矿洞探索并退出。'
   }
 
-  const useCombatItem = (itemId: string, quantity: number = 1): { success: boolean; message: string } => {
+  const GUILD_GROWTH_ITEM_IDS = new Set(['guild_badge', 'life_talisman', 'lucky_coin', 'defense_charm'])
+
+  const isGuildGrowthItem = (itemId: string): boolean => GUILD_GROWTH_ITEM_IDS.has(itemId)
+
+  const useGuildGrowthItem = (itemId: string, quality?: Quality): { success: boolean; message: string } => {
+    if (itemId === 'guild_badge') {
+      if (!inventoryStore.removeItem('guild_badge', 1, quality)) return { success: false, message: '没有公会徽章。' }
+      guildBadgeBonusAttack.value += 3
+      return { success: true, message: '使用了公会徽章，攻击力永久+3！' }
+    }
+
+    if (itemId === 'life_talisman') {
+      if (!inventoryStore.removeItem('life_talisman', 1, quality)) return { success: false, message: '没有生命护符。' }
+      guildBonusMaxHp.value += 15
+      return { success: true, message: '使用了生命护符，最大生命值永久+15！' }
+    }
+
+    if (itemId === 'lucky_coin') {
+      if (!inventoryStore.removeItem('lucky_coin', 1, quality)) return { success: false, message: '没有幸运铜钱。' }
+      guildBonusDropRate.value += 0.05
+      return { success: true, message: '使用了幸运铜钱，怪物掉落率永久+5%！' }
+    }
+
+    if (itemId === 'defense_charm') {
+      if (!inventoryStore.removeItem('defense_charm', 1, quality)) return { success: false, message: '没有守护符。' }
+      guildBonusDefense.value += 0.03
+      return { success: true, message: '使用了守护符，防御永久+3%！' }
+    }
+
+    return { success: false, message: '该道具不能在这里使用。' }
+  }
+
+  const useCombatItem = (itemId: string, quantity: number = 1, quality?: Quality): { success: boolean; message: string } => {
     if (!inCombat.value && !isExploring.value) return { success: false, message: '不在矿洞中。' }
 
-    // 公会徽章：永久+3攻击力
-    if (itemId === 'guild_badge') {
-      if (!inventoryStore.removeItem('guild_badge')) return { success: false, message: '没有公会徽章。' }
-      guildBadgeBonusAttack.value += 3
-      const msg = '使用了公会徽章，攻击力永久+3！'
-      if (inCombat.value) combatLog.value.push(msg)
-      return { success: true, message: msg }
-    }
-
-    // 生命护符：永久+15最大HP
-    if (itemId === 'life_talisman') {
-      if (!inventoryStore.removeItem('life_talisman')) return { success: false, message: '没有生命护符。' }
-      guildBonusMaxHp.value += 15
-      const msg = '使用了生命护符，最大生命值永久+15！'
-      if (inCombat.value) combatLog.value.push(msg)
-      return { success: true, message: msg }
-    }
-
-    // 幸运铜钱：永久掉落率+5%
-    if (itemId === 'lucky_coin') {
-      if (!inventoryStore.removeItem('lucky_coin')) return { success: false, message: '没有幸运铜钱。' }
-      guildBonusDropRate.value += 0.05
-      const msg = '使用了幸运铜钱，怪物掉落率永久+5%！'
-      if (inCombat.value) combatLog.value.push(msg)
-      return { success: true, message: msg }
-    }
-
-    // 守护符：永久防御+3%
-    if (itemId === 'defense_charm') {
-      if (!inventoryStore.removeItem('defense_charm')) return { success: false, message: '没有守护符。' }
-      guildBonusDefense.value += 0.03
-      const msg = '使用了守护符，防御永久+3%！'
-      if (inCombat.value) combatLog.value.push(msg)
-      return { success: true, message: msg }
+    // 公会永久成长道具：背包和矿洞共用同一套加成落点
+    if (isGuildGrowthItem(itemId)) {
+      const result = useGuildGrowthItem(itemId, quality)
+      if (result.success && inCombat.value) combatLog.value.push(result.message)
+      return result
     }
 
     // 猎魔符：本次探索掉落率+20%
@@ -2400,6 +2403,8 @@ export const useMiningStore = defineStore('mining', () => {
     enterSkullCavern,
     combatAction,
     claimPendingMineRewards,
+    isGuildGrowthItem,
+    useGuildGrowthItem,
     useCombatItem,
     useMonsterLure,
     goNextFloor,

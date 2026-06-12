@@ -160,6 +160,7 @@ installBrowserShims()
 
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
+const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
 
 const freshInventoryStore = () => {
   setActivePinia(createPinia())
@@ -215,6 +216,28 @@ const freshInventoryStore = () => {
   assert(minerCatalog?.ownedCount === 0 && minerCatalog?.equippedCount === 0, '未获得装备前套装目录应显示0件拥有/装备。')
   assert(minerCatalog?.bonuses.some(bonus => bonus.count === 2 && bonus.description.includes('矿石加成') && bonus.active === false), '未激活套装仍应展示奖励档位。')
   assert(inventoryStore.activeSets.length === 0, '套装预览不应改变激活套装列表语义。')
+}
+
+{
+  setActivePinia(createPinia())
+  const playerStore = playerStoreModule.usePlayerStore()
+  playerStore.markMasteryUnlocked('mastery_combat')
+  playerStore.markPrizeProgress('qa-market-talisman')
+  const inventoryStore = inventoryStoreModule.useInventoryStore()
+
+  assert(inventoryStore.unlockedTrinkets.some(trinket => trinket.id === 'trinket_market_talisman'), '市场护符应在战斗精通和奖券进度后解锁。')
+  assert(inventoryStore.equipTrinket('trinket_market_talisman'), '已解锁的市场护符应可装备。')
+  assert(inventoryStore.getEquipmentBonus('shop_discount') >= 0.05, '已装备护符应计入商店折扣装备加成。')
+  assert(inventoryStore.getRingEffectValue('sell_price_bonus') >= 0.08, '已装备护符应计入售价装备加成。')
+
+  inventoryStore.createEquipmentPreset('qa-trinket-preset')
+  const preset = inventoryStore.equipmentPresets[inventoryStore.equipmentPresets.length - 1]
+  inventoryStore.saveCurrentToPreset(preset.id)
+  assert(preset.trinketDefId === 'trinket_market_talisman', '装备方案保存时应记录当前护符。')
+  assert(inventoryStore.unequipTrinket(), 'QA setup should remove equipped trinket before applying preset.')
+  const applyResult = inventoryStore.applyEquipmentPreset(preset.id)
+  assert(applyResult.success === true, '带护符的装备方案应可正常应用。')
+  assert(inventoryStore.equippedTrinketId === 'trinket_market_talisman', '装备方案应用时应恢复保存的护符。')
 }
 
 {

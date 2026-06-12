@@ -442,6 +442,35 @@ export const useInventoryStore = defineStore('inventory', () => {
     return true
   }
 
+  const getUnlockedItemCount = (itemId: string, quality?: Quality): number => {
+    return items.value
+      .filter(i => !i.locked && i.itemId === itemId && (quality === undefined || i.quality === quality))
+      .reduce((sum, i) => sum + i.quantity, 0)
+  }
+
+  const removeUnlockedItem = (itemId: string, quantity: number = 1, quality?: Quality): boolean => {
+    const matchQuality = (i: { itemId: string; quality: Quality; locked?: boolean }) =>
+      !i.locked && i.itemId === itemId && (quality === undefined || i.quality === quality)
+    const total = items.value.filter(matchQuality).reduce((sum, i) => sum + i.quantity, 0)
+    if (total < quantity) return false
+
+    const qualityOrder: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+    let remaining = quantity
+    for (const q of quality !== undefined ? [quality] : qualityOrder) {
+      for (let i = items.value.length - 1; i >= 0 && remaining > 0; i--) {
+        const slot = items.value[i]!
+        if (slot.locked || slot.itemId !== itemId || slot.quality !== q) continue
+        const take = Math.min(remaining, slot.quantity)
+        slot.quantity -= take
+        remaining -= take
+        if (slot.quantity <= 0) {
+          items.value.splice(i, 1)
+        }
+      }
+    }
+    return true
+  }
+
   const normalizeItemRequirements = (requirements: { itemId: string; quantity: number }[]) => {
     const totals = new Map<string, number>()
     for (const requirement of requirements) {
@@ -919,7 +948,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     return true
   }
 
-  /** 查询某种装备效果的合计值（戒指+帽子+鞋子叠加） */
+  /** 查询某种装备效果的合计值（戒指+帽子+鞋子+饰品叠加） */
   const getEquipmentBonus = (effectType: RingEffectType): number => {
     let total = 0
     // 戒指（2槽位）
@@ -1711,6 +1740,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     canAddItem,
     canAddItems,
     removeItem,
+    getUnlockedItemCount,
+    removeUnlockedItem,
     removeItemFromTemp,
     removeItemAnywhere,
     getItemCount,

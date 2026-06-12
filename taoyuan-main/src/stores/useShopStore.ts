@@ -2375,7 +2375,7 @@ export const useShopStore = defineStore('shop', () => {
     const ringSellBonus = inventoryStore.getRingEffectValue('sell_price_bonus')
     pushStep({
       id: 'ring_sell_bonus',
-      label: '装备：戒指售价加成',
+      label: '装备：售价加成',
       category: 'equipment',
       multiplier: 1 + ringSellBonus,
       description: `装备效果 +${Math.round(ringSellBonus * 100)}%`
@@ -2569,7 +2569,7 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 出售物品，返回实际售价（0表示失败） */
   const sellItem = (itemId: string, quantity: number = 1, quality: Quality = 'normal'): number => {
-    if (!inventoryStore.removeItem(itemId, quantity, quality)) return 0
+    if (!inventoryStore.removeUnlockedItem(itemId, quantity, quality)) return 0
     const totalPrice = calculateSellPrice(itemId, quantity, quality)
     playerStore.earnMoney(totalPrice)
     recordCompletedSale(itemId, quantity, 'direct_shop')
@@ -2685,7 +2685,7 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 添加物品到出货箱 */
   const addToShippingBox = (itemId: string, quantity: number, quality: Quality): boolean => {
-    if (!inventoryStore.removeItem(itemId, quantity, quality)) return false
+    if (!inventoryStore.removeUnlockedItem(itemId, quantity, quality)) return false
     const existing = shippingBox.value.find(s => s.itemId === itemId && s.quality === quality)
     if (existing) {
       existing.quantity += quantity

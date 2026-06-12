@@ -1492,7 +1492,7 @@
           </div>
         </div>
         <!-- 售价加成提示 -->
-        <p v-if="hasSellBonus" class="text-success text-xs mb-2">戒指加成中：所有售价 +{{ sellBonusPercent }}%</p>
+        <p v-if="hasSellBonus" class="text-success text-xs mb-2">装备加成中：所有售价 +{{ sellBonusPercent }}%</p>
 
         <!-- 今日行情 -->
         <div class="border border-accent/30 rounded-xs p-2 mb-3">
@@ -1744,7 +1744,7 @@
               </span>
             </div>
             <div v-if="hasSellBonus" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs text-muted">戒指加成</span>
+              <span class="text-xs text-muted">装备加成</span>
               <span class="text-xs text-success">+{{ sellBonusPercent }}%</span>
             </div>
           </div>
@@ -2800,8 +2800,8 @@
     const data = sellModalData.value
     if (!data) return null
     const item = inventoryStore.items[data.inventoryIndex]
-    if (item && item.itemId === data.itemId && item.quality === data.quality) return item
-    return inventoryStore.items.find(i => i.itemId === data.itemId && i.quality === data.quality) ?? null
+    if (item && item.itemId === data.itemId && item.quality === data.quality && !item.locked) return item
+    return inventoryStore.items.find(i => i.itemId === data.itemId && i.quality === data.quality && !i.locked) ?? null
   })
 
   const sellModalDef = computed(() => {
@@ -3037,6 +3037,8 @@
   }
 
   const openSellModal = (itemId: string, quality: Quality, inventoryIndex: number) => {
+    const item = inventoryStore.items[inventoryIndex]
+    if (!item || item.itemId !== itemId || item.quality !== quality || item.locked) return
     sellQuantity.value = 1
     shopModal.value = { type: 'sell', itemId, quality, inventoryIndex }
   }
@@ -3080,6 +3082,10 @@
   const handleModalSell = (count: number) => {
     const modal = shopModal.value
     if (!modal || modal.type !== 'sell') return
+    if (!sellModalItem.value || sellModalItem.value.locked) {
+      shopModal.value = null
+      return
+    }
     if (count === 1) {
       handleSellItem(modal.itemId, modal.quality)
     } else {
@@ -3102,7 +3108,7 @@
     const breakdown = shopStore.getDiscountBreakdown()
     const parts: string[] = []
     if (breakdown.walletDiscount > 0) parts.push(`钱庄-${Math.round(breakdown.walletDiscount * 100)}%`)
-    if (breakdown.ringDiscount > 0) parts.push(`戒指-${Math.round(breakdown.ringDiscount * 100)}%`)
+    if (breakdown.ringDiscount > 0) parts.push(`装备-${Math.round(breakdown.ringDiscount * 100)}%`)
     if (breakdown.spiritDiscount > 0) parts.push(`仙缘-${Math.round(breakdown.spiritDiscount * 100)}%`)
     if (breakdown.decorationDiscount > 0) parts.push(`农场装饰-${Math.round(breakdown.decorationDiscount * 100)}%`)
     if (breakdown.relationshipDiscount > 0 && breakdown.relationshipNpcName) {
