@@ -5836,6 +5836,21 @@ router.get('/taoyuan/online/social/player-search', createOnlineReleaseGuard('soc
   }
 });
 
+router.get('/taoyuan/online/social/discover', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanSocialRuntime.listFriendDiscovery(req.session.username, {
+      mode: req.query?.mode,
+      query: req.query?.q ?? req.query?.query,
+      limit: req.query?.limit,
+      seed: req.query?.seed,
+      presenceRecords: taoyuanRealtimeRuntime.getPresenceRecords(),
+    });
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取好友大厅失败' });
+  }
+});
+
 router.post('/taoyuan/online/social/friend-requests', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.requestFriendship(req.session.username, req.body || {});
@@ -5907,6 +5922,15 @@ router.post('/taoyuan/online/social/blocks/unblock', createOnlineReleaseGuard('s
     res.json({ ok: true, relation });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '解除拉黑失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/reports', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const report = await taoyuanSocialRuntime.reportPlayer(req.session.username, req.body || {});
+    res.json({ ok: true, report });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '举报玩家失败' });
   }
 });
 

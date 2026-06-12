@@ -7,6 +7,7 @@ import {
   blockPlayer,
   createSubscription,
   createNeighborGroup,
+  fetchFriendDiscovery,
   fetchOnlineProfile,
   fetchNeighborOverview,
   fetchRelationshipOverview,
@@ -14,8 +15,11 @@ import {
   inviteToNeighborGroup,
   type OnlineNeighborGroupSummary,
   type OnlineNeighborRequest,
+  type OnlineFriendDiscoveryCard,
+  type OnlineFriendDiscoveryMode,
   type OnlinePlayerSearchResponse,
   type OnlineSubscriptionEntry,
+  reportPlayer,
   rejectFriendRequest,
   rejectNeighborRequest,
   removeFriend,
@@ -150,6 +154,17 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const friendSaveIdDraft = ref('')
   const playerSearchResult = ref<OnlinePlayerSearchResponse | null>(null)
   const playerSearchLoading = ref(false)
+  const friendDiscoveryLoading = ref(false)
+  const friendDiscoveryActionRunning = ref(false)
+  const friendDiscoveryPlayers = ref<OnlineFriendDiscoveryCard[]>([])
+  const friendDiscoveryMode = ref<OnlineFriendDiscoveryMode>('all')
+  const friendDiscoverySearchDraft = ref('')
+  const friendDiscoverySummary = ref({
+    total_visible: 0,
+    returned: 0,
+    online: 0,
+    recent: 0
+  })
   const relationshipLoading = ref(false)
   const relationshipActionRunning = ref(false)
   const incomingRequests = ref<OnlineRelationCard[]>([])
@@ -332,6 +347,40 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const refreshFriendDiscovery = async (options: { silent?: boolean; seed?: string } = {}) => {
+    const silent = options.silent === true
+    if (!silent) {
+      friendDiscoveryLoading.value = true
+      errorMessage.value = ''
+    }
+    try {
+      const data = await fetchFriendDiscovery({
+        mode: friendDiscoveryMode.value,
+        query: friendDiscoverySearchDraft.value.trim(),
+        limit: 18,
+        seed: options.seed ?? String(Date.now())
+      })
+      friendDiscoveryPlayers.value = data?.players ?? []
+      friendDiscoverySummary.value = data?.summary ?? {
+        total_visible: 0,
+        returned: 0,
+        online: 0,
+        recent: 0
+      }
+      return data
+    } catch (error) {
+      if (!silent) errorMessage.value = error instanceof Error ? error.message : '获取好友大厅失败'
+      throw error
+    } finally {
+      if (!silent) friendDiscoveryLoading.value = false
+    }
+  }
+
+  const setFriendDiscoveryMode = async (mode: OnlineFriendDiscoveryMode) => {
+    friendDiscoveryMode.value = mode
+    return refreshFriendDiscovery()
+  }
+
   const submitFriendRequestBySaveId = async (saveId: number) => {
     if (!Number.isInteger(saveId)) return
     relationshipActionRunning.value = true
@@ -339,6 +388,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     try {
       await sendFriendRequest({ target_save_id: saveId })
       await refreshRelationships()
+      await refreshFriendDiscovery({ silent: true }).catch(() => {})
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '发送好友申请失败'
       throw error
@@ -396,6 +446,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     try {
       await blockPlayer({ target_save_id: saveId })
       await refreshRelationships()
+      await refreshFriendDiscovery({ silent: true }).catch(() => {})
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '拉黑玩家失败'
       throw error
@@ -425,6 +476,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     try {
       await unblockPlayer({ target_save_id: saveId })
       await refreshRelationships()
+      await refreshFriendDiscovery({ silent: true }).catch(() => {})
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '解除拉黑失败'
       throw error
@@ -452,6 +504,26 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       throw error
     } finally {
       if (!silent) neighborLoading.value = false
+    }
+  }
+
+  const reportTargetBySaveId = async (saveId: number, reason = '好友大厅举报', detail = '') => {
+    if (!Number.isInteger(saveId)) return null
+    friendDiscoveryActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const data = await reportPlayer({
+        target_save_id: saveId,
+        reason,
+        detail,
+        source: 'friend_lobby'
+      })
+      return data
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '举报玩家失败'
+      throw error
+    } finally {
+      friendDiscoveryActionRunning.value = false
     }
   }
 
@@ -655,6 +727,12 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     friendSaveIdDraft,
     playerSearchResult,
     playerSearchLoading,
+    friendDiscoveryLoading,
+    friendDiscoveryActionRunning,
+    friendDiscoveryPlayers,
+    friendDiscoveryMode,
+    friendDiscoverySearchDraft,
+    friendDiscoverySummary,
     hasProfile,
     displayTitle,
     hasDirtyDraft,
@@ -684,6 +762,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     saveProfile,
     refreshRelationships,
     searchPlayerBySaveIdDraft,
+    refreshFriendDiscovery,
+    setFriendDiscoveryMode,
     submitFriendRequestBySaveId,
     acceptRequest,
     rejectRequest,
@@ -691,6 +771,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     blockTargetBySaveId,
     unblockTarget,
     unblockTargetBySaveId,
+    reportTargetBySaveId,
     refreshNeighborOverview,
     submitNeighborGroup,
     applyNeighbor,

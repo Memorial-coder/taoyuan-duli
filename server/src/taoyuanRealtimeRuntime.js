@@ -943,6 +943,14 @@ function getRealtimeState() {
   };
 }
 
+function getPresenceRecords() {
+  try {
+    return prunePresenceStore(readPresenceStore()).records;
+  } catch {
+    return [];
+  }
+}
+
 function getRealtimeAdminState() {
   const now = Date.now();
   const connections = [...activeConnections.values()]
@@ -996,6 +1004,7 @@ module.exports = {
   emitOnlineUsersEvent,
   emitUserEvent,
   emitUsersEvent,
+  getPresenceRecords,
   getRealtimeAdminState,
   getRealtimeState,
   recordActivityRoomSubscription,

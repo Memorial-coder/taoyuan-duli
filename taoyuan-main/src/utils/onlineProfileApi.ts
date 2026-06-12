@@ -147,6 +147,41 @@ export interface OnlinePlayerSearchResponse {
   msg?: string
 }
 
+export type OnlineFriendDiscoveryMode = 'all' | 'online' | 'recent'
+export type OnlineFriendDiscoveryRelationStatus = 'none' | 'friend' | 'pending_incoming' | 'pending_outgoing' | 'blocked'
+
+export interface OnlineFriendDiscoveryCard {
+  save_identity: OnlineSaveIdentity
+  profile: NonNullable<OnlineProfileResponse['profile']>
+  status: 'online' | 'recent' | 'offline'
+  is_online: boolean
+  is_recently_active: boolean
+  last_seen_at: number
+  last_active_at: number
+  mutual_friend_count: number
+  level: number
+  level_gap: number
+  relation_status: OnlineFriendDiscoveryRelationStatus
+  recommendation_reasons: string[]
+}
+
+export interface OnlineFriendDiscoveryResponse {
+  ok: boolean
+  players: OnlineFriendDiscoveryCard[]
+  filters: {
+    mode: OnlineFriendDiscoveryMode
+    query: string
+    limit: number
+  }
+  summary: {
+    total_visible: number
+    returned: number
+    online: number
+    recent: number
+  }
+  msg?: string
+}
+
 export interface OnlineRelationshipOverviewResponse {
   ok: boolean
   incoming_requests: OnlineRelationCard[]
@@ -660,6 +695,29 @@ export const searchPlayerBySaveId = async (saveId: number): Promise<OnlinePlayer
   return data ?? null
 }
 
+export const fetchFriendDiscovery = async (options: {
+  mode?: OnlineFriendDiscoveryMode
+  query?: string
+  limit?: number
+  seed?: string
+} = {}): Promise<OnlineFriendDiscoveryResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const params = new URLSearchParams()
+  if (options.mode) params.set('mode', options.mode)
+  if (options.query) params.set('q', options.query)
+  if (options.limit) params.set('limit', String(options.limit))
+  if (options.seed) params.set('seed', options.seed)
+  const query = params.toString()
+  const { data } = await fetchProtectedJson<OnlineFriendDiscoveryResponse>(() => fetch(`/api/taoyuan/online/social/discover${query ? `?${query}` : ''}`, {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取好友大厅失败',
+    networkErrorMessage: '好友大厅服务连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
+}
+
 export const sendFriendRequest = async (target: SocialTargetPayload) => {
   return requestSocialAction('/api/taoyuan/online/social/friend-requests', {
     method: 'POST',
@@ -699,6 +757,18 @@ export const unblockPlayer = async (target: SocialTargetPayload) => {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(buildSocialTargetBody(target))
+  })
+}
+
+export const reportPlayer = async (payload: SocialTargetPayload & {
+  reason?: string
+  detail?: string
+  source?: string
+}) => {
+  return requestSocialAction('/api/taoyuan/online/social/reports', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
   })
 }
 

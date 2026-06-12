@@ -8,6 +8,7 @@ const {
   createError,
   findSaveIdentityById,
   getActiveSaveContext,
+  listSaveIdentities,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 
@@ -25,6 +26,10 @@ const TAOYUAN_SOCIETY_FILE = path.join(DATA_DIR, 'taoyuan_societies.json');
 const TAOYUAN_HALL_FILE = path.join(DATA_DIR, 'taoyuan_hall.json');
 const TAOYUAN_MAILBOX_FILE = path.join(DATA_DIR, 'taoyuan_mailbox.json');
 const TAOYUAN_ACTIVITY_ROOM_FILE = path.join(DATA_DIR, 'taoyuan_activity_rooms.json');
+const TAOYUAN_SOCIAL_REPORT_FILE = path.join(DATA_DIR, 'taoyuan_social_reports.json');
+
+const FRIEND_DISCOVERY_ONLINE_WINDOW_SECONDS = 5 * 60;
+const FRIEND_DISCOVERY_RECENT_WINDOW_SECONDS = 14 * 24 * 60 * 60;
 
 const SEASON_LABELS = Object.freeze({
   spring: '春',
@@ -252,6 +257,12 @@ function createEmptySocialStore() {
   };
 }
 
+function createEmptySocialReportStore() {
+  return {
+    reports: [],
+  };
+}
+
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
@@ -340,6 +351,19 @@ function readJsonStore(filePath, fallbackValue) {
   } catch {
     return fallbackValue;
   }
+}
+
+function loadSocialReportStore() {
+  const raw = readJsonStore(TAOYUAN_SOCIAL_REPORT_FILE, createEmptySocialReportStore());
+  return {
+    reports: Array.isArray(raw.reports) ? raw.reports.map(normalizeSocialReport).filter(entry => entry.id) : [],
+  };
+}
+
+function saveSocialReportStore(store) {
+  writeJsonFileAtomic(TAOYUAN_SOCIAL_REPORT_FILE, {
+    reports: Array.isArray(store?.reports) ? store.reports.map(normalizeSocialReport).filter(entry => entry.id) : [],
+  });
 }
 
 function createEmptyPlayerChronicleStore() {
@@ -1281,6 +1305,24 @@ function normalizeBlockRelation(entry) {
   };
 }
 
+function normalizeSocialReport(entry) {
+  return {
+    id: String(entry?.id || makeId('social_report')),
+    reporter_username: normalizeUsername(entry?.reporter_username),
+    reporter_save_id: normalizeSocialSaveId(entry?.reporter_save_id),
+    reporter_save_slot: normalizeSocialSaveSlot(entry?.reporter_save_slot),
+    target_username: normalizeUsername(entry?.target_username),
+    target_save_id: normalizeSocialSaveId(entry?.target_save_id),
+    target_save_slot: normalizeSocialSaveSlot(entry?.target_save_slot),
+    reason: sanitizeText(entry?.reason, 80) || '未填写原因',
+    detail: sanitizeText(entry?.detail, 300),
+    source: sanitizeText(entry?.source, 40) || 'friend_lobby',
+    status: ['open', 'reviewed', 'dismissed'].includes(String(entry?.status)) ? String(entry.status) : 'open',
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(entry?.updated_at) || Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
 function normalizeNeighborMember(entry) {
   return {
     username: normalizeUsername(entry?.username),
@@ -1464,6 +1506,107 @@ function countFriendships(store, username) {
     .map(normalizeFriendship)
     .filter(entry => entry.username_a === normalizedUsername || entry.username_b === normalizedUsername)
     .length;
+}
+
+function getGameplayLevel(gameplay = {}) {
+  const player = gameplay.player || {};
+  const skill = gameplay.skill || {};
+  const directLevel = Number(player.level ?? player.playerLevel ?? gameplay.level);
+  if (Number.isFinite(directLevel) && directLevel > 0) return Math.floor(directLevel);
+  const skills = Array.isArray(skill.skills) ? skill.skills : [];
+  const levels = skills
+    .map(entry => Number(entry?.level) || 0)
+    .filter(level => level > 0);
+  if (levels.length === 0) return 1;
+  return Math.max(1, Math.round(levels.reduce((sum, level) => sum + level, 0) / levels.length));
+}
+
+function getFriendSaveIdsForIdentity(store, identity = null) {
+  const ownSaveId = normalizeSocialSaveId(identity?.save_id);
+  const ownUsername = normalizeUsername(identity?.account_username);
+  if (!ownSaveId && !ownUsername) return new Set();
+
+  const result = new Set();
+  for (const friendship of store.friendships.map(normalizeFriendship)) {
+    const sideA = getFriendshipSide(friendship, 'a');
+    const sideB = getFriendshipSide(friendship, 'b');
+    const matchesA = ownSaveId ? sideA.save_id === ownSaveId : sideA.username === ownUsername;
+    const matchesB = ownSaveId ? sideB.save_id === ownSaveId : sideB.username === ownUsername;
+    if (matchesA && sideB.save_id) result.add(sideB.save_id);
+    if (matchesB && sideA.save_id) result.add(sideA.save_id);
+  }
+  return result;
+}
+
+function countMutualFriends(store, viewerIdentity = null, targetIdentity = null) {
+  const viewerFriends = getFriendSaveIdsForIdentity(store, viewerIdentity);
+  const targetFriends = getFriendSaveIdsForIdentity(store, targetIdentity);
+  let count = 0;
+  for (const saveId of viewerFriends) {
+    if (targetFriends.has(saveId)) count += 1;
+  }
+  return count;
+}
+
+function getRelationshipStatus(store, viewerUsername, viewerIdentity = null, targetUsername, targetIdentity = null) {
+  if (isBlocked(store, viewerUsername, targetUsername, viewerIdentity, targetIdentity)) return 'blocked';
+  if (findFriendship(store, viewerUsername, targetUsername, viewerIdentity, targetIdentity)) return 'friend';
+  const pending = findPendingRequest(store, viewerUsername, targetUsername, viewerIdentity, targetIdentity);
+  if (!pending) return 'none';
+  if (pending.from_username === normalizeUsername(viewerUsername)) return 'pending_outgoing';
+  return 'pending_incoming';
+}
+
+function normalizeDiscoveryMode(value) {
+  const normalized = String(value || '').trim();
+  if (normalized === 'online') return 'online';
+  if (normalized === 'recent') return 'recent';
+  return 'all';
+}
+
+function normalizeDiscoveryQuery(value) {
+  return String(value || '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN').slice(0, 60);
+}
+
+function getRandomSeed(value) {
+  const text = String(value || '');
+  let seed = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    seed = (seed * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return seed;
+}
+
+function seededJitter(seed, index) {
+  let value = (seed + index * 1103515245 + 12345) >>> 0;
+  value ^= value << 13;
+  value ^= value >>> 17;
+  value ^= value << 5;
+  return (value >>> 0) % 1000;
+}
+
+function normalizePresenceRecords(records = []) {
+  const bySaveId = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    const saveId = normalizeSocialSaveId(record?.save_id);
+    const username = normalizeUsername(record?.username);
+    if (!saveId && !username) continue;
+    const key = saveId ? `save:${saveId}` : `user:${username}`;
+    const current = bySaveId.get(key);
+    const next = {
+      save_id: saveId,
+      username,
+      status: record?.status === 'online' ? 'online' : 'offline',
+      last_seen_at: Math.floor((Number(record?.last_seen_at) || 0) / 1000),
+    };
+    if (!current || next.last_seen_at >= current.last_seen_at) bySaveId.set(key, next);
+  }
+  return bySaveId;
+}
+
+function isProfileDiscoverable(storedProfile = DEFAULT_PROFILE) {
+  const profile = normalizeStoredProfile(storedProfile);
+  return profile.visibility === 'public';
 }
 
 function buildAutoTagIds(store, username, gameplay = {}) {
@@ -1695,6 +1838,116 @@ async function searchPlayerBySaveId(viewerUsername, rawSaveId) {
   return {
     save_identity: identity,
     profile,
+  };
+}
+
+async function listFriendDiscovery(viewerUsername, options = {}) {
+  const store = loadSocialProfileStore();
+  const viewer = normalizeUsername(viewerUsername);
+  const viewerContext = resolveActiveSaveContext(viewer);
+  const viewerIdentity = viewerContext?.identity || null;
+  const viewerLevel = getGameplayLevel(viewerContext?.data || {});
+  const mode = normalizeDiscoveryMode(options.mode ?? options.filter);
+  const query = normalizeDiscoveryQuery(options.query ?? options.q);
+  const limit = Math.max(1, Math.min(30, Math.floor(Number(options.limit) || 12)));
+  const now = Math.floor(Date.now() / 1000);
+  const randomSeed = getRandomSeed(`${viewer}:${options.seed || now}:${query}:${mode}`);
+  const presenceByKey = normalizePresenceRecords(options.presenceRecords || []);
+  const identities = listSaveIdentities();
+  const cards = [];
+
+  for (let index = 0; index < identities.length; index += 1) {
+    const identity = identities[index];
+    const targetUsername = normalizeUsername(identity.account_username);
+    if (!targetUsername) continue;
+    if (viewerIdentity?.save_id && identity.save_id === viewerIdentity.save_id) continue;
+    if (!viewerIdentity?.save_id && targetUsername === viewer) continue;
+    if (!isProfileDiscoverable(store.profiles?.[targetUsername] || DEFAULT_PROFILE)) continue;
+
+    const presence = presenceByKey.get(`save:${identity.save_id}`) || presenceByKey.get(`user:${targetUsername}`) || null;
+    const targetContext = resolveActiveSaveContext(targetUsername, identity.save_slot);
+    const storedProfile = normalizeStoredProfile(store.profiles?.[targetUsername] || DEFAULT_PROFILE);
+    const lastActiveAt = Math.max(
+      Number(storedProfile.last_active_at) || 0,
+      Number(identity.updated_at) || 0,
+      Math.floor((Number(targetContext?.saveContainer?.root?.meta?.savedAtMs) || 0) / 1000)
+    );
+    const isOnline = presence?.status === 'online' && presence.last_seen_at >= now - FRIEND_DISCOVERY_ONLINE_WINDOW_SECONDS;
+    const isRecentlyActive = isOnline || lastActiveAt >= now - FRIEND_DISCOVERY_RECENT_WINDOW_SECONDS || (presence?.last_seen_at || 0) >= now - FRIEND_DISCOVERY_RECENT_WINDOW_SECONDS;
+    if (mode === 'online' && !isOnline) continue;
+    if (mode === 'recent' && !isRecentlyActive) continue;
+
+    const relationStatus = getRelationshipStatus(store, viewer, viewerIdentity, targetUsername, identity);
+    if (relationStatus === 'blocked') continue;
+
+    let profile = null;
+    try {
+      profile = await buildRelationCard(targetUsername, viewer, {
+        preferredSlot: identity.save_slot,
+      });
+    } catch {
+      continue;
+    }
+    const searchBlob = [
+      String(identity.save_id),
+      targetUsername,
+      identity.nickname_snapshot,
+      profile.display_name,
+      profile.player_name,
+    ].join(' ').toLocaleLowerCase('zh-CN');
+    if (query && !searchBlob.includes(query)) continue;
+
+    const targetLevel = getGameplayLevel(targetContext?.data || {});
+    const levelGap = Math.abs(viewerLevel - targetLevel);
+    const mutualFriendCount = countMutualFriends(store, viewerIdentity, identity);
+    const score =
+      (isOnline ? 10000 : 0) +
+      (isRecentlyActive ? 3000 : 0) +
+      Math.max(0, 2000 - levelGap * 120) +
+      mutualFriendCount * 500 +
+      Math.min(1800, Math.max(0, lastActiveAt)) / 100000 +
+      seededJitter(randomSeed, index);
+
+    cards.push({
+      save_identity: identity,
+      profile,
+      status: isOnline ? 'online' : isRecentlyActive ? 'recent' : 'offline',
+      is_online: isOnline,
+      is_recently_active: isRecentlyActive,
+      last_seen_at: presence?.last_seen_at || 0,
+      last_active_at: lastActiveAt,
+      mutual_friend_count: mutualFriendCount,
+      level: targetLevel,
+      level_gap: levelGap,
+      relation_status: relationStatus,
+      recommendation_reasons: [
+        ...(isOnline ? ['当前在线'] : []),
+        ...(!isOnline && isRecentlyActive ? ['最近活跃'] : []),
+        ...(levelGap <= 3 ? ['等级接近'] : []),
+        ...(mutualFriendCount > 0 ? [`${mutualFriendCount} 位共同好友`] : []),
+      ].slice(0, 3),
+      score,
+    });
+  }
+
+  const visibleCards = cards
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit)
+    .map(({ score, ...entry }) => entry);
+
+  return {
+    players: visibleCards,
+    filters: {
+      mode,
+      query,
+      limit,
+    },
+    summary: {
+      total_visible: cards.length,
+      returned: visibleCards.length,
+      online: cards.filter(entry => entry.is_online).length,
+      recent: cards.filter(entry => entry.is_recently_active).length,
+    },
   };
 }
 
@@ -2215,6 +2468,42 @@ async function unblockPlayer(username, targetPayload) {
   };
 }
 
+async function reportPlayer(username, payload = {}) {
+  const reporter = normalizeUsername(username);
+  const reporterIdentity = resolveActiveSaveContext(reporter)?.identity || null;
+  const targetResult = resolveSocialTarget(payload);
+  const target = normalizeUsername(targetResult.username);
+  const targetIdentity = targetResult.identity;
+  if (!target) throw createError('请先选择要举报的玩家或存档 ID');
+  if (reporterIdentity?.save_id && targetIdentity?.save_id && reporterIdentity.save_id === targetIdentity.save_id) {
+    throw createError('不能举报当前存档');
+  }
+  if (reporter === target && !targetIdentity) throw createError('不能举报自己');
+  const targetUser = await db.getUser(target);
+  if (!targetUser) throw createError('目标玩家不存在', 404);
+
+  const reportStore = loadSocialReportStore();
+  const now = Math.floor(Date.now() / 1000);
+  const report = normalizeSocialReport({
+    id: makeId('social_report'),
+    reporter_username: reporter,
+    reporter_save_id: reporterIdentity?.save_id || 0,
+    reporter_save_slot: reporterIdentity?.save_slot ?? null,
+    target_username: target,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
+    reason: payload.reason,
+    detail: payload.detail,
+    source: payload.source || 'friend_lobby',
+    status: 'open',
+    created_at: now,
+    updated_at: now,
+  });
+  reportStore.reports = [report, ...reportStore.reports].slice(0, 500);
+  saveSocialReportStore(reportStore);
+  return report;
+}
+
 async function createNeighborGroup(username, payload = {}, auditContext = {}) {
   const store = loadSocialProfileStore();
   const creator = normalizeUsername(username);
@@ -2555,6 +2844,7 @@ module.exports = {
   getOwnProfile,
   getPublicProfile,
   searchPlayerBySaveId,
+  listFriendDiscovery,
   getStoredProfile,
   updateStoredProfile,
   updateOwnProfile,
@@ -2565,6 +2855,7 @@ module.exports = {
   removeFriendship,
   blockPlayer,
   unblockPlayer,
+  reportPlayer,
   createNeighborGroup,
   applyToNeighborGroup,
   inviteToNeighborGroup,

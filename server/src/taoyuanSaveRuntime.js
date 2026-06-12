@@ -292,6 +292,14 @@ function findSaveIdentityById(saveId) {
   return null;
 }
 
+function listSaveIdentities() {
+  const store = loadSaveIdentityStore();
+  return Object.values(store.identities || {})
+    .map(value => normalizeSaveIdentityRecord(value))
+    .filter(Boolean)
+    .sort((left, right) => Number(right.updated_at) - Number(left.updated_at));
+}
+
 function removeSaveSlotIdentity(username, slot) {
   const key = buildSaveIdentityKey(username, slot);
   if (!key) return false;
@@ -849,6 +857,7 @@ module.exports = {
   prepareSlotEntryForSave,
   getSaveSlotIdentity,
   findSaveIdentityById,
+  listSaveIdentities,
   removeSaveSlotIdentity,
   getActiveSaveContext,
   persistGameplayData,

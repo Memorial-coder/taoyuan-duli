@@ -26,6 +26,7 @@
     "qa:online-player-copy": "node scripts/qa-online-player-copy.mjs",
     "qa:online-visual-feature-flags": "node scripts/qa-online-visual-feature-flags.mjs",
     "qa:region-friend-panel-live-smoke": "node scripts/qa-region-friend-panel-live-smoke.mjs",
+    "qa:friend-lobby-guards": "node scripts/qa-friend-lobby-guards.mjs",
     "qa:region-open-world-guards": "node scripts/qa-region-open-world-guards.mjs",
     "qa:online-regression-live-smoke": "node scripts/qa-online-regression-live-smoke.mjs",
     "qa:account-context-guard": "node scripts/qa-account-context-guard.mjs",

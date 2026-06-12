@@ -233,21 +233,289 @@
         </div>
       </div>
     </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 bg-bg/70" data-testid="friend-lobby-panel">
+      <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5 text-accent">
+            <Users :size="14" />
+            <p class="text-xs">好友大厅</p>
+          </div>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
+            发现全服公开玩家，优先展示在线、最近活跃和等级接近的存档。
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="option in discoveryModeOptions"
+            :key="option.value"
+            class="online-action-btn online-action-btn--compact"
+            :class="{ 'online-action-btn--primary': socialStore.friendDiscoveryMode === option.value }"
+            :disabled="socialStore.friendDiscoveryLoading"
+            :title="option.title"
+            @click="setFriendDiscoveryMode(option.value)"
+          >
+            {{ option.label }}
+          </button>
+          <button
+            class="online-action-btn online-action-btn--compact"
+            :disabled="socialStore.friendDiscoveryLoading"
+            title="随机刷新推荐"
+            @click="refreshFriendLobby(true)"
+          >
+            <RefreshCw :size="12" />
+            {{ socialStore.friendDiscoveryLoading ? '刷新中' : '换一批' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-2 mt-3">
+        <div class="flex gap-2 min-w-0">
+          <input
+            v-model="socialStore.friendDiscoverySearchDraft"
+            class="online-input flex-1 min-w-0"
+            maxlength="60"
+            placeholder="搜索昵称、用户名或 9 位存档 ID"
+            data-testid="friend-lobby-search-input"
+            @keyup.enter="refreshFriendLobby(false)"
+          />
+          <button
+            class="online-action-btn online-action-btn--primary online-action-btn--icon shrink-0"
+            :disabled="socialStore.friendDiscoveryLoading"
+            title="搜索好友大厅"
+            data-testid="friend-lobby-search-submit"
+            @click="refreshFriendLobby(false)"
+          >
+            <Search :size="15" />
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-xs">
+          <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
+            <p class="text-[0.625rem] text-muted">可见</p>
+            <p class="text-accent mt-1">{{ socialStore.friendDiscoverySummary.total_visible }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
+            <p class="text-[0.625rem] text-muted">在线</p>
+            <p class="text-accent mt-1">{{ socialStore.friendDiscoverySummary.online }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
+            <p class="text-[0.625rem] text-muted">活跃</p>
+            <p class="text-accent mt-1">{{ socialStore.friendDiscoverySummary.recent }}</p>
+          </div>
+        </div>
+      </div>
+
+      <p v-if="socialStore.friendDiscoveryLoading" class="text-[0.625rem] text-muted mt-3 leading-4">正在整理好友大厅名单...</p>
+      <p v-else-if="socialStore.friendDiscoveryPlayers.length === 0" class="text-[0.625rem] text-muted mt-3 leading-4">
+        当前没有符合条件的公开玩家，可切回“全部”或清空搜索后刷新。
+      </p>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">
+        <div
+          v-for="entry in socialStore.friendDiscoveryPlayers"
+          :key="`friend-lobby-${entry.save_identity.save_id}`"
+          class="border border-accent/10 rounded-xs p-2 bg-bg/60 min-w-0"
+          :data-testid="`friend-lobby-card-${entry.save_identity.save_id}`"
+        >
+          <div class="flex items-start gap-2 min-w-0">
+            <div class="w-10 h-10 shrink-0 rounded-xs border border-accent/15 bg-bg/80 overflow-hidden flex items-center justify-center text-xs text-accent">
+              <img
+                v-if="entry.profile.avatar_image_url"
+                :src="entry.profile.avatar_image_url"
+                :alt="entry.profile.avatar_image_alt || '好友头像'"
+                class="w-full h-full object-cover"
+              />
+              <span v-else>{{ getAvatarInitial(entry) }}</span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 break-all">ID {{ entry.save_identity.save_id }} · Lv.{{ entry.level }}</p>
+                </div>
+                <span class="text-[0.625rem] shrink-0" :class="getDiscoveryStatusClass(entry)">
+                  {{ getDiscoveryStatusLabel(entry) }}
+                </span>
+              </div>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">
+                最近登录 {{ formatSocialTime(entry.last_active_at || entry.last_seen_at, '暂无记录') }}
+              </p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">
+                共同好友 {{ entry.mutual_friend_count }} · {{ getDiscoveryRelationLabel(entry.relation_status) }}
+              </p>
+            </div>
+          </div>
+
+          <p class="text-[0.625rem] text-muted mt-2 leading-4 line-clamp-2">
+            {{ entry.profile.public_intro || entry.profile.recent_activity || entry.profile.primary_route_label }}
+          </p>
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            <span
+              v-for="reason in entry.recommendation_reasons"
+              :key="`${entry.save_identity.save_id}-${reason}`"
+              class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[0.625rem] text-muted"
+            >
+              {{ reason }}
+            </span>
+            <span v-if="entry.recommendation_reasons.length === 0" class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[0.625rem] text-muted">
+              随机推荐
+            </span>
+          </div>
+
+          <div class="flex flex-wrap gap-2 mt-2">
+            <button class="online-action-btn online-action-btn--compact" title="查看公开资料" @click="openDiscoveryProfile(entry)">
+              <Eye :size="11" />
+              资料
+            </button>
+            <button class="online-action-btn online-action-btn--compact" title="写信私聊" @click="openDiscoveryMail(entry)">
+              <MessageCircle :size="11" />
+              私聊
+            </button>
+            <button
+              class="online-action-btn online-action-btn--compact"
+              :disabled="!canRequestDiscoveryPlayer(entry)"
+              title="发送好友申请"
+              @click="sendDiscoveryFriendRequest(entry)"
+            >
+              <UserPlus :size="11" />
+              {{ entry.relation_status === 'pending_outgoing' ? '已申请' : '加好友' }}
+            </button>
+            <button
+              class="online-action-btn online-action-btn--compact online-action-btn--danger"
+              :disabled="socialStore.relationshipActionRunning"
+              title="屏蔽该玩家"
+              @click="blockDiscoveryPlayer(entry)"
+            >
+              <Ban :size="11" />
+              屏蔽
+            </button>
+            <button
+              class="online-action-btn online-action-btn--compact online-action-btn--danger"
+              :disabled="socialStore.friendDiscoveryActionRunning"
+              title="举报该玩家"
+              @click="reportDiscoveryPlayer(entry)"
+            >
+              <ShieldAlert :size="11" />
+              举报
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="activeDiscoveryPlayer"
+      class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      data-testid="friend-lobby-profile-modal"
+      @click.self="closeDiscoveryProfile"
+    >
+      <div class="bg-bg border border-accent/30 rounded-xs p-3 w-full max-w-xl max-h-[86vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-start gap-2 min-w-0">
+            <div class="w-12 h-12 shrink-0 rounded-xs border border-accent/15 bg-bg/80 overflow-hidden flex items-center justify-center text-sm text-accent">
+              <img
+                v-if="activeDiscoveryPlayer.profile.avatar_image_url"
+                :src="activeDiscoveryPlayer.profile.avatar_image_url"
+                :alt="activeDiscoveryPlayer.profile.avatar_image_alt || '好友头像'"
+                class="w-full h-full object-cover"
+              />
+              <span v-else>{{ getAvatarInitial(activeDiscoveryPlayer) }}</span>
+            </div>
+            <div class="min-w-0">
+              <p class="text-sm text-accent truncate">{{ activeDiscoveryPlayer.profile.display_name }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 break-all">
+                ID {{ activeDiscoveryPlayer.save_identity.save_id }} · {{ activeDiscoveryPlayer.save_identity.account_username }}
+              </p>
+              <p class="text-[0.625rem] mt-1" :class="getDiscoveryStatusClass(activeDiscoveryPlayer)">
+                {{ getDiscoveryStatusLabel(activeDiscoveryPlayer) }} · 最近登录 {{ formatSocialTime(activeDiscoveryPlayer.last_active_at || activeDiscoveryPlayer.last_seen_at, '暂无记录') }}
+              </p>
+            </div>
+          </div>
+          <button class="online-action-btn online-action-btn--compact online-action-btn--icon shrink-0" title="关闭资料" @click="closeDiscoveryProfile">
+            <X :size="13" />
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 text-xs">
+          <div class="border border-accent/10 rounded-xs px-2 py-2">
+            <p class="text-[0.625rem] text-muted">庄园</p>
+            <p class="text-accent mt-1 leading-4">{{ activeDiscoveryPlayer.profile.manor_name || '未命名庄园' }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-2">
+            <p class="text-[0.625rem] text-muted">称号</p>
+            <p class="text-accent mt-1 leading-4">{{ activeDiscoveryPlayer.profile.public_title || '桃源新居民' }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-2">
+            <p class="text-[0.625rem] text-muted">路线</p>
+            <p class="text-accent mt-1 leading-4">{{ activeDiscoveryPlayer.profile.primary_route_label }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-2">
+            <p class="text-[0.625rem] text-muted">共同好友</p>
+            <p class="text-accent mt-1 leading-4">{{ activeDiscoveryPlayer.mutual_friend_count }} 人</p>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs p-2 mt-2">
+          <p class="text-[0.625rem] text-muted">公开介绍</p>
+          <p class="text-xs text-accent mt-1 leading-5">{{ activeDiscoveryPlayer.profile.public_intro || '这个人还没写公开介绍。' }}</p>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5 mt-2">
+          <span
+            v-for="tag in activeDiscoveryPlayer.profile.public_tags"
+            :key="`modal-tag-${tag.id}`"
+            class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[0.625rem] text-muted"
+          >
+            {{ tag.label }}
+          </span>
+          <span v-if="activeDiscoveryPlayer.profile.public_tags.length === 0" class="text-[0.625rem] text-muted">当前没有公开标签。</span>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button class="online-action-btn online-action-btn--compact" @click="openDiscoveryMail(activeDiscoveryPlayer)">
+            <MessageCircle :size="11" />
+            私聊
+          </button>
+          <button
+            class="online-action-btn online-action-btn--compact"
+            :disabled="!canRequestDiscoveryPlayer(activeDiscoveryPlayer)"
+            @click="sendDiscoveryFriendRequest(activeDiscoveryPlayer)"
+          >
+            <UserPlus :size="11" />
+            加好友
+          </button>
+          <button class="online-action-btn online-action-btn--compact online-action-btn--danger" @click="blockDiscoveryPlayer(activeDiscoveryPlayer)">
+            <Ban :size="11" />
+            屏蔽
+          </button>
+          <button class="online-action-btn online-action-btn--compact online-action-btn--danger" @click="reportDiscoveryPlayer(activeDiscoveryPlayer)">
+            <ShieldAlert :size="11" />
+            举报
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Ban, Copy, Gift, HeartHandshake, Mail, Map, RefreshCw, Search, UserPlus, Users } from 'lucide-vue-next'
+  import { Ban, Copy, Eye, Gift, HeartHandshake, Mail, Map, MessageCircle, RefreshCw, Search, ShieldAlert, UserPlus, Users, X } from 'lucide-vue-next'
   import { showFloat } from '@/composables/useGameLog'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useSocialStore } from '@/stores/useSocialStore'
-  import type { OnlineRelationCard } from '@/utils/onlineProfileApi'
+  import type { OnlineFriendDiscoveryCard, OnlineFriendDiscoveryMode, OnlineFriendDiscoveryRelationStatus, OnlineRelationCard } from '@/utils/onlineProfileApi'
 
   const router = useRouter()
   const saveStore = useSaveStore()
   const socialStore = useSocialStore()
+  const activeDiscoveryPlayer = ref<OnlineFriendDiscoveryCard | null>(null)
+  const discoveryModeOptions: Array<{ value: OnlineFriendDiscoveryMode; label: string; title: string }> = [
+    { value: 'all', label: '全部', title: '展示全服公开玩家' },
+    { value: 'online', label: '在线', title: '只看当前在线玩家' },
+    { value: 'recent', label: '最近活跃', title: '只看最近活跃玩家' }
+  ]
 
   const ownRelationshipSaveId = computed(() =>
     socialStore.friends.find(entry => entry.own_save_id)?.own_save_id
@@ -293,6 +561,107 @@
     if (kind === 'outgoing') return `目标 ID ${entry.to_save_id || '未绑定'}`
     if (kind === 'blocked') return `拉黑 ID ${entry.blocked_save_id || '未绑定'}`
     return `好友 ID ${entry.friend_save_id || '未绑定'}`
+  }
+
+  const getAvatarInitial = (entry: OnlineFriendDiscoveryCard) =>
+    (entry.profile.display_name || entry.profile.player_name || entry.profile.username || '?').slice(0, 1)
+
+  const getDiscoveryStatusLabel = (entry: OnlineFriendDiscoveryCard) => {
+    if (entry.is_online) return '在线'
+    if (entry.is_recently_active) return '最近活跃'
+    return '离线'
+  }
+
+  const getDiscoveryStatusClass = (entry: OnlineFriendDiscoveryCard) => {
+    if (entry.is_online) return 'text-success'
+    if (entry.is_recently_active) return 'text-accent'
+    return 'text-muted'
+  }
+
+  const getDiscoveryRelationLabel = (status: OnlineFriendDiscoveryRelationStatus) => {
+    if (status === 'friend') return '已是好友'
+    if (status === 'pending_incoming') return '待你处理'
+    if (status === 'pending_outgoing') return '已申请'
+    if (status === 'blocked') return '已屏蔽'
+    return '可申请'
+  }
+
+  const canRequestDiscoveryPlayer = (entry: OnlineFriendDiscoveryCard) => {
+    const saveId = Number(entry.save_identity.save_id || 0)
+    return (
+      saveId > 0 &&
+      saveId !== ownActiveSaveId.value &&
+      entry.relation_status === 'none' &&
+      !socialStore.relationshipActionRunning
+    )
+  }
+
+  const buildDiscoveryTargetQuery = (entry: OnlineFriendDiscoveryCard) => ({
+    target_username: entry.profile.username,
+    target_save_id: String(entry.save_identity.save_id),
+    source: 'friend_lobby'
+  })
+
+  const openDiscoveryProfile = (entry: OnlineFriendDiscoveryCard) => {
+    activeDiscoveryPlayer.value = entry
+  }
+
+  const closeDiscoveryProfile = () => {
+    activeDiscoveryPlayer.value = null
+  }
+
+  const openDiscoveryMail = (entry: OnlineFriendDiscoveryCard) => {
+    void router.push({
+      name: 'mail',
+      query: {
+        ...buildDiscoveryTargetQuery(entry),
+        compose: 'letter'
+      }
+    })
+  }
+
+  const refreshFriendLobby = async (randomize = false) => {
+    await socialStore.refreshFriendDiscovery({ seed: randomize ? String(Date.now()) : undefined }).catch(error => {
+      const message = error instanceof Error ? error.message : '刷新好友大厅失败'
+      showFloat(message, 'danger')
+    })
+  }
+
+  const setFriendDiscoveryMode = async (mode: OnlineFriendDiscoveryMode) => {
+    await socialStore.setFriendDiscoveryMode(mode).catch(error => {
+      const message = error instanceof Error ? error.message : '切换好友大厅筛选失败'
+      showFloat(message, 'danger')
+    })
+  }
+
+  const sendDiscoveryFriendRequest = async (entry: OnlineFriendDiscoveryCard) => {
+    await sendFriendRequest(Number(entry.save_identity.save_id || 0))
+  }
+
+  const blockDiscoveryPlayer = async (entry: OnlineFriendDiscoveryCard) => {
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm(`确认屏蔽「${entry.profile.display_name}」吗？`)
+    if (!confirmed) return
+    await blockSaveId(Number(entry.save_identity.save_id || 0))
+    if (activeDiscoveryPlayer.value?.save_identity.save_id === entry.save_identity.save_id) closeDiscoveryProfile()
+  }
+
+  const reportDiscoveryPlayer = async (entry: OnlineFriendDiscoveryCard) => {
+    const reason = typeof window === 'undefined'
+      ? '好友大厅举报'
+      : window.prompt(`举报「${entry.profile.display_name}」的原因`, '骚扰或不当资料')
+    if (reason === null) return
+    await socialStore.reportTargetBySaveId(
+      Number(entry.save_identity.save_id || 0),
+      reason || '好友大厅举报',
+      `来自好友大厅：${entry.profile.display_name} / ID ${entry.save_identity.save_id}`
+    ).then(() => {
+      showFloat('举报已提交', 'success')
+    }).catch(error => {
+      const message = error instanceof Error ? error.message : '举报玩家失败'
+      showFloat(message, 'danger')
+    })
   }
 
   const getFriendTargetUsername = (entry: OnlineRelationCard) => entry.profile.username?.trim() || ''
@@ -355,7 +724,10 @@
   }
 
   const refreshFriendStation = async () => {
-    await socialStore.refreshRelationships().catch(error => {
+    await Promise.all([
+      socialStore.refreshRelationships(),
+      socialStore.refreshFriendDiscovery({ silent: true })
+    ]).catch(error => {
       const message = error instanceof Error ? error.message : '刷新好友关系失败'
       showFloat(message, 'danger')
     })
