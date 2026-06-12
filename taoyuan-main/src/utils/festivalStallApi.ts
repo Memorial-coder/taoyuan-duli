@@ -88,6 +88,7 @@ export interface FestivalStallActionResponse {
   week_label: string
   refresh_hint: string
   save_slot: number | null
+  save_revision?: number
   money: number
   offer: FestivalStallOffer
   record: FestivalStallRecord

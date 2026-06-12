@@ -106,6 +106,11 @@ const applyPurchaseDeltaToCurrentSession = (result: FestivalStallActionResponse)
   return true
 }
 
+const normalizeSaveRevision = (value: unknown): number | null => {
+  const normalized = Math.floor(Number(value))
+  return Number.isFinite(normalized) && normalized >= 0 ? normalized : null
+}
+
 export const useFestivalStallStore = defineStore('festivalStall', () => {
   const stall = ref<FestivalStallSnapshot | null>(null)
   const loading = ref(false)
@@ -194,21 +199,39 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
       })
     }
 
-    if (saveStore.hasPendingServerSave(currentSessionSlot)) {
-      if (applyPurchaseDeltaToCurrentSession(result)) {
-        await saveStore.saveToSlot(currentSessionSlot).catch(() => false)
-        return buildSaveSyncState({
-          attempted: true,
-          current_session_synced: true,
-          current_storage_mode: currentStorageMode,
-          current_session_mode: currentSessionMode,
-          current_session_slot: currentSessionSlot,
-          purchase_save_slot: normalizedSaveSlot,
-          reason: 'synced',
-          reason_detail: 'synced',
-          message: '节庆摊位结果已合并到当前运行态；本地待同步副本会按存档系统继续同步。'
-        })
+    const syncCurrentSessionByDelta = async (message: string): Promise<FestivalStallSaveSyncState> => {
+      const playerStore = usePlayerStore()
+      const inventoryStore = useInventoryStore()
+      const walletStore = useWalletStore()
+      const playerSnapshot = playerStore.serialize()
+      const inventorySnapshot = inventoryStore.serialize()
+      const walletSnapshot = walletStore.serialize()
+      const saveRevision = normalizeSaveRevision(result.save_revision)
+
+      if (saveRevision !== null) {
+        saveStore.acknowledgeServerSlotRevision(currentSessionSlot, saveRevision)
       }
+
+      if (applyPurchaseDeltaToCurrentSession(result)) {
+        const saved = await saveStore.saveToSlot(currentSessionSlot).catch(() => false)
+        if (saved) {
+          return buildSaveSyncState({
+            attempted: true,
+            current_session_synced: true,
+            current_storage_mode: currentStorageMode,
+            current_session_mode: currentSessionMode,
+            current_session_slot: currentSessionSlot,
+            purchase_save_slot: normalizedSaveSlot,
+            reason: 'synced',
+            reason_detail: 'synced',
+            message
+          })
+        }
+      }
+
+      playerStore.deserialize(playerSnapshot)
+      inventoryStore.deserialize(inventorySnapshot)
+      walletStore.deserialize(walletSnapshot)
       return buildSaveSyncState({
         attempted: false,
         current_session_synced: false,
@@ -217,29 +240,18 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
         current_session_slot: currentSessionSlot,
         purchase_save_slot: normalizedSaveSlot,
         reason: 'load_failed',
-        reason_detail: 'current_runtime_session_has_pending_local_copy',
-        message: '节庆摊位结果已写入当前服务端槽位，但本地待同步副本未能合并本次奖励，请重新载入服务端存档确认。'
+        reason_detail: saveStore.hasPendingServerSave(currentSessionSlot)
+          ? 'current_runtime_session_has_pending_local_copy'
+          : 'load_failed',
+        message: '节庆摊位结果已写入当前服务端槽位，但当前运行态未能合并本次奖励，请重新载入服务端存档确认。'
       })
     }
 
-    const synced = await saveStore.loadFromSlot(currentSessionSlot, {
-      mode: 'server',
-      allowPendingServerCopy: false
-    })
+    if (saveStore.hasPendingServerSave(currentSessionSlot)) {
+      return syncCurrentSessionByDelta('节庆摊位结果已合并到当前运行态；本地待同步副本会按存档系统继续同步。')
+    }
 
-    return buildSaveSyncState({
-      attempted: true,
-      current_session_synced: synced,
-      current_storage_mode: currentStorageMode,
-      current_session_mode: currentSessionMode,
-      current_session_slot: currentSessionSlot,
-      purchase_save_slot: normalizedSaveSlot,
-      reason: synced ? 'synced' : 'load_failed',
-      reason_detail: synced ? 'synced' : 'load_failed',
-      message: synced
-        ? '节庆摊位结果已同步到当前服务端运行会话。'
-        : '节庆摊位结果已写入当前服务端槽位，但自动回读失败，请手动重新载入查看。'
-    })
+    return syncCurrentSessionByDelta('节庆摊位结果已合并到当前服务端运行会话。')
   }
 
   const refreshStall = async (options: { silent?: boolean } = {}) => {

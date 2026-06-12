@@ -905,8 +905,12 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
   if (!idempotencyKey) throw createError('节庆摊位请求缺少幂等键', 400, 'FESTIVAL_STALL_IDEMPOTENCY_REQUIRED')
   const existingReceipt = getExistingTransactionReceipt(weekState, username, offer.id, idempotencyKey)
   if (existingReceipt?.status === 'succeeded' && existingReceipt.response) {
+    const responseRevision = Number.isFinite(Number(existingReceipt.response.save_revision))
+      ? Math.max(0, Math.floor(Number(existingReceipt.response.save_revision)))
+      : Math.max(0, Math.floor(Number(context.saves.slots[context.slot]?.revision) || 0))
     return {
       ...existingReceipt.response,
+      save_revision: responseRevision,
       idempotency_replayed: true,
       transaction_receipt_status: existingReceipt.status,
     }
@@ -993,16 +997,19 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     idempotency_key: idempotencyKey,
     transaction_receipt_status: 'succeeded',
   }
-  updateTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey, {
-    status: 'succeeded',
-    error_message: '',
-    response: responsePayload,
-  })
-
   let playerSavePersisted = false
+  let saveRevision = 0
   try {
-    persistGameplayData(context)
+    saveRevision = persistGameplayData(context)
     playerSavePersisted = true
+    updateTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey, {
+      status: 'succeeded',
+      error_message: '',
+      response: {
+        ...responsePayload,
+        save_revision: saveRevision,
+      },
+    })
     saveFestivalStore(store)
   } catch (error) {
     let rolledBack = !playerSavePersisted
@@ -1033,7 +1040,10 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     })
   } catch {}
 
-  return responsePayload
+  return {
+    ...responsePayload,
+    save_revision: saveRevision,
+  }
 }
 
 module.exports = {
