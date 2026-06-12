@@ -1,7 +1,7 @@
 <template>
   <RouterView v-slot="{ Component, route: routedRoute }">
     <Transition name="route-fade" mode="out-in">
-      <component :is="Component" :key="routedRoute.path" />
+      <component :is="Component" :key="routedRoute.matched[0]?.path ?? routedRoute.path" />
     </Transition>
   </RouterView>
   <AsyncAppShellGuards v-if="showAppShellGuards" />

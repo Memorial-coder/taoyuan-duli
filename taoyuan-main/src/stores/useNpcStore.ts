@@ -93,7 +93,8 @@ import {
   getRelationshipStageLabel,
   isRelationshipStageAtLeast,
   NPC_RELATIONSHIP_BENEFITS,
-  RELATIONSHIP_STAGE_META
+  RELATIONSHIP_STAGE_META,
+  SECRET_NOTE_GIFT_CLUE_LINKS
 } from '@/data/npcWorld'
 import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import { getItemById } from '@/data/items'
@@ -128,14 +129,6 @@ const RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
 const RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT = 24
 const RANDOM_NPC_GENERATION_ANOMALY_AUDIT_LIMIT = 12
-const SECRET_NOTE_GIFT_CLUE_LINKS = [
-  { noteId: 3, npcId: 'li_yu', clueId: 'li_yu_note_koi' },
-  { noteId: 7, npcId: 'sun_tiejiang', clueId: 'sun_tiejiang_note_copper' },
-  { noteId: 11, npcId: 'liu_niang', clueId: 'liu_niang_note_osmanthus' },
-  { noteId: 15, npcId: 'wang_dashen', clueId: 'wang_dashen_note_rice' },
-  { noteId: 19, npcId: 'zhou_xiucai', clueId: 'zhou_xiucai_note_tea' },
-  { noteId: 23, npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng' }
-] as const
 const CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_CHAIN_STAGE_LIMIT = 3

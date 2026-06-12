@@ -1,4 +1,4 @@
-/* global process, document, window */
+/* global process, document, window, console */
 
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -46,6 +46,17 @@ const scenarios = [
 
 let devServer = null
 let browser = null
+
+const launchChromiumBrowser = async () => {
+  try {
+    return await chromium.launch({ headless: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!message.includes('Executable doesn\'t exist')) throw error
+    console.warn('qa-desktop-layout-smoke: bundled Chromium missing, falling back to system Chrome')
+    return await chromium.launch({ channel: 'chrome', headless: true })
+  }
+}
 
 const startDevServer = async () => {
   if (!shouldStartDevServer) return
@@ -110,6 +121,13 @@ const createPage = async viewport => {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ preferences: {} }),
+    })
+  })
+  await context.route('**/api/taoyuan/announcements/active**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ announcements: [] }),
     })
   })
   await context.route('**/api/taoyuan/logs/gameplay/batch', async route => {
@@ -188,7 +206,7 @@ const assertLayout = async ({ page, viewport, scenario, mode }) => {
   }
 }
 
-const verifyFullscreenAdaptiveLayout = async (page, viewport, scenario) => {
+const verifyFullscreenAdaptiveLayout = async (page, viewport, scenario, nextScenario) => {
   if (viewport.width < 1280) return
   await openScenario(page, scenario)
   await setDesktopLayoutMode(page, 'adaptive')
@@ -200,6 +218,14 @@ const verifyFullscreenAdaptiveLayout = async (page, viewport, scenario) => {
   await page.getByTestId('fullscreen-button').click()
   await expect.poll(async () => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
   await assertLayout({ page, viewport, scenario, mode: 'adaptive' })
+  if (nextScenario) {
+    await page.evaluate(hash => {
+      window.location.hash = hash.replace(/^\/#/, '#')
+    }, nextScenario.hash)
+    await expect(page.locator(nextScenario.selector)).toBeVisible({ timeout: 30_000 })
+    await expect.poll(async () => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
+    await assertLayout({ page, viewport, scenario: nextScenario, mode: 'adaptive' })
+  }
   await page.evaluate(async () => {
     if (document.fullscreenElement) await document.exitFullscreen()
   })
@@ -222,7 +248,7 @@ const verifySettingsUiToggle = async page => {
 
 try {
   await startDevServer()
-  browser = await chromium.launch({ headless: true })
+  browser = await launchChromiumBrowser()
 
   for (const viewport of viewports) {
     const { context, page } = await createPage(viewport)
@@ -241,7 +267,7 @@ try {
       }
 
       if (viewport.width === 1920) {
-        await verifyFullscreenAdaptiveLayout(page, viewport, scenarios[0])
+        await verifyFullscreenAdaptiveLayout(page, viewport, scenarios[0], scenarios[1])
       }
     } finally {
       await context.close()

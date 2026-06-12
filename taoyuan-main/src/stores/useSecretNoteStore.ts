@@ -1,6 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { SECRET_NOTES, TAB_TO_LOCATION_GROUP, getItemById, getTodayEvent } from '@/data'
+import {
+  SECRET_NOTES,
+  SECRET_NOTE_GIFT_CLUE_LINKS,
+  TAB_TO_LOCATION_GROUP,
+  getItemById,
+  getNpcById,
+  getNpcGiftClueTemplates,
+  getTodayEvent
+} from '@/data'
 import type { LocationGroup, SecretNoteCategory, SecretNoteDef, SecretNoteSource } from '@/types'
 import { useGameStore } from './useGameStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
@@ -20,7 +28,7 @@ type SecretLeadState = {
   recordText: string
 }
 
-type SecretNoteVerificationStatus = 'untracked' | 'tracked' | 'ready' | 'resolved'
+type SecretNoteVerificationStatus = 'untracked' | 'tracked' | 'ready' | 'resolved' | 'recorded'
 type SecretNoteRequiredPanel = NonNullable<SecretNoteDef['verification']>['requiredPanel']
 
 const getRequiredPanelLocationGroup = (panel: SecretNoteRequiredPanel): LocationGroup | null => {
@@ -110,6 +118,29 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     resolveLead(noteId, recordText)
     usePlayerStore().markSecretLeadUnlocked(`record:${noteId}`, buildCurrentDayTag())
     return true
+  }
+
+  const syncResolvedGiftLeads = (): number => {
+    const npcStore = useNpcStore()
+    let resolvedCount = 0
+    for (const entry of SECRET_NOTE_GIFT_CLUE_LINKS) {
+      if (!isCollected(entry.noteId) || isUsed(entry.noteId)) continue
+      const template = getNpcGiftClueTemplates(entry.npcId).find(candidate => candidate.clueId === entry.clueId)
+      if (!template?.itemId || !template.preference) continue
+      const hasConfirmedGift = npcStore.getRelationshipCluesForNpc(entry.npcId).some(clue =>
+        clue.kind === 'gift' &&
+        clue.precision === 'confirmed' &&
+        clue.itemId === template.itemId &&
+        clue.preference === template.preference
+      )
+      if (!hasConfirmedGift) continue
+      const npcName = getNpcById(entry.npcId)?.name ?? entry.npcId
+      const itemName = getItemById(template.itemId)?.name ?? template.itemId
+      if (resolveCollectedLead(entry.noteId, `你把「${itemName}」送给${npcName}后，确认了这条秘密纸条的礼物线索。`)) {
+        resolvedCount++
+      }
+    }
+    return resolvedCount
   }
 
   const evaluateVerification = (note: SecretNoteDef) => {
@@ -217,13 +248,18 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     if (!note) return null
     const verification = note.verification
     const evaluation = evaluateVerification(note)
+    const hasExternalGiftResolution = SECRET_NOTE_GIFT_CLUE_LINKS.some(entry => entry.noteId === noteId)
     const status: SecretNoteVerificationStatus = isUsed(noteId)
       ? 'resolved'
       : !isCollected(noteId)
         ? 'untracked'
-        : verification && evaluation.ready
-          ? 'ready'
-          : 'tracked'
+        : verification
+          ? evaluation.ready
+            ? 'ready'
+            : 'tracked'
+          : note.usable || hasExternalGiftResolution
+            ? 'tracked'
+            : 'recorded'
     return {
       noteId,
       category: mapNoteTypeToCategory(note),
@@ -231,7 +267,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
       readable: evaluation.readable,
       readableReason: evaluation.readableReason,
       summary: verification?.summary ?? '这是一张以阅读和记录为主的纸条。',
-      hint: verification?.hint ?? '继续留意相关地点、人物和时机。',
+      hint: verification?.hint ?? (status === 'recorded' ? '这条笔记已经收进记录，没有额外验证步骤。' : '继续留意相关地点、人物和时机。'),
       unmetConditions: evaluation.unmetConditions,
       resolvedDayTag: getLeadState(noteId)?.resolvedDayTag ?? '',
       recordText: status === 'resolved' ? getLeadState(noteId)?.recordText || verification?.recordText || '' : ''
@@ -251,6 +287,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
       ensureLeadTracked(note.id, source)
       usePlayerStore().markSecretLeadUnlocked(`note:${note.id}`, buildCurrentDayTag())
     }
+    syncResolvedGiftLeads()
     addLog(`发现了秘密笔记 #${note.id}：${note.title}`)
     return note.id
   }
@@ -362,6 +399,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     const collectedSet = new Set(collectedNotes.value)
     usedNotes.value = normalizeNoteIds(data?.usedNotes).filter(noteId => collectedSet.has(noteId))
     noteLeadStates.value = normalizeLeadStates(data?.noteLeadStates)
+    syncResolvedGiftLeads()
   }
 
   return {
@@ -380,6 +418,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     tryCollectNote,
     useNote,
     resolveCollectedLead,
+    syncResolvedGiftLeads,
     serialize,
     deserialize
   }

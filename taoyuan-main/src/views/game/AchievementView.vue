@@ -626,6 +626,7 @@
   import { HYBRID_DEFS } from '@/data/breeding'
   import { FISH } from '@/data/fish'
   import { SECRET_NOTES } from '@/data/secretNotes'
+  import { SECRET_NOTE_GIFT_CLUE_LINKS } from '@/data/npcWorld'
   import type { GlossaryOpenPreset } from '@/data/glossary'
   import { COLLECTION_CATEGORY_NAMES, COLLECTION_CATEGORY_COLORS } from '@/data/collectionRegistry'
   import { sfxClick } from '@/composables/useAudio'
@@ -763,14 +764,16 @@
     untracked: '未追踪',
     tracked: '待验证',
     ready: '可验证',
-    resolved: '已验证'
+    resolved: '已验证',
+    recorded: '已记录'
   }
 
   const NOTE_STATUS_CLASS: Record<string, string> = {
     untracked: 'text-muted',
     tracked: 'text-warning',
     ready: 'text-accent',
-    resolved: 'text-success'
+    resolved: 'text-success',
+    recorded: 'text-muted'
   }
 
   const noteTypeColor = (note: SecretNoteDef): string => NOTE_TYPE_COLORS[getNoteCategory(note)] ?? 'text-accent'
@@ -840,7 +843,8 @@
     return { ...track, percent, ...getMedalTone(percent) }
   }
 
-  const verifiableSecretNotes = computed(() => SECRET_NOTES.filter(note => note.verification || note.usable))
+  const externalGiftSecretNoteIds = new Set(SECRET_NOTE_GIFT_CLUE_LINKS.map(entry => entry.noteId))
+  const verifiableSecretNotes = computed(() => SECRET_NOTES.filter(note => note.verification || note.usable || externalGiftSecretNoteIds.has(note.id)))
   const verifiedSecretNoteCount = computed(() => verifiableSecretNotes.value.filter(note => secretNoteStore.isUsed(note.id)).length)
   const primaryMasteryUnlockedCount = computed(() => skillStore.primaryMasteries.filter(entry => entry.unlocked).length)
   const hybridMasteryUnlockedCount = computed(() => skillStore.hybridMasteries.filter(entry => entry.unlocked).length)
