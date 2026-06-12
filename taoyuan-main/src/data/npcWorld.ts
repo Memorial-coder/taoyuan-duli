@@ -52,6 +52,15 @@ export interface NpcGiftClueTemplate {
   text: string
 }
 
+export const SECRET_NOTE_GIFT_CLUE_LINKS = [
+  { noteId: 3, npcId: 'li_yu', clueId: 'li_yu_note_koi' },
+  { noteId: 7, npcId: 'sun_tiejiang', clueId: 'sun_tiejiang_note_copper' },
+  { noteId: 11, npcId: 'liu_niang', clueId: 'liu_niang_note_osmanthus' },
+  { noteId: 15, npcId: 'wang_dashen', clueId: 'wang_dashen_note_rice' },
+  { noteId: 19, npcId: 'zhou_xiucai', clueId: 'zhou_xiucai_note_tea' },
+  { noteId: 23, npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng' }
+] as const
+
 export const NPC_GIFT_CLUE_TEMPLATES: NpcGiftClueTemplate[] = [
   { npcId: 'chen_bo', clueId: 'chen_bo_talk_tea', source: 'talk', precision: 'hint', itemId: 'tea', preference: 'loved', text: '陈伯聊天时总把茶和老伙计并着提，像是天天离不开这口热茶。' },
   { npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng', source: 'shop', precision: 'exact', itemId: 'ginseng', preference: 'loved', text: '万物铺货架旁有张小纸条写着：上好人参，陈伯自己都舍不得便宜卖。' },
@@ -81,9 +90,9 @@ export const NPC_GIFT_CLUE_TEMPLATES: NpcGiftClueTemplate[] = [
   { npcId: 'chun_lan', clueId: 'chun_lan_talk_osmanthus', source: 'talk', precision: 'exact', itemId: 'osmanthus', preference: 'loved', text: '春兰说桂香最能压住秋燥，提到时连语气都柔了。' },
   { npcId: 'chun_lan', clueId: 'chun_lan_shop_ore', source: 'shop', precision: 'exact', itemId: 'copper_ore', preference: 'hated', text: '茶庄账册旁写着：矿灰味会坏茶气，别往这儿带。' },
 
-  { npcId: 'xue_qin', clueId: 'xue_qin_talk_cloth', source: 'talk', precision: 'hint', itemId: 'chrysanthemum', preference: 'liked', text: '雪琴对能入画、能入色的花材都很留意。' },
+  { npcId: 'xue_qin', clueId: 'xue_qin_talk_cloth', source: 'talk', precision: 'hint', itemId: 'chrysanthemum', preference: 'liked', text: '雪芹对能入画、能入色的花材都很留意。' },
   { npcId: 'xue_qin', clueId: 'xue_qin_home_moonstone', source: 'home', precision: 'exact', itemId: 'moonstone', preference: 'loved', text: '画室案头压着一枚月光石镇纸，她落笔前总会先把它摆正。' },
-  { npcId: 'xue_qin', clueId: 'xue_qin_rumor_pickles', source: 'rumor', precision: 'exact', itemId: 'pickled_cabbage', preference: 'hated', text: '有人拿腌菜味跟雪琴打趣，她只皱眉说那味道会把颜料都熏浊。' },
+  { npcId: 'xue_qin', clueId: 'xue_qin_rumor_pickles', source: 'rumor', precision: 'exact', itemId: 'pickled_cabbage', preference: 'hated', text: '有人拿腌菜味跟雪芹打趣，她只皱眉说那味道会把颜料都熏浊。' },
 
   { npcId: 'su_su', clueId: 'su_su_shop_wool', source: 'shop', precision: 'hint', itemId: 'wool', preference: 'liked', text: '绸缎庄最常翻的就是毛料和丝料册子，送纺织材料通常不吃亏。' },
   { npcId: 'su_su', clueId: 'su_su_talk_silk', source: 'talk', precision: 'exact', itemId: 'silk', preference: 'loved', text: '素素说过真正顺手的丝，一摸便知。她自己最看重的也正是这个。' },
@@ -116,7 +125,7 @@ export const NPC_BIRTHDAY_SPECIAL_LINES: Partial<Record<string, string[]>> = {
   lin_lao: ['林老点点头，说礼物合心，药香里都多了些人情味。'],
   xiao_man: ['小满抱着礼物原地转了两圈，说今年生日终于有能拿出去炫耀的东西。'],
   chun_lan: ['春兰把礼物放在案边，看了又看，说这份心意她会慢慢记着。'],
-  xue_qin: ['雪琴低声说这颜色和气味都刚好，像是替今天添了一笔。'],
+  xue_qin: ['雪芹低声说这颜色和气味都刚好，像是替今天添了一笔。'],
   su_su: ['素素摸着礼物边角，认真说这份东西她会亲手收好。'],
   hong_dou: ['红豆笑得比平时更响，说这份礼物值得她今晚多开一坛。'],
   dan_qing: ['丹青抬手一礼，说这份礼已足以写进今日诗稿。'],
@@ -655,24 +664,24 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
   { id: 'chun_lan_quest_unlock', npcId: 'chun_lan', minStage: 'familiar', type: 'quest_unlock', summary: '春兰开始请你帮忙采集茶材和节庆筹备。' },
   { id: 'chun_lan_discount_1', npcId: 'chun_lan', minStage: 'friend', type: 'shop_discount', value: 0.04, summary: '茶庄熟客价 -4%' },
   { id: 'chun_lan_item', npcId: 'chun_lan', minStage: 'bestie', type: 'item', itemReward: { itemId: 'processed_osmanthus_tea', quantity: 1 }, summary: '春兰送来一份她亲手窨制的桂花茶。' },
-  { id: 'xue_qin_quest_unlock', npcId: 'xue_qin', minStage: 'familiar', type: 'quest_unlock', summary: '雪琴开始请你帮忙跑腿和节庆布置。' },
+  { id: 'xue_qin_quest_unlock', npcId: 'xue_qin', minStage: 'familiar', type: 'quest_unlock', summary: '雪芹开始请你帮忙跑腿和节庆布置。' },
   {
     id: 'xue_qin_clue',
     npcId: 'xue_qin',
     minStage: 'friend',
     type: 'clue',
-    summary: '雪琴提到画室旁的观景台适合改造。',
-    clueText: '雪琴说，若农舍附近能有一处高台或观景角，她最愿意在那里为你画一幅像。'
+    summary: '雪芹提到画室旁的观景台适合改造。',
+    clueText: '雪芹说，若农舍附近能有一处高台或观景角，她最愿意在那里为你画一幅像。'
   },
   {
     id: 'xue_qin_school_upgrade_clue',
     npcId: 'xue_qin',
     minStage: 'bestie',
     type: 'clue',
-    summary: '雪琴建议把学舍再扩一层讲席和陈列墙，让它既能授课也能展示村史。',
-    clueText: '雪琴说，若学舍再扩出讲席和陈列墙，不但能教人读书记账，也能把村史和图样都展示出来。'
+    summary: '雪芹建议把学舍再扩一层讲席和陈列墙，让它既能授课也能展示村史。',
+    clueText: '雪芹说，若学舍再扩出讲席和陈列墙，不但能教人读书记账，也能把村史和图样都展示出来。'
   },
-  { id: 'xue_qin_item', npcId: 'xue_qin', minStage: 'bestie', type: 'item', itemReward: { itemId: 'pine_incense', quantity: 2 }, summary: '雪琴送来两支她常用的松香，说作画时点着能静心。' },
+  { id: 'xue_qin_item', npcId: 'xue_qin', minStage: 'bestie', type: 'item', itemReward: { itemId: 'pine_incense', quantity: 2 }, summary: '雪芹送来两支她常用的松香，说作画时点着能静心。' },
   { id: 'sun_tiejiang_quest_unlock', npcId: 'sun_tiejiang', minStage: 'familiar', type: 'quest_unlock', summary: '孙铁匠开始把矿料采购和跑腿活托付给你。' },
   { id: 'sun_tiejiang_item', npcId: 'sun_tiejiang', minStage: 'bestie', type: 'item', itemReward: { itemId: 'iron_bar', quantity: 3 }, summary: '孙铁匠多锻了几块铁锭，顺手递给你。' },
   { id: 'yun_fei_quest_unlock', npcId: 'yun_fei', minStage: 'familiar', type: 'quest_unlock', summary: '云飞开始把镖局跑腿和物资采集托付给你。' },
@@ -726,7 +735,7 @@ export const NPC_GIFT_RETURNS: Record<string, NpcGiftReturnDef[]> = {
   mo_bai: [{ minStage: 'bestie', chance: 0.15, itemId: 'tea', quantity: 1, summary: '墨白递来一包能润嗓的好茶。' }],
   hong_dou: [{ minStage: 'friend', chance: 0.2, itemId: 'osmanthus_wine', quantity: 1, summary: '红豆笑着塞给你一小壶自酿桂花酿。' }],
   chun_lan: [{ minStage: 'friend', chance: 0.22, itemId: 'green_tea_drink', quantity: 1, summary: '春兰递来一杯刚泡好的绿茶。' }],
-  xue_qin: [{ minStage: 'friend', chance: 0.18, itemId: 'pine_incense', quantity: 1, summary: '雪琴回赠了一支松香，说画画时点着最好。' }],
+  xue_qin: [{ minStage: 'friend', chance: 0.18, itemId: 'pine_incense', quantity: 1, summary: '雪芹回赠了一支松香，说画画时点着最好。' }],
   dan_qing: [{ minStage: 'friend', chance: 0.18, itemId: 'osmanthus', quantity: 2, summary: '丹青顺手折了两枝桂花给你。' }],
   yun_fei: [{ minStage: 'friend', chance: 0.2, itemId: 'copper_bar', quantity: 2, summary: '云飞说这是镖局余下的铜料，给你备用。' }],
   sun_tiejiang: [{ minStage: 'friend', chance: 0.2, itemId: 'copper_bar', quantity: 2, summary: '孙铁匠多打了几块铜锭，让你拿去用。' }]

@@ -781,7 +781,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'museumDonations', target: 8, label: '向博物馆捐赠 8 件展品' }
     ],
     requiredClueId: 'xue_qin_school_upgrade_clue',
-    requiredClueText: '需要先从雪琴处获得学舍扩建线索。',
+    requiredClueText: '需要先从雪芹处获得学舍扩建线索。',
     requiredProjectId: 'village_school',
     requiredProjectText: '需要先完成「村塾学舍」，才能继续扩建。',
     fundingPhase: 'endgame',

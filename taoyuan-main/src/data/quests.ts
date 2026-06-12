@@ -1736,7 +1736,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     ],
     stageDefinitions: createComboStageDefinitions({
       title: '备齐街市节景套组',
-      description: '雪琴这回要的不是单一材料，而是一整套能立刻上街的节景补缮包。',
+      description: '雪芹这回要的不是单一材料，而是一整套能立刻上街的节景补缮包。',
       requirements: [
         { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
         { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝帕', quantity: 2, note: '用于节景挂饰收尾。' },
@@ -2271,7 +2271,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     friendshipReward: 8,
     seasons: ['autumn'],
     itemReward: [{ itemId: 'pine_incense', quantity: 2 }],
-    bonusSummary: ['雪琴感谢你，回赠两支松香。']
+    bonusSummary: ['雪芹感谢你，回赠两支松香。']
   },
   {
     id: 'xue_qin_festival_decor',
@@ -2286,7 +2286,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     rewardMultiplier: 7,
     friendshipReward: 10,
     itemReward: [{ itemId: 'camphor_incense', quantity: 1 }],
-    bonusSummary: ['雪琴回赠一支提神的樟脑香。']
+    bonusSummary: ['雪芹回赠一支提神的樟脑香。']
   },
   {
     id: 'sun_tiejiang_ore_gather',

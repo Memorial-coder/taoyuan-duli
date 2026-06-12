@@ -72,7 +72,7 @@ export const VILLAGE_RESIDENTS: VillageResidentDef[] = [
     unlockRequirement: {
       kind: 'special_order_npc',
       npcId: 'xue_qin',
-      requirementLabel: '完成雪琴的特殊订单'
+      requirementLabel: '完成雪芹的特殊订单'
     },
     shelfLabel: '学舍寄售架',
     shelfSummary: '商圈会开始出现抄录纸、见闻册和研究向小物件的寄售风声。',
