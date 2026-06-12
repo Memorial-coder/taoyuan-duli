@@ -41,7 +41,8 @@ import {
   ShieldCheck,
   Tent,
   Waves,
-  Palette
+  Palette,
+  Target
 } from 'lucide-vue-next'
 import { useNpcStore } from '@/stores/useNpcStore'
 
@@ -68,6 +69,7 @@ export type PanelKey =
   | 'animal'
   | 'home'
   | 'wallet'
+  | 'goals'
   | 'quest'
   | 'mail'
   | 'charinfo'
@@ -108,6 +110,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'achievement', label: '图鉴', icon: BookOpen },
   { key: 'glossary', label: '百科', icon: BookMarked },
   { key: 'wallet', label: '钱包', icon: Wallet },
+  { key: 'goals', label: '目标', icon: Target },
   { key: 'quest', label: '告示板', icon: ScrollText },
   { key: 'mail', label: '邮箱', icon: Mail },
   { key: 'museum', label: '博物馆', icon: Landmark },

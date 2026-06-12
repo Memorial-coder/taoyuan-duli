@@ -27,7 +27,7 @@ const GUIDANCE_SURFACE_LABELS: Record<GuidanceSurfaceId, string> = {
   npc: '关系',
   shop: '商圈',
   mail: '邮箱',
-  top_goals: '目标规划'
+  top_goals: '目标'
 }
 
 const GUIDANCE_SURFACE_PANEL_MAP: Partial<Record<GuidanceSurfaceId, PanelKey>> = {

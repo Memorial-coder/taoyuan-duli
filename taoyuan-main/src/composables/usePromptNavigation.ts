@@ -3,6 +3,7 @@ import { useRoute } from 'vue-router'
 import router from '@/router'
 import { navigateToPanel } from './useNavigation'
 import { showFloat } from './useGameLog'
+import type { PanelKey } from './useNavigation'
 import type { PromptAction, PromptJumpTarget, PromptPanelKey } from '@/types/promptNavigation'
 import type { GuidanceSurfaceId } from '@/types/tutorial'
 
@@ -30,7 +31,7 @@ const GUIDANCE_SURFACE_PROMPT_TARGETS: Partial<Record<GuidanceSurfaceId, PromptJ
   npc: { panelKey: 'village' },
   shop: { panelKey: 'shop', focusKey: 'recommended-consumption' },
   mail: { panelKey: 'mail' },
-  top_goals: { panelKey: 'top_goals', focusKey: 'daily-goals' }
+  top_goals: { panelKey: 'goals', focusKey: 'daily-goals' }
 }
 
 const GUIDANCE_ROUTE_PROMPT_TARGETS: Partial<Record<string, PromptJumpTarget>> = {
@@ -95,29 +96,28 @@ export const navigateToPromptTarget = (target: PromptJumpTarget) => {
     return false
   }
 
-  if (target.panelKey === 'top_goals') {
-    if (!isGameRoute(router.currentRoute.value.path)) {
-      showFloat('请先进入游戏后再查看目标规划。', 'danger')
-      return false
-    }
-    queuePromptFocus(target)
-    return true
+  const normalizedPanelKey: PanelKey = target.panelKey === 'top_goals' ? 'goals' : target.panelKey
+  const normalizedTarget: PromptJumpTarget & { panelKey: PanelKey } = { ...target, panelKey: normalizedPanelKey }
+
+  if (normalizedTarget.panelKey === 'goals' && !isGameRoute(router.currentRoute.value.path)) {
+    showFloat('请先进入游戏后再查看目标。', 'danger')
+    return false
   }
 
   const currentRouteName = typeof router.currentRoute.value.name === 'string' ? router.currentRoute.value.name : ''
-  if (currentRouteName === target.panelKey) {
-    if (!target.focusKey) {
+  if (currentRouteName === normalizedTarget.panelKey) {
+    if (!normalizedTarget.focusKey) {
       showFloat('当前已在相关页面。', 'accent')
       return true
     }
-    queuePromptFocus(target)
+    queuePromptFocus(normalizedTarget)
     return true
   }
 
-  const navigated = navigateToPanel(target.panelKey)
+  const navigated = navigateToPanel(normalizedTarget.panelKey)
   if (!navigated) return false
 
-  queuePromptFocus(target)
+  queuePromptFocus(normalizedTarget)
   return true
 }
 

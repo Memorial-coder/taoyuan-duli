@@ -33,6 +33,7 @@
     defineProps<{
       goal: GoalState
       action?: PromptAction | null
+      autoRunAction?: boolean
       tone?: 'accent' | 'success'
       variant?: 'card' | 'list'
       showSource?: boolean
@@ -47,9 +48,14 @@
       showSource: true,
       indented: false,
       strikeCompleted: false,
-      action: null
+      action: null,
+      autoRunAction: true
     }
   )
+
+  const emit = defineEmits<{
+    selectAction: [action: PromptAction]
+  }>()
 
   const rootTag = computed(() => (props.action ? 'button' : 'div'))
 
@@ -78,6 +84,7 @@
 
   const handleActionClick = () => {
     if (!props.action) return
-    runPromptAction(props.action)
+    emit('selectAction', props.action)
+    if (props.autoRunAction) runPromptAction(props.action)
   }
 </script>

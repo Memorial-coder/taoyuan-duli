@@ -2,7 +2,7 @@
   <section class="game-panel-muted min-w-0 px-3 py-3">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p class="text-xs text-accent">目标计划</p>
+        <p class="text-xs text-accent">目标</p>
         <p class="mt-1 text-[0.625rem] text-muted">每日、本周、本季合并到同一栏里，按当前节奏切换查看。</p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -23,6 +23,8 @@
       </div>
     </div>
 
+    <Transition name="tab-panel-switch" mode="out-in">
+      <div :key="activeTab">
     <div
       v-if="activeTab === 'daily'"
       class="mt-3 space-y-2"
@@ -106,6 +108,8 @@
       </div>
       <p v-else class="text-xs text-muted leading-6">当前季节目标会在这里显示，完成后可以继续扩展长期经营线。</p>
     </div>
+      </div>
+    </Transition>
   </section>
 </template>
 

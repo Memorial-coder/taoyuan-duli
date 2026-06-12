@@ -179,8 +179,8 @@
         <p class="text-[0.6875rem] text-muted leading-5">这里最像“今天该干嘛”的答案。主线、委托、特殊订单和活动都会在这儿给你方向。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-2">
-        <p class="text-xs text-accent">看目标规划</p>
-        <p class="text-[0.6875rem] text-muted leading-5">这一块更像“这周值不值得押这条线”。主题周、市场、今日目标都会在这儿提醒你风向。</p>
+        <p class="text-xs text-accent">看目标页</p>
+        <p class="text-[0.6875rem] text-muted leading-5">这一块更像“这周值不值得押这条线”。主题周、市场、今日目标都会从右下角地图的“随身 / 目标”入口进到目标页里。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-2">
         <p class="text-xs text-accent">去对应系统出货</p>
@@ -621,7 +621,7 @@
       </section>
     </div>
     <div class="border border-accent/15 rounded-xs bg-bg/10 px-3 py-3 text-xs leading-6 text-accent">
-      不知道下一步做什么时，先看任务页；不知道这周押哪条线时，再看目标规划和主题周。
+      不知道下一步做什么时，先看任务页；不知道这周押哪条线时，再看目标页和主题周。
     </div>
   </section>
 
@@ -861,7 +861,7 @@
       </section>
       <section class="game-panel-muted p-3 space-y-1">
         <p class="text-xs text-accent">Q3：为什么现在总强调主题周？</p>
-        <p class="text-[0.6875rem] text-muted leading-5">因为它已经会影响商圈推荐、目标规划、特殊订单和多个长线系统承接。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">因为它已经会影响商圈推荐、目标页、特殊订单和多个长线系统承接。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-1">
         <p class="text-xs text-accent">Q4：鱼塘和育种哪个更早开？</p>
@@ -885,7 +885,7 @@
       </section>
       <section class="game-panel-muted p-3 space-y-1">
         <p class="text-xs text-accent">Q9：为什么我总觉得事情很多但不知道先做哪件？</p>
-        <p class="text-[0.6875rem] text-muted leading-5">因为你已经进入多系统阶段了。默认顺序永远是：任务页 → 目标规划 → 当前承接系统。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">因为你已经进入多系统阶段了。默认顺序永远是：任务页 → 右下角地图 / 随身 / 目标 → 当前承接系统。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-1">
         <p class="text-xs text-accent">Q10：这份百科最适合什么时候回来看？</p>

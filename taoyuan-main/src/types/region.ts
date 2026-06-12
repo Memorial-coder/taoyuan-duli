@@ -265,6 +265,93 @@ export interface RegionRouteKnowledgeState {
 
 export type RegionMapNodeVisibilityStage = 'unknown' | 'heard' | 'surveyed' | 'mastered'
 
+export type RegionExplorationTreeNodeType =
+  | 'root'
+  | 'route'
+  | 'camp'
+  | 'boss'
+  | 'chest'
+  | 'monster'
+  | 'animal'
+  | 'tree'
+  | 'event'
+  | 'rumor'
+  | 'resource'
+  | 'anomaly'
+  | 'handoff'
+
+export type RegionExplorationTreeLane = 'root' | 'main' | 'branch' | 'deep' | 'boss' | 'camp'
+
+export type RegionExplorationTreeNodeStatus =
+  | RegionMapNodeVisibilityStage
+  | 'available'
+  | 'active'
+  | 'resolved'
+  | 'locked'
+
+export interface RegionExplorationTreePanelLink {
+  key: string
+  label: string
+}
+
+export interface RegionExplorationTreeNode {
+  key: string
+  type: RegionExplorationTreeNodeType
+  lane: RegionExplorationTreeLane
+  regionId: RegionId
+  routeId?: string
+  eventId?: string
+  bossId?: string
+  parentNodeKey: string | null
+  connectedNodeKeys: string[]
+  x: number
+  y: number
+  title: string
+  description: string
+  stageLabel: string
+  stageToneClass: string
+  laneLabel: string
+  laneToneClass: string
+  status: RegionExplorationTreeNodeStatus
+  detailLines: string[]
+  rewardPreview: string
+  riskPreview: string
+  actionLabel: string
+  disabled: boolean
+  disabledReason: string
+  badges: string[]
+  linkedPanels: RegionExplorationTreePanelLink[]
+  current?: boolean
+  highlighted?: boolean
+}
+
+export interface RegionExplorationTreeLink {
+  key: string
+  from: string
+  to: string
+  tone: 'muted' | 'main' | 'branch' | 'deep' | 'boss' | 'camp' | 'active'
+  dashed?: boolean
+  active?: boolean
+}
+
+export interface RegionMapNodeInstance {
+  regionId: RegionId
+  nodeId: string
+  type: RegionExplorationTreeNodeType
+  lane: RegionExplorationTreeLane
+  visibility: RegionMapNodeVisibilityStage
+  status: RegionExplorationTreeNodeStatus
+  parentNodeId: string | null
+  connectedNodeIds: string[]
+  x: number
+  y: number
+  refreshCycle: 'fixed' | 'daily' | 'weekly'
+  seed: string
+  expiresAt: string
+  linkedSystems: RegionLinkedSystem[]
+  rewardPreview: string
+}
+
 export interface RegionMapNodeState {
   nodeKey: string
   regionId: RegionId

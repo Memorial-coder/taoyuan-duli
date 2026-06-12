@@ -5014,9 +5014,36 @@ async function main() {
         viewport: { width: 390, height: 844 },
         primarySelector: '[data-testid="mobile-map-menu"]',
         prepare: async page => {
+          await expect(page.getByTestId('top-goals-compact-card')).toHaveCount(0)
           await page.getByTestId('mobile-hub-button').click()
           await expect(page.getByTestId('mobile-map-menu')).toBeVisible()
           await expect(page.getByTestId('mobile-map-menu-primary-entry')).toBeVisible()
+          const personalArea = page.getByTestId('mobile-map-personal-area')
+          await expect(personalArea).toBeVisible()
+          await expect(personalArea.getByTestId('mobile-map-loc-wallet')).toBeVisible()
+          await expect(personalArea.getByTestId('mobile-map-loc-goals')).toBeVisible()
+          await expect(personalArea.getByTestId('mobile-map-loc-mail')).toBeVisible()
+
+          const personalOrder = await personalArea.evaluate(area =>
+            Array.from(area.querySelectorAll('[data-testid^="mobile-map-loc-"]'))
+              .map(element => element.getAttribute('data-testid'))
+          )
+          const walletIndex = personalOrder.indexOf('mobile-map-loc-wallet')
+          const goalsIndex = personalOrder.indexOf('mobile-map-loc-goals')
+          const mailIndex = personalOrder.indexOf('mobile-map-loc-mail')
+          expect(walletIndex).toBeGreaterThanOrEqual(0)
+          expect(goalsIndex).toBe(walletIndex + 1)
+          expect(mailIndex).toBe(goalsIndex + 1)
+
+          await personalArea.getByTestId('mobile-map-loc-goals').click()
+          await expect(page.getByTestId('mobile-map-menu')).toHaveCount(0)
+          await expect(page).toHaveURL(/\/game\/goals/)
+          await expect(page.getByTestId('goals-page')).toBeVisible()
+          await expect(page.getByTestId('goals-summary')).toBeVisible()
+          await expect(page.getByTestId('goals-tab-daily')).toBeVisible()
+          await expect(page.getByTestId('goals-list')).toBeVisible()
+          await page.getByTestId('mobile-hub-button').click()
+          await expect(page.getByTestId('mobile-map-menu')).toBeVisible()
         }
       })
       await captureScenario({

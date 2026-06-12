@@ -494,106 +494,27 @@
                 </div>
               </div>
 
-              <div class="mt-3 space-y-3">
-                <div
-                  class="region-map-scroll-rail overflow-x-auto pb-1"
-                  :data-testid="`region-map-rail-${region.id}`"
-                >
-                  <div class="region-map-scroll-track flex items-stretch gap-2 min-w-[540px] md:min-w-[700px]">
-                    <template v-for="(node, index) in getRegionMapNodes(region.id)" :key="`map-node-${node.key}`">
-                      <div
-                        class="region-map-scroll-card w-36 md:w-40 shrink-0 border rounded-xs px-3 py-2"
-                        :class="getMapNodeCardClass(node)"
-                        :data-node-current="isFocusedMapNode(region.id, node, index) ? 'true' : undefined"
-                        :data-node-autofocus="currentSelectedRegionId === region.id && index === 0 ? 'true' : undefined"
-                      >
-                        <div class="flex items-center justify-between gap-2">
-                          <span class="text-[0.625rem]" :class="node.laneToneClass">{{ node.laneLabel }}</span>
-                          <span class="text-[0.625rem]" :class="node.stageToneClass">{{ node.stageLabel }}</span>
-                        </div>
-                        <div class="mt-2 flex items-center gap-2">
-                          <FishBossImage
-                            v-if="node.kind === 'boss'"
-                            kind="regionBoss"
-                            :id="node.bossId"
-                            :name="node.bossName || node.title"
-                            size="xs"
-                            :silhouette="node.disabled || !node.bossId"
-                          />
-                          <p class="min-w-0 text-xs text-accent" :class="node.kind === 'boss' ? 'truncate' : ''">{{ node.title }}</p>
-                        </div>
-                        <p class="text-[0.625rem] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ node.description }}</p>
-                        <div class="mt-2 space-y-1" v-if="node.detailLines.length > 0">
-                          <p v-for="line in node.detailLines.slice(0, 3)" :key="`${node.key}-${line}`" class="text-[0.625rem] text-muted leading-4">
-                            · {{ line }}
-                          </p>
-                        </div>
-                        <button
-                          class="mt-3 w-full border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-                          :class="node.disabled ? 'opacity-60 text-muted' : ''"
-                          :aria-disabled="node.disabled"
-                          :title="node.disabledReason"
-                          @click="handleMapNodeAction(node)"
-                        >
-                          {{ getMapNodeActionLabel(node) }}
-                        </button>
-                      </div>
-
-                      <div
-                        v-if="index < getRegionMapNodes(region.id).length - 1"
-                        class="w-12 shrink-0 flex flex-col items-center justify-center text-[0.625rem] text-muted"
-                      >
-                        <div class="h-px w-full bg-accent/15"></div>
-                        <span class="mt-1">{{ index === 1 ? '营地位' : index === getRegionMapNodes(region.id).length - 2 ? '深推' : '推进' }}</span>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-
-                <div v-if="getSecondaryMapNodes(region.id).length > 0" class="region-map-scroll-rail overflow-x-auto pb-1">
-                  <div class="region-map-scroll-track flex items-stretch gap-2 min-w-[280px] md:min-w-[360px] pl-5 md:pl-8">
-                    <div class="w-16 shrink-0 flex items-center justify-center text-[0.625rem] text-success">支线岔口</div>
-                    <div
-                      v-for="node in getSecondaryMapNodes(region.id)"
-                      :key="`map-side-${node.key}`"
-                      class="region-map-scroll-card w-36 md:w-40 shrink-0 border rounded-xs px-3 py-2"
-                      :class="getMapNodeCardClass(node)"
-                    >
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-[0.625rem]" :class="node.laneToneClass">{{ node.laneLabel }}</span>
-                        <span class="text-[0.625rem]" :class="node.stageToneClass">{{ node.stageLabel }}</span>
-                      </div>
-                      <p class="text-xs text-accent mt-2">{{ node.title }}</p>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ node.description }}</p>
-                      <div class="mt-2 space-y-1" v-if="node.detailLines.length > 0">
-                        <p v-for="line in node.detailLines.slice(0, 2)" :key="`${node.key}-detail-${line}`" class="text-[0.625rem] text-muted leading-4">
-                          · {{ line }}
-                        </p>
-                      </div>
-                      <button
-                        class="mt-3 w-full border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-                        :class="node.disabled ? 'opacity-60 text-muted' : ''"
-                        :aria-disabled="node.disabled"
-                        :title="node.disabledReason"
-                        @click="handleMapNodeAction(node)"
-                      >
-                        {{ getMapNodeActionLabel(node) }}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              <div class="mt-3 space-y-3" :data-testid="`region-map-rail-${region.id}`">
+                <RegionExplorationTree
+                  :region-name="region.name"
+                  :summary="getRegionTreeSummary(region.id)"
+                  :nodes="getRegionExplorationTree(region.id).nodes"
+                  :links="getRegionExplorationTree(region.id).links"
+                  :initial-node-key="getRegionTreeInitialNodeKey(region.id)"
+                  @trigger-action="handleRegionTreeNodeAction"
+                  @navigate="handleRegionTreeNavigate"
+                />
 
                 <button
-                  v-if="isCompactMobile"
                   class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[0.625rem] text-accent hover:bg-accent/5"
                   @click="toggleCompactRegionSection(region.id)"
                 >
-                  {{ isCompactRegionSectionOpen(region.id) ? '收起区域细节' : '展开区域细节' }}
+                  {{ isCompactRegionSectionOpen(region.id) ? '收起旧版细节与旅后材料' : '展开旧版细节与旅后材料' }}
                 </button>
               </div>
             </div>
 
-            <div v-if="!isCompactMobile || isCompactRegionSectionOpen(region.id)" class="space-y-2">
+            <div v-if="isCompactRegionSectionOpen(region.id)" class="space-y-2">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div class="border border-accent/10 rounded-xs px-3 py-2">
                 <div class="flex items-center justify-between gap-2">
@@ -1151,12 +1072,13 @@
         </div>
       </section>
 
-      <div
-        v-if="settlementDialog"
-        class="fixed inset-0 z-50 flex bg-black/45"
-        :class="isCompactMobile ? 'items-end justify-stretch px-0' : 'items-center justify-center px-4'"
-        @click.self="settlementDialog = null"
-      >
+      <Transition name="dialog-pop">
+        <div
+          v-if="settlementDialog"
+          class="fixed inset-0 z-50 flex bg-black/45"
+          :class="isCompactMobile ? 'items-end justify-stretch px-0' : 'items-center justify-center px-4'"
+          @click.self="settlementDialog = null"
+        >
         <div
           class="w-full border bg-bg overflow-y-auto"
           :class="[settlementToneClass, isCompactMobile ? 'max-w-none rounded-t-sm px-3 py-3 max-h-[88vh]' : 'max-w-2xl rounded-xs p-4 max-h-[85vh]']"
@@ -1323,7 +1245,8 @@
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      </Transition>
     </template>
   </div>
 </template>
@@ -1333,6 +1256,7 @@
   import { useRouter } from 'vue-router'
   import { Map } from 'lucide-vue-next'
   import FishBossImage from '@/components/game/FishBossImage.vue'
+  import RegionExplorationTree from '@/components/game/regionMap/RegionExplorationTree.vue'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import RegionJourneyAftermathPanel from '@/components/game/regionMap/RegionJourneyAftermathPanel.vue'
@@ -1366,6 +1290,8 @@
     RegionExpeditionEncounterMemory,
     RegionExpeditionRetreatRule,
     RegionExpeditionWeather,
+    RegionExplorationTreeLink,
+    RegionExplorationTreeNode,
     RegionId,
     RegionLinkedSystem,
     RegionRouteDef,
@@ -1447,6 +1373,10 @@
     disabled: boolean
     disabledReason: string
     actionLabel: string
+  }
+  type RegionExplorationTreeBuild = {
+    nodes: RegionExplorationTreeNode[]
+    links: RegionExplorationTreeLink[]
   }
   type JourneyHandoffBoard = {
     headline: string
@@ -1866,20 +1796,6 @@
       block: 'start'
     })
   }
-  const scrollToDataTestId = async (testId: string) => {
-    if (typeof document === 'undefined') return
-    await nextTick()
-    const target = document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null
-    if (!target) return
-    const prefersReducedMotion =
-      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        : false
-    target.scrollIntoView({
-      behavior: prefersReducedMotion ? 'auto' : 'smooth',
-      block: 'start'
-    })
-  }
   const revealRegionSelection = (regionId: RegionId, routeId: string | null = null) => {
     selectedRegionId.value = regionId
     compactRegionSectionState.value = {
@@ -1917,22 +1833,14 @@
     }
   }
   const isCompactRouteDetailsOpen = (routeId: string) => Boolean(compactRouteDetailState.value[routeId])
-  const isFocusedMapNode = (regionId: RegionId, node: RegionMapBoardNode, index = 0) => {
-    const session = currentSession.value
-    if (session?.regionId === regionId) {
-      if (session.mode === 'boss') return node.kind === 'boss'
-      if (session.routeId && node.kind === 'route' && node.routeId === session.routeId) return true
-    }
-    return currentSelectedRegionId.value === regionId && index === 0
-  }
   const scrollCompactRegionRailIntoView = async () => {
     if (!isCompactMobile.value || !currentSelectedRegionId.value || typeof document === 'undefined') return
     await nextTick()
     const rail = document.querySelector(`[data-testid="region-map-rail-${currentSelectedRegionId.value}"]`) as HTMLElement | null
     if (!rail) return
     const target =
-      (rail.querySelector('[data-node-current="true"]') as HTMLElement | null) ??
-      (rail.querySelector('[data-node-autofocus="true"]') as HTMLElement | null)
+      (rail.querySelector('.region-exploration-tree__node--current') as HTMLElement | null) ??
+      (rail.querySelector('[data-testid^="region-tree-node-route:"]') as HTMLElement | null)
     if (!target) return
     const prefersReducedMotion =
       typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -3223,57 +3131,593 @@
     }
   }
 
-  const getMapNodeCardClass = (node: RegionMapBoardNode) =>
-    node.kind === 'boss'
-      ? node.stageLabel === '未知'
-        ? 'border-dashed border-danger/20 bg-bg/40'
-        : node.stageLabel === '熟路'
-          ? 'border-danger/30 bg-danger/10'
-          : 'border-danger/20 bg-danger/5'
-      : node.stageLabel === '熟路'
-        ? 'border-success/30 bg-success/5'
-        : node.stageLabel === '已勘明'
-          ? 'border-accent/30 bg-accent/5'
-        : node.stageLabel === '已听说'
-          ? 'border-warning/20 bg-warning/5'
-          : 'border-dashed border-accent/15 bg-bg/40'
-  const getMapNodeActionLabel = (node: RegionMapBoardNode) => {
-    if (!isCompactMobile.value || node.disabled) return node.actionLabel
-    return node.kind === 'boss' ? '查看首领准备' : '查看下方路线'
+  const buildTreeNodeConnections = (
+    nodes: RegionExplorationTreeNode[],
+    links: RegionExplorationTreeLink[]
+  ): RegionExplorationTreeBuild => {
+    const linkedKeys = new globalThis.Map<string, Set<string>>()
+    for (const node of nodes) linkedKeys.set(node.key, new Set(node.connectedNodeKeys))
+    for (const link of links) {
+      if (!linkedKeys.has(link.from)) linkedKeys.set(link.from, new Set())
+      if (!linkedKeys.has(link.to)) linkedKeys.set(link.to, new Set())
+      linkedKeys.get(link.from)?.add(link.to)
+      linkedKeys.get(link.to)?.add(link.from)
+    }
+    return {
+      nodes: nodes.map(node => ({
+        ...node,
+        connectedNodeKeys: [...(linkedKeys.get(node.key) ?? new Set<string>())]
+      })),
+      links
+    }
   }
 
-  const handleMapNodeAction = (node: RegionMapBoardNode) => {
-    if (node.disabled) {
-      if (node.disabledReason) {
-        setActionSummary(node.disabledReason, 'accent')
-        openSettlementDialog('暂时无法前往', [node.disabledReason], 'accent')
+  const getTreeStatusFromStage = (stage: MapVisibilityStage, disabled = false): RegionExplorationTreeNode['status'] => {
+    if (disabled && stage !== 'unknown') return 'locked'
+    if (stage === 'mastered') return 'mastered'
+    if (stage === 'surveyed') return 'available'
+    if (stage === 'heard') return 'heard'
+    return 'unknown'
+  }
+
+  const toTreeLinkedPanels = (panels: LinkedPanel[]) =>
+    panels.map(panel => ({ key: panel.key, label: panel.label }))
+
+  const getRegionExplorationTree = (regionId: RegionId): RegionExplorationTreeBuild => {
+    const region = regionMapStore.regionDefs.find(entry => entry.id === regionId)
+    const regionSummary = regionMapStore.regionSummaries.find(entry => entry.id === regionId)
+    const rootKey = `root:${regionId}`
+    const fogMeta = getRegionFogMeta(regionId)
+    const knowledge = getRegionKnowledgeSummary(regionId)
+    const primaryRoutes = getRegionRoutes(regionId).filter(route => route.nodeType !== 'handoff')
+    const handoffRoutes = getRegionRoutes(regionId).filter(route => route.nodeType === 'handoff')
+    const activeRouteId = currentSession.value?.regionId === regionId ? currentSession.value.routeId : null
+    const activeBoss = currentSession.value?.regionId === regionId && currentSession.value.mode === 'boss'
+    const preferredRoute = getPreferredFocusRoute(regionId)
+    const nodes: RegionExplorationTreeNode[] = []
+    const links: RegionExplorationTreeLink[] = []
+    const regionLinkedSystems = region?.linkedSystems ?? []
+    const getRegionalPanelLinks = (preferredSystems: RegionLinkedSystem[], fallbackSystems: RegionLinkedSystem[] = ['quest']) => {
+      const systems = [
+        ...preferredSystems.filter(system => regionLinkedSystems.includes(system)),
+        ...fallbackSystems
+      ]
+      return toTreeLinkedPanels(getLinkedPanels([...new Set<RegionLinkedSystem>(systems)]))
+    }
+
+    nodes.push({
+      key: rootKey,
+      type: 'root',
+      lane: 'root',
+      regionId,
+      parentNodeKey: null,
+      connectedNodeKeys: [],
+      x: 9,
+      y: 50,
+      title: region?.name ?? regionId,
+      description: region?.description ?? '这片区域还没有完整档案。',
+      stageLabel: regionSummary?.unlocked ? fogMeta.label : '未解锁',
+      stageToneClass: regionSummary?.unlocked ? fogMeta.toneClass : 'text-muted',
+      laneLabel: '树根',
+      laneToneClass: 'text-accent',
+      status: regionSummary?.unlocked ? 'available' : 'locked',
+      detailLines: [
+        `情报 ${knowledge.intelLabel} / 勘明 ${knowledge.surveyLabel} / 熟悉 ${knowledge.familiarityLabel}`,
+        `路线 ${regionSummary?.completedRouteCount ?? 0}/${regionSummary?.routeCount ?? primaryRoutes.length}`,
+        regionSummary?.themeHint ? `主题：${regionSummary.themeHint}` : ''
+      ].filter(Boolean),
+      rewardPreview: '从这里展开路线、事件、营地和回城承接。',
+      riskPreview: regionSummary?.unlocked ? '区域已开放，先看当前可处理分支。' : getUnlockSummary(regionId),
+      actionLabel: '',
+      disabled: false,
+      disabledReason: '',
+      badges: [
+        regionId === regionMapStore.currentWeeklyFocus.focusedRegionId ? '本周焦点' : '常规区域',
+        `${getActiveRegionEvents(regionId).length}/${getRegionWeeklyEventCapacity(regionId)} 事件`
+      ],
+      linkedPanels: toTreeLinkedPanels(getLinkedPanels(region?.linkedSystems ?? [])),
+      highlighted: regionId === regionMapStore.currentWeeklyFocus.focusedRegionId
+    })
+
+    let previousRouteKey = rootKey
+    const routeStep = primaryRoutes.length > 1 ? 48 / (primaryRoutes.length - 1) : 0
+    const getRouteTreeX = (route: RegionRouteDef) =>
+      Math.min(82, Math.max(26, 26 + routeStep * Math.max(0, primaryRoutes.findIndex(entry => entry.id === route.id))))
+    primaryRoutes.forEach((route, index) => {
+      const preview = getRouteMapPreview(route)
+      const laneMeta = getRouteLaneMeta(route)
+      const decision = getRouteDecisionSummary(route)
+      const canStart = preview.stage !== 'unknown' && canRunRoute(route.id)
+      const routeKey = `route:${route.id}`
+      const lane = route.nodeType === 'elite' ? 'deep' : 'main'
+      const routeX = getRouteTreeX(route)
+      const routeY = route.nodeType === 'elite' ? 60 : index % 2 === 0 ? 42 : 50
+      const isCurrent = activeRouteId === route.id
+      nodes.push({
+        key: routeKey,
+        type: route.nodeType === 'elite' ? 'monster' : 'route',
+        lane,
+        regionId,
+        routeId: route.id,
+        parentNodeKey: previousRouteKey,
+        connectedNodeKeys: [],
+        x: routeX,
+        y: routeY,
+        title: preview.title,
+        description: preview.description,
+        stageLabel: preview.stageLabel,
+        stageToneClass: preview.stageToneClass,
+        laneLabel: route.nodeType === 'elite' ? '怪物/深层' : laneMeta.label,
+        laneToneClass: laneMeta.toneClass,
+        status: getTreeStatusFromStage(preview.stage, !canStart),
+        detailLines: [
+          ...preview.detailLines,
+          getRouteDispatchSummary(route),
+          decision.linkedSummary ? `联动：${decision.linkedSummary}` : ''
+        ].filter(Boolean),
+        rewardPreview: `主要带回 ${decision.rewardLabel}`,
+        riskPreview: `${decision.riskLabel} / ${decision.modeLabel}`,
+        actionLabel: canStart ? getRouteRunActionLabel(route.id) : preview.stage === 'unknown' ? '迷雾中' : '待解锁',
+        disabled: !canStart,
+        disabledReason: preview.stage === 'unknown' ? '该节点仍被迷雾遮蔽。' : getRouteDisabledReason(route.id),
+        badges: [
+          getRouteTypeLabel(route.nodeType),
+          route.nodeType === 'elite' ? '怪物巢' : '',
+          decision.focusLabel,
+          getRouteCompletionLabel(route.id),
+          regionMapStore.currentWeeklyFocus.highlightedRouteIds.includes(route.id) ? '焦点路线' : ''
+        ].filter(Boolean),
+        linkedPanels: toTreeLinkedPanels(getLinkedPanels(route.linkedSystems)),
+        current: isCurrent,
+        highlighted: isCurrent || regionMapStore.currentWeeklyFocus.highlightedRouteIds.includes(route.id)
+      })
+      links.push({
+        key: `tree-link-${previousRouteKey}-${routeKey}`,
+        from: previousRouteKey,
+        to: routeKey,
+        tone: lane === 'deep' ? 'deep' : 'main',
+        dashed: preview.stage === 'unknown',
+        active: isCurrent
+      })
+      previousRouteKey = routeKey
+    })
+
+    if (preferredRoute) {
+      const campState = regionMapStore.getCampSiteState(regionId, preferredRoute.id, null)
+      const routePreview = getRouteMapPreview(preferredRoute)
+      const campKey = `camp:${preferredRoute.id}`
+      const canStart = routePreview.stage !== 'unknown' && canRunRoute(preferredRoute.id)
+      nodes.push({
+        key: campKey,
+        type: 'camp',
+        lane: 'camp',
+        regionId,
+        routeId: preferredRoute.id,
+        parentNodeKey: `route:${preferredRoute.id}`,
+        connectedNodeKeys: [],
+        x: Math.min(78, Math.max(30, 26 + routeStep * Math.max(0, primaryRoutes.findIndex(route => route.id === preferredRoute.id)))),
+        y: 78,
+        title: '前线营地',
+        description: '营地用于休整、整理、标记和侦察，把单次远征转成长期地图进展。',
+        stageLabel: campState.visitCount > 0 ? '已扎营' : routePreview.stageLabel,
+        stageToneClass: campState.visitCount > 0 ? 'text-success' : routePreview.stageToneClass,
+        laneLabel: '营地',
+        laneToneClass: 'text-success',
+        status: campState.visitCount > 0 ? 'resolved' : getTreeStatusFromStage(routePreview.stage, !canStart),
+        detailLines: [
+          `休整 ${campState.restCount} / 整理 ${campState.sortCount} / 标记 ${campState.markCount} / 侦察 ${campState.scoutCount}`,
+          `安全进度 ${campState.safetyProgress} / 储备 ${campState.stashTier}`,
+          getRouteShortcutSummary(preferredRoute.id).headline
+        ],
+        rewardPreview: '提升路线熟悉、捷径和后续随机节点质量。',
+        riskPreview: '适合在继续深推前降低损耗。',
+        actionLabel: canStart ? '沿营地出发' : '待路线显形',
+        disabled: !canStart,
+        disabledReason: routePreview.stage === 'unknown' ? '先让相邻路线从迷雾里显形。' : getRouteDisabledReason(preferredRoute.id),
+        badges: ['长期据点', getRouteShortcutSummary(preferredRoute.id).label],
+        linkedPanels: [],
+        highlighted: activeRouteId === preferredRoute.id
+      })
+      links.push({
+        key: `tree-link-route-${preferredRoute.id}-${campKey}`,
+        from: `route:${preferredRoute.id}`,
+        to: campKey,
+        tone: 'camp',
+        dashed: routePreview.stage === 'unknown'
+      })
+    }
+
+    const ecologyAnchorRoute =
+      preferredRoute ??
+      primaryRoutes.find(route => getRouteMapPreview(route).stage !== 'unknown') ??
+      primaryRoutes[0] ??
+      null
+    if (ecologyAnchorRoute) {
+      const preview = getRouteMapPreview(ecologyAnchorRoute)
+      const anchorX = getRouteTreeX(ecologyAnchorRoute)
+      const canStart = preview.stage !== 'unknown' && canRunRoute(ecologyAnchorRoute.id)
+      const ecologyStage: MapVisibilityStage = preview.stage !== 'unknown' ? preview.stage : 'unknown'
+      const animalKey = `ecology:${regionId}:animal:${currentWeekId.value}`
+      const treeKey = `ecology:${regionId}:tree:${currentWeekId.value}`
+      const monsterRoute = primaryRoutes.find(route => route.nodeType === 'elite') ?? ecologyAnchorRoute
+      const hasEliteRouteNode = primaryRoutes.some(route => route.nodeType === 'elite')
+
+      nodes.push({
+        key: animalKey,
+        type: 'animal',
+        lane: 'branch',
+        regionId,
+        routeId: ecologyAnchorRoute.id,
+        parentNodeKey: `route:${ecologyAnchorRoute.id}`,
+        connectedNodeKeys: [],
+        x: Math.min(82, Math.max(18, anchorX - 13)),
+        y: 27,
+        title: '动物踪迹',
+        description: '路线边缘出现足迹、鸣叫和迁徙痕迹，适合在开拓地图时先观察生态。',
+        stageLabel: preview.stage === 'unknown' ? '未知' : preview.stage === 'mastered' ? '熟路生态' : '生态传闻',
+        stageToneClass: preview.stage === 'unknown' ? 'text-muted' : preview.stage === 'mastered' ? 'text-success' : 'text-warning',
+        laneLabel: '动物',
+        laneToneClass: 'text-accent',
+        status: getTreeStatusFromStage(ecologyStage, !canStart),
+        detailLines: [
+          `靠近路线：${preview.title}`,
+          '观察动物会把生态线索挂到鱼塘、博物馆或任务板，不在主界面堆长建议。',
+          `周期：${currentWeekId.value}`
+        ],
+        rewardPreview: '可能带回生态样本、鱼塘线索或博物馆记录。',
+        riskPreview: '低到中风险，适合作为开雾和补情报的轻支线。',
+        actionLabel: canStart ? '观察动物' : preview.stage === 'unknown' ? '迷雾中' : '待路线显形',
+        disabled: !canStart,
+        disabledReason: preview.stage === 'unknown' ? '先让相邻路线从迷雾里显形。' : getRouteDisabledReason(ecologyAnchorRoute.id),
+        badges: ['动物', '生态拓展', '周期节点'],
+        linkedPanels: getRegionalPanelLinks(['fishPond', 'museum', 'quest']),
+        highlighted: canStart
+      })
+      links.push({
+        key: `tree-link-route-${ecologyAnchorRoute.id}-${animalKey}`,
+        from: `route:${ecologyAnchorRoute.id}`,
+        to: animalKey,
+        tone: 'branch',
+        dashed: preview.stage !== 'mastered'
+      })
+
+      nodes.push({
+        key: treeKey,
+        type: 'tree',
+        lane: 'branch',
+        regionId,
+        routeId: ecologyAnchorRoute.id,
+        parentNodeKey: `route:${ecologyAnchorRoute.id}`,
+        connectedNodeKeys: [],
+        x: Math.min(88, Math.max(32, anchorX + 15)),
+        y: 72,
+        title: '林缘树丛',
+        description: '树丛、倒木和可采伐边界会作为地图开拓支线，提示这里还能继续伸出分叉。',
+        stageLabel: preview.stage === 'unknown' ? '未知' : preview.stage === 'mastered' ? '熟路林缘' : '林缘显形',
+        stageToneClass: preview.stage === 'unknown' ? 'text-muted' : preview.stage === 'mastered' ? 'text-success' : 'text-warning',
+        laneLabel: '树丛',
+        laneToneClass: 'text-success',
+        status: getTreeStatusFromStage(ecologyStage, !canStart),
+        detailLines: [
+          `靠近路线：${preview.title}`,
+          '树丛节点偏向采集、营地材料和村建承接，适合把开拓感做成长期成长。',
+          `周期：${currentWeekId.value}`
+        ],
+        rewardPreview: '可能带回木材、营地材料、采集经验或商圈需求。',
+        riskPreview: '低风险，但可能消耗时间和体力。',
+        actionLabel: canStart ? '开拓林缘' : preview.stage === 'unknown' ? '迷雾中' : '待路线显形',
+        disabled: !canStart,
+        disabledReason: preview.stage === 'unknown' ? '先勘明相邻路线。' : getRouteDisabledReason(ecologyAnchorRoute.id),
+        badges: ['树丛', '采集', '开拓'],
+        linkedPanels: getRegionalPanelLinks(['villageProject', 'shop', 'inventory', 'skills'], ['inventory', 'skills']),
+        highlighted: canStart && preview.stage === 'mastered'
+      })
+      links.push({
+        key: `tree-link-route-${ecologyAnchorRoute.id}-${treeKey}`,
+        from: `route:${ecologyAnchorRoute.id}`,
+        to: treeKey,
+        tone: 'camp',
+        dashed: preview.stage !== 'mastered'
+      })
+
+      if (!hasEliteRouteNode) {
+        const monsterPreview = getRouteMapPreview(monsterRoute)
+        const canFight = monsterPreview.stage !== 'unknown' && canRunRoute(monsterRoute.id)
+        const monsterKey = `ecology:${regionId}:monster:${currentWeekId.value}`
+        nodes.push({
+          key: monsterKey,
+          type: 'monster',
+          lane: 'deep',
+          regionId,
+          routeId: monsterRoute.id,
+          parentNodeKey: `route:${monsterRoute.id}`,
+          connectedNodeKeys: [],
+          x: Math.min(86, Math.max(34, getRouteTreeX(monsterRoute) + 11)),
+          y: 62,
+          title: '游荡怪物',
+          description: '开拓边界附近出现游荡怪物，作为非首领战斗压力和危险生态的显性节点。',
+          stageLabel: monsterPreview.stage === 'unknown' ? '未知' : '危险显形',
+          stageToneClass: monsterPreview.stage === 'unknown' ? 'text-muted' : 'text-danger',
+          laneLabel: '怪物',
+          laneToneClass: 'text-danger',
+          status: getTreeStatusFromStage(monsterPreview.stage, !canFight),
+          detailLines: [
+            `靠近路线：${monsterPreview.title}`,
+            '这是开拓时的危险支线，后续可接入完整战斗面板。',
+            `周期：${currentWeekId.value}`
+          ],
+          rewardPreview: '可能带回战利品、公会讨伐记录或稀有材料。',
+          riskPreview: '中高风险，建议先检查战备、技能和补给。',
+          actionLabel: canFight ? '遭遇怪物' : monsterPreview.stage === 'unknown' ? '迷雾中' : '待战备',
+          disabled: !canFight,
+          disabledReason: monsterPreview.stage === 'unknown' ? '先让相邻路线显形。' : getRouteDisabledReason(monsterRoute.id),
+          badges: ['怪物', '危险生态', '周期节点'],
+          linkedPanels: getRegionalPanelLinks(['guild', 'skills', 'inventory'], ['guild', 'skills']),
+          highlighted: canFight
+        })
+        links.push({
+          key: `tree-link-route-${monsterRoute.id}-${monsterKey}`,
+          from: `route:${monsterRoute.id}`,
+          to: monsterKey,
+          tone: 'deep',
+          dashed: monsterPreview.stage !== 'mastered'
+        })
       }
+    }
+
+    handoffRoutes.slice(0, 2).forEach((route, index) => {
+      const preview = getRouteMapPreview(route)
+      const decision = getRouteDecisionSummary(route)
+      const canStart = preview.stage !== 'unknown' && canRunRoute(route.id)
+      const parentRoute = primaryRoutes[Math.min(primaryRoutes.length - 1, Math.max(0, index + 1))] ?? preferredRoute
+      const handoffKey = `handoff:${route.id}`
+      nodes.push({
+        key: handoffKey,
+        type: 'handoff',
+        lane: 'branch',
+        regionId,
+        routeId: route.id,
+        parentNodeKey: parentRoute ? `route:${parentRoute.id}` : rootKey,
+        connectedNodeKeys: [],
+        x: 42 + index * 18,
+        y: 20 + index * 4,
+        title: preview.title,
+        description: route.handoffHint || preview.description,
+        stageLabel: preview.stageLabel,
+        stageToneClass: preview.stageToneClass,
+        laneLabel: '承接分支',
+        laneToneClass: 'text-success',
+        status: getTreeStatusFromStage(preview.stage, !canStart),
+        detailLines: [...preview.detailLines, decision.linkedSummary ? `回城去向：${decision.linkedSummary}` : ''].filter(Boolean),
+        rewardPreview: `承接 ${decision.rewardLabel}`,
+        riskPreview: decision.riskLabel,
+        actionLabel: canStart ? getRouteRunActionLabel(route.id) : preview.stage === 'unknown' ? '迷雾中' : '待解锁',
+        disabled: !canStart,
+        disabledReason: preview.stage === 'unknown' ? '承接分支仍在迷雾里。' : getRouteDisabledReason(route.id),
+        badges: ['回城承接', decision.focusLabel],
+        linkedPanels: toTreeLinkedPanels(getLinkedPanels(route.linkedSystems)),
+        highlighted: activeRouteId === route.id
+      })
+      links.push({
+        key: `tree-link-${parentRoute?.id ?? rootKey}-${handoffKey}`,
+        from: parentRoute ? `route:${parentRoute.id}` : rootKey,
+        to: handoffKey,
+        tone: 'branch',
+        dashed: preview.stage === 'unknown'
+      })
+    })
+
+    getActiveRegionEvents(regionId).slice(0, 3).forEach((event, index) => {
+      const parentRoute = preferredRoute ?? primaryRoutes[index % Math.max(1, primaryRoutes.length)]
+      const canStart = canRunEvent(event.id)
+      const eventKey = `event:${event.id}`
+      nodes.push({
+        key: eventKey,
+        type: event.encounterHint?.includes('异常') ? 'anomaly' : 'event',
+        lane: 'branch',
+        regionId,
+        eventId: event.id,
+        parentNodeKey: parentRoute ? `route:${parentRoute.id}` : rootKey,
+        connectedNodeKeys: [],
+        x: 34 + index * 16,
+        y: 88 - (index % 2) * 7,
+        title: event.name,
+        description: event.description,
+        stageLabel: event.weeklyCompletions > 0 ? '已处理' : '本周显形',
+        stageToneClass: event.weeklyCompletions > 0 ? 'text-success' : 'text-warning',
+        laneLabel: '事件分支',
+        laneToneClass: 'text-warning',
+        status: event.weeklyCompletions > 0 ? 'resolved' : canStart ? 'available' : 'locked',
+        detailLines: [
+          event.encounterHint ?? '',
+          event.handoffHint ? `承接：${event.handoffHint}` : '',
+          `本周 ${event.weeklyCompletions}/${event.maxWeeklyCompletions ?? 1}`
+        ].filter(Boolean),
+        rewardPreview: `资源 +${event.rewardAmount}`,
+        riskPreview: `体力 ${event.staminaCost} / 耗时 ${event.timeCostHours}h`,
+        actionLabel: canStart ? '处理事件' : '待处理条件',
+        disabled: !canStart,
+        disabledReason: getEventDisabledReason(event.id),
+        badges: ['周期节点', event.weeklyCompletions > 0 ? '已兑现' : '待兑现'],
+        linkedPanels: toTreeLinkedPanels(getLinkedPanels(event.linkedSystems)),
+        highlighted: event.weeklyCompletions <= 0
+      })
+      links.push({
+        key: `tree-link-${parentRoute?.id ?? rootKey}-${eventKey}`,
+        from: parentRoute ? `route:${parentRoute.id}` : rootKey,
+        to: eventKey,
+        tone: 'branch',
+        dashed: !canStart
+      })
+    })
+
+    getRegionRumorBoard(regionId).filter(entry => !entry.fulfilled).slice(0, 2).forEach((rumor, index) => {
+      const parentRoute = rumor.targetRouteId
+        ? primaryRoutes.find(route => route.id === rumor.targetRouteId) ?? preferredRoute
+        : preferredRoute
+      const rumorKey = `rumor:${rumor.id}`
+      nodes.push({
+        key: rumorKey,
+        type: 'rumor',
+        lane: 'branch',
+        regionId,
+        routeId: rumor.targetRouteId ?? parentRoute?.id,
+        parentNodeKey: parentRoute ? `route:${parentRoute.id}` : rootKey,
+        connectedNodeKeys: [],
+        x: 30 + index * 20,
+        y: 12,
+        title: rumor.title,
+        description: rumor.summary,
+        stageLabel: '传闻',
+        stageToneClass: 'text-warning',
+        laneLabel: '传闻',
+        laneToneClass: 'text-warning',
+        status: 'heard',
+        detailLines: [
+          `${rumor.sourceNpcName} / ${rumor.sourceLocation} / ${rumor.relationshipStageLabel}`,
+          ...rumor.detailLines.slice(0, 2)
+        ],
+        rewardPreview: rumor.tags.join(' / '),
+        riskPreview: '需要沿相邻路线兑现。',
+        actionLabel: parentRoute ? '追踪传闻' : '',
+        disabled: !parentRoute || !canRunRoute(parentRoute.id),
+        disabledReason: parentRoute ? getRouteDisabledReason(parentRoute.id) : '传闻尚未指向可执行路线。',
+        badges: ['传闻板', '待兑现'],
+        linkedPanels: [],
+        highlighted: true
+      })
+      links.push({
+        key: `tree-link-${parentRoute?.id ?? rootKey}-${rumorKey}`,
+        from: parentRoute ? `route:${parentRoute.id}` : rootKey,
+        to: rumorKey,
+        tone: 'branch',
+        dashed: true
+      })
+    })
+
+    if (preferredRoute && getActiveRegionEvents(regionId).length === 0) {
+      const preview = getRouteMapPreview(preferredRoute)
+      const canStart = preview.stage !== 'unknown' && canRunRoute(preferredRoute.id)
+      const resourceFamily = regionMapStore.resourceFamilyDefs.find(family => family.id === preferredRoute.primaryResourceFamilyId)
+      const cacheKey = `cache:${preferredRoute.id}:${currentWeekId.value}`
+      nodes.push({
+        key: cacheKey,
+        type: 'chest',
+        lane: 'branch',
+        regionId,
+        routeId: preferredRoute.id,
+        parentNodeKey: `route:${preferredRoute.id}`,
+        connectedNodeKeys: [],
+        x: 76,
+        y: 76,
+        title: '隐蔽补给箱',
+        description: '本周没有明确事件时，地图会把可顺手处理的补给点挂到熟悉路线附近。',
+        stageLabel: preview.stage === 'unknown' ? '未知' : '传闻',
+        stageToneClass: preview.stage === 'unknown' ? 'text-muted' : 'text-warning',
+        laneLabel: '宝箱',
+        laneToneClass: 'text-success',
+        status: getTreeStatusFromStage(preview.stage, !canStart),
+        detailLines: ['补给箱跟随周期开启，实际收益由相邻路线结算。'],
+        rewardPreview: resourceFamily ? `可能带回 ${resourceFamily.label}` : '可能带回区域资源',
+        riskPreview: '低风险，但需要先能进入相邻路线。',
+        actionLabel: canStart ? '顺路搜取' : '待路线显形',
+        disabled: !canStart,
+        disabledReason: preview.stage === 'unknown' ? '先勘明相邻路线。' : getRouteDisabledReason(preferredRoute.id),
+        badges: ['周期宝箱', '顺路处理'],
+        linkedPanels: []
+      })
+      links.push({
+        key: `tree-link-route-${preferredRoute.id}-${cacheKey}`,
+        from: `route:${preferredRoute.id}`,
+        to: cacheKey,
+        tone: 'branch',
+        dashed: true
+      })
+    }
+
+    const bossPreview = getBossMapPreview(regionId)
+    const bossKey = `boss:${regionId}`
+    const canStartBoss = bossPreview.stage !== 'unknown' && canChallengeBoss(regionId)
+    nodes.push({
+      key: bossKey,
+      type: 'boss',
+      lane: 'boss',
+      regionId,
+      bossId: bossPreview.bossId,
+      parentNodeKey: previousRouteKey,
+      connectedNodeKeys: [],
+      x: 91,
+      y: 50,
+      title: bossPreview.title,
+      description: bossPreview.description,
+      stageLabel: bossPreview.stageLabel,
+      stageToneClass: bossPreview.stageToneClass,
+      laneLabel: '首领',
+      laneToneClass: 'text-danger',
+      status: getTreeStatusFromStage(bossPreview.stage, !canStartBoss),
+      detailLines: bossPreview.detailLines,
+      rewardPreview: getBossPrepSummary(regionId).headline,
+      riskPreview: getBossDisabledReason(regionId) || '高压终点，建议先处理前置分支。',
+      actionLabel: canStartBoss ? '发起首领' : bossPreview.stage === 'unknown' ? '迷雾中' : '待战备',
+      disabled: !canStartBoss,
+      disabledReason: bossPreview.stage === 'unknown' ? '首领方向仍被迷雾覆盖。' : getBossDisabledReason(regionId),
+      badges: ['终点', (regionMapStore.saveData.bossClearCounts[regionId] ?? 0) > 0 ? `已胜 ${regionMapStore.saveData.bossClearCounts[regionId]}` : '未胜'],
+      linkedPanels: toTreeLinkedPanels(getLinkedPanels(region?.linkedSystems ?? [])),
+      current: activeBoss,
+      highlighted: activeBoss
+    })
+    links.push({
+      key: `tree-link-${previousRouteKey}-${bossKey}`,
+      from: previousRouteKey,
+      to: bossKey,
+      tone: 'boss',
+      dashed: bossPreview.stage === 'unknown',
+      active: activeBoss
+    })
+
+    return buildTreeNodeConnections(nodes, links)
+  }
+
+  const getRegionTreeSummary = (regionId: RegionId) => {
+    const board = getRegionMapBoardSummary(regionId)
+    const rumorCount = getRegionRumorBoard(regionId).filter(entry => !entry.fulfilled).length
+    const eventCount = getActiveRegionEvents(regionId).filter(event => event.weeklyCompletions <= 0).length
+    const ecologyCount = getRegionExplorationTree(regionId).nodes.filter(node => node.key.startsWith('ecology:')).length
+    return `${board.headline} 当前树上挂出 ${eventCount} 个事件、${rumorCount} 条传闻、${ecologyCount} 个生态拓展，节点详情里处理风险、收益和回城去向。`
+  }
+
+  const getRegionTreeInitialNodeKey = (regionId: RegionId) => {
+    const session = currentSession.value
+    if (session?.regionId === regionId) {
+      if (session.mode === 'boss') return `boss:${regionId}`
+      if (session.routeId) return `route:${session.routeId}`
+    }
+    const preferredRoute = getPreferredFocusRoute(regionId)
+    return preferredRoute ? `route:${preferredRoute.id}` : `root:${regionId}`
+  }
+
+  const handleRegionTreeNodeAction = (node: RegionExplorationTreeNode) => {
+    if (node.disabled) {
+      const reason = node.disabledReason || '该节点当前还不能处理。'
+      setActionSummary(reason, 'accent')
+      openSettlementDialog('节点暂不可用', [reason], 'accent')
       return
     }
-
-    if (isCompactMobile.value) {
-      revealRegionSelection(node.regionId, node.routeId ?? null)
-      if (node.kind === 'boss') {
-        setActionSummary(`已定位到「${node.title}」，出发入口在下方首领准备区。`, 'accent')
-        void scrollToDataTestId(`region-boss-primary-${node.regionId}`)
-        return
-      }
-
-      if (node.routeId) {
-        setActionSummary(`已定位到「${node.title}」，真正出发按钮在下方路线卡。`, 'accent')
-        void scrollToDataTestId(`region-route-card-${node.routeId}`)
-        return
-      }
-    }
-
-    if (node.kind === 'boss') {
+    if (node.type === 'boss') {
       handleRunBoss(node.regionId)
       return
     }
-
+    if (node.type === 'event' || node.type === 'anomaly') {
+      if (node.eventId) handleRunEvent(node.eventId)
+      return
+    }
     if (node.routeId) {
       handleRunRoute(node.routeId)
     }
+  }
+
+  const handleRegionTreeNavigate = (panelKey: string) => {
+    handleNavigate(panelKey as PanelKey)
   }
 
   const getActiveRegionEvents = (regionId: RegionId) => regionMapStore.getActiveRegionEvents(regionId)

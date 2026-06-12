@@ -174,9 +174,9 @@ export const WS11_UI_GUIDANCE_BASELINE_AUDIT: EconomyBaselineAuditConfig = {
       id: 'ws11_goal_clickthrough_rate',
       label: '目标点击率',
       description: '衡量推荐目标、主题周摘要和活动提示是否真的能引导玩家继续采取行动。',
-      formula: '近14日从推荐摘要、目标规划或风险提示跳转到对应页面并发生后续操作的次数 ÷ 近14日推荐摘要展示次数',
+      formula: '近14日从推荐摘要、目标或风险提示跳转到对应页面并发生后续操作的次数 ÷ 近14日推荐摘要展示次数',
       direction: 'lower_is_worse',
-      dataSources: ['TopGoalsPanel 展示', 'QuestView / WalletView / ShopView / BreedingView 导航行为', 'useTutorialStore.flags / visitedPanels'],
+      dataSources: ['目标页展示', 'QuestView / WalletView / ShopView / BreedingView 导航行为', 'useTutorialStore.flags / visitedPanels'],
       thresholds: { watch: 0.34, warning: 0.24, critical: 0.16 },
       anomalyRule: '若推荐曝光明显增加但点击率下滑，需要优先检查推荐文本是否过长、入口是否堆叠，而不是先增加奖励。'
     },
@@ -208,7 +208,7 @@ export const WS11_UI_GUIDANCE_BASELINE_AUDIT: EconomyBaselineAuditConfig = {
       description: '防止把推荐、主题周、活动、风险提示全部堆到同一屏，变成公告板。',
       formula: '单页同时显示的高优先级摘要块数量 ÷ 单页推荐容量上限',
       direction: 'higher_is_worse',
-      dataSources: ['QuestView / WalletView / ShopView / TopGoalsPanel 摘要块数量', 'useTutorialStore.enabled'],
+      dataSources: ['QuestView / WalletView / ShopView / 目标页摘要块数量', 'useTutorialStore.enabled'],
       thresholds: { watch: 0.7, warning: 0.85, critical: 1 },
       anomalyRule: '若活动周确实需要更多说明，必须确认展示块彼此不重复、且玩家能通过折叠或跳转快速消化。'
     },
@@ -263,7 +263,7 @@ export const WS11_UI_GUIDANCE_BASELINE_AUDIT: EconomyBaselineAuditConfig = {
       system: 'goal',
       storeId: 'useGoalStore',
       touchpoints: ['currentThemeWeek', 'currentThemeWeekGoals', 'recommendedEconomySinks', 'currentEventCampaign'],
-      rationale: '主题周摘要、活动摘要和目标规划是后期推荐层的主入口。'
+      rationale: '主题周摘要、活动摘要和目标页是后期推荐层的主入口。'
     },
     {
       system: 'quest',
@@ -397,7 +397,7 @@ export const WS11_GUIDANCE_PANEL_SUMMARY_DEFS: GuidancePanelSummaryDef[] = [
     id: 'ws11_top_goals_digest',
     surfaceId: 'top_goals',
     title: '周目标与活动摘要',
-    description: '把主题周、活动节奏和长线目标统一放到顶部目标规划面板。',
+    description: '把主题周、活动节奏和长线目标统一放到独立目标页。',
     unlockTier: 'P0',
     sourceType: 'theme_week',
     linkedSystems: ['goal', 'system'],

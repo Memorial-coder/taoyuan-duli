@@ -196,7 +196,7 @@
         <div class="map-path">···</div>
 
         <!-- 随身 -->
-        <div class="map-area">
+        <div class="map-area" data-testid="mobile-map-personal-area">
           <p class="map-area-title">随身</p>
           <div class="map-area-grid">
             <button
@@ -261,8 +261,8 @@
   const routeLabelToPanelKey = (label: string): PanelKey | null => {
     const normalized = label.trim().toLowerCase()
     const map: Record<string, PanelKey> = {
-      topgoals: 'quest',
-      top_goals: 'quest',
+      topgoals: 'goals',
+      top_goals: 'goals',
       '任务': 'quest',
       quest: 'quest',
       '邮箱': 'mail',
@@ -398,7 +398,7 @@
   const villageGroup = computed(() => pick(['village', 'shop', 'quest', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
-  const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'mail', 'glossary']))
+  const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'goals', 'mail', 'glossary']))
 
   const isActivePanel = (key: PanelKey) => {
     if (key === 'online') return props.current === 'online' || props.current.startsWith('online-')
@@ -406,8 +406,7 @@
   }
 
   const go = (key: PanelKey) => {
-    navigateToPanel(key)
-    emit('close')
+    if (navigateToPanel(key)) emit('close')
   }
   const goQuickEntry = (entry: QuickEntry) => {
     if (entry.entryId) {

@@ -169,8 +169,8 @@
             <p class="text-[0.6875rem] text-muted leading-5">主线、日常委托、特殊订单、限时活动会告诉你今天最值的方向。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
-            <p class="text-xs text-accent">2. 看目标规划</p>
-            <p class="text-[0.6875rem] text-muted leading-5">主题周、市场轮换、今日目标、活动，会决定这周最值得承接什么。</p>
+            <p class="text-xs text-accent">2. 看目标页</p>
+            <p class="text-[0.6875rem] text-muted leading-5">主题周、市场轮换、今日目标、活动，会从右下角地图的“随身 / 目标”入口进到目标页，告诉你这周最值得承接什么。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">3. 去对应系统出货</p>
@@ -186,7 +186,7 @@
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">迷路时的默认答案</p>
-            <p class="text-[0.6875rem] text-muted leading-5">真要是突然不知道今天干嘛了，就先看任务页，再看目标规划和引导面板，通常答案就在那儿。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">真要是突然不知道今天干嘛了，就先看任务页，再从右下角地图进目标页，通常答案就在那儿。</p>
           </section>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -228,7 +228,7 @@
         <div class="grid gap-3 md:grid-cols-2">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">我不知道今天该做什么</p>
-            <p class="text-[0.6875rem] text-muted leading-5">先开任务页 / 告示板，再看目标规划和引导面板。当前版本默认就是让它们告诉你下一步。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">先开任务页 / 告示板，再看右下角地图里的“随身 / 目标”。当前版本默认就是让它们告诉你下一步。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">我总觉得钱不够</p>

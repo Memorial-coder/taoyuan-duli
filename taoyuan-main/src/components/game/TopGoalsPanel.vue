@@ -5,7 +5,7 @@
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <p class="text-sm text-accent">目标规划</p>
+              <p class="text-sm text-accent">目标</p>
               <span class="text-[0.625rem] text-muted">{{ compactStatusLabel }}</span>
             </div>
             <p class="mt-1.5 text-sm text-text">{{ compactHeadline }}</p>
@@ -31,7 +31,7 @@
     <template v-else>
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-sm text-accent">目标规划</p>
+          <p class="text-sm text-accent">目标</p>
           <p class="mt-1 text-[0.6875rem] text-muted">
             <template v-if="goalStore.currentMainQuest">
               当前里程碑：第{{ goalStore.currentMainQuest.id }}阶段 · {{ goalStore.currentMainQuest.title }}
@@ -82,11 +82,11 @@
       </div>
     </template>
 
-    <GuidanceDigestPanel v-if="!collapsed" surface-id="top_goals" title="周目标与活动摘要" />
+    <GuidanceDigestPanel v-if="!collapsed" surface-id="top_goals" title="目标摘要" />
 
     <div v-if="!collapsed && decisionLoopActions.length > 0" class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3">
       <div class="mb-2 flex items-center justify-between gap-2">
-        <p class="text-xs text-accent">本周承接路线</p>
+        <p class="text-xs text-accent">本周主线</p>
         <span class="text-[0.625rem] text-muted">{{ decisionLoopActions.length }} 条</span>
       </div>
       <div class="grid grid-cols-1 gap-2 xl:grid-cols-3">

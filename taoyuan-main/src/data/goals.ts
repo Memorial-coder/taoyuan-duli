@@ -1170,7 +1170,7 @@ export const WS10_QA_CASES: QaCaseDef[] = [
     title: '主题周切换时活动编排能稳定切到对应活动',
     category: 'positive',
     steps: ['推进到新周', '检查 `processEventOperationsTick()` 和 `currentEventCampaign`'],
-    expectedResult: '活动编排切换到对应主题周活动，活动总览、QuestView 与 TopGoalsPanel 同步显示。'
+    expectedResult: '活动编排切换到对应主题周活动，活动总览、QuestView 与目标页同步显示。'
   },
   {
     id: 'ws10-positive-limited-window-switch',
@@ -1211,7 +1211,7 @@ export const WS10_QA_CASES: QaCaseDef[] = [
     id: 'ws10-compatibility-old-save-event-state',
     title: '旧档缺少活动层字段时可安全读档',
     category: 'compatibility',
-    steps: ['读取不包含 eventOperationsState / activityQuestWindowState 的旧档', '打开 QuestView、MailView、TopGoalsPanel'],
+    steps: ['读取不包含 eventOperationsState / activityQuestWindowState 的旧档', '打开 QuestView、MailView、目标页'],
     expectedResult: '旧档安全回填默认值，活动层页面不报错。'
   },
   {
@@ -1225,7 +1225,7 @@ export const WS10_QA_CASES: QaCaseDef[] = [
 
 export const WS10_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
   { id: 'ws10-check-campaign-state', label: '确认活动编排与限时任务窗口的状态切换、回填与收束一致', owner: 'dev', done: false },
-  { id: 'ws10-check-mail-digest', label: '确认 MailView 与 TopGoalsPanel 能看到活动摘要和当前活动', owner: 'qa', done: false },
+  { id: 'ws10-check-mail-digest', label: '确认 MailView 与目标页能看到活动摘要和当前活动', owner: 'qa', done: false },
   { id: 'ws10-check-cross-link', label: '确认活动层能导向 Quest / Shop 等现有系统路线', owner: 'qa', done: false },
   { id: 'ws10-check-ops-toggle', label: '确认活动层开关、预览数量与邮件模板引用可通过 tuning config 调整', owner: 'ops', done: false },
   { id: 'ws10-check-old-save', label: '确认旧档活动层字段能安全默认回填', owner: 'qa', done: false }

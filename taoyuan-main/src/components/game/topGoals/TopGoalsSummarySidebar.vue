@@ -52,7 +52,7 @@
 
     <section class="game-panel-muted min-w-0 px-3 py-3">
       <div class="mb-2 flex items-center justify-between gap-2">
-        <p class="text-xs text-warning">市场轮换摘要</p>
+        <p class="text-xs text-warning">市场提示</p>
         <span class="text-[0.625rem] text-muted">{{ marketOverview.phaseLabel }}</span>
       </div>
       <p v-if="marketOverview.hotspotCategoryLabels.length > 0" class="mt-1 text-[0.625rem] text-warning">

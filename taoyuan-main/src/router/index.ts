@@ -73,6 +73,7 @@ const router = createRouter({
         { path: 'achievement', name: 'achievement', component: () => import('@/views/game/AchievementView.vue') },
         { path: 'glossary', name: 'glossary', component: () => import('@/views/game/GlossaryView.vue') },
         { path: 'wallet', name: 'wallet', component: () => import('@/views/game/WalletView.vue') },
+        { path: 'goals', name: 'goals', component: () => import('@/views/game/GoalsView.vue') },
         { path: 'quest', name: 'quest', component: () => import('@/views/game/QuestView.vue') },
         { path: 'mail', name: 'mail', component: () => import('@/views/game/MailView.vue') },
         { path: 'charinfo', name: 'charinfo', component: () => import('@/views/game/CharInfoView.vue') },

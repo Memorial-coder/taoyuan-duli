@@ -168,6 +168,7 @@ export const TAB_TO_LOCATION_GROUP: Record<string, LocationGroup | null> = {
   skills: null,
   achievement: null,
   glossary: null,
+  goals: null,
   charinfo: null,
   museum: 'village_area',
   guild: 'village_area',
