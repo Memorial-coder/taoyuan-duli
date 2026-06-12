@@ -148,6 +148,19 @@ export const PONDABLE_FISH: PondableFishDef[] = [
     productItemId: 'pond_turtle',
     defaultGenetics: defaultGene({ weight: 70, growthRate: 25, diseaseRes: 80, qualityGene: 40 })
   },
+  {
+    fishId: 'golden_turtle',
+    name: '金甲龟',
+    minPondLevel: 5,
+    maturityDays: 18,
+    baseProductionRate: 0.025,
+    allowBreeding: false,
+    productionWeightBonusMultiplier: 0,
+    productionSkillBonusMultiplier: 0,
+    maxProductionRate: 0.025,
+    productItemId: 'dragon_jade',
+    defaultGenetics: defaultGene({ weight: 80, growthRate: 12, diseaseRes: 86, qualityGene: 78, mutationRate: 3 })
+  },
   // 江河
   {
     fishId: 'bass',
@@ -190,6 +203,19 @@ export const PONDABLE_FISH: PondableFishDef[] = [
     baseProductionRate: 0.4,
     productItemId: 'mud_loach',
     defaultGenetics: defaultGene({ weight: 25, growthRate: 65, diseaseRes: 70 })
+  },
+  {
+    fishId: 'giant_salamander',
+    name: '娃娃鱼',
+    minPondLevel: 4,
+    maturityDays: 16,
+    baseProductionRate: 0.03,
+    allowBreeding: false,
+    productionWeightBonusMultiplier: 0,
+    productionSkillBonusMultiplier: 0,
+    maxProductionRate: 0.03,
+    productItemId: 'luminous_algae',
+    defaultGenetics: defaultGene({ weight: 62, growthRate: 16, diseaseRes: 82, qualityGene: 70, mutationRate: 4 })
   },
   {
     fishId: 'pond_snail',

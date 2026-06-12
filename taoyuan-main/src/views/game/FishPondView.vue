@@ -523,7 +523,7 @@
               {{ fishPondStore.pondContestState.registeredFishIds.includes(detailFish.id) ? '取消周赛报名' : '报名本周周赛' }}
             </Button>
             <Button
-              v-if="detailFish.mature && !detailFish.sick"
+              v-if="detailFish.mature && !detailFish.sick && detailFishCanBreed"
               class="w-full justify-center"
               :class="{ '!bg-accent !text-bg': !fishPondStore.pond.breeding }"
               :icon="Heart"
@@ -812,6 +812,7 @@
   const pondableFishInBag = computed(() => {
     const result: { itemId: string; name: string; count: number }[] = []
     for (const def of PONDABLE_FISH) {
+      if (def.minPondLevel && fishPondStore.pond.level < def.minPondLevel) continue
       const count = inventoryStore.getItemCount(def.fishId)
       if (count > 0) {
         result.push({ itemId: def.fishId, name: def.name, count })
@@ -841,6 +842,10 @@
   })
   const detailFishDisplayButtonDisabled = computed(() => {
     return detailFishDisplayStatus.value === 'displayFull' || detailFishDisplayStatus.value === 'ineligible' || detailFishDisplayStatus.value === 'missingFish'
+  })
+  const detailFishCanBreed = computed(() => {
+    if (!detailFish.value) return false
+    return getPondableFish(detailFish.value.fishId)?.allowBreeding !== false
   })
   const pondContestScoringMetricLabel = computed(() => {
     const metric = fishPondStore.currentPondContestDef?.scoringMetric
@@ -1178,8 +1183,12 @@
       showFloat('开始繁殖', 'success')
       selectedBreedingFish.value = null
     } else {
+      const firstDef = getPondableFish(selectedBreedingFish.value.fishId)
+      const nextDef = getPondableFish(fish.fishId)
       if (selectedBreedingFish.value.fishId !== fish.fishId) {
         addLog('只能配对同种鱼。')
+      } else if (firstDef?.allowBreeding === false || nextDef?.allowBreeding === false) {
+        addLog('这类传说鱼只能驻塘展示，不能繁殖。')
       } else if (fishPondStore.isFull) {
         addLog('鱼塘已满，无法繁殖。')
       } else {

@@ -184,10 +184,20 @@ export interface FishPondState {
 export interface PondableFishDef {
   fishId: string
   name: string
+  /** 最低鱼塘等级，未配置时建塘即可放入 */
+  minPondLevel?: PondLevel
   /** 成熟天数 */
   maturityDays: number
   /** 每日产出概率 (0-1) */
   baseProductionRate: number
+  /** 是否允许作为繁殖亲本，未配置时默认允许 */
+  allowBreeding?: boolean
+  /** 体重基因对产率加成的倍率，未配置时沿用普通鱼规则 */
+  productionWeightBonusMultiplier?: number
+  /** 钓鱼精通对产率加成的倍率，未配置时沿用普通鱼规则 */
+  productionSkillBonusMultiplier?: number
+  /** 单条鱼每日最终产率上限，防止稀有产物被高基因放大 */
+  maxProductionRate?: number
   /** 产出物品ID（通常就是鱼本身） */
   productItemId: string
   /** 默认基因 */

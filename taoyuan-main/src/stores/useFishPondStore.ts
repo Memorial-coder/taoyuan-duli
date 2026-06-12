@@ -75,7 +75,9 @@ const normalizeBreedingPair = (value: any) => {
   const parentA = typeof value.parentA === 'string' ? value.parentA : ''
   const parentB = typeof value.parentB === 'string' ? value.parentB : ''
   const fishId = typeof value.fishId === 'string' && isPondableFish(value.fishId) ? value.fishId : ''
+  const def = fishId ? getPondableFish(fishId) : null
   if (!parentA || !parentB || !fishId) return null
+  if (def?.allowBreeding === false) return null
   return {
     parentA,
     parentB,
@@ -203,6 +205,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
     if (!isPondableFish(fishId)) return 0
     const inventoryStore = useInventoryStore()
     const def = getPondableFish(fishId)!
+    if (def.minPondLevel && pond.value.level < def.minPondLevel) return 0
     const g1Breeds = getGen1BreedsForFish(fishId)
     let added = 0
     for (let i = 0; i < quantity; i++) {
@@ -756,6 +759,8 @@ export const useFishPondStore = defineStore('fishPond', () => {
     if (fishA.fishId !== fishB.fishId) return false
     if (!fishA.mature || !fishB.mature) return false
     if (fishA.sick || fishB.sick) return false
+    const def = getPondableFish(fishA.fishId)
+    if (def?.allowBreeding === false) return false
 
     pond.value.breeding = {
       parentA: fishIdA,
@@ -938,8 +943,10 @@ export const useFishPondStore = defineStore('fishPond', () => {
         const def = getPondableFish(fish.fishId)
         if (!def) continue
         // 产出概率受体重基因影响
-        const weightBonus = fish.genetics.weight / 200
-        const rate = Math.min(1, def.baseProductionRate + weightBonus + pondLinkBonus)
+        const weightBonus = (fish.genetics.weight / 200) * (def.productionWeightBonusMultiplier ?? 1)
+        const skillBonus = pondLinkBonus * (def.productionSkillBonusMultiplier ?? 1)
+        const uncappedRate = def.baseProductionRate + weightBonus + skillBonus
+        const rate = Math.min(1, def.maxProductionRate ?? 1, uncappedRate)
         if (Math.random() < rate) {
           const quality = _getProductQuality(fish.genetics.qualityGene)
           result.products.push({ itemId: def.productItemId, quality })
