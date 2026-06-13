@@ -159,6 +159,16 @@ export interface RegionOpenWorldViewportBounds {
   maxY: number
 }
 
+export interface RegionOpenWorldViewportCamera {
+  x: number
+  y: number
+}
+
+export interface RegionOpenWorldViewportSize {
+  columns: number
+  rows: number
+}
+
 export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
   discovered: boolean
   current: boolean
@@ -170,6 +180,8 @@ export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
   statusLabel: string
   objectLabel: string
   disabledReason: string
+  moveDistance: number
+  moveStaminaCost: number
   canMove: boolean
   canAct: boolean
 }
@@ -180,6 +192,9 @@ export interface RegionOpenWorldRegionWindowView {
   unlocked: boolean
   unlockReason: string
   bounds: RegionOpenWorldViewportBounds
+  camera: RegionOpenWorldViewportCamera
+  visibleColumnCount: number
+  visibleRowCount: number
   totalTileCount: number
   discoveredCount: number
   tiles: RegionOpenWorldTileView[]

@@ -11,6 +11,7 @@ import { useMailboxStore } from '@/stores/useMailboxStore'
 import { useMarketGovernanceStore } from '@/stores/useMarketGovernanceStore'
 import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
 import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
+import { useFriendChatStore } from '@/stores/useFriendChatStore'
 import { useSocialStore } from '@/stores/useSocialStore'
 import { useSocietyStore } from '@/stores/useSocietyStore'
 import { useExchangeLedgerStore } from '@/stores/useExchangeLedgerStore'
@@ -71,6 +72,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let expeditionRoomRefreshTimer: number | null = null
   let manorRefreshTimer: number | null = null
   let mailboxRefreshTimer: number | null = null
+  let chatRefreshTimer: number | null = null
   let neighborRefreshTimer: number | null = null
   let societyRefreshTimer: number | null = null
   let coopOrderRefreshTimer: number | null = null
@@ -155,6 +157,19 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       void useMailboxStore().refreshList({ silent: true }).catch(error => {
         lastError.value = error instanceof Error ? error.message : '实时邮箱刷新失败'
       })
+    }, 300)
+  }
+
+  const queueChatRefresh = () => {
+    if (chatRefreshTimer !== null) return
+    chatRefreshTimer = window.setTimeout(() => {
+      chatRefreshTimer = null
+      const chatStore = useFriendChatStore()
+      void chatStore.refreshConversations({ silent: true })
+        .then(() => chatStore.activeConversationId ? chatStore.loadMessages(chatStore.activeConversationId) : null)
+        .catch(error => {
+          lastError.value = error instanceof Error ? error.message : '实时私聊刷新失败'
+        })
     }, 300)
   }
 
@@ -387,6 +402,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (envelope.type === 'notification.created') {
       const category = typeof envelope.payload?.category === 'string' ? envelope.payload.category : ''
       if (category === 'mail') queueMailboxRefresh()
+      if (category === 'chat') queueChatRefresh()
       if (category === 'hall') dispatchHallNotification(envelope.payload)
       if (category === 'manor') queueManorRefresh(envelope.payload)
       if (category === 'neighbor') queueNeighborRefresh()
@@ -503,6 +519,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (mailboxRefreshTimer !== null) {
       window.clearTimeout(mailboxRefreshTimer)
       mailboxRefreshTimer = null
+    }
+    if (chatRefreshTimer !== null) {
+      window.clearTimeout(chatRefreshTimer)
+      chatRefreshTimer = null
     }
     if (neighborRefreshTimer !== null) {
       window.clearTimeout(neighborRefreshTimer)

@@ -527,6 +527,88 @@ try {
     )
   })
 
+  await runCheck('private chat notification event is delivered through websocket', async () => {
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/online/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_save_id: friend.identity.save_id,
+        content: 'Realtime smoke private chat message.',
+      }),
+    })
+    assert(result.response.ok, `private chat message returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const messageId = String(result.data?.message?.id || '')
+    assert(messageId, 'private chat message id missing')
+    await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'chat'
+        && payload.action === 'message_created'
+        && payload.refresh_required === true
+        && payload.message?.id === messageId
+        && payload.message?.type === 'text'
+        && payload.message?.sender_username === owner.username
+        && payload.message?.recipient_username === friend.username
+        && payload.conversation?.id === result.data?.conversation?.id
+    )
+  })
+
+  await runCheck('offline private chat notification event is replayed and acknowledged after reconnect', async () => {
+    friendSocket.close()
+    friendSocket = null
+    await wait(200)
+
+    const result = await fetchSessionJson(owner, '/api/taoyuan/online/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_save_id: friend.identity.save_id,
+        content: 'Offline realtime smoke private chat message.',
+      }),
+    })
+    assert(result.response.ok, `offline private chat message returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const messageId = String(result.data?.message?.id || '')
+    assert(messageId, 'offline private chat message id missing')
+
+    friendSocket = await openRealtimeSocket(friend)
+    const ready = await expectMessage(friendSocket, 'realtime.ready', payload =>
+      payload.username === friend.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline private chat replay ready did not report pending notifications')
+
+    const queuedMessage = await expectMessage(friendSocket, 'notification.created', payload =>
+      payload.category === 'chat'
+        && payload.action === 'message_created'
+        && payload.message?.id === messageId
+        && payload.message?.sender_username === owner.username
+        && payload.message?.recipient_username === friend.username
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed private chat notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed private chat notification missing replayed marker')
+
+    const ackOffset = friendSocket.messages.length
+    friendSocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(friendSocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    friendSocket.close()
+    friendSocket = null
+    await wait(200)
+
+    friendSocket = await openRealtimeSocket(friend)
+    await expectMessage(friendSocket, 'realtime.ready', payload =>
+      payload.username === friend.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(friendSocket, 0, 'notification.created', payload =>
+      payload.category === 'chat'
+        && payload.action === 'message_created'
+        && payload.message?.id === messageId
+    )
+  })
+
   await runCheck('targeted coop order create notification event is delivered through websocket', async () => {
     const orderTitle = `RT targeted coop ${createSmokeSeed()}`
     const offset = friendSocket.messages.length

@@ -53,7 +53,7 @@
               </span>
               <span class="tool-entry-copy">
                 <span class="tool-entry-title">邮箱</span>
-                <span class="tool-entry-meta">{{ mailboxStore.unreadCount > 0 ? `${mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount} 未读` : '查看奖励与消息' }}</span>
+                <span class="tool-entry-meta">{{ mailboxStore.unreadCount > 0 ? `${mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount} 未读` : '查看奖励与系统邮件' }}</span>
               </span>
             </button>
             <button class="tool-entry-btn" @click="$emit('open-log')">
@@ -112,7 +112,12 @@
               @click="go(t.key)"
             >
               <span class="quick-link-chip-title">{{ t.label }}</span>
-              <span class="quick-link-chip-tag">快捷</span>
+              <span
+                class="quick-link-chip-tag"
+                :class="{ 'quick-link-chip-tag-alert': (t.key === 'friend-station' && pendingFriendRequestCount > 0) || (t.key === 'friend-chat' && friendChatStore.totalUnreadCount > 0) }"
+              >
+                {{ getOnlineShortcutTag(t.key) }}
+              </span>
             </button>
           </div>
         </div>
@@ -223,17 +228,21 @@
   import { TABS, navigateToPanel } from '@/composables/useNavigation'
   import type { PanelKey } from '@/composables/useNavigation'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { useFriendChatStore } from '@/stores/useFriendChatStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { MAX_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore } from '@/stores/useSettingsStore'
+  import { useSocialStore } from '@/stores/useSocialStore'
   import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
 
   const props = defineProps<{ open: boolean; current: string; hasVoidChest?: boolean }>()
   const emit = defineEmits<{ close: []; 'open-settings': []; 'open-log': []; 'open-void': [] }>()
   const goalStore = useGoalStore()
+  const friendChatStore = useFriendChatStore()
   const mailboxStore = useMailboxStore()
   const regionMapStore = useRegionMapStore()
   const settingsStore = useSettingsStore()
+  const socialStore = useSocialStore()
   const MOBILE_MAP_SCALE_BASELINE = 16
   const MOBILE_MAP_MIN_SCALE = MIN_FONT_SIZE / MOBILE_MAP_SCALE_BASELINE
   const MOBILE_MAP_MAX_SCALE = MAX_FONT_SIZE / MOBILE_MAP_SCALE_BASELINE
@@ -279,6 +288,11 @@
       friend: 'friend-station',
       friendstation: 'friend-station',
       'friend-station': 'friend-station',
+      '私聊': 'friend-chat',
+      '好友私聊': 'friend-chat',
+      chat: 'friend-chat',
+      friendchat: 'friend-chat',
+      'friend-chat': 'friend-chat',
       '节会': 'festival',
       festival: 'festival',
       '村社': 'society',
@@ -352,8 +366,17 @@
       pushEntry({
         key: 'mail',
         title: '查看邮箱',
-        summary: '奖励、系统消息或活动信件还没处理完。',
+        summary: '奖励、系统邮件或活动信件还没处理完。',
         tag: '未读'
+      })
+    }
+
+    if (friendChatStore.totalUnreadCount > 0) {
+      pushEntry({
+        key: 'friend-chat',
+        title: '查看好友私聊',
+        summary: `还有 ${friendChatStore.totalUnreadCount} 条好友私聊未读。`,
+        tag: '私聊'
       })
     }
 
@@ -391,10 +414,12 @@
   const mobileMapTileScaleCss = computed(() => mobileMapTileScale.value.toFixed(3))
   const mobileMapLocIconSize = computed(() => Number((18 * mobileMapTileScale.value).toFixed(2)))
   const mobileMapToolIconSize = computed(() => Number((16 * mobileMapTileScale.value).toFixed(2)))
+  const pendingFriendRequestCount = computed(() => socialStore.incomingRequests.length)
+  const friendRequestBadgeLabel = computed(() => pendingFriendRequestCount.value > 99 ? '99+' : String(pendingFriendRequestCount.value))
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
   const onlineCenterGroup = computed(() => pick(['online']))
-  const onlineShortcutGroup = computed(() => pick(['friend-station']))
+  const onlineShortcutGroup = computed(() => pick(['friend-station', 'friend-chat']))
   const villageGroup = computed(() => pick(['village', 'shop', 'quest', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
@@ -403,6 +428,14 @@
   const isActivePanel = (key: PanelKey) => {
     if (key === 'online') return props.current === 'online' || props.current.startsWith('online-')
     return props.current === key
+  }
+
+  const getOnlineShortcutTag = (key: PanelKey) => {
+    if (key === 'friend-station' && pendingFriendRequestCount.value > 0) return `${friendRequestBadgeLabel.value} 申请`
+    if (key === 'friend-chat' && friendChatStore.totalUnreadCount > 0) {
+      return `${friendChatStore.totalUnreadCount > 99 ? '99+' : friendChatStore.totalUnreadCount} 未读`
+    }
+    return '快捷'
   }
 
   const go = (key: PanelKey) => {
@@ -619,6 +652,11 @@
 
   .quick-link-chip-tag {
     color: var(--color-accent);
+  }
+
+  .quick-link-chip-tag-alert {
+    color: #ef4444;
+    font-weight: 700;
   }
 
   .tool-entry-btn {

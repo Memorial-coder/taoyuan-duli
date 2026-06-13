@@ -20,6 +20,18 @@
           </div>
         </div>
         <div class="detail-card mb-3">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-xs text-accent">好友私聊</p>
+            <span class="text-[0.625rem] text-muted">聊天化</span>
+          </div>
+          <p class="text-[0.625rem] text-muted leading-5 mb-2">文字、附图和礼物现在从好友私聊发送；邮箱保留系统邮件、奖励和旧书信。</p>
+          <Button class="w-full justify-center" :icon="MailOpen" :icon-size="12" @click="openFriendChatFromMailbox()">
+            进入好友私聊
+          </Button>
+        </div>
+
+        <template v-if="showLegacyComposeEntrypoints">
+        <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-1">
             <p class="text-xs text-accent">周路线 / 邮件摘要</p>
             <span class="text-[0.625rem] text-muted">可领 {{ claimableMailCount }}</span>
@@ -318,6 +330,8 @@
           </div>
         </div>
 
+        </template>
+
         <div v-if="mailboxStore.mails.length === 0" class="empty-box">
           <Mail :size="30" class="text-accent/20 mb-2" />
           <p class="text-xs text-muted">暂无邮件</p>
@@ -481,7 +495,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-  import { useRoute } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useDecorationStore } from '@/stores/useDecorationStore'
@@ -509,12 +523,14 @@
 
   const gameStore = useGameStore()
   const route = useRoute()
+  const router = useRouter()
   const inventoryStore = useInventoryStore()
   const decorationStore = useDecorationStore()
   const mailboxStore = useMailboxStore()
   const goalStore = useGoalStore()
   const questStore = useQuestStore()
   const decorationNameMap = new Map(DECORATIONS.map(def => [def.id, def.name]))
+  const showLegacyComposeEntrypoints = false
   type GiftPackageTemplateType = 'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'
   const GIFT_PACKAGE_TYPE_OPTIONS: Array<{ id: GiftPackageTemplateType; label: string; summary: string; defaultTitle: string }> = [
     { id: 'material_package', label: '材料包', summary: '适合寄送木材、矿料与加工材料。', defaultTitle: '寄来一份材料包' },
@@ -750,6 +766,19 @@
     const raw = Array.isArray(value) ? value[0] : value
     return typeof raw === 'string' ? raw.trim() : ''
   }
+  const buildFriendChatRouteQuery = (compose: 'message' | 'gift' = 'message') => {
+    const query: Record<string, string> = { compose }
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    const displayName = getRouteQueryText(route.query.display_name)
+    if (targetUsername) query.target_username = targetUsername
+    if (targetSaveId) query.target_save_id = targetSaveId
+    if (displayName) query.display_name = displayName
+    return query
+  }
+  const openFriendChatFromMailbox = (compose: 'message' | 'gift' = 'message') => {
+    void router.push({ name: 'friend-chat', query: buildFriendChatRouteQuery(compose) })
+  }
   const applyMailRouteDraft = () => {
     const targetUsername = getRouteQueryText(route.query.target_username)
     const targetSaveId = getRouteQueryText(route.query.target_save_id)
@@ -757,6 +786,13 @@
     const compose = getRouteQueryText(route.query.compose)
     activeMailId.value = null
     activeMail.value = null
+    if (!showLegacyComposeEntrypoints) {
+      void router.replace({
+        name: 'friend-chat',
+        query: buildFriendChatRouteQuery(compose === 'gift' ? 'gift' : 'message')
+      })
+      return
+    }
     if (compose === 'gift') {
       mailboxStore.giftPackageTargetDraft = targetUsername
       mailboxStore.giftPackageTargetSaveIdDraft = targetSaveId

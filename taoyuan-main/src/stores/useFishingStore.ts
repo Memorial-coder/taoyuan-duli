@@ -13,7 +13,7 @@ import type {
   MiniGameParams,
   MiniGameRating
 } from '@/types'
-import { getAvailableFish, getBaitById, getTackleById, getItemById } from '@/data'
+import { getAvailableFish, getBaitById, getTackleById, getItemById, TACKLES } from '@/data'
 import { resolveEnvironmentWindow } from '@/data/environmentWindows'
 import { FISH, FISHING_LOCATIONS } from '@/data/fish'
 import { useGameStore } from './useGameStore'
@@ -33,6 +33,31 @@ const BASE_CRAB_POTS_LIMIT = 10
 const SKILLED_CRAB_POTS_LIMIT = 14
 const MASTER_CRAB_POTS_LIMIT = 18
 const MAX_CRAB_POTS_PER_LOCATION = 3
+
+type TackleDurabilityMap = Partial<Record<TackleType, number>>
+
+const TACKLE_TYPES = TACKLES.map(tackle => tackle.id)
+
+const normalizeTackleDurability = (type: TackleType, durability: unknown): number | null => {
+  const def = getTackleById(type)
+  const value = Math.floor(Number(durability))
+  if (!def || !Number.isFinite(value) || value <= 0) return null
+  return Math.min(value, def.maxDurability)
+}
+
+const normalizeTackleDurabilityMap = (value: unknown): TackleDurabilityMap => {
+  if (!value || typeof value !== 'object') return {}
+  const raw = value as Partial<Record<TackleType, unknown>>
+  const normalized: TackleDurabilityMap = {}
+  for (const type of TACKLE_TYPES) {
+    const durability = normalizeTackleDurability(type, raw[type])
+    const maxDurability = getTackleById(type)?.maxDurability ?? 0
+    if (durability !== null && durability < maxDurability) {
+      normalized[type] = durability
+    }
+  }
+  return normalized
+}
 
 const getCrabPotLimitForFishingLevel = (level: number): number => {
   if (level >= 15) return MASTER_CRAB_POTS_LIMIT
@@ -198,6 +223,7 @@ export const useFishingStore = defineStore('fishing', () => {
   const equippedBait = ref<BaitType | null>(null)
   const equippedTackle = ref<TackleType | null>(null)
   const tackleDurability = ref(0)
+  const unequippedTackleDurabilities = ref<TackleDurabilityMap>({})
 
   /** 当次钓鱼会话的鱼饵/浮漂 */
   const activeBaitDef = ref<BaitDef | null>(null)
@@ -239,8 +265,13 @@ export const useFishingStore = defineStore('fishing', () => {
       }
     }
     equippedTackle.value = type
-    tackleDurability.value = def.maxDurability
-    return { success: true, message: `装备了${def.name}。(耐久: ${def.maxDurability})` }
+    const storedDurability = unequippedTackleDurabilities.value[type]
+    const restoredDurability = normalizeTackleDurability(type, storedDurability) ?? def.maxDurability
+    const nextDurabilities = { ...unequippedTackleDurabilities.value }
+    delete nextDurabilities[type]
+    unequippedTackleDurabilities.value = nextDurabilities
+    tackleDurability.value = restoredDurability
+    return { success: true, message: `装备了${def.name}。(耐久: ${restoredDurability})` }
   }
 
   const getFishPoolForBait = (baitDef: BaitDef | null): FishDef[] => {
@@ -253,11 +284,20 @@ export const useFishingStore = defineStore('fishing', () => {
   /** 卸下浮漂 */
   const unequipTackle = (): string => {
     if (!equippedTackle.value) return '没有装备浮漂。'
-    const def = getTackleById(equippedTackle.value)
+    const type = equippedTackle.value
+    const def = getTackleById(type)
     if (tackleDurability.value > 0) {
-      if (!inventoryStore.canAddItem(equippedTackle.value, 1) || !inventoryStore.addItemExact(equippedTackle.value, 1)) {
+      if (!inventoryStore.canAddItem(type, 1) || !inventoryStore.addItemExact(type, 1)) {
         return '背包空间不足，无法卸下浮漂。'
       }
+      const durability = normalizeTackleDurability(type, tackleDurability.value)
+      const nextDurabilities = { ...unequippedTackleDurabilities.value }
+      if (durability !== null && durability < (def?.maxDurability ?? 0)) {
+        nextDurabilities[type] = durability
+      } else {
+        delete nextDurabilities[type]
+      }
+      unequippedTackleDurabilities.value = nextDurabilities
     }
     equippedTackle.value = null
     tackleDurability.value = 0
@@ -848,6 +888,7 @@ export const useFishingStore = defineStore('fishing', () => {
       equippedBait: equippedBait.value,
       equippedTackle: equippedTackle.value,
       tackleDurability: tackleDurability.value,
+      unequippedTackleDurabilities: normalizeTackleDurabilityMap(unequippedTackleDurabilities.value),
       fishingLocation: fishingLocation.value,
       crabPots: crabPots.value
     }
@@ -858,8 +899,14 @@ export const useFishingStore = defineStore('fishing', () => {
     lastTreasure.value = null
     lastPerfect.value = false
     equippedBait.value = data.equippedBait ?? null
-    equippedTackle.value = data.equippedTackle ?? null
-    tackleDurability.value = data.tackleDurability ?? 0
+    const savedTackle = data.equippedTackle ?? null
+    const savedDurability = (data as any).tackleDurability
+    const restoredDurability = savedTackle
+      ? normalizeTackleDurability(savedTackle, savedDurability) ?? (savedDurability === undefined ? getTackleById(savedTackle)?.maxDurability ?? 0 : 0)
+      : 0
+    equippedTackle.value = savedTackle && restoredDurability > 0 ? savedTackle : null
+    tackleDurability.value = equippedTackle.value ? restoredDurability : 0
+    unequippedTackleDurabilities.value = normalizeTackleDurabilityMap((data as any).unequippedTackleDurabilities)
     fishingLocation.value = data.fishingLocation ?? 'creek'
     crabPots.value = (data as any).crabPots ?? []
   }

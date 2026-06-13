@@ -1,6 +1,6 @@
 const ACCOUNT_STORAGE_KEY = 'taoyuanxiang_current_account'
 const DEFAULT_ACCOUNT_KEY = 'guest'
-const DEFAULT_SAVE_MODE = 'local'
+const DEFAULT_SAVE_MODE = 'server'
 
 let currentAccountKey = DEFAULT_ACCOUNT_KEY
 let currentCsrfToken = ''
@@ -54,7 +54,8 @@ const buildCurrentAccountContext = (): CurrentAccountContext => ({
 export const getStoredSaveMode = (): SaveMode => {
   try {
     const raw = localStorage.getItem(buildScopedSingleKey('taoyuanxiang_save_mode_'))
-    return raw === 'server' ? 'server' : 'local'
+    if (raw === 'local' || raw === 'server') return raw
+    return DEFAULT_SAVE_MODE
   } catch {
     return DEFAULT_SAVE_MODE
   }

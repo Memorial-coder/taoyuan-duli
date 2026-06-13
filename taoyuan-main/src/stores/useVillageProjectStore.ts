@@ -53,6 +53,10 @@ import { useQuestStore } from './useQuestStore'
 import { useShopStore } from './useShopStore'
 import { useWarehouseStore } from './useWarehouseStore'
 
+const VILLAGE_PROJECT_CLUE_ALIASES: Record<string, string[]> = {
+  a_shi_support_clue: ['a_shi_clue']
+}
+
 export const useVillageProjectStore = defineStore('villageProject', () => {
   const projectStates = ref<Record<string, VillageProjectState>>({})
   const maintenanceStates = ref<Record<string, VillageProjectMaintenanceState>>({})
@@ -204,7 +208,8 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     const npcStore = useNpcStore()
     return VILLAGE_PROJECT_DEFS.map(def => {
       const state = normalizeProjectState(def.id, projectStates.value[def.id])
-      const clueUnlocked = !def.requiredClueId || npcStore.relationshipClues.some(clue => clue.clueId === def.requiredClueId)
+      const acceptedClueIds = new Set([def.requiredClueId, ...(def.requiredClueId ? VILLAGE_PROJECT_CLUE_ALIASES[def.requiredClueId] ?? [] : [])])
+      const clueUnlocked = !def.requiredClueId || npcStore.relationshipClues.some(clue => acceptedClueIds.has(clue.clueId))
       return {
         ...def,
         buildMode: def.buildMode ?? VILLAGE_PROJECT_OPERATIONAL_CONFIG.defaultState.buildMode,

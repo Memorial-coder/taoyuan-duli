@@ -69,6 +69,8 @@ import type {
   RegionOpenWorldTileState,
   RegionOpenWorldTileStatus,
   RegionOpenWorldTileView,
+  RegionOpenWorldViewportCamera,
+  RegionOpenWorldViewportSize,
   RegionJourneyActionState,
   RegionRumorBoardEntry,
   RegionRouteDef,
@@ -198,10 +200,12 @@ const getMoreAdvancedLandmarkStage = (
 const getOpenWorldRegionDef = (regionId: RegionOpenWorldId) =>
   REGION_OPEN_WORLD_DEFS.find(region => region.id === regionId) ?? REGION_OPEN_WORLD_DEFS[0]!
 
-const OPEN_WORLD_VIEWPORT_WIDTH = 16
-const OPEN_WORLD_VIEWPORT_HEIGHT = 12
+const OPEN_WORLD_DEFAULT_VIEWPORT_COLUMNS = 16
+const OPEN_WORLD_DEFAULT_VIEWPORT_ROWS = 12
+const OPEN_WORLD_VIEWPORT_OVERSCAN = 1
+const OPEN_WORLD_MOVE_TILES_PER_STAMINA = 5
 
-type OpenWorldViewportOrigin = { minX: number; minY: number }
+type OpenWorldViewportCamera = RegionOpenWorldViewportCamera
 
 const getOpenWorldTileCoordKey = (x: number, y: number) => `${x},${y}`
 
@@ -1080,24 +1084,57 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const getOpenWorldTileDistance = (a: RegionOpenWorldTileDef, b: RegionOpenWorldTileDef) =>
     Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
 
+  const getOpenWorldMoveDistance = (a: RegionOpenWorldTileDef, b: RegionOpenWorldTileDef) =>
+    Math.hypot(a.x - b.x, a.y - b.y)
+
+  const getOpenWorldMoveStaminaCost = (distance: number) =>
+    distance > 0 ? Math.max(1, Math.ceil(distance / OPEN_WORLD_MOVE_TILES_PER_STAMINA)) : 0
+
+  const normalizeOpenWorldViewportCount = (value: unknown, fallback: number, max: number) => {
+    const parsed = Math.floor(Number(value))
+    const safeValue = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+    return clamp(safeValue, 1, Math.max(1, max))
+  }
+
   const getOpenWorldViewportBounds = (
     def: ReturnType<typeof getOpenWorldRegionDef>,
     focusTile: RegionOpenWorldTileDef,
-    origin?: OpenWorldViewportOrigin | null
+    camera?: OpenWorldViewportCamera | null,
+    viewportSize?: RegionOpenWorldViewportSize | null
   ) => {
-    const viewportWidth = Math.min(OPEN_WORLD_VIEWPORT_WIDTH, def.width)
-    const viewportHeight = Math.min(OPEN_WORLD_VIEWPORT_HEIGHT, def.height)
-    const maxOriginX = Math.max(0, def.width - viewportWidth)
-    const maxOriginY = Math.max(0, def.height - viewportHeight)
-    const centeredMinX = focusTile.x - Math.floor(viewportWidth / 2)
-    const centeredMinY = focusTile.y - Math.floor(viewportHeight / 2)
-    const minX = clamp(Math.floor(origin?.minX ?? centeredMinX), 0, maxOriginX)
-    const minY = clamp(Math.floor(origin?.minY ?? centeredMinY), 0, maxOriginY)
+    const visibleColumnCount = normalizeOpenWorldViewportCount(
+      viewportSize?.columns,
+      OPEN_WORLD_DEFAULT_VIEWPORT_COLUMNS,
+      def.width
+    )
+    const visibleRowCount = normalizeOpenWorldViewportCount(
+      viewportSize?.rows,
+      OPEN_WORLD_DEFAULT_VIEWPORT_ROWS,
+      def.height
+    )
+    const maxCameraX = Math.max(0, def.width - visibleColumnCount)
+    const maxCameraY = Math.max(0, def.height - visibleRowCount)
+    const centeredX = focusTile.x - Math.floor(visibleColumnCount / 2)
+    const centeredY = focusTile.y - Math.floor(visibleRowCount / 2)
+    const cameraX = clamp(Number.isFinite(camera?.x) ? camera!.x : centeredX, 0, maxCameraX)
+    const cameraY = clamp(Number.isFinite(camera?.y) ? camera!.y : centeredY, 0, maxCameraY)
+    const minX = clamp(Math.floor(cameraX) - OPEN_WORLD_VIEWPORT_OVERSCAN, 0, Math.max(0, def.width - 1))
+    const minY = clamp(Math.floor(cameraY) - OPEN_WORLD_VIEWPORT_OVERSCAN, 0, Math.max(0, def.height - 1))
+    const maxX = clamp(Math.ceil(cameraX + visibleColumnCount) + OPEN_WORLD_VIEWPORT_OVERSCAN - 1, 0, Math.max(0, def.width - 1))
+    const maxY = clamp(Math.ceil(cameraY + visibleRowCount) + OPEN_WORLD_VIEWPORT_OVERSCAN - 1, 0, Math.max(0, def.height - 1))
     return {
-      minX,
-      minY,
-      maxX: minX + viewportWidth - 1,
-      maxY: minY + viewportHeight - 1
+      bounds: {
+        minX,
+        minY,
+        maxX,
+        maxY
+      },
+      camera: {
+        x: cameraX,
+        y: cameraY
+      },
+      visibleColumnCount,
+      visibleRowCount
     }
   }
 
@@ -1391,6 +1428,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const unlock = getOpenWorldRegionUnlockInfo(regionId)
     const discovered = state.discovered || regionState.discoveredTileIds.includes(tileId)
     const current = regionState.playerTileId === tileId
+    const playerTile = getOpenWorldTileDef(regionId, regionState.playerTileId)
+    const moveDistance = playerTile && !current ? getOpenWorldMoveDistance(playerTile, tile) : 0
+    const moveStaminaCost = getOpenWorldMoveStaminaCost(moveDistance)
     const selected = regionState.selectedTileId === tileId
     const actionLabel = tile.actionId ? OPEN_WORLD_ACTION_LABELS[tile.actionId] : '查看'
     const spent = isOpenWorldTileSpentToday(tile, state, `${useGameStore().year}-${useGameStore().season}-${useGameStore().day}`)
@@ -1415,6 +1455,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       statusLabel: spent ? OPEN_WORLD_STATUS_LABELS[state.status] : state.landmarkStage !== 'unknown' ? state.landmarkStage : OPEN_WORLD_STATUS_LABELS[state.status],
       objectLabel: tile.objectType ? (OPEN_WORLD_OBJECT_LABELS[tile.objectType] ?? tile.objectType) : '地形',
       disabledReason,
+      moveDistance,
+      moveStaminaCost,
       canMove: unlock.unlocked && discovered && !current,
       canAct: unlock.unlocked && discovered && Boolean(tile.actionId) && !disabledReason
     }
@@ -1422,14 +1464,15 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const getOpenWorldRegionView = (
     regionId: RegionOpenWorldId,
-    viewportOrigin?: OpenWorldViewportOrigin | null
+    viewportCamera?: OpenWorldViewportCamera | null,
+    viewportSize?: RegionOpenWorldViewportSize | null
   ): RegionOpenWorldRegionWindowView => {
     const def = getOpenWorldRegionDef(regionId)
     const state = getOpenWorldRegionState(regionId)
     const unlock = getOpenWorldRegionUnlockInfo(regionId)
     const playerTile = getOpenWorldTileDef(regionId, state.playerTileId)
     const focusTile = playerTile ?? getOpenWorldTileDef(regionId, def.startTileId) ?? def.tiles[0]!
-    const bounds = getOpenWorldViewportBounds(def, focusTile, viewportOrigin)
+    const { bounds, camera, visibleColumnCount, visibleRowCount } = getOpenWorldViewportBounds(def, focusTile, viewportCamera, viewportSize)
     const visibleTiles: RegionOpenWorldTileDef[] = []
     for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
       for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
@@ -1448,6 +1491,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       unlocked: unlock.unlocked,
       unlockReason: unlock.reason,
       bounds,
+      camera,
+      visibleColumnCount,
+      visibleRowCount,
       totalTileCount: def.tiles.length,
       discoveredCount: discoveredTileIds.size,
       tiles: visibleTiles.map(tile => getOpenWorldTileView(regionId, tile.id)).filter((tile): tile is RegionOpenWorldTileView => Boolean(tile))
@@ -1464,16 +1510,17 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     for (const def of REGION_OPEN_WORLD_DEFS) {
       const regionState = getOpenWorldRegionState(def.id)
       if (regionState.lastRefreshDayTag === dayTag) continue
-      for (const tile of def.tiles) {
-        const current = regionState.tileStates[tile.id] ?? getOpenWorldTileStateFallback(tile)
+      for (const [tileId, current] of Object.entries(regionState.tileStates)) {
+        const tile = getOpenWorldTileDef(def.id, tileId)
+        if (!tile) continue
         if (tile.dailyRefresh && current.lastActionDayTag !== dayTag) {
-          regionState.tileStates[tile.id] = {
+          regionState.tileStates[tileId] = {
             ...current,
             status: 'fresh',
             lastRefreshDayTag: dayTag
           }
         } else {
-          regionState.tileStates[tile.id] = {
+          regionState.tileStates[tileId] = {
             ...current,
             lastRefreshDayTag: dayTag
           }
@@ -1534,16 +1581,41 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: '这格还没发现，先走到相邻区域。', title: '无法移动', lines: ['未发现格不能直接前往。'], tone: 'accent' }
     }
     const regionState = getOpenWorldRegionState(regionId)
+    const currentTile = getOpenWorldTileDef(regionId, regionState.playerTileId)
+    const moveDistance = currentTile && currentTile.id !== tile.id ? getOpenWorldMoveDistance(currentTile, tile) : 0
+    const staminaCost = getOpenWorldMoveStaminaCost(moveDistance)
+    const playerStore = usePlayerStore()
+    if (staminaCost > 0 && !playerStore.consumeStamina(staminaCost)) {
+      return {
+        success: false,
+        message: `体力不足，需要 ${staminaCost} 点体力。`,
+        title: '体力不足',
+        lines: [`本次移动约 ${moveDistance.toFixed(1)} 格，需要 ${staminaCost} 点体力。`],
+        tone: 'danger'
+      }
+    }
     regionState.playerTileId = tileId
     regionState.selectedTileId = tileId
     saveData.value.openWorld.selectedTileId = tileId
     revealOpenWorldAround(regionId, tileId, tile.revealsRadius)
-    recordOpenWorldLog(regionId, tileId, dayTag, `抵达${tile.label}`, tile.description, 'accent')
+    recordOpenWorldLog(
+      regionId,
+      tileId,
+      dayTag,
+      `抵达${tile.label}`,
+      staminaCost > 0 ? `${tile.description}（移动约 ${moveDistance.toFixed(1)} 格，消耗 ${staminaCost} 体力。）` : tile.description,
+      'accent'
+    )
     return {
       success: true,
-      message: `已前往「${tile.label}」。`,
+      message: staminaCost > 0 ? `已前往「${tile.label}」，消耗 ${staminaCost} 点体力。` : `已前往「${tile.label}」。`,
       title: '移动',
-      lines: [tile.description, '移动不消耗体力和时间，周围格子已显形。'],
+      lines: [
+        tile.description,
+        staminaCost > 0
+          ? `移动约 ${moveDistance.toFixed(1)} 格，消耗 ${staminaCost} 点体力；周围格子已显形。`
+          : '已在当前位置，周围格子已显形。'
+      ],
       tone: 'accent'
     }
   }

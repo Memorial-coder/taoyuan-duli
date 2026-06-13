@@ -178,7 +178,13 @@ function normalizeDelivery(delivery) {
     claimed_at: toUnixSeconds(delivery.claimed_at),
     deleted_at: toUnixSeconds(delivery.deleted_at),
     claim_result: normalizeClaimResult(delivery.claim_result),
+    surface: String(delivery.surface || '') === 'chat' ? 'chat' : 'mail',
+    chat_message_id: sanitizeText(delivery.chat_message_id || '', 80),
   };
+}
+
+function isChatSurfaceDelivery(delivery) {
+  return String(delivery?.surface || '') === 'chat' || !!delivery?.chat_message_id;
 }
 
 function normalizeCampaign(campaign) {
@@ -663,6 +669,7 @@ function buildUserMailSummary(delivery) {
     is_expired: expired,
     read_status: delivery.read_at ? 'read' : 'unread',
     claim_status: hasRewards ? (delivery.claimed_at ? 'claimed' : (expired ? 'expired' : 'claimable')) : 'notice',
+    surface: isChatSurfaceDelivery(delivery) ? 'chat' : 'mail',
   };
 }
 
@@ -681,6 +688,7 @@ function buildUserMailDetail(delivery) {
     sender_display_name: sanitizeText(delivery.sender_display_name || '', 60),
     photo_url: sanitizeText(delivery.photo_url || '', 300),
     photo_alt: sanitizeText(delivery.photo_alt || '', 80),
+    chat_message_id: sanitizeText(delivery.chat_message_id || '', 80),
   };
 }
 
@@ -899,6 +907,8 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
       claimed_at: null,
       deleted_at: null,
       claim_result: null,
+      surface: 'mail',
+      chat_message_id: '',
     });
 
     const data = loadMailboxData();
@@ -1001,7 +1011,7 @@ function deductGiftPackageRewards(saveData, rewards = []) {
   return true;
 }
 
-async function sendPlayerGiftPackage(payload = {}, actor = {}) {
+async function sendGiftPackageInternal(payload = {}, actor = {}, options = {}) {
   return withMailboxLock(async () => {
     const senderUsername = String(actor?.username || '').trim();
     if (!senderUsername) throw createError('请先登录后再寄送礼物', 401);
@@ -1070,6 +1080,8 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
       claimed_at: null,
       deleted_at: null,
       claim_result: null,
+      surface: options.surface === 'chat' ? 'chat' : 'mail',
+      chat_message_id: options.chat_message_id || payload.chat_message_id || '',
     });
 
     const data = loadMailboxData();
@@ -1092,10 +1104,21 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
   });
 }
 
+async function sendPlayerGiftPackage(payload = {}, actor = {}) {
+  return sendGiftPackageInternal(payload, actor);
+}
+
+async function sendChatGiftPackage(payload = {}, actor = {}, options = {}) {
+  return sendGiftPackageInternal(payload, actor, {
+    surface: 'chat',
+    chat_message_id: options.chat_message_id || payload.chat_message_id || '',
+  });
+}
+
 function listUserMails(username) {
   const data = loadMailboxData();
   const deliveries = data.deliveries
-    .filter(item => item.username === String(username) && !item.deleted_at)
+    .filter(item => item.username === String(username) && !item.deleted_at && !isChatSurfaceDelivery(item))
     .sort((a, b) => {
       const pinDiff = (Number(b.pinned_at) || 0) - (Number(a.pinned_at) || 0);
       if (pinDiff !== 0) return pinDiff;
@@ -1114,7 +1137,10 @@ function listUserMailReceipts(username, limit = 20) {
   const deliveryMap = new Map(data.deliveries.map(item => [item.id, item]));
   return {
     receipts: data.claim_logs
-      .filter(item => item.username === String(username))
+      .filter(item => {
+        if (item.username !== String(username)) return false;
+        return !isChatSurfaceDelivery(deliveryMap.get(item.delivery_id));
+      })
       .sort((a, b) => (b.claimed_at || 0) - (a.claimed_at || 0))
       .slice(0, safeLimit)
       .map(item => buildUserMailReceipt(item, deliveryMap.get(item.delivery_id))),
@@ -1150,7 +1176,7 @@ function listUserSentMails(username) {
   );
   return {
     mails: data.deliveries
-      .filter(item => item.sender_username === String(username) && !item.deleted_at)
+      .filter(item => item.sender_username === String(username) && !item.deleted_at && !isChatSurfaceDelivery(item))
       .sort((a, b) => (b.sent_at || 0) - (a.sent_at || 0))
       .map(item => ({
         ...buildSentMailSummary(item),
@@ -1182,6 +1208,7 @@ async function saveMailToMemorial(username, deliveryId) {
     const actor = String(username || '').trim();
     const delivery = data.deliveries.find(item => item.id === String(deliveryId) && !item.deleted_at);
     if (!delivery) throw createError('邮件不存在', 404);
+    if (isChatSurfaceDelivery(delivery)) throw createError('聊天礼物不进入邮箱纪念册', 404);
 
     const isInboxOwner = delivery.username === actor;
     const isOutboxOwner = delivery.sender_username === actor;
@@ -1221,10 +1248,11 @@ async function saveMailToMemorial(username, deliveryId) {
   });
 }
 
-function getUserMail(username, deliveryId) {
+function getUserMail(username, deliveryId, options = {}) {
   const data = loadMailboxData();
   const delivery = data.deliveries.find(item => item.id === String(deliveryId) && item.username === String(username) && !item.deleted_at);
   if (!delivery) return null;
+  if (isChatSurfaceDelivery(delivery) && options.includeChatSurface !== true) return null;
   return buildUserMailDetail(delivery);
 }
 
@@ -1233,6 +1261,7 @@ async function markUserMailRead(username, deliveryId) {
     const data = loadMailboxData();
     const delivery = data.deliveries.find(item => item.id === String(deliveryId) && item.username === String(username) && !item.deleted_at);
     if (!delivery) throw createError('邮件不存在', 404);
+    if (isChatSurfaceDelivery(delivery)) throw createError('聊天礼物不在邮箱中标记', 404);
     if (!delivery.read_at) {
       delivery.read_at = Math.floor(Date.now() / 1000);
       saveMailboxData(data);
@@ -1443,6 +1472,7 @@ async function setUserMailPinned(username, deliveryId, pinned = true) {
     const data = loadMailboxData();
     const delivery = data.deliveries.find(item => item.id === String(deliveryId) && item.username === String(username) && !item.deleted_at);
     if (!delivery) throw createError('邮件不存在', 404);
+    if (isChatSurfaceDelivery(delivery)) throw createError('聊天礼物不在邮箱中置顶', 404);
     delivery.pinned_at = pinned ? Math.floor(Date.now() / 1000) : null;
     saveMailboxData(data);
     return buildUserMailDetail(delivery);
@@ -1539,6 +1569,9 @@ async function claimUserMail(username, deliveryId, options = {}) {
 
     const delivery = data.deliveries.find(item => item.id === String(deliveryId) && item.username === String(username) && !item.deleted_at);
     if (!delivery) throw createError('邮件不存在', 404);
+    if (isChatSurfaceDelivery(delivery) && options.includeChatSurface !== true) {
+      throw createError('聊天礼物请在私聊中领取', 404);
+    }
     if (delivery.claimed_at) throw createError('这封邮件已经领取过了');
     if (!delivery.rewards.length) throw createError('这封邮件没有可领取奖励');
     if (isExpired(delivery)) throw createError('这封邮件已经过期，奖励无法领取');
@@ -1575,7 +1608,7 @@ async function claimAllUserMails(username, options = {}) {
       await processPendingCampaignsInternal(data);
     }
     const pending = data.deliveries
-      .filter(item => item.username === String(username) && !item.deleted_at && item.rewards.length > 0 && !item.claimed_at)
+      .filter(item => item.username === String(username) && !item.deleted_at && !isChatSurfaceDelivery(item) && item.rewards.length > 0 && !item.claimed_at)
       .sort((a, b) => (a.sent_at || 0) - (b.sent_at || 0));
 
     const claimed = [];
@@ -1635,7 +1668,7 @@ async function clearClaimedUserMails(username) {
     const now = Math.floor(Date.now() / 1000);
     let count = 0;
     for (const delivery of data.deliveries) {
-      if (delivery.username === String(username) && !delivery.deleted_at && delivery.claimed_at) {
+      if (delivery.username === String(username) && !delivery.deleted_at && !isChatSurfaceDelivery(delivery) && delivery.claimed_at) {
         delivery.deleted_at = now;
         count += 1;
       }
@@ -1822,6 +1855,7 @@ module.exports = {
   saveSystemCampaignForUser,
   sendPlayerLetter,
   sendPlayerGiftPackage,
+  sendChatGiftPackage,
   getPlayerLetterTemplatePresets,
   getGuildSeasonMailboxConfig,
   listAdminCampaigns,

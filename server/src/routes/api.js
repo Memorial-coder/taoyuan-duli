@@ -19,6 +19,7 @@ const {
   buildAiSourceDraftAuditDetail,
 } = require('../taoyuanAiAssistantAudit');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
+const taoyuanChatRuntime = require('../taoyuanChatRuntime');
 const taoyuanRealtimeRuntime = require('../taoyuanRealtimeRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCohabitationRuntime = require('../taoyuanCohabitationRuntime');
@@ -120,6 +121,12 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     routeKey: 'society_write',
     scope: 'society',
     maxRequests: 20,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/chat(?:\/|$)/i,
+    routeKey: 'chat_write',
+    scope: 'social',
+    maxRequests: 30,
   },
   {
     matcher: /^\/api\/taoyuan\/online\/social\/(?:friend-requests|friends|blocks|neighbors|subscriptions)(?:\/|$)/i,
@@ -1264,6 +1271,48 @@ function emitMailNotificationCreatedEvent(targetUsername, action, mail = {}) {
   } catch {
     return 0;
   }
+}
+
+function buildChatNotificationPayload(action, result = {}) {
+  const message = result?.message || {};
+  const conversation = result?.conversation || {};
+  return {
+    category: 'chat',
+    action,
+    refresh_required: true,
+    conversation: {
+      id: String(conversation?.id || message?.conversation_id || ''),
+      peer_username: normalizeUsernameKey(conversation?.peer_username || ''),
+      updated_at: Number(conversation?.updated_at || message?.created_at) || null,
+      unread_count: Number(conversation?.unread_count) || 0,
+    },
+    message: {
+      id: String(message?.id || ''),
+      conversation_id: String(message?.conversation_id || ''),
+      type: String(message?.type || ''),
+      sender_username: normalizeUsernameKey(message?.sender_username || ''),
+      sender_display_name: normalizeUsername(message?.sender_display_name || message?.sender_username),
+      recipient_username: normalizeUsernameKey(message?.recipient_username || result?.recipient_username || ''),
+      created_at: Number(message?.created_at) || null,
+      has_gift: !!message?.gift,
+      has_photo: !!message?.photo_url,
+    },
+  };
+}
+
+function emitChatNotificationCreatedEvent(action, result = {}) {
+  const message = result?.message || {};
+  const recipient = normalizeUsernameKey(result?.recipient_username || message?.recipient_username);
+  const sender = normalizeUsernameKey(message?.sender_username);
+  const payload = buildChatNotificationPayload(action, result);
+  let emitted = 0;
+  try {
+    if (recipient) emitted += taoyuanRealtimeRuntime.emitUserEvent(recipient, 'notification.created', payload);
+    if (sender && sender !== recipient && typeof taoyuanRealtimeRuntime.emitOnlineUsersEvent === 'function') {
+      emitted += taoyuanRealtimeRuntime.emitOnlineUsersEvent([sender], 'notification.created', payload);
+    }
+  } catch {}
+  return emitted;
 }
 
 function collectMailCampaignDeliveryIds(campaignId) {
@@ -5816,6 +5865,79 @@ router.post('/taoyuan/online/orders/compensations/:compensationId/retry', create
       res.status(error.status || 500).json({ ok: false, msg: error.message || '补偿重试失败' });
     }
   });
+});
+
+router.get('/taoyuan/online/chat/conversations', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanChatRuntime.listConversations(req.session.username);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取私聊会话失败' });
+  }
+});
+
+router.get('/taoyuan/online/chat/conversations/:conversationId/messages', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanChatRuntime.listMessages(req.session.username, req.params.conversationId, {
+      before: req.query?.before,
+      limit: req.query?.limit,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取私聊消息失败' });
+  }
+});
+
+router.post('/taoyuan/online/chat/messages', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanChatRuntime.sendMessage(req.session.username, req.body || {}, {
+      displayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'private_chat',
+        content_type: 'private_chat_message',
+        content_id: req.body?.target_username || req.body?.target_save_id || '',
+      }),
+    });
+    result.realtime_emitted = emitChatNotificationCreatedEvent('message_created', result);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送私聊失败' });
+  }
+});
+
+router.post('/taoyuan/online/chat/gifts', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanChatRuntime.sendGift(req.session.username, req.body || {}, {
+      displayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'private_chat_gift',
+        content_type: 'private_chat_gift',
+        content_id: req.body?.target_username || req.body?.target_save_id || '',
+      }),
+    });
+    result.realtime_emitted = emitChatNotificationCreatedEvent('gift_created', result);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送聊天礼物失败' });
+  }
+});
+
+router.post('/taoyuan/online/chat/conversations/:conversationId/read', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanChatRuntime.markConversationRead(req.session.username, req.params.conversationId);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新私聊已读失败' });
+  }
+});
+
+router.post('/taoyuan/online/chat/messages/:messageId/claim-gift', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanChatRuntime.claimGiftMessage(req.session.username, req.params.messageId);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '领取聊天礼物失败' });
+  }
 });
 
 router.get('/taoyuan/online/social/relationships', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {

@@ -171,11 +171,11 @@
                     <HeartHandshake :size="11" />
                     照料
                   </button>
-                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'letter')">
-                    <Mail :size="11" />
-                    写信
+                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendChat(entry)">
+                    <MessageCircle :size="11" />
+                    私聊
                   </button>
-                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-gift-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'gift')">
+                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-gift-${entry.friendship_id || 'missing'}`" @click="openFriendChat(entry, 'gift')">
                     <Gift :size="11" />
                     送礼
                   </button>
@@ -367,9 +367,9 @@
               <Eye :size="11" />
               资料
             </button>
-            <button class="online-action-btn online-action-btn--compact" title="写信私聊" @click="openDiscoveryMail(entry)">
+            <button class="online-action-btn online-action-btn--compact" :title="entry.relation_status === 'friend' ? '打开好友私聊' : '先加为好友后再私聊'" @click="openDiscoveryChat(entry)">
               <MessageCircle :size="11" />
-              私聊
+              {{ entry.relation_status === 'friend' ? '私聊' : '先加好友' }}
             </button>
             <button
               class="online-action-btn online-action-btn--compact"
@@ -472,9 +472,9 @@
         </div>
 
         <div class="flex flex-wrap gap-2 mt-3">
-          <button class="online-action-btn online-action-btn--compact" @click="openDiscoveryMail(activeDiscoveryPlayer)">
+          <button class="online-action-btn online-action-btn--compact" @click="openDiscoveryChat(activeDiscoveryPlayer)">
             <MessageCircle :size="11" />
-            私聊
+            {{ activeDiscoveryPlayer.relation_status === 'friend' ? '私聊' : '先加好友' }}
           </button>
           <button
             class="online-action-btn online-action-btn--compact"
@@ -501,7 +501,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Ban, Copy, Eye, Gift, HeartHandshake, Mail, Map, MessageCircle, RefreshCw, Search, ShieldAlert, UserPlus, Users, X } from 'lucide-vue-next'
+  import { Ban, Copy, Eye, Gift, HeartHandshake, Map, MessageCircle, RefreshCw, Search, ShieldAlert, UserPlus, Users, X } from 'lucide-vue-next'
   import { showFloat } from '@/composables/useGameLog'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useSocialStore } from '@/stores/useSocialStore'
@@ -599,6 +599,7 @@
   const buildDiscoveryTargetQuery = (entry: OnlineFriendDiscoveryCard) => ({
     target_username: entry.profile.username,
     target_save_id: String(entry.save_identity.save_id),
+    display_name: entry.profile.display_name,
     source: 'friend_lobby'
   })
 
@@ -610,14 +611,12 @@
     activeDiscoveryPlayer.value = null
   }
 
-  const openDiscoveryMail = (entry: OnlineFriendDiscoveryCard) => {
-    void router.push({
-      name: 'mail',
-      query: {
-        ...buildDiscoveryTargetQuery(entry),
-        compose: 'letter'
-      }
-    })
+  const openDiscoveryChat = (entry: OnlineFriendDiscoveryCard) => {
+    if (entry.relation_status !== 'friend') {
+      showFloat('先加为好友后再私聊', 'accent')
+      return
+    }
+    void router.push({ name: 'friend-chat', query: buildDiscoveryTargetQuery(entry) })
   }
 
   const refreshFriendLobby = async (randomize = false) => {
@@ -671,6 +670,7 @@
     return {
       target_username: targetUsername,
       target_save_id: entry.friend_save_id ? String(entry.friend_save_id) : undefined,
+      display_name: entry.profile.display_name,
       source: 'friend_station'
     }
   }
@@ -687,10 +687,10 @@
     void router.push({ name: 'online-manor', query: { ...query, tab: 'care' } })
   }
 
-  const openFriendMail = (entry: OnlineRelationCard, compose: 'letter' | 'gift') => {
+  const openFriendChat = (entry: OnlineRelationCard, compose: 'message' | 'gift' = 'message') => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'mail', query: { ...query, compose } })
+    void router.push({ name: 'friend-chat', query: { ...query, compose } })
   }
 
   const openFriendExpeditionInvite = (entry: OnlineRelationCard) => {

@@ -4,14 +4,26 @@
 
 ## [未发布]
 
+### 0613 阿石矿料棚线索修复
+- 修复阿石达到挚友后获得的矿料棚提示没有解锁“矿料棚与支架”村庄建设的问题；关系奖励线索现在直接写入 `a_shi_support_clue`，并兼容旧存档中已记录的 `a_shi_clue`。
+- 新增 `scripts/qa-village-project-clue-guards.mjs`，守护阿石挚友线索、旧档别名与村庄工程需求 ID 保持一致。
+
+### 0613 行旅图无极拖拽相机
+- 行旅图拖拽从整格视窗改为连续浮点相机：小于一格的拖动也会实时改变地图位置，松手后停在当前像素偏移，不再默认至少跳一格，也不吸附格线。
+- 开放行旅图补齐拖拽视窗交互：拖动地图会平移当前窗口，普通点击不再被拖拽捕获抢走，拖动结束也不会误选中格子。
+- 玩家所在格改为独立浮层标记，点击“前往”后在当前视窗内平滑过渡，避免硬切后误判移动方向；拖到远方迷雾区域时仍可看地貌轮廓但不可直接移动。
+- 每日生态刷新改为只遍历已有稀疏 `tileStates`，不再因为 100x100 大地图把整张图写进存档。
+- `qa:region-open-world-guards` 新增拖拽视窗、玩家标记动画和稀疏刷新守卫；本轮验证：`npm --prefix taoyuan-main run qa:region-open-world-guards`、目标源码 `eslint`、Playwright Chrome 实测通过并生成 `output/playwright/region-open-world-continuous-camera.png`；`npm --prefix taoyuan-main run type-check` 仍被既有 `src/views/game/AchievementView.vue(847,142)` 类型错误阻塞。
+
 ### 0613 装备方案候选页紧凑化
 - 背包装备方案弹窗改为两列候选卡，移除卡片内联装备明细；`使用` 保持直接可点，`操作` 弹窗可直接编辑方案名称，并承载保存装备与删除方案，避免按钮组被候选列表滚动区域裁切。
 - 矿洞快速切换装备方案列表同步改为两列候选卡，保留原有 `使用 / 查看` 行为，装备详情仍只在点击 `查看` 后展示。
 - `qa:equipment-guards` 新增候选页两列布局、背包操作弹窗编辑与过渡动画、旧装备摘要移除和矿洞两列布局守卫；本轮验证：`npm --prefix taoyuan-main run qa:equipment-guards`、目标文件 `eslint`、目标文件 `git diff --check` 通过，5173 本地服务可访问；`npm --prefix taoyuan-main run type-check` 当前仍被既有 `src/views/game/AchievementView.vue(847,142)` 类型错误与 `src/views/game/RegionMapView.vue` 未使用函数阻塞。
 
 ### 0613 新号服务端首档与公告奖励提示
-- 服务端持久化模式创建新号后会立即保存第一份服务端存档，避免刚进游戏就领取公告 / 邮件奖励时服务端还找不到可写槽位。
+- 新账号默认存档方式改为服务端持久化；创建新号后会按当前模式立即保存第一份存档，服务端模式写云档，本地模式写当前浏览器槽位。
 - 公告奖励关闭时如果账号还没有可用服务端存档，不再把弹窗卡在错误提示上；会引导玩家先保存当前进度，本地存档玩家需要切换为服务端持久化后再领取在线奖励。
+- 公告弹窗“已看 / 已领取关闭”记录从账号级改为账号 + 当前服务端存档级：优先使用公开存档 ID，缺失时退回服务端槽位；本地存档不会写入关闭记录。
 - 本轮验证：`npm --prefix taoyuan-main run qa:announcement-ui-structure`、目标文件 `eslint` 与 `git diff --check` 通过；`npm run type-check` 仍被当前工作区既有 `useRegionMapStore.ts`、`AchievementView.vue`、`InventoryView.vue` 类型错误阻断。
 
 ### 0612 工坊机器上限扩到50

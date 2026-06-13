@@ -21,6 +21,8 @@
       @select-region="handleSelectOpenWorldRegion"
       @select-tile="handleSelectOpenWorldTile"
       @pan-viewport="handlePanOpenWorldViewport"
+      @viewport-size="handleOpenWorldViewportSize"
+      @focus-current="handleFocusCurrentOpenWorldTile"
       @move="handleMoveOpenWorldPlayer"
       @perform-action="handlePerformOpenWorldAction"
     />
@@ -1315,7 +1317,8 @@
     RegionLinkedSystem,
     RegionOpenWorldActionId,
     RegionOpenWorldId,
-    RegionOpenWorldViewportBounds,
+    RegionOpenWorldViewportCamera,
+    RegionOpenWorldViewportSize,
     RegionRouteDef,
     RegionalResourceFamilyId
   } from '@/types/region'
@@ -1472,7 +1475,8 @@
   const selectedJourneyAftermathPinned = ref(false)
   const journeyTermPrimerDismissed = ref(false)
   const activeRegionMapTab = ref<RegionMapTabId>('today')
-  const openWorldViewportOrigins = ref<Partial<Record<RegionOpenWorldId, Pick<RegionOpenWorldViewportBounds, 'minX' | 'minY'>>>>({})
+  const openWorldViewportCameras = ref<Partial<Record<RegionOpenWorldId, RegionOpenWorldViewportCamera>>>({})
+  const openWorldViewportSizes = ref<Partial<Record<RegionOpenWorldId, RegionOpenWorldViewportSize>>>({})
   const compactRegionSectionState = ref<Record<string, boolean>>({})
   const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
@@ -1517,20 +1521,31 @@
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const currentWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
   const clampOpenWorldViewportValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
-  const getOpenWorldViewportOrigin = (regionId: RegionOpenWorldId) => openWorldViewportOrigins.value[regionId] ?? null
-  const setOpenWorldViewportOrigin = (regionId: RegionOpenWorldId, bounds: Pick<RegionOpenWorldViewportBounds, 'minX' | 'minY'>) => {
-    openWorldViewportOrigins.value = {
-      ...openWorldViewportOrigins.value,
+  const getOpenWorldViewportCamera = (regionId: RegionOpenWorldId) => openWorldViewportCameras.value[regionId] ?? null
+  const getOpenWorldViewportSize = (regionId: RegionOpenWorldId) => openWorldViewportSizes.value[regionId] ?? null
+  const setOpenWorldViewportCamera = (regionId: RegionOpenWorldId, camera: RegionOpenWorldViewportCamera) => {
+    openWorldViewportCameras.value = {
+      ...openWorldViewportCameras.value,
       [regionId]: {
-        minX: bounds.minX,
-        minY: bounds.minY
+        x: camera.x,
+        y: camera.y
+      }
+    }
+  }
+  const setOpenWorldViewportSize = (regionId: RegionOpenWorldId, size: RegionOpenWorldViewportSize) => {
+    openWorldViewportSizes.value = {
+      ...openWorldViewportSizes.value,
+      [regionId]: {
+        columns: size.columns,
+        rows: size.rows
       }
     }
   }
   const activeOpenWorldRegionView = computed(() =>
     regionMapStore.getOpenWorldRegionView(
       regionMapStore.openWorldState.activeRegionId,
-      getOpenWorldViewportOrigin(regionMapStore.openWorldState.activeRegionId)
+      getOpenWorldViewportCamera(regionMapStore.openWorldState.activeRegionId),
+      getOpenWorldViewportSize(regionMapStore.openWorldState.activeRegionId)
     )
   )
   const selectedOpenWorldTileView = computed(() =>
@@ -3960,20 +3975,34 @@
     if (!result.success) setActionSummary(result.message, result.tone)
   }
 
+  const handleOpenWorldViewportSize = (size: RegionOpenWorldViewportSize) => {
+    const regionId = regionMapStore.openWorldState.activeRegionId
+    setOpenWorldViewportSize(regionId, size)
+  }
+
   const handlePanOpenWorldViewport = (delta: { deltaX: number; deltaY: number }) => {
     const regionId = regionMapStore.openWorldState.activeRegionId
     const view = activeOpenWorldRegionView.value
-    const viewportWidth = view.bounds.maxX - view.bounds.minX + 1
-    const viewportHeight = view.bounds.maxY - view.bounds.minY + 1
-    setOpenWorldViewportOrigin(regionId, {
-      minX: clampOpenWorldViewportValue(view.bounds.minX + delta.deltaX, 0, Math.max(0, view.def.width - viewportWidth)),
-      minY: clampOpenWorldViewportValue(view.bounds.minY + delta.deltaY, 0, Math.max(0, view.def.height - viewportHeight))
+    setOpenWorldViewportCamera(regionId, {
+      x: clampOpenWorldViewportValue(view.camera.x + delta.deltaX, 0, Math.max(0, view.def.width - view.visibleColumnCount)),
+      y: clampOpenWorldViewportValue(view.camera.y + delta.deltaY, 0, Math.max(0, view.def.height - view.visibleRowCount))
+    })
+  }
+
+  const handleFocusCurrentOpenWorldTile = () => {
+    const regionId = regionMapStore.openWorldState.activeRegionId
+    const view = activeOpenWorldRegionView.value
+    const playerTile = view.def.tiles.find(tile => tile.id === view.state.playerTileId)
+    if (!playerTile) return
+    setOpenWorldViewportCamera(regionId, {
+      x: clampOpenWorldViewportValue(playerTile.x + 0.5 - view.visibleColumnCount / 2, 0, Math.max(0, view.def.width - view.visibleColumnCount)),
+      y: clampOpenWorldViewportValue(playerTile.y + 0.5 - view.visibleRowCount / 2, 0, Math.max(0, view.def.height - view.visibleRowCount))
     })
   }
 
   const handleMoveOpenWorldPlayer = (tileId: string) => {
     const regionId = regionMapStore.openWorldState.activeRegionId
-    setOpenWorldViewportOrigin(regionId, activeOpenWorldRegionView.value.bounds)
+    setOpenWorldViewportCamera(regionId, activeOpenWorldRegionView.value.camera)
     const result = regionMapStore.moveOpenWorldPlayer(tileId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'accent' : result.tone)
   }

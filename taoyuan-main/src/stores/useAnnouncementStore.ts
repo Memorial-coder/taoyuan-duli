@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { buildScopedSingleKey, ensureCurrentAccount } from '@/utils/accountStorage'
+import { useSaveStore } from '@/stores/useSaveStore'
 import {
   claimAnnouncementReward,
   fetchActiveAnnouncements,
@@ -11,21 +12,47 @@ import type { TaoyuanAnnouncement } from '@/types/announcement'
 
 const SUPPRESSED_PREFIX = 'taoyuan_announcement_suppressed_'
 
-const getSuppressedKey = (announcementId: string) => buildScopedSingleKey(`${SUPPRESSED_PREFIX}${announcementId}_`)
+const getAnnouncementSuppressionScope = (): string => {
+  try {
+    const saveStore = useSaveStore()
+    if (saveStore.runtimeSessionMode !== 'server') return ''
+
+    const slot = Number(saveStore.runtimeSessionSlot)
+    if (!Number.isInteger(slot) || slot < 0) return ''
+
+    const saveId = Number(saveStore.currentOnlineIdentity?.save_id)
+    if (Number.isInteger(saveId) && saveId > 0) return `save_${saveId}`
+
+    return `slot_${slot}`
+  } catch {
+    return ''
+  }
+}
+
+const getSuppressedKey = (announcementId: string) => {
+  const scope = getAnnouncementSuppressionScope()
+  if (!scope) return ''
+  return buildScopedSingleKey(`${SUPPRESSED_PREFIX}${announcementId}_${scope}_`)
+}
 
 const readLocalSuppressed = (announcementId: string): boolean => {
   try {
-    return window.localStorage.getItem(getSuppressedKey(announcementId)) === '1'
+    const key = getSuppressedKey(announcementId)
+    if (!key) return false
+    return window.localStorage.getItem(key) === '1'
   } catch {
     return false
   }
 }
 
-const writeLocalSuppressed = (announcementId: string) => {
+const writeLocalSuppressed = (announcementId: string): boolean => {
   try {
-    window.localStorage.setItem(getSuppressedKey(announcementId), '1')
+    const key = getSuppressedKey(announcementId)
+    if (!key) return false
+    window.localStorage.setItem(key, '1')
+    return true
   } catch {
-    /* ignore */
+    return false
   }
 }
 

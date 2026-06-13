@@ -55,6 +55,7 @@ const router = createRouter({
         { path: 'expedition-room', name: 'expedition-room', component: () => import('@/views/game/ExpeditionRoomView.vue') },
         { path: 'social', name: 'social', redirect: to => ({ name: 'online-neighbor', query: to.query, hash: to.hash }) },
         { path: 'friend-station', name: 'friend-station', component: () => import('@/views/game/FriendStationView.vue') },
+        { path: 'chat', name: 'friend-chat', component: () => import('@/views/game/FriendChatView.vue') },
         { path: 'manor', name: 'manor', redirect: to => ({ name: 'online-manor', query: to.query, hash: to.hash }) },
         { path: 'festival', name: 'festival', redirect: to => ({ name: 'online-festival', query: to.query, hash: to.hash }) },
         { path: 'expedition', name: 'expedition', redirect: to => ({ name: 'online-festival', query: { ...to.query, tab: 'expedition' }, hash: to.hash }) },

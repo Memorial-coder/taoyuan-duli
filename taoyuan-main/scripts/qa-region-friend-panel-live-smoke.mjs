@@ -1,3 +1,5 @@
+/* global Buffer, Headers, URL, console, document, fetch, process, window */
+
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
@@ -575,13 +577,16 @@ async function main() {
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-mail-${navigateFriendshipId}`).click()
-      await expect(page).toHaveURL(/compose=letter/)
+      await expect(page).toHaveURL(/\/game\/chat/)
+      await expect(page).toHaveURL(/compose=message/)
       await expect(page).toHaveURL(new RegExp(`target_save_id=${navigateFriend.identity.save_id}`))
       await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-gift-${navigateFriendshipId}`).click()
+      await expect(page).toHaveURL(/\/game\/chat/)
       await expect(page).toHaveURL(/compose=gift/)
+      await expect(page).toHaveURL(new RegExp(`target_save_id=${navigateFriend.identity.save_id}`))
       await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 

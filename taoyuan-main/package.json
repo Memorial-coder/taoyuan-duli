@@ -40,6 +40,7 @@
     "qa:combat-flow-guards": "node scripts/qa-combat-flow-guards.mjs",
     "qa:equipment-guards": "node scripts/qa-equipment-guards.mjs",
     "qa:inventory-guards": "node scripts/qa-inventory-guards.mjs",
+    "qa:fishing-tackle-durability": "node scripts/qa-fishing-tackle-durability.mjs",
     "qa:harvest-fair-inventory-consumption": "node scripts/qa-harvest-fair-inventory-consumption.mjs",
     "qa:resource-consumption-guards": "node scripts/qa-resource-consumption-guards.mjs",
     "qa:museum-ancient-seed-donation": "node scripts/qa-museum-ancient-seed-donation.mjs",

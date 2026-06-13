@@ -584,7 +584,7 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
     summary: '阿石开始把更要紧的矿料筹备和支架差事交给你。'
   },
   {
-    id: 'a_shi_clue',
+    id: 'a_shi_support_clue',
     npcId: 'a_shi',
     minStage: 'bestie',
     type: 'clue',

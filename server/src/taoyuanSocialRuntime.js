@@ -2005,6 +2005,31 @@ function resolveSocialTarget(payload) {
   };
 }
 
+function resolveChatTargetForUser(username, payload = {}) {
+  const viewer = normalizeUsername(username);
+  const viewerIdentity = resolveActiveSaveContext(viewer)?.identity || null;
+  const target = resolveSocialTarget(payload);
+  const targetUsername = normalizeUsername(target.username);
+  if (!targetUsername) throw createError('请先选择要私聊的好友');
+  if (viewer === targetUsername && !target.identity) throw createError('不能给自己发私聊');
+  if (viewerIdentity?.save_id && target.identity?.save_id && viewerIdentity.save_id === target.identity.save_id) {
+    throw createError('不能给自己发私聊');
+  }
+
+  const store = loadSocialProfileStore();
+  const relationStatus = getRelationshipStatus(store, viewer, viewerIdentity, targetUsername, target.identity);
+  return {
+    username: targetUsername,
+    identity: target.identity,
+    viewerIdentity,
+    relation_status: relationStatus,
+  };
+}
+
+function getRelationshipStatusForTarget(username, payload = {}) {
+  return resolveChatTargetForUser(username, payload).relation_status;
+}
+
 async function updateOwnProfile(username, payload = {}, auditContext = {}) {
   const baseAuditContext = buildSocialAuditContext(auditContext, {
     scene: 'online_profile',
@@ -2864,6 +2889,9 @@ module.exports = {
   updateNeighborMemberRole,
   listNeighborRequestOverview,
   listSubscriptionOverview,
+  buildRelationCard,
+  resolveChatTargetForUser,
+  getRelationshipStatusForTarget,
   followTarget,
   unfollowTarget,
   isFriendWith,

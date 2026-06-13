@@ -59,7 +59,7 @@
           <template v-if="isDesktopMenu">
             <div class="space-y-1">
               <p class="text-xs text-accent">存档方式</p>
-              <p class="text-[0.6875rem] text-muted leading-5">默认本地存储；切换后将按当前登录账号读取对应存档。</p>
+              <p class="text-[0.6875rem] text-muted leading-5">默认服务端持久化；需要离线游玩时可手动切换为本地存储。</p>
             </div>
             <div class="grid grid-cols-1 gap-2">
               <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
@@ -535,13 +535,13 @@
           <div class="flex-1 overflow-y-auto text-xs text-muted space-y-2 mb-4 pr-1">
             <p>欢迎来到桃源乡！在开始游戏之前，请阅读以下隐私协议：</p>
             <p class="text-text">1. 数据存储</p>
-            <p>本游戏的存档、设置等数据保存在您的浏览器本地存储（localStorage）中。存档数据不会上传至服务器。</p>
+            <p>本游戏默认使用服务端持久化保存账号存档；切换为本地存储时，存档和设置会保存在您的浏览器本地存储（localStorage）中。</p>
             <p class="text-text">2. 流量统计</p>
             <p>
               本游戏使用第三方统计服务收集匿名访问数据（如页面浏览量、访问时间、设备类型、浏览器信息等），用于分析游戏使用情况和改进体验。这些数据不包含您的个人身份信息。
             </p>
             <p class="text-text">3. 网络通信</p>
-            <p>除流量统计外，游戏核心功能均在本地运行，不会将您的游戏存档或操作数据发送至任何服务器。</p>
+            <p>使用服务端持久化、邮箱、交流大厅等在线功能时，会向服务器发送必要的账号、存档和操作数据；本地存储模式不会主动上传本地存档。</p>
             <p class="text-text">4. 数据安全</p>
             <p>清除浏览器数据或更换设备可能导致存档丢失，建议定期使用导出功能备份存档。</p>
             <p class="text-text">5. 第三方服务</p>
@@ -991,7 +991,9 @@
 
   const warnGuestSaveUnavailable = () => {
     if (currentUser.value) return
-    const msg = '当前未登录，游客模式下存档无法保存，建议先注册账号后再开始长期游玩。'
+    const msg = saveStore.storageMode === 'server'
+      ? '当前未登录，服务端存档需要先登录；也可以切换为本地存储后开始。'
+      : '当前未登录，进度仅保存在当前浏览器本地；建议注册账号后使用服务端持久化。'
     showFloat(msg, 'danger')
     addLog(msg)
   }
@@ -1007,6 +1009,10 @@
 
   const handleNewGame = async () => {
     clearPendingPostLoadState()
+    if (!currentUser.value && saveStore.storageMode === 'server') {
+      warnGuestSaveUnavailable()
+      return
+    }
     // 分配空闲存档槽位
     const slot = await saveStore.assignNewSlot()
     if (slot < 0) {
@@ -1068,14 +1074,16 @@
       addLog('柳村长说：「欢迎来到桃源乡！背包里有白菜种子，去农场开垦土地、播种吧。」')
       tutorialStore.markTipShown('tip_welcome')
     }
-    if (saveStore.storageMode === 'server') {
-      const savedInitialServerSlot = await saveStore.saveToSlot(slot)
-      if (!savedInitialServerSlot || saveStore.lastSaveResultStatus === 'queued') {
-        const message = saveStore.lastServerSyncMessage
-          || saveStore.lastSaveErrorMessage
-          || '服务端首档暂未写入，公告和邮件奖励需要先保存到服务端存档后领取。'
-        showFloat(message, savedInitialServerSlot ? 'accent' : 'danger')
-      }
+    const targetStorageMode = saveStore.storageMode
+    const savedInitialSlot = await saveStore.saveToSlot(slot)
+    if (!savedInitialSlot || saveStore.lastSaveResultStatus === 'queued') {
+      const fallbackMessage = targetStorageMode === 'server'
+        ? '服务端首档暂未写入，公告和邮件奖励需要先保存到服务端存档后领取。'
+        : '本地首档暂未保存，请进入游戏后尽快手动保存。'
+      const message = saveStore.lastServerSyncMessage
+        || saveStore.lastSaveErrorMessage
+        || fallbackMessage
+      showFloat(message, savedInitialSlot ? 'accent' : 'danger')
     }
     warnGuestSaveUnavailable()
     void router.push('/game')

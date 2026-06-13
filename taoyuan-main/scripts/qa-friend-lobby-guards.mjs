@@ -1,3 +1,5 @@
+/* global console, process */
+
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +10,8 @@ const appRoot = path.resolve(__dirname, '..')
 const workspaceRoot = path.resolve(appRoot, '..')
 
 const files = new Map([
+  ['src/views/GameLayout.vue', path.join(appRoot, 'src', 'views', 'GameLayout.vue')],
+  ['src/components/game/MobileMapMenu.vue', path.join(appRoot, 'src', 'components', 'game', 'MobileMapMenu.vue')],
   ['src/views/game/FriendStationView.vue', path.join(appRoot, 'src', 'views', 'game', 'FriendStationView.vue')],
   ['src/stores/useSocialStore.ts', path.join(appRoot, 'src', 'stores', 'useSocialStore.ts')],
   ['src/utils/onlineProfileApi.ts', path.join(appRoot, 'src', 'utils', 'onlineProfileApi.ts')],
@@ -32,13 +36,29 @@ const expectPattern = (label, pattern, message) => {
   if (!pattern.test(sources.get(label) || '')) failures.push(`${label}: ${message}`)
 }
 
+expectContains('src/views/GameLayout.vue', "import { useSocialStore } from '@/stores/useSocialStore'", 'mobile hub must read friend request state from social store')
+expectContains('src/views/GameLayout.vue', 'const socialStore = useSocialStore()', 'game layout must instantiate social store for friend request badges')
+expectContains('src/views/GameLayout.vue', 'pendingFriendRequestCount = computed(() => socialStore.incomingRequests.length)', 'game layout friend badge must be based on incoming requests only')
+expectContains('src/views/GameLayout.vue', 'data-testid="mobile-hub-button"', 'mobile hub button test id is missing')
+expectContains('src/views/GameLayout.vue', 'friend-request-badge', 'mobile hub must render friend request badge')
+expectContains('src/views/GameLayout.vue', 'socialStore.refreshRelationships({ silent: true })', 'game layout must refresh relationships for mobile badge state')
+
+expectContains('src/components/game/MobileMapMenu.vue', "import { useSocialStore } from '@/stores/useSocialStore'", 'mobile map menu must read friend request state from social store')
+expectContains('src/components/game/MobileMapMenu.vue', 'pendingFriendRequestCount = computed(() => socialStore.incomingRequests.length)', 'mobile map friend shortcut must be based on incoming requests only')
+expectContains('src/components/game/MobileMapMenu.vue', 'getOnlineShortcutTag', 'mobile map must format the friend shortcut badge tag')
+expectContains('src/components/game/MobileMapMenu.vue', 'mobile-map-online-shortcut-${t.key}', 'mobile map friend shortcut test id is missing')
+expectContains('src/components/game/MobileMapMenu.vue', 'friendRequestBadgeLabel.value} 申请', 'mobile map friend shortcut must show request count')
+expectContains('src/components/game/MobileMapMenu.vue', 'quick-link-chip-tag-alert', 'mobile map friend shortcut must expose alert styling')
+
 expectContains('src/views/game/FriendStationView.vue', 'data-testid="friend-lobby-panel"', 'friend lobby panel entry is missing')
 expectContains('src/views/game/FriendStationView.vue', 'data-testid="friend-lobby-search-input"', 'friend lobby nickname/id search input is missing')
 expectContains('src/views/game/FriendStationView.vue', 'data-testid="friend-lobby-profile-modal"', 'friend lobby profile modal is missing')
 expectContains('src/views/game/FriendStationView.vue', "value: 'online'", 'online filter option is missing')
 expectContains('src/views/game/FriendStationView.vue', "value: 'recent'", 'recently-active filter option is missing')
 expectContains('src/views/game/FriendStationView.vue', 'refreshFriendLobby(true)', 'random refresh action is missing')
-expectContains('src/views/game/FriendStationView.vue', 'openDiscoveryMail', 'private message action is missing')
+expectContains('src/views/game/FriendStationView.vue', 'openDiscoveryChat', 'private chat action is missing')
+expectContains('src/views/game/FriendStationView.vue', "name: 'friend-chat'", 'friend private chat action must navigate to chat route')
+expectContains('src/views/game/FriendStationView.vue', '先加好友', 'non-friend discovery cards should guide players to add friends first')
 expectContains('src/views/game/FriendStationView.vue', 'sendDiscoveryFriendRequest', 'friend request action is missing')
 expectContains('src/views/game/FriendStationView.vue', 'blockDiscoveryPlayer', 'block action is missing')
 expectContains('src/views/game/FriendStationView.vue', 'reportDiscoveryPlayer', 'report action is missing')

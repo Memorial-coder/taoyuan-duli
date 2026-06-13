@@ -1,3 +1,4 @@
+/* global console */
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -14,6 +15,7 @@ const [
   dialog,
   historyDialog,
   store,
+  accountStorage,
 ] = await Promise.all([
   read('src/views/TaoyuanAdminView.vue'),
   read('src/components/game/AdminAnnouncementPanel.vue'),
@@ -22,6 +24,7 @@ const [
   read('src/components/game/AnnouncementDialog.vue'),
   read('src/components/game/AnnouncementHistoryDialog.vue'),
   read('src/stores/useAnnouncementStore.ts'),
+  read('src/utils/accountStorage.ts'),
 ])
 
 assert.match(adminView, /activeAdminTab === 'announcements'/, 'admin announcements tab should be wired')
@@ -67,9 +70,15 @@ assert.match(gameLayout, /save-refresh/, 'game layout should open save manager i
 assert.doesNotMatch(gameLayout, /@suppress=/, 'game layout should not wire a separate suppress announcement action')
 
 assert.match(mainMenu, /main-menu-announcements/, 'main menu should expose announcement history entry')
-assert.match(mainMenu, /saveStore\.storageMode === 'server'/, 'new game flow should branch on server persistence mode')
-assert.match(mainMenu, /saveStore\.saveToSlot\(slot\)/, 'new server-mode game should immediately write the first service save')
+assert.match(accountStorage, /const DEFAULT_SAVE_MODE = 'server'/, 'new accounts should default to server persistence')
+assert.match(accountStorage, /raw === 'local' \|\| raw === 'server'/, 'stored save mode should continue honoring explicit local selections')
+assert.match(mainMenu, /默认服务端持久化/, 'main menu should describe server persistence as the default')
+assert.match(mainMenu, /本地存储模式不会主动上传本地存档/, 'privacy copy should distinguish local saves from server persistence')
+assert.match(mainMenu, /warnGuestSaveUnavailable\(\)\s*\r?\n\s*return/, 'server-default guest new games should ask for login or local mode before starting')
+assert.match(mainMenu, /const targetStorageMode = saveStore\.storageMode/, 'new game flow should capture the selected persistence mode before first save')
+assert.match(mainMenu, /const savedInitialSlot = await saveStore\.saveToSlot\(slot\)/, 'new local and server games should immediately write the first save')
 assert.match(mainMenu, /lastSaveResultStatus === 'queued'/, 'new server-mode game should surface queued first-save status')
+assert.match(mainMenu, /本地首档暂未保存/, 'new local-mode game should surface first-save failures')
 assert.match(historyDialog, /announcement-history-item/, 'history dialog should render announcement list items')
 assert.match(historyDialog, /announcement-history-rewards/, 'history dialog should render reward previews')
 assert.match(historyDialog, /expandedAnnouncementIds/, 'history dialog should track expanded announcement ids')
@@ -77,6 +86,13 @@ assert.match(historyDialog, /aria-expanded/, 'history dialog items should expose
 assert.match(historyDialog, /syncExpandedAnnouncements\(true\)/, 'history dialog should default to latest announcement on open')
 
 assert.match(store, /taoyuan_announcement_suppressed_/, 'announcement suppress state should be persisted locally')
+assert.match(store, /useSaveStore/, 'announcement suppress scope should read the active save context')
+assert.match(store, /getAnnouncementSuppressionScope/, 'announcement store should derive a save-scoped suppression key')
+assert.match(store, /runtimeSessionMode !== 'server'/, 'announcement suppress scope should require a server runtime session')
+assert.match(store, /currentOnlineIdentity\?\.save_id/, 'announcement suppress scope should prefer the stable online save id')
+assert.match(store, /`slot_\$\{slot\}`/, 'announcement suppress scope should fall back to the server slot')
+assert.match(store, /if \(!key\) return false/, 'announcement suppress reads and writes should not persist without server save scope')
+assert.doesNotMatch(store, /buildScopedSingleKey\(`\$\{SUPPRESSED_PREFIX\}\$\{announcementId\}_`\)/, 'announcement suppress key should not remain account-only')
 assert.match(store, /recordQueueImpressions/, 'announcement store should record impressions for the popup batch')
 assert.match(store, /clickAnnouncementCta/, 'announcement store should record cta clicks for a selected batched announcement')
 assert.match(store, /claimAnnouncementReward/, 'announcement store should claim rewards before marking announcements read')

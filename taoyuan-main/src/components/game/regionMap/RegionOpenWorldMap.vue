@@ -14,7 +14,7 @@
           </div>
           <div class="border border-accent/10 rounded-xs px-2 py-1.5">
             <p class="text-[0.625rem] text-muted">发现</p>
-            <p class="text-xs text-accent mt-0.5">{{ discoveredCount }}/{{ activeRegion.def.tiles.length }}</p>
+            <p class="text-xs text-accent mt-0.5">{{ discoveredCount }}/{{ activeRegion.totalTileCount }}</p>
           </div>
           <div class="border border-accent/10 rounded-xs px-2 py-1.5">
             <p class="text-[0.625rem] text-muted">日期</p>
@@ -42,26 +42,96 @@
 
     <div class="region-open-world-body grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-3 p-3">
       <div class="region-open-world-map-panel">
+        <div class="region-open-world-map-toolbar">
+          <button
+            type="button"
+            class="region-open-world-focus-button"
+            :disabled="!playerTile || isPlayerInVisibleViewport"
+            data-testid="region-open-world-focus-current"
+            @click="$emit('focus-current')"
+          >
+            <MapPin :size="13" />
+            <span>返回当前位置</span>
+          </button>
+        </div>
         <div
-          class="region-open-world-grid"
-          data-testid="region-open-world-grid"
-          :style="gridStyle"
+          ref="viewportRef"
+          class="region-open-world-viewport"
+          :class="{ 'is-dragging': isDragging }"
+          data-testid="region-open-world-viewport"
+          @pointerdown="handleGridPointerDown"
+          @pointermove="handleGridPointerMove"
+          @pointerup="handleGridPointerEnd"
+          @pointercancel="handleGridPointerEnd"
+          @lostpointercapture="handleGridPointerEnd"
+          @click.capture="handleGridClickCapture"
         >
+          <div
+            class="region-open-world-grid"
+            data-testid="region-open-world-grid"
+            :style="gridStyle"
+          >
           <button
             v-for="tile in activeRegion.tiles"
             :key="tile.id"
             class="region-open-world-tile"
             :class="tileClass(tile)"
-            :style="{ gridColumn: `${tile.x + 1}`, gridRow: `${tile.y + 1}` }"
+            :style="tileGridStyle(tile)"
             :disabled="tile.locked && !tile.discovered"
             :data-testid="`region-open-world-tile-${tile.id}`"
             @click="$emit('select-tile', tile.id)"
           >
-            <span v-if="tile.current" class="region-open-world-player" data-testid="region-open-world-player">●</span>
             <span class="region-open-world-object">{{ tileIcon(tile) }}</span>
             <span class="region-open-world-label">{{ tile.discovered ? tile.label : '迷雾' }}</span>
             <span v-if="tile.discovered && tile.status !== 'fresh'" class="region-open-world-mark">{{ tile.statusLabel }}</span>
           </button>
+          <span
+            v-if="playerTokenVisible"
+            class="region-open-world-player"
+            data-testid="region-open-world-player"
+            :style="playerTokenStyle"
+            aria-hidden="true"
+          >
+            ●
+          </span>
+          </div>
+          <button
+            v-if="playerOffscreenIndicatorVisible"
+            type="button"
+            class="region-open-world-player-indicator"
+            data-testid="region-open-world-player-indicator"
+            :style="playerOffscreenIndicatorStyle"
+            @click.stop="$emit('focus-current')"
+          >
+            <span
+              class="region-open-world-player-indicator-arrow"
+              :style="playerOffscreenIndicatorArrowStyle"
+              aria-hidden="true"
+            ></span>
+            <span class="region-open-world-player-indicator-label">当前位置</span>
+          </button>
+          <div class="region-open-world-zoom-controls" aria-label="地图缩放控制">
+            <button
+              type="button"
+              class="region-open-world-zoom-button"
+              :disabled="!canZoomIn"
+              aria-label="放大地图"
+              data-testid="region-open-world-zoom-in"
+              @click.stop="handleZoomIn"
+            >
+              <Plus :size="16" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="region-open-world-zoom-button"
+              :disabled="!canZoomOut"
+              aria-label="缩小地图"
+              data-testid="region-open-world-zoom-out"
+              @click.stop="handleZoomOut"
+            >
+              <Minus :size="16" aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <p class="text-[0.625rem] text-muted mt-2 leading-4">{{ activeRegion.def.pressureDescription }}</p>
       </div>
@@ -95,6 +165,9 @@
               @click="$emit('move', selectedTile.id)"
             >
               前往
+              <span v-if="selectedTile.moveStaminaCost > 0" class="text-[0.625rem] text-muted ml-1">
+                {{ selectedTile.moveStaminaCost }}体
+              </span>
             </button>
             <button
               v-if="selectedTile.actionId"
@@ -150,50 +223,348 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import type { CSSProperties } from 'vue'
+  import { MapPin, Minus, Plus } from 'lucide-vue-next'
   import type {
     RegionOpenWorldActionId,
     RegionOpenWorldId,
     RegionOpenWorldLogEntry,
     RegionOpenWorldRegionEntry,
-    RegionOpenWorldTileView
+    RegionOpenWorldRegionWindowView,
+    RegionOpenWorldTileDef,
+    RegionOpenWorldTileView,
+    RegionOpenWorldViewportSize
   } from '@/types/region'
 
   const props = defineProps<{
     regions: RegionOpenWorldRegionEntry[]
-    activeRegion: {
-      def: {
-        id: RegionOpenWorldId
-        name: string
-        description: string
-        width: number
-        height: number
-        pressureLabel: string
-        pressureDescription: string
-        tiles: unknown[]
-      }
-      tiles: RegionOpenWorldTileView[]
-    }
+    activeRegion: RegionOpenWorldRegionWindowView
     selectedTile: RegionOpenWorldTileView | null
     dayTag: string
     logs: RegionOpenWorldLogEntry[]
     repairedOutpostCount: number
   }>()
 
-  defineEmits<{
+  const emit = defineEmits<{
     (event: 'select-region', regionId: RegionOpenWorldId): void
     (event: 'select-tile', tileId: string): void
+    (event: 'pan-viewport', delta: { deltaX: number; deltaY: number }): void
+    (event: 'viewport-size', size: RegionOpenWorldViewportSize): void
+    (event: 'focus-current'): void
     (event: 'move', tileId: string): void
     (event: 'perform-action', tileId: string, actionId: RegionOpenWorldActionId): void
   }>()
 
-  const gridStyle = computed(() => ({
-    gridTemplateColumns: `repeat(${props.activeRegion.def.width}, minmax(2.5rem, 1fr))`,
-    gridTemplateRows: `repeat(${props.activeRegion.def.height}, minmax(2.5rem, 1fr))`
+  type DragState = {
+    pointerId: number
+    startX: number
+    startY: number
+    lastX: number
+    lastY: number
+    didDrag: boolean
+  }
+
+  type PointerPosition = {
+    x: number
+    y: number
+  }
+
+  type PinchState = {
+    startDistance: number
+    startZoom: number
+  }
+
+  const DRAG_THRESHOLD_PX = 6
+  const TILE_WIDTH_PX = 118
+  const TILE_HEIGHT_PX = 58
+  const TILE_GAP_PX = 6
+  const MIN_VISIBLE_COLUMNS = 3
+  const MIN_VISIBLE_ROWS = 4
+  const ZOOM_MIN = 0.5
+  const ZOOM_MAX = 1.6
+  const ZOOM_STEP = 0.15
+  const ZOOM_PRECISION = 100
+  const viewportRef = ref<HTMLElement | null>(null)
+  const dragState = ref<DragState | null>(null)
+  const pinchState = ref<PinchState | null>(null)
+  const isDragging = ref(false)
+  const suppressNextClick = ref(false)
+  const zoomLevel = ref(1)
+  const activePointerPositions = new Map<number, PointerPosition>()
+  let viewportResizeObserver: ResizeObserver | null = null
+
+  const renderColumnCount = computed(() => Math.max(1, props.activeRegion.bounds.maxX - props.activeRegion.bounds.minX + 1))
+  const renderRowCount = computed(() => Math.max(1, props.activeRegion.bounds.maxY - props.activeRegion.bounds.minY + 1))
+  const visibleColumnCount = computed(() => Math.max(1, props.activeRegion.visibleColumnCount))
+  const visibleRowCount = computed(() => Math.max(1, props.activeRegion.visibleRowCount))
+  const cameraOffsetX = computed(() => props.activeRegion.camera.x - props.activeRegion.bounds.minX)
+  const cameraOffsetY = computed(() => props.activeRegion.camera.y - props.activeRegion.bounds.minY)
+  const zoomedTileWidth = computed(() => TILE_WIDTH_PX * zoomLevel.value)
+  const zoomedTileHeight = computed(() => TILE_HEIGHT_PX * zoomLevel.value)
+  const zoomedTileGap = computed(() => TILE_GAP_PX * zoomLevel.value)
+  const zoomedTileStepX = computed(() => zoomedTileWidth.value + zoomedTileGap.value)
+  const zoomedTileStepY = computed(() => zoomedTileHeight.value + zoomedTileGap.value)
+  const canZoomIn = computed(() => zoomLevel.value < ZOOM_MAX)
+  const canZoomOut = computed(() => zoomLevel.value > ZOOM_MIN)
+  const toPx = (value: number) => `${Math.round(value * 1000) / 1000}px`
+  const gridStyle = computed<CSSProperties>(() => ({
+    gridTemplateColumns: `repeat(${renderColumnCount.value}, ${toPx(zoomedTileWidth.value)})`,
+    gridTemplateRows: `repeat(${renderRowCount.value}, ${toPx(zoomedTileHeight.value)})`,
+    gap: toPx(zoomedTileGap.value),
+    width: toPx(renderColumnCount.value * zoomedTileWidth.value + Math.max(0, renderColumnCount.value - 1) * zoomedTileGap.value),
+    height: toPx(renderRowCount.value * zoomedTileHeight.value + Math.max(0, renderRowCount.value - 1) * zoomedTileGap.value),
+    transform: `translate3d(${toPx(-cameraOffsetX.value * zoomedTileStepX.value)}, ${toPx(-cameraOffsetY.value * zoomedTileStepY.value)}, 0)`,
+    '--region-open-world-zoom': `${zoomLevel.value}`
   }))
 
-  const discoveredCount = computed(() => props.activeRegion.tiles.filter(tile => tile.discovered).length)
-  const handbookSummary = computed(() => `${discoveredCount.value}/${props.activeRegion.tiles.length}`)
+  const discoveredCount = computed(() => props.activeRegion.discoveredCount)
+  const handbookSummary = computed(() => `${discoveredCount.value}/${props.activeRegion.totalTileCount}`)
+  const tileGridStyle = (tile: RegionOpenWorldTileView) => ({
+    gridColumn: `${tile.x - props.activeRegion.bounds.minX + 1}`,
+    gridRow: `${tile.y - props.activeRegion.bounds.minY + 1}`
+  })
+  const playerTile = computed<RegionOpenWorldTileDef | RegionOpenWorldTileView | null>(() =>
+    props.activeRegion.tiles.find(tile => tile.current) ??
+    props.activeRegion.def.tiles.find(tile => tile.id === props.activeRegion.state.playerTileId) ??
+    null
+  )
+  const playerInRenderBounds = computed(() => {
+    const tile = playerTile.value
+    if (!tile) return false
+    return (
+      tile.x >= props.activeRegion.bounds.minX &&
+      tile.x <= props.activeRegion.bounds.maxX &&
+      tile.y >= props.activeRegion.bounds.minY &&
+      tile.y <= props.activeRegion.bounds.maxY
+    )
+  })
+  const playerViewportPosition = computed(() => {
+    const tile = playerTile.value
+    if (!tile) return null
+    return {
+      x: ((tile.x + 0.5 - props.activeRegion.camera.x) / visibleColumnCount.value) * 100,
+      y: ((tile.y + 0.5 - props.activeRegion.camera.y) / visibleRowCount.value) * 100
+    }
+  })
+  const isPlayerInVisibleViewport = computed(() => {
+    const position = playerViewportPosition.value
+    return Boolean(position && position.x >= 0 && position.x <= 100 && position.y >= 0 && position.y <= 100)
+  })
+  const playerTokenVisible = computed(() => playerInRenderBounds.value)
+  const playerTokenStyle = computed<CSSProperties>(() => {
+    const tile = playerTile.value
+    if (!tile) return {}
+    const localX = tile.x - props.activeRegion.bounds.minX
+    const localY = tile.y - props.activeRegion.bounds.minY
+    return {
+      left: toPx(localX * zoomedTileStepX.value + zoomedTileWidth.value / 2),
+      top: toPx(localY * zoomedTileStepY.value + zoomedTileHeight.value / 2)
+    }
+  })
+  const playerOffscreenIndicatorVisible = computed(() => Boolean(playerViewportPosition.value && !isPlayerInVisibleViewport.value))
+  const clampIndicatorPercent = (value: number) => Math.min(94, Math.max(6, value))
+  const playerOffscreenIndicatorStyle = computed<CSSProperties>(() => {
+    const position = playerViewportPosition.value
+    if (!position) return {}
+    return {
+      left: `${clampIndicatorPercent(position.x)}%`,
+      top: `${clampIndicatorPercent(position.y)}%`
+    }
+  })
+  const playerOffscreenIndicatorArrowStyle = computed<CSSProperties>(() => {
+    const position = playerViewportPosition.value
+    if (!position) return {}
+    const rotation = Math.atan2(position.y - 50, position.x - 50) * 180 / Math.PI + 90
+    return {
+      transform: `rotate(${rotation}deg)`
+    }
+  })
+
+  const getVisibleTileCount = (availablePx: number, stepPx: number, gapPx: number, minCount: number, maxCount: number) => {
+    const measuredCount = Math.floor((Math.max(1, availablePx) + gapPx) / stepPx)
+    const safeMax = Math.max(1, maxCount)
+    return Math.min(safeMax, Math.max(Math.min(minCount, safeMax), measuredCount))
+  }
+
+  const updateViewportSize = () => {
+    const rect = viewportRef.value?.getBoundingClientRect()
+    if (!rect) return
+    const columns = getVisibleTileCount(rect.width, zoomedTileStepX.value, zoomedTileGap.value, MIN_VISIBLE_COLUMNS, props.activeRegion.def.width)
+    const rows = getVisibleTileCount(rect.height, zoomedTileStepY.value, zoomedTileGap.value, MIN_VISIBLE_ROWS, props.activeRegion.def.height)
+    if (columns === props.activeRegion.visibleColumnCount && rows === props.activeRegion.visibleRowCount) return
+    emit('viewport-size', { columns, rows })
+  }
+
+  const getViewportCellSize = () => {
+    return {
+      width: zoomedTileStepX.value,
+      height: zoomedTileStepY.value
+    }
+  }
+
+  const clampZoomLevel = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number.isFinite(value) ? value : 1))
+
+  const setZoomLevel = (value: number) => {
+    const nextZoomLevel = Math.round(clampZoomLevel(value) * ZOOM_PRECISION) / ZOOM_PRECISION
+    if (nextZoomLevel === zoomLevel.value) return
+    zoomLevel.value = nextZoomLevel
+  }
+
+  const handleZoomIn = () => {
+    setZoomLevel(zoomLevel.value + ZOOM_STEP)
+  }
+
+  const handleZoomOut = () => {
+    setZoomLevel(zoomLevel.value - ZOOM_STEP)
+  }
+
+  const scheduleClickSuppressionReset = () => {
+    if (!suppressNextClick.value || typeof window === 'undefined') return
+    window.setTimeout(() => {
+      suppressNextClick.value = false
+    }, 0)
+  }
+
+  const updatePointerPosition = (event: PointerEvent) => {
+    activePointerPositions.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY
+    })
+  }
+
+  const getActivePinchPointers = () => Array.from(activePointerPositions.values()).slice(0, 2)
+
+  const getPointerDistance = (first: PointerPosition, second: PointerPosition) =>
+    Math.max(1, Math.hypot(first.x - second.x, first.y - second.y))
+
+  const startPinchGesture = () => {
+    const pointers = getActivePinchPointers()
+    if (pointers.length < 2) return
+    pinchState.value = {
+      startDistance: getPointerDistance(pointers[0]!, pointers[1]!),
+      startZoom: zoomLevel.value
+    }
+    dragState.value = null
+    isDragging.value = false
+  }
+
+  const handlePinchMove = (event: PointerEvent) => {
+    if (activePointerPositions.size < 2) return false
+    if (!pinchState.value) startPinchGesture()
+    const state = pinchState.value
+    const pointers = getActivePinchPointers()
+    if (!state || pointers.length < 2) return false
+    const distance = getPointerDistance(pointers[0]!, pointers[1]!)
+    setZoomLevel(state.startZoom * (distance / state.startDistance))
+    event.preventDefault()
+    return true
+  }
+
+  onMounted(() => {
+    void nextTick(updateViewportSize)
+    if (typeof ResizeObserver === 'undefined' || !viewportRef.value) return
+    viewportResizeObserver = new ResizeObserver(updateViewportSize)
+    viewportResizeObserver.observe(viewportRef.value)
+  })
+
+  onBeforeUnmount(() => {
+    viewportResizeObserver?.disconnect()
+    viewportResizeObserver = null
+  })
+
+  watch(
+    () => props.activeRegion.def.id,
+    () => {
+      void nextTick(updateViewportSize)
+    }
+  )
+
+  watch(zoomLevel, () => {
+    void nextTick(updateViewportSize)
+  })
+
+  const handleGridPointerDown = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    updatePointerPosition(event)
+    if (event.pointerType !== 'mouse') {
+      const target = event.currentTarget as HTMLElement | null
+      target?.setPointerCapture?.(event.pointerId)
+    }
+    if (activePointerPositions.size >= 2) {
+      startPinchGesture()
+      return
+    }
+    dragState.value = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      didDrag: false
+    }
+  }
+
+  const handleGridPointerMove = (event: PointerEvent) => {
+    if (activePointerPositions.has(event.pointerId)) updatePointerPosition(event)
+    if (pinchState.value || activePointerPositions.size >= 2) {
+      if (handlePinchMove(event)) return
+    }
+    const state = dragState.value
+    if (!state || state.pointerId !== event.pointerId) return
+    const wasDragging = state.didDrag
+    const stepX = event.clientX - state.lastX
+    const stepY = event.clientY - state.lastY
+    const totalX = event.clientX - state.startX
+    const totalY = event.clientY - state.startY
+    if (!state.didDrag && Math.hypot(totalX, totalY) >= DRAG_THRESHOLD_PX) {
+      state.didDrag = true
+      isDragging.value = true
+      const target = event.currentTarget as HTMLElement | null
+      target?.setPointerCapture?.(event.pointerId)
+    }
+    state.lastX = event.clientX
+    state.lastY = event.clientY
+    if (!state.didDrag) return
+
+    event.preventDefault()
+    const cell = getViewportCellSize()
+    const dragX = wasDragging ? stepX : totalX
+    const dragY = wasDragging ? stepY : totalY
+    const deltaX = -dragX / cell.width
+    const deltaY = -dragY / cell.height
+    if (deltaX === 0 && deltaY === 0) return
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return
+
+    emit('pan-viewport', { deltaX, deltaY })
+  }
+
+  const handleGridPointerEnd = (event: PointerEvent) => {
+    const target = event.currentTarget as HTMLElement | null
+    if (target?.hasPointerCapture?.(event.pointerId)) target.releasePointerCapture(event.pointerId)
+    activePointerPositions.delete(event.pointerId)
+    if (pinchState.value) {
+      suppressNextClick.value = true
+      pinchState.value = null
+      dragState.value = null
+      isDragging.value = false
+      scheduleClickSuppressionReset()
+      return
+    }
+    const state = dragState.value
+    if (!state || state.pointerId !== event.pointerId) return
+    suppressNextClick.value = state.didDrag
+    dragState.value = null
+    isDragging.value = false
+    scheduleClickSuppressionReset()
+  }
+
+  const handleGridClickCapture = (event: MouseEvent) => {
+    if (!suppressNextClick.value) return
+    event.preventDefault()
+    event.stopPropagation()
+    suppressNextClick.value = false
+  }
 
   const tileIcon = (tile: RegionOpenWorldTileView) => {
     if (!tile.discovered) return '？'
@@ -245,21 +616,66 @@
     scrollbar-width: thin;
   }
 
+  .region-open-world-map-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+
+  .region-open-world-focus-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 1.85rem;
+    border: 1px solid rgba(168, 138, 86, 0.24);
+    border-radius: 0.125rem;
+    padding: 0.3rem 0.55rem;
+    color: rgb(168, 138, 86);
+    font-size: 0.7rem;
+    background: rgba(15, 17, 22, 0.72);
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .region-open-world-focus-button:hover:not(:disabled) {
+    border-color: rgba(168, 138, 86, 0.6);
+    background: rgba(168, 138, 86, 0.08);
+  }
+
+  .region-open-world-focus-button:disabled {
+    cursor: default;
+    color: rgba(220, 220, 220, 0.42);
+    border-color: rgba(220, 220, 220, 0.12);
+  }
+
+  .region-open-world-viewport {
+    position: relative;
+    height: clamp(24rem, 58vh, 40rem);
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .region-open-world-viewport.is-dragging {
+    cursor: grabbing;
+  }
+
   .region-open-world-grid {
     display: grid;
-    gap: 0.35rem;
-    width: 100%;
-    min-height: 23rem;
-    overflow-x: auto;
+    position: relative;
+    transform-origin: top left;
+    will-change: transform;
   }
 
   .region-open-world-tile {
     position: relative;
-    min-width: 2.5rem;
-    min-height: 3.25rem;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
     border: 1px solid rgba(168, 138, 86, 0.2);
     border-radius: 0.125rem;
-    padding: 0.25rem;
+    padding: calc(0.25rem * var(--region-open-world-zoom, 1));
     text-align: left;
     overflow: hidden;
     transition: border-color 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
@@ -295,38 +711,132 @@
 
   .region-open-world-object {
     display: block;
-    width: 1.35rem;
-    height: 1.35rem;
-    line-height: 1.35rem;
+    width: calc(1.35rem * var(--region-open-world-zoom, 1));
+    height: calc(1.35rem * var(--region-open-world-zoom, 1));
+    line-height: calc(1.35rem * var(--region-open-world-zoom, 1));
     text-align: center;
     border: 1px solid rgba(255, 255, 255, 0.12);
     background: rgba(0, 0, 0, 0.18);
     color: currentColor;
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--region-open-world-zoom, 1));
   }
 
   .region-open-world-label {
     display: block;
-    margin-top: 0.3rem;
-    font-size: 0.625rem;
-    line-height: 0.85rem;
+    margin-top: calc(0.3rem * var(--region-open-world-zoom, 1));
+    font-size: calc(0.625rem * var(--region-open-world-zoom, 1));
+    line-height: calc(0.85rem * var(--region-open-world-zoom, 1));
     color: currentColor;
   }
 
   .region-open-world-mark {
     position: absolute;
-    right: 0.2rem;
-    bottom: 0.15rem;
-    font-size: 0.55rem;
+    right: calc(0.2rem * var(--region-open-world-zoom, 1));
+    bottom: calc(0.15rem * var(--region-open-world-zoom, 1));
+    font-size: calc(0.55rem * var(--region-open-world-zoom, 1));
     color: rgba(255, 255, 255, 0.72);
   }
 
   .region-open-world-player {
     position: absolute;
-    top: 0.15rem;
-    right: 0.25rem;
+    z-index: 5;
+    width: calc(1rem * var(--region-open-world-zoom, 1));
+    height: calc(1rem * var(--region-open-world-zoom, 1));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 1px solid rgba(104, 211, 145, 0.75);
+    background: rgba(10, 18, 14, 0.86);
+    box-shadow: 0 0 0 2px rgba(104, 211, 145, 0.2), 0 0 10px rgba(104, 211, 145, 0.35);
     color: rgb(104, 211, 145);
-    font-size: 0.7rem;
+    font-size: calc(0.55rem * var(--region-open-world-zoom, 1));
+    line-height: 1;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: left 0.26s ease, top 0.26s ease;
+  }
+
+  .region-open-world-viewport.is-dragging .region-open-world-player {
+    transition: none;
+  }
+
+  .region-open-world-player-indicator {
+    position: absolute;
+    z-index: 7;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 1.6rem;
+    max-width: 7rem;
+    border: 1px solid rgba(104, 211, 145, 0.48);
+    border-radius: 0.125rem;
+    padding: 0.25rem 0.45rem;
+    background: rgba(8, 15, 12, 0.92);
+    color: rgb(104, 211, 145);
+    font-size: 0.625rem;
+    box-shadow: 0 0 0 1px rgba(104, 211, 145, 0.15), 0 0 12px rgba(104, 211, 145, 0.22);
+    transform: translate(-50%, -50%);
+  }
+
+  .region-open-world-player-indicator-arrow {
+    width: 0;
+    height: 0;
+    border-left: 0.24rem solid transparent;
+    border-right: 0.24rem solid transparent;
+    border-bottom: 0.46rem solid currentColor;
+    transform-origin: 50% 60%;
+  }
+
+  .region-open-world-player-indicator-label {
+    white-space: nowrap;
+  }
+
+  .region-open-world-zoom-controls {
+    position: absolute;
+    right: 0.65rem;
+    bottom: 0.65rem;
+    z-index: 8;
+    display: inline-flex;
+    gap: 0.35rem;
+    padding: 0.25rem;
+    border: 1px solid rgba(168, 138, 86, 0.28);
+    border-radius: 0.25rem;
+    background: rgba(10, 12, 16, 0.9);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.28), 0 0.5rem 1.4rem rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
+
+  .region-open-world-zoom-button {
+    width: 2.1rem;
+    height: 2.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(168, 138, 86, 0.36);
+    border-radius: 0.2rem;
+    color: rgb(236, 207, 153);
+    background: rgba(25, 28, 35, 0.92);
+    pointer-events: auto;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+
+  .region-open-world-zoom-button:hover:not(:disabled) {
+    border-color: rgba(236, 207, 153, 0.72);
+    background: rgba(168, 138, 86, 0.18);
+    transform: translateY(-1px);
+  }
+
+  .region-open-world-zoom-button:focus-visible {
+    outline: 2px solid rgba(236, 207, 153, 0.86);
+    outline-offset: 2px;
+  }
+
+  .region-open-world-zoom-button:disabled {
+    cursor: default;
+    color: rgba(220, 220, 220, 0.32);
+    border-color: rgba(220, 220, 220, 0.14);
+    background: rgba(17, 19, 24, 0.82);
   }
 
   .terrain-grass {
@@ -380,14 +890,26 @@
   }
 
   @media (max-width: 767px) {
-    .region-open-world-grid {
-      min-height: 18rem;
-      gap: 0.25rem;
+    .region-open-world-viewport {
+      height: clamp(22rem, 62vh, 36rem);
     }
 
-    .region-open-world-tile {
-      min-width: 2.25rem;
-      min-height: 3rem;
+    .region-open-world-zoom-controls {
+      right: 0.55rem;
+      bottom: 0.55rem;
+      gap: 0.45rem;
+      padding: 0.3rem;
+    }
+
+    .region-open-world-zoom-button {
+      width: 2.6rem;
+      height: 2.6rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .region-open-world-player {
+      transition: none;
     }
   }
 </style>

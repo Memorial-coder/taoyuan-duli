@@ -42,7 +42,8 @@ import {
   Tent,
   Waves,
   Palette,
-  Target
+  Target,
+  MessageCircle
 } from 'lucide-vue-next'
 import { useNpcStore } from '@/stores/useNpcStore'
 
@@ -56,6 +57,7 @@ export type PanelKey =
   | 'online'
   | 'social'
   | 'friend-station'
+  | 'friend-chat'
   | 'manor'
   | 'festival'
   | 'society'
@@ -93,6 +95,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'online', label: '联机', icon: Wifi },
   { key: 'social', label: '邻里', icon: Users },
   { key: 'friend-station', label: '好友', icon: Users },
+  { key: 'friend-chat', label: '私聊', icon: MessageCircle },
   { key: 'manor', label: '庄园', icon: Home },
   { key: 'festival', label: '节会', icon: Calendar },
   { key: 'society', label: '村社', icon: ShieldCheck },

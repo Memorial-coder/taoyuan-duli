@@ -37,9 +37,11 @@
 
     <!-- 移动端总入口 -->
     <div class="game-side-actions">
-      <button class="mobile-hub-btn" data-testid="mobile-hub-button" @click="showMobileMap = true">
+      <button class="mobile-hub-btn" data-testid="mobile-hub-button" :aria-label="mobileHubTitle" :title="mobileHubTitle" @click="showMobileMap = true">
         <Map :size="20" />
         <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
+        <span v-if="pendingFriendRequestCount > 0" class="friend-request-badge">{{ friendRequestBadgeLabel }}</span>
+        <span v-if="friendChatStore.totalUnreadCount > 0" class="friend-chat-badge">{{ mobileChatUnreadLabel }}</span>
       </button>
       <button
         v-if="isFullscreenSupported"
@@ -503,6 +505,8 @@
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useRealtimeStore } from '@/stores/useRealtimeStore'
   import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
+  import { useFriendChatStore } from '@/stores/useFriendChatStore'
+  import { useSocialStore } from '@/stores/useSocialStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
@@ -580,6 +584,8 @@
   const saveStore = useSaveStore()
   const realtimeStore = useRealtimeStore()
   const announcementStore = useAnnouncementStore()
+  const friendChatStore = useFriendChatStore()
+  const socialStore = useSocialStore()
   const { switchToSeasonalBgm } = useAudio()
   const gameLayoutRoot = ref<HTMLDivElement | null>(null)
   const contentViewport = ref<HTMLDivElement | null>(null)
@@ -587,6 +593,14 @@
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
+  const pendingFriendRequestCount = computed(() => socialStore.incomingRequests.length)
+  const friendRequestBadgeLabel = computed(() => pendingFriendRequestCount.value > 99 ? '99+' : String(pendingFriendRequestCount.value))
+  const mobileChatUnreadLabel = computed(() => friendChatStore.totalUnreadCount > 99 ? '99+' : String(friendChatStore.totalUnreadCount))
+  const mobileHubTitle = computed(() => {
+    if (pendingFriendRequestCount.value > 0) return `地图（${pendingFriendRequestCount.value} 个好友申请待处理）`
+    if (friendChatStore.totalUnreadCount > 0) return `地图（${friendChatStore.totalUnreadCount} 条私聊未读）`
+    return '地图'
+  })
   let bottomRevealActive = false
   let bottomRevealTouching = false
   let bottomRevealReleaseTimer: number | null = null
@@ -987,8 +1001,10 @@
   const pendingSaveSyncTimer = ref<number | null>(null)
   let mailboxVisibilityHandler: (() => void) | null = null
 
-  const refreshMailboxOnResume = () => {
+  const refreshMobileBadgesOnResume = () => {
     void mailboxStore.refreshList({ silent: true }).catch(() => {})
+    void friendChatStore.refreshConversations({ silent: true }).catch(() => {})
+    void socialStore.refreshRelationships({ silent: true }).catch(() => {})
   }
 
   const runBackgroundAutoSave = async () => {
@@ -1053,9 +1069,11 @@
     void announcementStore.fetchActive()
     void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
+    void friendChatStore.refreshConversations({ silent: true }).catch(() => {})
+    void socialStore.refreshRelationships({ silent: true }).catch(() => {})
     mailboxVisibilityHandler = () => {
       if (document.visibilityState !== 'visible') return
-      refreshMailboxOnResume()
+      refreshMobileBadgesOnResume()
     }
     document.addEventListener('visibilitychange', mailboxVisibilityHandler)
     pendingSaveSyncTimer.value = window.setInterval(() => {
@@ -1581,6 +1599,38 @@
     border-radius: 999px;
     background: #ef4444;
     color: #fff;
+    font-size: 0.625rem;
+    line-height: 18px;
+    text-align: center;
+    border: 1px solid rgba(15, 18, 30, 0.8);
+  }
+
+  .friend-request-badge {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.625rem;
+    line-height: 18px;
+    text-align: center;
+    border: 1px solid rgba(15, 18, 30, 0.8);
+  }
+
+  .friend-chat-badge {
+    position: absolute;
+    right: -6px;
+    bottom: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: rgb(var(--color-bg));
     font-size: 0.625rem;
     line-height: 18px;
     text-align: center;
