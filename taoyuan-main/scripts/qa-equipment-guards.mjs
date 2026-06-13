@@ -161,11 +161,25 @@ installBrowserShims()
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
+const miningViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/MiningView.vue'), 'utf8')
 
 const freshInventoryStore = () => {
   setActivePinia(createPinia())
   return inventoryStoreModule.useInventoryStore()
 }
+
+assert(inventoryViewSource.includes('护符 / 饰物'), '背包装备页应显示护符 / 饰物栏。')
+assert(inventoryViewSource.includes('战斗达到20级后开放饰品栏'), '背包装备页饰品栏未解锁时应提示战斗20级解锁。')
+assert(inventoryViewSource.includes('handleToggleTrinket'), '背包装备页饰品栏应接入饰品装备/卸下操作。')
+assert(/data-testid="inventory-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test(inventoryViewSource), 'Inventory equipment preset candidates should use a two-column grid.')
+assert(!inventoryViewSource.includes('getPresetEquipmentSummaries'), 'Inventory preset cards should not render inline equipment summaries.')
+assert(inventoryViewSource.includes('openPresetActionId') && inventoryViewSource.includes('openPresetActions') && inventoryViewSource.includes('closePresetActions'), 'Inventory preset action dialog state should be wired locally.')
+assert(!inventoryViewSource.includes('data-testid="inventory-preset-actions-menu"'), 'Inventory preset actions should not render as an inline dropdown inside the scroll grid.')
+assert(/<Transition name="dialog-pop">[\s\S]*data-testid="inventory-preset-actions-dialog"/.test(inventoryViewSource), 'Inventory preset action dialog should use the shared pop transition.')
+assert(inventoryViewSource.includes('data-testid="inventory-preset-actions-name-input"') && inventoryViewSource.includes('handleSavePresetName'), 'Inventory preset action dialog should edit and save the preset name directly.')
+assert(/data-testid="inventory-preset-actions-dialog"[\s\S]*保存名称[\s\S]*保存装备[\s\S]*删除方案/.test(inventoryViewSource), 'Inventory preset save-name/save-equipment/delete actions should live in the action dialog.')
+assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test(miningViewSource), 'Mining equipment preset candidates should use a two-column grid.')
 
 {
   const inventoryStore = freshInventoryStore()

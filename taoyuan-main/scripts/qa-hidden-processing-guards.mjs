@@ -321,6 +321,15 @@ const processingStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useP
 assert(processingStoreSource.includes('discoveredProcessingRecipeIds'), 'processing store 必须序列化 discoveredProcessingRecipeIds')
 assert(processingStoreSource.includes('normalizeDiscoveredProcessingRecipeIds'), 'processing store 必须清理非法隐藏配方发现 ID')
 assert(processingStoreSource.includes('discoverProcessingRecipe(recipe.id)'), '收取成品时必须发现隐藏配方')
+const workshopUpgradeBlock = processingStoreSource.match(/const WORKSHOP_UPGRADES = \[([\s\S]*?)\]\r?\n\r?\nexport const useProcessingStore/)
+const workshopUpgradeLevels = [...(workshopUpgradeBlock?.[1] ?? '').matchAll(/level:\s*(\d+)/g)].map(match => Number(match[1]))
+const workshopMaterialIds = [...(workshopUpgradeBlock?.[1] ?? '').matchAll(/itemId:\s*'([^']+)'/g)].map(match => match[1])
+assert(workshopUpgradeLevels.join(',') === '1,2,3,4,5,6,7', `工坊扩建等级必须连续到 Lv.7：${workshopUpgradeLevels.join(',')}`)
+assert(processingStoreSource.includes('const maxMachines = computed(() => 15 + workshopLevel.value * 5)'), '工坊机器上限公式必须保持 Lv.7 可达 50 台')
+assert(15 + Math.max(...workshopUpgradeLevels, 0) * 5 === 50, '工坊最高等级必须提供 50 台机器上限')
+for (const itemId of workshopMaterialIds) {
+  assert(!!getItemById(itemId), `工坊扩建材料缺少物品定义：${itemId}`)
+}
 
 const cohabitationRuntimeSource = fs.readFileSync(path.join(workspaceRoot, 'server', 'src', 'taoyuanCohabitationRuntime.js'), 'utf8')
 assert(cohabitationRuntimeSource.includes('shared_hidden_wine_ancient_fruit'), '共同工坊必须登记远古果酒隐藏共享配方')

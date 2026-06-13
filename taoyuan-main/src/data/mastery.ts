@@ -117,7 +117,7 @@ export const MASTERY_REWARD_DEFS: MasteryRewardDef[] = [
     label: '护符 / 饰物位',
     unlockMasteryId: 'mastery_combat',
     summary: '角色信息里会出现专属饰物位，后续可承接护符与战备小构筑。',
-    panelHint: '角色信息'
+    panelHint: '角色信息 / 背包装备'
   },
   {
     id: 'advanced_workbench',

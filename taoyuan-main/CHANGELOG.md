@@ -4,15 +4,30 @@
 
 ## [未发布]
 
+### 0613 装备方案候选页紧凑化
+- 背包装备方案弹窗改为两列候选卡，移除卡片内联装备明细；`使用` 保持直接可点，`操作` 弹窗可直接编辑方案名称，并承载保存装备与删除方案，避免按钮组被候选列表滚动区域裁切。
+- 矿洞快速切换装备方案列表同步改为两列候选卡，保留原有 `使用 / 查看` 行为，装备详情仍只在点击 `查看` 后展示。
+- `qa:equipment-guards` 新增候选页两列布局、背包操作弹窗编辑与过渡动画、旧装备摘要移除和矿洞两列布局守卫；本轮验证：`npm --prefix taoyuan-main run qa:equipment-guards`、目标文件 `eslint`、目标文件 `git diff --check` 通过，5173 本地服务可访问；`npm --prefix taoyuan-main run type-check` 当前仍被既有 `src/views/game/AchievementView.vue(847,142)` 类型错误与 `src/views/game/RegionMapView.vue` 未使用函数阻塞。
+
+### 0613 新号服务端首档与公告奖励提示
+- 服务端持久化模式创建新号后会立即保存第一份服务端存档，避免刚进游戏就领取公告 / 邮件奖励时服务端还找不到可写槽位。
+- 公告奖励关闭时如果账号还没有可用服务端存档，不再把弹窗卡在错误提示上；会引导玩家先保存当前进度，本地存档玩家需要切换为服务端持久化后再领取在线奖励。
+- 本轮验证：`npm --prefix taoyuan-main run qa:announcement-ui-structure`、目标文件 `eslint` 与 `git diff --check` 通过；`npm run type-check` 仍被当前工作区既有 `useRegionMapStore.ts`、`AchievementView.vue`、`InventoryView.vue` 类型错误阻断。
+
+### 0612 工坊机器上限扩到50
+- 工坊扩建新增 Lv.5 / Lv.6 / Lv.7 三档，机器上限从原来的最高 35 台继续提升到 40 / 45 / 50 台，适配后期大量加工机器和杂项制造需求。
+- `qa-hidden-processing-guards` 补充工坊扩建等级连续性、最高 50 台容量和扩建材料物品定义守卫。
+
 ### 0612 背包锁定售卖保护
 - 农场出货箱候选列表现在会跳过锁定背包槽位，锁定物品不再能从农场入口放入出货箱。
 - 商圈出售在列表、出售弹窗解析和确认出售前都拦截锁定槽位；`useShopStore.sellItem()` 与 `addToShippingBox()` 统一只扣未锁定库存，为直接卖店、一键出售和出货箱入口提供 store 层兜底。
 - 本轮验证：`npm --prefix taoyuan-main run qa:inventory-guards`、`npx eslint src/stores/useInventoryStore.ts src/stores/useShopStore.ts src/views/game/FarmView.vue src/views/game/ShopView.vue` 通过；`npm --prefix taoyuan-main run type-check` 当前被既有 `src/views/game/AchievementView.vue(847,142)` 类型错误阻塞。
 
-### 0612 装备方案饰品显示与护符加成提示
-- 装备方案弹窗补充武器、戒指、帽子、鞋子和饰品槽位摘要，保存或应用方案前可以直接看到护符/饰品配置，不再只能看到方案按钮。
+### 0612 装备页饰品栏与护符加成提示
+- 背包的装备页新增护符 / 饰物栏：未解锁时提示战斗20级开放，解锁后可直接查看当前饰品、可用饰品列表，并在装备页完成装备或卸下。
+- 装备方案弹窗同步补充武器、戒指、帽子、鞋子和饰品槽位摘要，保存或应用方案前也可以直接看到护符/饰品配置。
 - 商店、出售弹窗和出货箱里的“戒指加成”提示统一改为“装备加成”，避免护符实际已进入统一装备加成计算但 UI 文案误导玩家。
-- `qa:equipment-guards` 新增市场护符解锁、装备、商店折扣/售价加成、方案保存和方案恢复断言；本轮验证：`npm --prefix taoyuan-main run qa:equipment-guards`、目标文件 `git diff --check` 通过；`npm --prefix taoyuan-main run type-check` 当前被既有 `src/views/game/AchievementView.vue` 类型错误阻塞。
+- `qa:equipment-guards` 新增装备页饰品栏源码守护、市场护符解锁、装备、商店折扣/售价加成、方案保存和方案恢复断言；本轮验证：`npm --prefix taoyuan-main run qa:equipment-guards`、目标文件 `git diff --check` 通过；`npm --prefix taoyuan-main run type-check` 当前被既有 `src/views/game/AchievementView.vue` 类型错误阻塞。
 
 ### 0612 动物宠物马心情收益
 - 动物心情现在不再只是显示：开心动物产出时有小概率额外获得 1 份同类产物，心情越高额外产物概率越高，原有好感品质、技能品质和草甸额外产出规则保持不变。

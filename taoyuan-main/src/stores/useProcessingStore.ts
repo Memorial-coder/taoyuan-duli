@@ -75,6 +75,33 @@ const WORKSHOP_UPGRADES = [
       { itemId: 'refined_quartz', quantity: 20 },
       { itemId: 'stone', quantity: 150 }
     ]
+  },
+  {
+    level: 5,
+    cost: 140000,
+    materials: [
+      { itemId: 'iridium_bar', quantity: 20 },
+      { itemId: 'refined_quartz', quantity: 35 },
+      { itemId: 'stone', quantity: 220 }
+    ]
+  },
+  {
+    level: 6,
+    cost: 200000,
+    materials: [
+      { itemId: 'iridium_bar', quantity: 30 },
+      { itemId: 'refined_quartz', quantity: 50 },
+      { itemId: 'wood', quantity: 220 }
+    ]
+  },
+  {
+    level: 7,
+    cost: 280000,
+    materials: [
+      { itemId: 'iridium_bar', quantity: 45 },
+      { itemId: 'refined_quartz', quantity: 80 },
+      { itemId: 'stone', quantity: 300 }
+    ]
   }
 ]
 
@@ -474,7 +501,7 @@ export const useProcessingStore = defineStore('processing', () => {
     return sanitized
   }
 
-  /** 工坊等级：0/1/2/3/4，对应 15/20/25/30/35 */
+  /** 工坊等级：0-7，对应 15-50 */
   const workshopLevel = ref(0)
 
   /** 最大放置机器数 */

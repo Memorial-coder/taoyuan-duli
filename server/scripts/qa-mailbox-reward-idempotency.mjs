@@ -27,6 +27,8 @@ const saveRuntime = require('../src/taoyuanSaveRuntime')
 
 const username = 'mail_idem_0605'
 const claimAllUsername = 'mail_idem_all_0605'
+const targetSlotSender = 'mail_slot_s0612'
+const targetSlotRecipient = 'mail_slot_r0612'
 
 const seedSave = (account, money = 100) => {
   const slots = saveRuntime.loadUserSaveSlots(account)
@@ -48,9 +50,28 @@ const seedSave = (account, money = 100) => {
   saveRuntime.setActiveSaveSlot(account, 0)
 }
 
-const readRewardState = account => {
+const seedSaveSlot = (account, slot, money = 100, items = []) => {
   const slots = saveRuntime.loadUserSaveSlots(account)
-  const decrypted = saveRuntime.decryptTaoyuanRaw(slots.slots[0]?.raw || '')
+  slots.slots[slot] = {
+    raw: saveRuntime.encryptTaoyuanData({
+      player: {
+        playerName: account,
+        money,
+      },
+      inventory: {
+        items,
+        tempItems: [],
+        capacity: 24,
+      },
+    }),
+    revision: 1,
+  }
+  saveRuntime.saveUserSaveSlots(account, slots)
+}
+
+const readRewardState = (account, slot = 0) => {
+  const slots = saveRuntime.loadUserSaveSlots(account)
+  const decrypted = saveRuntime.decryptTaoyuanRaw(slots.slots[slot]?.raw || '')
   const data = decrypted?.data?.player
     ? decrypted.data
     : decrypted?.gameplayData?.player
@@ -111,6 +132,7 @@ assert.ok(delivery?.id, 'claimable reward delivery should exist')
 
 const firstClaim = await mailbox.claimUserMail(username, delivery.id, { skipPendingCampaigns: true })
 assert.equal(firstClaim.result.money_added, 25, 'first claim should grant money')
+assert.ok(firstClaim.result.save_revision > 0, 'first claim should return save revision')
 assert.equal(readRewardState(username).money, 125, 'first claim should persist money')
 assert.equal(readRewardState(username).wood, 2, 'first claim should persist item reward')
 assert.equal(readRewardState(username).woodenSticks, 1, 'first claim should persist equipment reward')
@@ -119,6 +141,7 @@ assert.ok(readRewardState(username).appliedDeliveries[delivery.id], 'first claim
 await writeFile(mailboxFile, beforeClaimMailbox, 'utf8')
 const replayClaim = await mailbox.claimUserMail(username, delivery.id, { skipPendingCampaigns: true })
 assert.equal(replayClaim.result.money_added, 25, 'replay should return the original claim result')
+assert.ok(replayClaim.result.save_revision > 0, 'replay should preserve save revision evidence')
 assert.equal(readRewardState(username).money, 125, 'replay after mailbox rollback must not grant money twice')
 assert.equal(readRewardState(username).wood, 2, 'replay after mailbox rollback must not grant item twice')
 assert.equal(readRewardState(username).woodenSticks, 1, 'replay after mailbox rollback must not grant equipment twice')
@@ -167,6 +190,48 @@ for (const deliveryEntry of claimAllDeliveries) {
   const finalClaimAllDelivery = finalClaimAllList.mails.find(entry => entry.id === deliveryEntry.id)
   assert.equal(finalClaimAllDelivery.is_claimed, true, 'claim-all replay should repair mailbox claimed state')
 }
+
+await registerAndSeed(targetSlotSender, 'MailTargetSlotSender_0612', 100)
+seedSaveSlot(targetSlotSender, 0, 100, [
+  { itemId: 'wood', quality: 'normal', quantity: 5, locked: false },
+])
+saveRuntime.setActiveSaveSlot(targetSlotSender, 0)
+
+const registeredTargetSlotRecipient = await db.registerUser(targetSlotRecipient, 'MailTargetSlotRecipient_0612', targetSlotRecipient)
+assert.equal(registeredTargetSlotRecipient.ok, true, 'target slot recipient should register')
+seedSaveSlot(targetSlotRecipient, 0, 100)
+seedSaveSlot(targetSlotRecipient, 1, 200)
+saveRuntime.setActiveSaveSlot(targetSlotRecipient, 0)
+saveRuntime.getActiveSaveContext(targetSlotRecipient, 0)
+const targetSlotIdentity = saveRuntime.getActiveSaveContext(targetSlotRecipient, 1).identity
+assert.equal(targetSlotIdentity.save_slot, 1, 'target save identity should point at slot 1')
+
+await mailbox.sendPlayerGiftPackage({
+  target_save_id: targetSlotIdentity.save_id,
+  title: 'target save slot gift',
+  content: 'claim should land in the save id slot, not the current active slot',
+  template_type: 'material_package',
+  rewards: [
+    { type: 'item', id: 'wood', quantity: 2, quality: 'normal' },
+  ],
+}, {
+  username: targetSlotSender,
+  displayName: 'Mail Target Slot Sender',
+}, {
+  skipPendingCampaigns: true,
+})
+
+const targetSlotList = await mailbox.listUserMails(targetSlotRecipient, { skipPendingCampaigns: true })
+const targetSlotDelivery = targetSlotList.mails.find(entry => entry.title === 'target save slot gift')
+assert.ok(targetSlotDelivery?.id, 'target save id gift should be delivered')
+assert.equal(targetSlotDelivery.target_save_slot, 1, 'gift mail should expose target save slot 1')
+
+const targetSlotClaim = await mailbox.claimUserMail(targetSlotRecipient, targetSlotDelivery.id, { skipPendingCampaigns: true })
+assert.equal(targetSlotClaim.result.save_slot, 1, 'gift claim should write to target save slot, not active slot')
+assert.ok(targetSlotClaim.result.save_revision > 0, 'target slot gift claim should return save revision')
+assert.equal(readRewardState(targetSlotRecipient, 0).wood, 0, 'gift claim must not write to recipient active slot')
+assert.equal(readRewardState(targetSlotRecipient, 1).wood, 2, 'gift claim should persist item reward in target save id slot')
+assert.ok(readRewardState(targetSlotRecipient, 1).appliedDeliveries[targetSlotDelivery.id], 'target slot claim should write save-side delivery ledger')
 
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-mailbox-reward-idempotency] OK')

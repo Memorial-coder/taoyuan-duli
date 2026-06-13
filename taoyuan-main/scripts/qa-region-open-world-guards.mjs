@@ -26,10 +26,11 @@ for (const regionId of ['taoyuan_outskirts', 'ancient_road', 'mirage_marsh', 'cl
   addCheck(`Open world region exists: ${regionId}`, regionData.includes(`id: '${regionId}'`))
 }
 
-const outskirtsWidth = readNumberConst('OUTSKIRTS_OPEN_WORLD_WIDTH')
-const outskirtsHeight = readNumberConst('OUTSKIRTS_OPEN_WORLD_HEIGHT')
-addCheck('Outskirts grid has at least 100 selectable slots', outskirtsWidth * outskirtsHeight >= 100, `${outskirtsWidth}x${outskirtsHeight}`)
-addCheck('Outskirts uses generated empty tiles', /const createOpenWorldEmptyTile/.test(regionData) && /tiles:\s*createOutskirtsOpenWorldTiles\(\)/.test(regionData))
+const largeMapWidth = readNumberConst('OPEN_WORLD_LARGE_MAP_WIDTH')
+const largeMapHeight = readNumberConst('OPEN_WORLD_LARGE_MAP_HEIGHT')
+addCheck('Open world grids have at least 100 selectable slots', largeMapWidth * largeMapHeight >= 100, `${largeMapWidth}x${largeMapHeight}`)
+addCheck('Open world uses generated empty tiles', /const createOpenWorldEmptyTile/.test(regionData) && /createOpenWorldLargeRegionTiles/.test(regionData))
+addCheck('Outskirts uses large generated map', /id:\s*'taoyuan_outskirts'[\s\S]*width:\s*OPEN_WORLD_LARGE_MAP_WIDTH[\s\S]*height:\s*OPEN_WORLD_LARGE_MAP_HEIGHT[\s\S]*tiles:\s*createOpenWorldLargeRegionTiles/.test(regionData))
 addCheck('Outskirts keeps legacy key tile ids', [
   'outskirts:village_gate',
   'outskirts:bamboo_1',
@@ -65,7 +66,7 @@ for (const api of [
 }
 
 addCheck('Daily ecology refresh is idempotent', /lastRefreshDayTag === dayTag/.test(regionStore))
-addCheck('Reveal radius uses grid-neighbor distance', /Math\.max\(Math\.abs\(tile\.x - center\.x\), Math\.abs\(tile\.y - center\.y\)\) <= safeRadius/.test(regionData) && /Math\.max\(Math\.abs\(a\.x - b\.x\), Math\.abs\(a\.y - b\.y\)\)/.test(regionStore))
+addCheck('Reveal radius uses bounded grid-neighbor lookup', /getOpenWorldTileDefAtCoord\(regionId,\s*x,\s*y\)/.test(regionStore) && /Math\.max\(Math\.abs\(a\.x - b\.x\), Math\.abs\(a\.y - b\.y\)\)/.test(regionStore))
 addCheck('Movement does not consume stamina', /const moveOpenWorldPlayer[\s\S]*移动不消耗体力和时间/.test(regionStore))
 addCheck('Action checks stamina before consuming', /playerStore\.stamina < tile\.staminaCost[\s\S]*playerStore\.consumeStamina/.test(regionStore))
 addCheck('Action checks inventory before rewards', /inventoryStore\.canAddItems\(rewardItems\)[\s\S]*inventoryStore\.addItemsExact\(rewardItems\)/.test(regionStore))

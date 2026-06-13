@@ -20,6 +20,7 @@
       :repaired-outpost-count="regionMapStore.openWorldState.handbook.repairedOutpostIds.length"
       @select-region="handleSelectOpenWorldRegion"
       @select-tile="handleSelectOpenWorldTile"
+      @pan-viewport="handlePanOpenWorldViewport"
       @move="handleMoveOpenWorldPlayer"
       @perform-action="handlePerformOpenWorldAction"
     />
@@ -1314,6 +1315,7 @@
     RegionLinkedSystem,
     RegionOpenWorldActionId,
     RegionOpenWorldId,
+    RegionOpenWorldViewportBounds,
     RegionRouteDef,
     RegionalResourceFamilyId
   } from '@/types/region'
@@ -1470,6 +1472,7 @@
   const selectedJourneyAftermathPinned = ref(false)
   const journeyTermPrimerDismissed = ref(false)
   const activeRegionMapTab = ref<RegionMapTabId>('today')
+  const openWorldViewportOrigins = ref<Partial<Record<RegionOpenWorldId, Pick<RegionOpenWorldViewportBounds, 'minX' | 'minY'>>>>({})
   const compactRegionSectionState = ref<Record<string, boolean>>({})
   const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
@@ -1513,7 +1516,23 @@
 
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const currentWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
-  const activeOpenWorldRegionView = computed(() => regionMapStore.getOpenWorldRegionView(regionMapStore.openWorldState.activeRegionId))
+  const clampOpenWorldViewportValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+  const getOpenWorldViewportOrigin = (regionId: RegionOpenWorldId) => openWorldViewportOrigins.value[regionId] ?? null
+  const setOpenWorldViewportOrigin = (regionId: RegionOpenWorldId, bounds: Pick<RegionOpenWorldViewportBounds, 'minX' | 'minY'>) => {
+    openWorldViewportOrigins.value = {
+      ...openWorldViewportOrigins.value,
+      [regionId]: {
+        minX: bounds.minX,
+        minY: bounds.minY
+      }
+    }
+  }
+  const activeOpenWorldRegionView = computed(() =>
+    regionMapStore.getOpenWorldRegionView(
+      regionMapStore.openWorldState.activeRegionId,
+      getOpenWorldViewportOrigin(regionMapStore.openWorldState.activeRegionId)
+    )
+  )
   const selectedOpenWorldTileView = computed(() =>
     regionMapStore.getOpenWorldTileView(regionMapStore.openWorldState.activeRegionId, regionMapStore.openWorldState.selectedTileId)
   )
@@ -3941,7 +3960,20 @@
     if (!result.success) setActionSummary(result.message, result.tone)
   }
 
+  const handlePanOpenWorldViewport = (delta: { deltaX: number; deltaY: number }) => {
+    const regionId = regionMapStore.openWorldState.activeRegionId
+    const view = activeOpenWorldRegionView.value
+    const viewportWidth = view.bounds.maxX - view.bounds.minX + 1
+    const viewportHeight = view.bounds.maxY - view.bounds.minY + 1
+    setOpenWorldViewportOrigin(regionId, {
+      minX: clampOpenWorldViewportValue(view.bounds.minX + delta.deltaX, 0, Math.max(0, view.def.width - viewportWidth)),
+      minY: clampOpenWorldViewportValue(view.bounds.minY + delta.deltaY, 0, Math.max(0, view.def.height - viewportHeight))
+    })
+  }
+
   const handleMoveOpenWorldPlayer = (tileId: string) => {
+    const regionId = regionMapStore.openWorldState.activeRegionId
+    setOpenWorldViewportOrigin(regionId, activeOpenWorldRegionView.value.bounds)
     const result = regionMapStore.moveOpenWorldPlayer(tileId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'accent' : result.tone)
   }

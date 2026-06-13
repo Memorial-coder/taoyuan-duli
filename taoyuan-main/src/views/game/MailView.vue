@@ -867,7 +867,19 @@
   const resolveClaimSyncFeedback = (syncState?: MailClaimSyncState | null) => {
     if (!syncState) return { text: '奖励领取完成', type: 'success' as const }
     if (syncState.reason === 'synced') {
-      return { text: '奖励已同步到当前服务端存档', type: 'success' as const }
+      return { text: '奖励已进入当前背包并同步到服务端存档', type: 'success' as const }
+    }
+    if (syncState.reason_detail === 'current_runtime_merge_save_failed') {
+      return {
+        text: syncState.message || '奖励已进入当前背包，本地进度未被覆盖；云存档仍需处理同步冲突',
+        type: 'accent' as const
+      }
+    }
+    if (syncState.reason_detail === 'current_runtime_merge_failed') {
+      return {
+        text: syncState.message || '奖励已写入服务端存档，但当前背包合并失败，请手动重载对应槽位核对',
+        type: 'accent' as const
+      }
     }
     if (syncState.reason === 'no_save_slot') {
       return { text: '奖励领取完成，但这批邮件没有写入存档槽位', type: 'accent' as const }

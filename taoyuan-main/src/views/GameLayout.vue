@@ -888,6 +888,24 @@
   const blockAnnouncementDialogs = computed(() => showDailyDigestSummary.value || showRecordCenter.value || showSaveManager.value || showSavePrompt.value)
   const blockFollowupDialogs = computed(() => blockAnnouncementDialogs.value || !!currentAnnouncement.value)
 
+  const getAnnouncementErrorMessage = (error: unknown) => (
+    error instanceof Error ? error.message : String(error || '')
+  )
+
+  const isMissingAnnouncementRewardSaveError = (error: unknown) => {
+    const message = getAnnouncementErrorMessage(error)
+    return message.includes('没有可用的桃源')
+      && (message.includes('公告奖励') || message.includes('邮件奖励') || message.includes('领取'))
+  }
+
+  const promptAnnouncementRewardServerSave = () => {
+    showFloat('公告奖励需要先写入服务端存档。请先保存当前进度；如正在使用本地存档，请切换为服务端持久化后再领取。', 'accent')
+    openSaveManager({
+      intent: 'save',
+      returnUrl: window.location.href,
+    })
+  }
+
   const closeAnnouncementsWithRewards = async () => {
     if (announcementClosing.value) return false
     announcementClosing.value = true
@@ -898,7 +916,11 @@
       }
       return true
     } catch (error) {
-      showFloat(error instanceof Error ? error.message : '公告奖励领取失败，请稍后重试', 'danger')
+      if (isMissingAnnouncementRewardSaveError(error)) {
+        promptAnnouncementRewardServerSave()
+        return false
+      }
+      showFloat(getAnnouncementErrorMessage(error) || '公告奖励领取失败，请稍后重试', 'danger')
       return false
     } finally {
       announcementClosing.value = false

@@ -683,27 +683,28 @@
           </p>
           <div
             v-if="inventoryStore.equipmentPresets.length > 0"
-            class="flex min-h-0 flex-1 flex-col space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
+            data-testid="mining-equipment-preset-grid"
+            class="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
           >
             <div
               v-for="preset in inventoryStore.equipmentPresets"
               :key="preset.id"
-              class="border rounded-xs p-3"
+              class="flex min-h-[5.5rem] min-w-0 flex-col border rounded-xs p-2.5"
               :class="inventoryStore.activePresetId === preset.id ? 'border-accent/40' : 'border-accent/10'"
             >
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <p class="text-xs text-accent truncate">{{ preset.name }}</p>
+              <div class="mb-2 flex min-h-8 items-start justify-between gap-1.5">
+                <p class="min-w-0 truncate text-xs text-accent">{{ preset.name }}</p>
                 <span v-if="inventoryStore.activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
-              <div class="grid grid-cols-2 gap-1.5">
+              <div class="mt-auto grid grid-cols-2 gap-1.5">
                 <Button
-                  class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap"
+                  class="min-h-8 min-w-0 justify-center px-1.5 py-1 text-xs whitespace-nowrap"
                   :disabled="inventoryStore.activePresetId === preset.id"
                   @click="quickApplyPreset(preset.id)"
                 >
                   使用
                 </Button>
-                <Button class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap" @click="viewPresetDetail(preset.id)">查看</Button>
+                <Button class="min-h-8 min-w-0 justify-center px-1.5 py-1 text-xs whitespace-nowrap" @click="viewPresetDetail(preset.id)">查看</Button>
               </div>
             </div>
           </div>

@@ -1,7 +1,11 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useSaveStore } from '@/stores/useSaveStore'
+import { useDecorationStore } from '@/stores/useDecorationStore'
+import { useInventoryStore } from '@/stores/useInventoryStore'
+import { usePlayerStore } from '@/stores/usePlayerStore'
 import { isProtectedApiError } from '@/utils/protectedApi'
+import type { Quality } from '@/types'
 import {
   clearClaimedMailboxMail,
   claimAllMailboxMail,
@@ -32,6 +36,16 @@ export interface TaoyuanMailReward {
   source?: string
   target_reward_type?: string
   target_reward_id?: string
+}
+
+export interface TaoyuanMailClaimResult {
+  save_slot: number | null
+  save_revision?: number
+  money_added: number
+  duplicate_compensation_money: number
+  applied_rewards: TaoyuanMailReward[]
+  skipped_rewards: Array<{ type: string; id?: string; quantity?: number; reason: string }>
+  already_applied?: boolean
 }
 
 export interface TaoyuanMailSummary {
@@ -72,13 +86,7 @@ export interface TaoyuanMailDetail extends TaoyuanMailSummary {
   sender_display_name?: string
   recipient_username: string
   recipient_display_name?: string
-  claim_result: {
-    save_slot: number | null
-    money_added: number
-    duplicate_compensation_money: number
-    applied_rewards: TaoyuanMailReward[]
-    skipped_rewards: Array<{ type: string; id?: string; quantity?: number; reason: string }>
-  } | null
+  claim_result: TaoyuanMailClaimResult | null
 }
 
 export interface TaoyuanMailReceipt {
@@ -92,6 +100,7 @@ export interface TaoyuanMailReceipt {
   sent_at: number | null
   has_mail_detail: boolean
   save_slot: number | null
+  save_revision?: number
   money_added: number
   duplicate_compensation_money: number
   applied_rewards: TaoyuanMailReward[]
@@ -166,8 +175,17 @@ export interface MailClaimSyncState {
     | 'no_active_runtime_session_slot'
     | 'current_runtime_session_slot_mismatch'
     | 'current_runtime_session_has_pending_local_copy'
+    | 'current_runtime_merge_failed'
+    | 'current_runtime_merge_save_failed'
     | 'load_failed'
   message: string
+}
+
+interface MailClaimSyncClaim {
+  id: string
+  title?: string
+  campaign_id?: string
+  result?: TaoyuanMailClaimResult | null
 }
 
 export interface PlayerLetterTemplatePreset {
@@ -203,6 +221,18 @@ const createEmptyArrivalDigest = (): MailArrivalDigest => ({
 const createDefaultGiftPackageRewards = (): PlayerGiftPackageRewardDraft[] => [
   { type: 'item', id: '', quantity: 1, quality: 'normal' }
 ]
+
+const VALID_REWARD_QUALITIES = new Set<Quality>(['normal', 'fine', 'excellent', 'supreme'])
+
+const normalizeRewardQuality = (value: unknown): Quality => {
+  const normalized = String(value || 'normal') as Quality
+  return VALID_REWARD_QUALITIES.has(normalized) ? normalized : 'normal'
+}
+
+const normalizeRewardQuantity = (value: unknown, fallback = 0) => {
+  const normalized = Math.floor(Number(value) || 0)
+  return normalized > 0 ? normalized : fallback
+}
 
 const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSummary => ({
   id: mail.id,
@@ -336,10 +366,118 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
 
   const buildClaimSyncState = (state: MailClaimSyncState): MailClaimSyncState => state
 
-  const syncAfterClaim = async (saveSlots: Array<number | null | undefined>): Promise<MailClaimSyncState> => {
+  const applyClaimRewardsToCurrentSession = (claim: MailClaimSyncClaim): { ok: boolean; changed: boolean } => {
+    const result = claim.result
+    if (!result) return { ok: true, changed: false }
+
     const saveStore = useSaveStore()
+    if (saveStore.hasOnlineMailRewardDelivery(claim.id)) {
+      return { ok: true, changed: false }
+    }
+
+    const appliedRewards = Array.isArray(result.applied_rewards) ? result.applied_rewards : []
+    const stackableRewards = appliedRewards
+      .filter(reward => (reward.type === 'item' || reward.type === 'seed') && reward.id)
+      .map(reward => ({
+        itemId: String(reward.id),
+        quantity: normalizeRewardQuantity(reward.quantity, 0),
+        quality: normalizeRewardQuality(reward.quality)
+      }))
+      .filter(reward => reward.quantity > 0)
+
+    const inventoryStore = useInventoryStore()
+    if (stackableRewards.length > 0 && !inventoryStore.canAddItems(stackableRewards, true)) {
+      return { ok: false, changed: false }
+    }
+
+    const playerStore = usePlayerStore()
+    const decorationStore = useDecorationStore()
+    let changed = false
+
+    for (const reward of appliedRewards) {
+      if (reward.type === 'money') {
+        const amount = normalizeRewardQuantity(reward.amount, 0)
+        if (amount > 0) {
+          playerStore.earnMoney(amount)
+          changed = true
+        }
+        continue
+      }
+
+      if (reward.type === 'decoration' && reward.id) {
+        const quantity = normalizeRewardQuantity(reward.quantity, 0)
+        if (quantity > 0) {
+          const id = String(reward.id)
+          decorationStore.owned[id] = normalizeRewardQuantity(decorationStore.owned[id], 0) + quantity
+          changed = true
+        }
+        continue
+      }
+
+      if (reward.type === 'weapon' && reward.id) {
+        const quantity = normalizeRewardQuantity(reward.quantity, 1)
+        for (let index = 0; index < quantity; index += 1) inventoryStore.addWeapon(String(reward.id))
+        changed = true
+        continue
+      }
+
+      if (reward.type === 'ring' && reward.id) {
+        const quantity = normalizeRewardQuantity(reward.quantity, 1)
+        for (let index = 0; index < quantity; index += 1) inventoryStore.addRing(String(reward.id))
+        changed = true
+        continue
+      }
+
+      if (reward.type === 'hat' && reward.id) {
+        const quantity = normalizeRewardQuantity(reward.quantity, 1)
+        for (let index = 0; index < quantity; index += 1) inventoryStore.addHat(String(reward.id))
+        changed = true
+        continue
+      }
+
+      if (reward.type === 'shoe' && reward.id) {
+        const quantity = normalizeRewardQuantity(reward.quantity, 1)
+        for (let index = 0; index < quantity; index += 1) inventoryStore.addShoe(String(reward.id))
+        changed = true
+      }
+    }
+
+    if (stackableRewards.length > 0) {
+      if (!inventoryStore.addItemsExact(stackableRewards, true)) return { ok: false, changed }
+      changed = true
+    }
+
+    if (claim.id) {
+      saveStore.recordOnlineMailRewardDelivery(claim.id, {
+        campaign_id: claim.campaign_id || '',
+        mail_title: claim.title || '',
+        applied_at: Math.floor(Date.now() / 1000),
+        result: {
+          ...result,
+          applied_rewards: appliedRewards.map(reward => ({ ...reward })),
+          skipped_rewards: Array.isArray(result.skipped_rewards)
+            ? result.skipped_rewards.map(reward => ({ ...reward }))
+            : []
+        }
+      })
+      changed = true
+    }
+
+    return { ok: true, changed }
+  }
+
+  const syncAfterClaim = async (claims: MailClaimSyncClaim[]): Promise<MailClaimSyncState> => {
+    const saveStore = useSaveStore()
+    for (const claim of claims) {
+      const saveSlot = claim.result?.save_slot
+      const saveRevision = claim.result?.save_revision
+      if (Number.isInteger(saveSlot) && Number.isFinite(Number(saveRevision)) && Number(saveRevision) > 0) {
+        saveStore.acknowledgeServerSlotRevision(Number(saveSlot), Number(saveRevision))
+      }
+    }
     const normalizedSaveSlots = Array.from(new Set(
-      saveSlots
+      claims
+        .map(claim => claim.result?.save_slot)
         .filter((slot): slot is number => slot !== null && slot !== undefined && Number.isInteger(slot))
         .map(slot => Number(slot))
     ))
@@ -417,6 +555,43 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       })
     }
 
+    const currentSessionClaims = claims.filter(claim => Number(claim.result?.save_slot) === currentSessionSlot)
+    let changedCurrentSession = false
+    for (const claim of currentSessionClaims) {
+      const applied = applyClaimRewardsToCurrentSession(claim)
+      if (!applied.ok) {
+        return buildClaimSyncState({
+          attempted: false,
+          current_session_synced: false,
+          current_storage_mode: currentStorageMode,
+          current_session_mode: currentSessionMode,
+          current_session_slot: currentSessionSlot,
+          claimed_save_slots: normalizedSaveSlots,
+          reason: 'load_failed',
+          reason_detail: 'current_runtime_merge_failed',
+          message: '奖励已经写入服务端存档，但当前运行态背包合并失败；本地进度未被覆盖，请手动重新载入对应服务端槽位核对。'
+        })
+      }
+      changedCurrentSession = changedCurrentSession || applied.changed
+    }
+
+    if (changedCurrentSession) {
+      const saved = await saveStore.saveToSlot(currentSessionSlot)
+      return buildClaimSyncState({
+        attempted: true,
+        current_session_synced: saved,
+        current_storage_mode: currentStorageMode,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        claimed_save_slots: normalizedSaveSlots,
+        reason: saved ? 'synced' : 'load_failed',
+        reason_detail: saved ? 'synced' : 'current_runtime_merge_save_failed',
+        message: saved
+          ? '奖励已合并进当前服务端运行态，并连同本地进度一起保存。'
+          : '奖励已合并进当前运行态，本地进度未被覆盖；服务端同步仍需处理云存档冲突或网络队列。'
+      })
+    }
+
     if (saveStore.hasPendingServerSave(currentSessionSlot)) {
       return buildClaimSyncState({
         attempted: false,
@@ -431,10 +606,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       })
     }
 
-    const synced = await saveStore.loadFromSlot(currentSessionSlot, {
-      mode: 'server',
-      allowPendingServerCopy: false
-    })
+    const synced = true
     return buildClaimSyncState({
       attempted: true,
       current_session_synced: synced,
@@ -527,16 +699,26 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     detailMap.value[id] = detail
     upsertMail(detail)
     await refreshReceipts().catch(() => {})
-    const saveSyncState = await syncAfterClaim([data.result?.save_slot])
+    const saveSyncState = await syncAfterClaim([{
+      id: detail.id,
+      title: detail.title,
+      campaign_id: detail.campaign_id,
+      result: data.result as TaoyuanMailClaimResult | null
+    }])
     return { ...data, save_sync_state: saveSyncState }
   }
 
   const claimAll = async () => {
     const data = await claimAllMailboxMail()
-    const claimedSaveSlots = Array.isArray(data.claimed)
-      ? data.claimed.map((item: any) => item?.result?.save_slot)
+    const claimed = Array.isArray(data.claimed)
+      ? data.claimed.map((item: any) => ({
+        id: String(item?.id || ''),
+        title: typeof item?.title === 'string' ? item.title : '',
+        campaign_id: typeof item?.campaign_id === 'string' ? item.campaign_id : '',
+        result: item?.result as TaoyuanMailClaimResult | null
+      }))
       : []
-    const saveSyncState = await syncAfterClaim(claimedSaveSlots)
+    const saveSyncState = await syncAfterClaim(claimed)
     await refreshList()
     await refreshReceipts().catch(() => {})
     return { ...data, save_sync_state: saveSyncState }

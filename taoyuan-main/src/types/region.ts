@@ -152,6 +152,13 @@ export interface RegionOpenWorldRegionEntry {
   active: boolean
 }
 
+export interface RegionOpenWorldViewportBounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
 export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
   discovered: boolean
   current: boolean
@@ -165,6 +172,17 @@ export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
   disabledReason: string
   canMove: boolean
   canAct: boolean
+}
+
+export interface RegionOpenWorldRegionWindowView {
+  def: RegionOpenWorldRegionDef
+  state: RegionOpenWorldRegionState
+  unlocked: boolean
+  unlockReason: string
+  bounds: RegionOpenWorldViewportBounds
+  totalTileCount: number
+  discoveredCount: number
+  tiles: RegionOpenWorldTileView[]
 }
 
 export interface RegionOpenWorldActionResult {

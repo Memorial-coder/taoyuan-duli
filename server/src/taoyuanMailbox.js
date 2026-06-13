@@ -8,6 +8,7 @@ const {
   ensureTaoyuanSavesDir,
   findSaveIdentityById,
   getActiveSaveContext,
+  nextSlotRevision,
   persistGameplayData,
   TAOYUAN_SAVES_DIR,
   writeJsonFileAtomic,
@@ -121,6 +122,7 @@ function normalizeClaimResult(result) {
   if (!result || typeof result !== 'object') return null;
   return {
     save_slot: Number.isInteger(Number(result.save_slot)) ? Number(result.save_slot) : null,
+    save_revision: Number.isFinite(Number(result.save_revision)) ? Math.max(0, Math.floor(Number(result.save_revision))) : 0,
     money_added: clampPositiveInt(result.money_added, 0),
     duplicate_compensation_money: clampPositiveInt(result.duplicate_compensation_money, 0),
     applied_rewards: Array.isArray(result.applied_rewards) ? result.applied_rewards.map(item => ({ ...item })) : [],
@@ -1058,7 +1060,7 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
       content,
       template_type: templateType,
       rewards,
-      target_slot: null,
+      target_slot: recipient.identity?.save_slot ?? null,
       duplicate_compensation_money: 0,
       created_at: sentAt,
       sent_at: sentAt,
@@ -1460,6 +1462,7 @@ function applyRewardsToSave(username, delivery) {
     const previousResult = normalizeClaimResult(appliedDelivery.result);
     const fallbackResult = {
       save_slot: context.slot,
+      save_revision: Math.max(0, Math.floor(Number(context.saves.slots[context.slot]?.revision) || 0)),
       money_added: 0,
       duplicate_compensation_money: 0,
       applied_rewards: [],
@@ -1477,6 +1480,7 @@ function applyRewardsToSave(username, delivery) {
 
   const result = {
     save_slot: context.slot,
+    save_revision: 0,
     money_added: 0,
     duplicate_compensation_money: 0,
     applied_rewards: [],
@@ -1513,6 +1517,8 @@ function applyRewardsToSave(username, delivery) {
     applyEquipmentReward(context.data, reward, delivery.duplicate_compensation_money, result);
   }
 
+  const currentRevision = context.saves.slots[context.slot]?.revision ?? 0;
+  result.save_revision = nextSlotRevision(currentRevision);
   mailRewardState.appliedDeliveries[deliveryKey] = {
     delivery_id: deliveryKey,
     campaign_id: sanitizeText(delivery.campaign_id, 120),
@@ -1602,6 +1608,7 @@ async function claimAllUserMails(username, options = {}) {
         claimed.push({
           id: delivery.id,
           title: delivery.title,
+          campaign_id: delivery.campaign_id,
           result,
         });
         changed = true;

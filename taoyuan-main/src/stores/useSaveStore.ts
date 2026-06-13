@@ -107,6 +107,10 @@ export interface OnlineSaveIdentity {
   updated_at?: number
 }
 
+interface OnlineMailRewardsState {
+  appliedDeliveries: Record<string, Record<string, any>>
+}
+
 const getSaveKeyPrefix = (): string => buildScopedStorageKey(LEGACY_SAVE_KEY_PREFIX)
 
 const getSaveKey = (slot: number): string => {
@@ -309,6 +313,31 @@ const normalizeOnlineSaveIdentity = (entry: any): OnlineSaveIdentity | null => {
     updated_at: Number.isFinite(Number(entry?.updated_at ?? entry?.updatedAt)) ? Number(entry?.updated_at ?? entry?.updatedAt) : undefined
   }
 }
+
+const createEmptyOnlineMailRewards = (): OnlineMailRewardsState => ({
+  appliedDeliveries: {}
+})
+
+const normalizeOnlineMailRewards = (value: unknown): OnlineMailRewardsState => {
+  if (!value || typeof value !== 'object') return createEmptyOnlineMailRewards()
+  const source = value as { appliedDeliveries?: unknown }
+  const appliedDeliveries = source.appliedDeliveries && typeof source.appliedDeliveries === 'object'
+    ? source.appliedDeliveries as Record<string, unknown>
+    : {}
+  return {
+    appliedDeliveries: Object.fromEntries(
+      Object.entries(appliedDeliveries)
+        .filter(([deliveryId, entry]) => !!deliveryId && !!entry && typeof entry === 'object')
+        .map(([deliveryId, entry]) => [deliveryId, { ...(entry as Record<string, any>) }])
+    )
+  }
+}
+
+const cloneOnlineMailRewards = (value: OnlineMailRewardsState): OnlineMailRewardsState => ({
+  appliedDeliveries: Object.fromEntries(
+    Object.entries(value.appliedDeliveries ?? {}).map(([deliveryId, entry]) => [deliveryId, { ...entry }])
+  )
+})
 
 const buildSaveMeta = (savedAt?: string, saveVersion: number = SAVE_VERSION, onlineIdentity?: OnlineSaveIdentity | null): SaveMeta => ({
   saveVersion,
@@ -664,6 +693,8 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
     next.settings = {}
   }
 
+  next.onlineMailRewards = normalizeOnlineMailRewards(next.onlineMailRewards)
+
   return next
 }
 
@@ -764,6 +795,7 @@ export const useSaveStore = defineStore('save', () => {
   const runtimeSessionSlot = ref(-1)
   const runtimeSessionMode = ref<SaveMode | null>(null)
   const currentOnlineIdentity = ref<OnlineSaveIdentity | null>(null)
+  const onlineMailRewards = ref<OnlineMailRewardsState>(createEmptyOnlineMailRewards())
   const activeBuiltInSampleSave = ref<BuiltInSampleSaveInfo | null>(null)
   const isBuiltInSampleRuntime = computed(() => activeBuiltInSampleSave.value !== null)
   const activeSlotsByMode = ref<Record<SaveMode, number>>({
@@ -813,6 +845,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionSlot.value = -1
     runtimeSessionMode.value = null
     currentOnlineIdentity.value = null
+    onlineMailRewards.value = createEmptyOnlineMailRewards()
     activeBuiltInSampleSave.value = null
     serverSaveConflict.value = null
     serverSaveFieldAnomaly.value = null
@@ -868,6 +901,25 @@ export const useSaveStore = defineStore('save', () => {
     const normalizedSlot = Number(slot)
     if (!Number.isInteger(normalizedSlot) || !isValidSlot(normalizedSlot)) return
     rememberServerSlotState(normalizedSlot, null, revision)
+  }
+
+  const hasOnlineMailRewardDelivery = (deliveryId: string | null | undefined): boolean => {
+    const normalizedId = String(deliveryId || '').trim()
+    return !!normalizedId && !!onlineMailRewards.value.appliedDeliveries[normalizedId]
+  }
+
+  const recordOnlineMailRewardDelivery = (deliveryId: string | null | undefined, entry: Record<string, any>) => {
+    const normalizedId = String(deliveryId || '').trim()
+    if (!normalizedId) return
+    onlineMailRewards.value = {
+      appliedDeliveries: {
+        ...onlineMailRewards.value.appliedDeliveries,
+        [normalizedId]: {
+          ...entry,
+          delivery_id: normalizedId
+        }
+      }
+    }
   }
 
   const queuePendingServerSave = (slot: number, raw: string) => {
@@ -1232,7 +1284,8 @@ export const useSaveStore = defineStore('save', () => {
       villageProject: villageProjectStore.serialize(),
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
-      playerRecordCenter: playerRecordCenterStore.serialize()
+      playerRecordCenter: playerRecordCenterStore.serialize(),
+      onlineMailRewards: cloneOnlineMailRewards(onlineMailRewards.value)
     }
 
     const savedAt = new Date().toISOString()
@@ -1380,6 +1433,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
+      onlineMailRewards: cloneOnlineMailRewards(onlineMailRewards.value),
       currentOnlineIdentity: currentOnlineIdentity.value,
       activeBuiltInSampleSave: activeBuiltInSampleSave.value,
       activeSlot: activeSlot.value,
@@ -1452,6 +1506,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMapStore.deserialize(emptyState)
       frontierChronicleStore.deserialize(emptyState)
       playerRecordCenterStore.deserialize(emptyState)
+      onlineMailRewards.value = createEmptyOnlineMailRewards()
     }
 
     const restoreRuntimeStores = (snapshot: typeof backup) => {
@@ -1486,6 +1541,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMapStore.deserialize(snapshot.regionMap)
       frontierChronicleStore.deserialize(snapshot.frontierChronicle)
       playerRecordCenterStore.deserialize(snapshot.playerRecordCenter)
+      onlineMailRewards.value = cloneOnlineMailRewards(snapshot.onlineMailRewards)
       currentOnlineIdentity.value = snapshot.currentOnlineIdentity ?? null
       activeBuiltInSampleSave.value = snapshot.activeBuiltInSampleSave ?? null
       goalStore.deserialize(snapshot.goal)
@@ -1530,6 +1586,7 @@ export const useSaveStore = defineStore('save', () => {
       else frontierChronicleStore.deserialize({})
       if (payload.playerRecordCenter) playerRecordCenterStore.deserialize(payload.playerRecordCenter)
       else playerRecordCenterStore.deserialize({})
+      onlineMailRewards.value = normalizeOnlineMailRewards(payload.onlineMailRewards)
       goalStore.deserialize(payload.goal)
       if (payload.game && payload.game.tomorrowWeather == null) {
         gameStore.recalculateTomorrowWeather()
@@ -2257,6 +2314,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionMode,
     activeBuiltInSampleSave,
     isBuiltInSampleRuntime,
+    onlineMailRewards,
     storageMode,
     serverSyncStatus,
     pendingServerSlots,
@@ -2280,6 +2338,8 @@ export const useSaveStore = defineStore('save', () => {
     refreshPendingServerState,
     hasPendingServerSave,
     acknowledgeServerSlotRevision,
+    hasOnlineMailRewardDelivery,
+    recordOnlineMailRewardDelivery,
     setStorageMode,
     setQaGovernanceStorageMode,
     getSlots,

@@ -1068,6 +1068,15 @@
       addLog('柳村长说：「欢迎来到桃源乡！背包里有白菜种子，去农场开垦土地、播种吧。」')
       tutorialStore.markTipShown('tip_welcome')
     }
+    if (saveStore.storageMode === 'server') {
+      const savedInitialServerSlot = await saveStore.saveToSlot(slot)
+      if (!savedInitialServerSlot || saveStore.lastSaveResultStatus === 'queued') {
+        const message = saveStore.lastServerSyncMessage
+          || saveStore.lastSaveErrorMessage
+          || '服务端首档暂未写入，公告和邮件奖励需要先保存到服务端存档后领取。'
+        showFloat(message, savedInitialServerSlot ? 'accent' : 'danger')
+      }
+    }
     warnGuestSaveUnavailable()
     void router.push('/game')
   }

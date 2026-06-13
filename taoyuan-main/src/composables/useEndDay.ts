@@ -704,24 +704,8 @@ export const handleEndDay = () => {
     addLog(`巨型${gc.cropName}出现了！3×3的作物合体成了巨型作物！`)
   }
 
-  // 雇工喂食结算（必须在 animalStore.dailyUpdate 之前，确保喂食状态生效）
-  const helperFeedResult = npcStore.processDailyHelpers(['feed'])
-  for (const msg of helperFeedResult.messages) addLog(msg)
-
   const spouse = npcStore.getSpouse()
-  if (spouse && !helperFeedResult.allFed) {
-    const bonusChanceEve = spouse.friendship >= 2500 ? 0.1 : 0
-    if (Math.random() < 0.4 + bonusChanceEve) {
-      const result = animalStore.feedAll()
-      if (result.fedCount > 0) {
-        const spouseDefEve = getNpcById(spouse.npcId)
-        addLog(`${spouseDefEve?.name ?? '配偶'}帮你喂了所有牲畜。`)
-      } else if (result.noFeedCount > 0) {
-        const spouseDefEve = getNpcById(spouse.npcId)
-        addLog(`${spouseDefEve?.name ?? '配偶'}想帮你喂牲畜，但草料不足。`)
-      }
-    }
-  }
+  let zhijiMorningAnimalFeedLog: string | null = null
 
   // 知己每日加成（在 dailyReset 之前）
   const zhiji = npcStore.getZhiji()
@@ -789,8 +773,7 @@ export const handleEndDay = () => {
         break
       case 'da_niu':
         if (Math.random() < 0.3 + bonusChance2) {
-          const result2 = animalStore.feedAll()
-          if (result2.fedCount > 0) addLog(`${zhijiName}${getZhijiQuote('da_niu')} 帮你喂了所有牲畜。`)
+          zhijiMorningAnimalFeedLog = `${zhijiName}${getZhijiQuote('da_niu')} 帮你喂了所有牲畜。`
         }
         break
       case 'mo_bai':
@@ -1259,6 +1242,29 @@ export const handleEndDay = () => {
     if (pondResult.breedingFailed) {
       addLog(`${pondResult.breedingFailed}。`)
     }
+  }
+
+  // 晨间照料：雇工/配偶/知己喂食（新日期），保持动物和鱼塘面板今日已喂状态。
+  const helperFeedResult = npcStore.processDailyHelpers(['feed'])
+  for (const msg of helperFeedResult.messages) addLog(msg)
+
+  if (spouse && !helperFeedResult.allFed) {
+    const bonusChanceEve = spouse.friendship >= 2500 ? 0.1 : 0
+    if (Math.random() < 0.4 + bonusChanceEve) {
+      const result = animalStore.feedAll()
+      if (result.fedCount > 0) {
+        const spouseDefEve = getNpcById(spouse.npcId)
+        addLog(`${spouseDefEve?.name ?? '配偶'}帮你喂了所有牲畜。`)
+      } else if (result.noFeedCount > 0) {
+        const spouseDefEve = getNpcById(spouse.npcId)
+        addLog(`${spouseDefEve?.name ?? '配偶'}想帮你喂牲畜，但草料不足。`)
+      }
+    }
+  }
+
+  if (zhijiMorningAnimalFeedLog) {
+    const result = animalStore.feedAll()
+    if (result.fedCount > 0) addLog(zhijiMorningAnimalFeedLog)
   }
 
   // 蟹笼收获

@@ -761,8 +761,9 @@ const createOpenWorldTile = (
   revealsRadius: options.revealsRadius ?? 1
 })
 
-const OUTSKIRTS_OPEN_WORLD_WIDTH = 12
-const OUTSKIRTS_OPEN_WORLD_HEIGHT = 10
+const OPEN_WORLD_LARGE_MAP_WIDTH = 100
+const OPEN_WORLD_LARGE_MAP_HEIGHT = 100
+const OPEN_WORLD_REWARD_DENSITY_PERCENT = 30
 
 const getOpenWorldTileCoordKey = (x: number, y: number) => `${x}:${y}`
 
@@ -775,15 +776,7 @@ const createOpenWorldEmptyTile = (
   description: string
 ) => createOpenWorldTile(`${regionId}:empty_${x}_${y}`, x, y, terrain, label, description)
 
-const getOutskirtsEmptyTerrain = (x: number, y: number): RegionOpenWorldTileDef['terrain'] => {
-  if (x <= 2 && y >= 4 && y <= 6) return 'road'
-  if (y >= 8 || (x <= 1 && y >= 7)) return 'water'
-  if ((x >= 3 && x <= 8 && y <= 4) || (x >= 7 && y === 6)) return 'bamboo'
-  if (x >= 7 || (x >= 5 && y >= 6)) return 'forest'
-  return 'grass'
-}
-
-const OUTSKIRTS_EMPTY_TILE_COPY: Record<RegionOpenWorldTileDef['terrain'], { labels: string[]; descriptions: string[] }> = {
+const OPEN_WORLD_EMPTY_TILE_COPY: Record<RegionOpenWorldTileDef['terrain'], { labels: string[]; descriptions: string[] }> = {
   grass: {
     labels: ['浅草地', '野花坡', '草径', '空草坪'],
     descriptions: ['浅草没过脚面，暂时没有可采的东西。', '野花贴着土坡开着，只适合经过和辨路。', '草径分出细小岔路，远处还压着雾。', '空草坪视野开阔，可以作为临时落脚点。']
@@ -826,27 +819,134 @@ const OUTSKIRTS_EMPTY_TILE_COPY: Record<RegionOpenWorldTileDef['terrain'], { lab
   }
 }
 
-const getOutskirtsEmptyTileCopy = (
+const hashOpenWorldCoord = (seed: string, x: number, y: number, salt = '') => {
+  let hash = 2166136261
+  const source = `${seed}:${x}:${y}:${salt}`
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+const pickOpenWorldEntry = <T>(entries: T[], seed: string, x: number, y: number, salt: string): T =>
+  entries[hashOpenWorldCoord(seed, x, y, salt) % entries.length]!
+
+const getOpenWorldEmptyTileCopy = (
+  regionId: RegionOpenWorldId,
   terrain: RegionOpenWorldTileDef['terrain'],
   x: number,
   y: number
 ) => {
-  const copy = OUTSKIRTS_EMPTY_TILE_COPY[terrain]
-  const index = Math.abs(x * 7 + y * 3) % copy.labels.length
+  const copy = OPEN_WORLD_EMPTY_TILE_COPY[terrain]
+  const index = hashOpenWorldCoord(regionId, x, y, 'empty-copy') % copy.labels.length
   return {
     label: copy.labels[index]!,
     description: copy.descriptions[index]!
   }
 }
 
-const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
-  const specialTiles = [
-    createOpenWorldTile('outskirts:village_gate', 1, 5, 'gate', '村口', '从桃源村外踏进竹径，行旅从这里开始。', {
+type OpenWorldGeneratedTileCategory = 'resource' | 'animal' | 'chest' | 'event' | 'obstacle'
+
+type OpenWorldGeneratedTileCopy = {
+  objectType: NonNullable<RegionOpenWorldTileDef['objectType']>
+  actionId: NonNullable<RegionOpenWorldTileDef['actionId']>
+  label: string
+  description: string
+  staminaCost: number
+  timeCostHours: number
+  rewardItems?: RegionOpenWorldTileDef['rewardItems']
+  rewardFamilyAmount?: number
+  dailyRefresh?: boolean
+  revealsRadius?: number
+}
+
+type OpenWorldLargeRegionProfile = {
+  id: RegionOpenWorldId
+  seed: string
+  rewardFamilyId: RegionalResourceFamilyId
+  terrainAt: (x: number, y: number) => RegionOpenWorldTileDef['terrain']
+  specialTiles: RegionOpenWorldTileDef[]
+  generatedTiles: Record<OpenWorldGeneratedTileCategory, OpenWorldGeneratedTileCopy[]>
+}
+
+const getOpenWorldGeneratedTileCopies = (
+  profile: OpenWorldLargeRegionProfile,
+  category: OpenWorldGeneratedTileCategory
+) => profile.generatedTiles[category]
+
+const createOpenWorldGeneratedRewardTile = (
+  profile: OpenWorldLargeRegionProfile,
+  category: OpenWorldGeneratedTileCategory,
+  x: number,
+  y: number,
+  terrain: RegionOpenWorldTileDef['terrain']
+) => {
+  const copy = pickOpenWorldEntry(getOpenWorldGeneratedTileCopies(profile, category), profile.seed, x, y, category)
+  return createOpenWorldTile(
+    `${profile.id}:${category}_${x}_${y}`,
+    x,
+    y,
+    terrain,
+    copy.label,
+    copy.description,
+    {
+      objectType: copy.objectType,
+      actionId: copy.actionId,
+      staminaCost: copy.staminaCost,
+      timeCostHours: copy.timeCostHours,
+      rewardItems: copy.rewardItems ?? [],
+      rewardFamilyId: profile.rewardFamilyId,
+      rewardFamilyAmount: copy.rewardFamilyAmount ?? 1,
+      dailyRefresh: copy.dailyRefresh ?? true,
+      revealsRadius: copy.revealsRadius ?? 1
+    }
+  )
+}
+
+const getOutskirtsOpenWorldTerrain = (x: number, y: number): RegionOpenWorldTileDef['terrain'] => {
+  const dx = x - 50
+  const dy = y - 50
+  if (Math.abs(dx) <= 2 && Math.abs(dy) <= 2) return 'gate'
+  if (Math.abs(dy) <= 1 && x >= 38 && x <= 72) return 'road'
+  if (Math.abs(dx + dy) <= 2 && y >= 42 && y <= 62) return 'road'
+  if ((x + y * 2) % 29 <= 2 && y > 56) return 'water'
+  if ((x * 3 + y) % 11 <= 3) return 'bamboo'
+  if (x > 66 || y < 35 || (x > 56 && y > 63)) return 'forest'
+  return 'grass'
+}
+
+const getAncientRoadOpenWorldTerrain = (x: number, y: number): RegionOpenWorldTileDef['terrain'] => {
+  if (Math.abs(y - 50) <= 2 || Math.abs(x - y) <= 1) return 'road'
+  if ((x > 60 && y < 44) || (x < 37 && y > 58) || (x + y) % 17 <= 2) return 'ruin'
+  if (Math.abs(x - 50) <= 4 && Math.abs(y - 50) <= 4) return 'gate'
+  if ((x + y * 3) % 19 === 0) return 'camp'
+  return 'grass'
+}
+
+const getMirageMarshOpenWorldTerrain = (x: number, y: number): RegionOpenWorldTileDef['terrain'] => {
+  if (Math.abs(x - 50) <= 3 && Math.abs(y - 50) <= 3) return 'gate'
+  if ((x * 2 + y * 5) % 23 <= 4 || y > 68) return 'water'
+  if ((x + y) % 5 <= 2 || x < 30) return 'marsh'
+  if ((x * 7 + y) % 31 <= 2) return 'camp'
+  return 'grass'
+}
+
+const getCloudHighlandOpenWorldTerrain = (x: number, y: number): RegionOpenWorldTileDef['terrain'] => {
+  if (Math.abs(x - 50) <= 3 && Math.abs(y - 50) <= 3) return 'gate'
+  if (Math.abs(x - y) <= 2 || y < 42 || x > 68) return 'ridge'
+  if ((x * 5 + y * 3) % 29 <= 3) return 'camp'
+  if (y > 66 || x < 32) return 'forest'
+  return 'road'
+}
+
+const createOutskirtsSpecialTiles = (): RegionOpenWorldTileDef[] => [
+    createOpenWorldTile('outskirts:village_gate', 50, 50, 'gate', '村口', '从桃源村外踏进竹径，行旅从这里开始。', {
       objectType: 'story',
       actionId: 'inspect',
       revealsRadius: 2
     }),
-    createOpenWorldTile('outskirts:bamboo_1', 3, 4, 'bamboo', '青竹丛', '一小片适合练手的竹子，砍下后当天会留下竹茬。', {
+    createOpenWorldTile('outskirts:bamboo_1', 52, 49, 'bamboo', '青竹丛', '一小片适合练手的竹子，砍下后当天会留下竹茬。', {
       objectType: 'bamboo',
       actionId: 'gather',
       staminaCost: 3,
@@ -854,7 +954,7 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardItems: [{ itemId: 'bamboo', quantity: 2 }],
       dailyRefresh: true
     }),
-    createOpenWorldTile('outskirts:herb_1', 2, 7, 'grass', '草药坡', '草丛里夹着几株能入药的野草。', {
+    createOpenWorldTile('outskirts:herb_1', 49, 53, 'grass', '草药坡', '草丛里夹着几株能入药的野草。', {
       objectType: 'herb',
       actionId: 'gather',
       staminaCost: 2,
@@ -862,7 +962,7 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardItems: [{ itemId: 'herb', quantity: 1 }],
       dailyRefresh: true
     }),
-    createOpenWorldTile('outskirts:wild_tree', 5, 5, 'forest', '野树根', '靠近林缘的野树，适合顺手收木材。', {
+    createOpenWorldTile('outskirts:wild_tree', 55, 51, 'forest', '野树根', '靠近林缘的野树，适合顺手收木材。', {
       objectType: 'tree',
       actionId: 'gather',
       staminaCost: 4,
@@ -870,7 +970,7 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardItems: [{ itemId: 'wood', quantity: 2 }],
       dailyRefresh: true
     }),
-    createOpenWorldTile('outskirts:shallow_chest', 5, 3, 'grass', '旧藤箱', '被藤蔓缠住的小箱子，像是以前赶路人留下的。', {
+    createOpenWorldTile('outskirts:shallow_chest', 56, 48, 'grass', '旧藤箱', '被藤蔓缠住的小箱子，像是以前赶路人留下的。', {
       objectType: 'chest',
       actionId: 'open_chest',
       staminaCost: 2,
@@ -880,7 +980,7 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardFamilyAmount: 1,
       dailyRefresh: true
     }),
-    createOpenWorldTile('outskirts:hare_trace', 4, 7, 'grass', '兽迹草窝', '草叶被压出浅浅的窝，能观察到近郊小兽的去向。', {
+    createOpenWorldTile('outskirts:hare_trace', 54, 54, 'grass', '兽迹草窝', '草叶被压出浅浅的窝，能观察到近郊小兽的去向。', {
       objectType: 'animal',
       actionId: 'observe',
       staminaCost: 1,
@@ -888,7 +988,7 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
       dailyRefresh: true
     }),
-    createOpenWorldTile('outskirts:fallen_branch', 7, 5, 'forest', '挡路枝', '枯枝挡住了更深处的竹径，可以清开。', {
+    createOpenWorldTile('outskirts:fallen_branch', 59, 51, 'forest', '挡路枝', '枯枝挡住了更深处的竹径，可以清开。', {
       objectType: 'roadblock',
       actionId: 'drive_off',
       staminaCost: 3,
@@ -896,7 +996,7 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardItems: [{ itemId: 'firewood', quantity: 2 }],
       dailyRefresh: true
     }),
-    createOpenWorldTile('outskirts:quiet_outpost', 8, 3, 'camp', '旧凉棚', '半塌的小凉棚，修好后可作为近郊据点。', {
+    createOpenWorldTile('outskirts:quiet_outpost', 61, 48, 'camp', '旧凉棚', '半塌的小凉棚，修好后可作为近郊据点。', {
       objectType: 'outpost',
       actionId: 'repair',
       staminaCost: 3,
@@ -906,27 +1006,377 @@ const createOutskirtsOpenWorldTiles = (): RegionOpenWorldTileDef[] => {
       rewardFamilyAmount: 1,
       outpostId: 'outskirts_shed'
     }),
-    createOpenWorldTile('outskirts:story_bamboo_path', 8, 6, 'bamboo', '竹径标记', '竹叶间有新的脚印，提示更远处会出现区域地标。', {
+    createOpenWorldTile('outskirts:story_bamboo_path', 62, 54, 'bamboo', '竹径标记', '竹叶间有新的脚印，提示更远处会出现区域地标。', {
       objectType: 'story',
       actionId: 'inspect'
     }),
-    createOpenWorldTile('outskirts:forest_edge', 10, 5, 'forest', '林缘', '近郊地图的边缘，后续会连接更大的区域。', {
+    createOpenWorldTile('outskirts:forest_edge', 68, 51, 'forest', '林缘', '近郊地图的边缘，后续会连接更大的区域。', {
       objectType: 'shortcut',
       actionId: 'inspect'
     })
   ]
-  const specialByCoord = new Map(specialTiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
+
+const createAncientRoadSpecialTiles = (): RegionOpenWorldTileDef[] => [
+  createOpenWorldTile('ancient_road:gate', 50, 50, 'gate', '荒道入口', '旧路从这里伸向废驿和烽亭。', { objectType: 'story', actionId: 'inspect', revealsRadius: 2 }),
+  createOpenWorldTile('ancient_road:supply_relay', 53, 50, 'road', '旧驿补给线', '旧路线地标：沿荒道推进补给与路况排查。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'ancient_road_supply_relay'
+  }),
+  createOpenWorldTile('ancient_road:watchtower', 56, 47, 'ruin', '烽亭探哨线', '旧路线地标：废弃哨点仍能提供远处视野。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'ancient_road_watchtower_scout'
+  }),
+  createOpenWorldTile('ancient_road:archive', 59, 54, 'ruin', '残卷回收线', '旧路线地标：文书残页散在半塌驿墙下。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'ancient_road_archive_recovery'
+  }),
+  createOpenWorldTile('ancient_road:convoy', 63, 50, 'road', '护送风险线', '旧路线地标：车辙在沙地里断断续续。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'ancient_road_convoy_risk'
+  }),
+  createOpenWorldTile('ancient_road:event_blackout', 55, 58, 'ruin', '驿灯失照', '事件地标：旧驿灯架还留着焦痕。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'ancient_road_station_blackout'
+  }),
+  createOpenWorldTile('ancient_road:event_market', 67, 46, 'road', '沙市易卷', '事件地标：临时沙市留下散乱账册。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'ancient_road_sand_market'
+  }),
+  createOpenWorldTile('ancient_road:event_rescue', 70, 55, 'road', '绕路援车', '事件地标：失联车队的轮印绕向副道。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'ancient_road_detour_rescue'
+  }),
+  createOpenWorldTile('ancient_road:road_chest', 58, 46, 'ruin', '驿箱', '半埋在沙里的驿箱，可带回残卷和关券。', {
+    objectType: 'chest',
+    actionId: 'open_chest',
+    staminaCost: 3,
+    timeCostHours: 0.34,
+    rewardItems: [{ itemId: 'ancient_waybill', quantity: 1 }],
+    rewardFamilyId: 'ancient_archive',
+    rewardFamilyAmount: 2,
+    dailyRefresh: true
+  }),
+  createOpenWorldTile('ancient_road:sand_beast', 73, 52, 'road', '沙兽伏痕', '沙里有东西沿着车辙游走，需要驱散才能继续摸查。', {
+    objectType: 'monster',
+    actionId: 'drive_off',
+    staminaCost: 5,
+    timeCostHours: 0.5,
+    rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
+    rewardFamilyId: 'ancient_archive',
+    rewardFamilyAmount: 1,
+    dailyRefresh: true
+  }),
+  createOpenWorldTile('ancient_road:outpost', 66, 43, 'camp', '废驿据点', '修复后可作为荒道休整点。', {
+    objectType: 'outpost',
+    actionId: 'repair',
+    staminaCost: 4,
+    timeCostHours: 0.5,
+    rewardFamilyId: 'ancient_archive',
+    rewardFamilyAmount: 1,
+    outpostId: 'ancient_road_station'
+  }),
+  createOpenWorldTile('ancient_road:boss', 78, 50, 'ruin', '荒道监军', '首领地标：旧驿要冲仍压着高风险气息。', {
+    objectType: 'boss_landmark',
+    actionId: 'inspect',
+    bossId: 'ancient_road_overseer'
+  })
+]
+
+const createMirageMarshSpecialTiles = (): RegionOpenWorldTileDef[] => [
+  createOpenWorldTile('mirage_marsh:gate', 50, 50, 'gate', '泽地浅滩', '水草把入口分成几条浅浅的潮沟。', { objectType: 'story', actionId: 'inspect', revealsRadius: 2 }),
+  createOpenWorldTile('mirage_marsh:night_watch', 53, 50, 'marsh', '夜游观察线', '旧路线地标：夜间生态观察从这里开始。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'mirage_marsh_night_watch'
+  }),
+  createOpenWorldTile('mirage_marsh:reed_drift', 56, 47, 'marsh', '苇流漂采线', '旧路线地标：苇流会把样本带到外圈。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'mirage_marsh_reed_drift'
+  }),
+  createOpenWorldTile('mirage_marsh:specimen', 59, 54, 'water', '样本护送线', '旧路线地标：样本整理与护送都需要稳定路径。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'mirage_marsh_specimen_drive'
+  }),
+  createOpenWorldTile('mirage_marsh:alert', 63, 50, 'marsh', '生态异常线', '旧路线地标：水位异动在这里最明显。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'mirage_marsh_ecology_alert'
+  }),
+  createOpenWorldTile('mirage_marsh:event_spore', 55, 58, 'marsh', '潮雾孢华', '事件地标：短时孢华带会在潮雾里显形。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'mirage_marsh_spore_bloom'
+  }),
+  createOpenWorldTile('mirage_marsh:event_nursery', 67, 46, 'water', '月汐育群', '事件地标：幼体育群区需要轻手记录。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'mirage_marsh_moon_nursery'
+  }),
+  createOpenWorldTile('mirage_marsh:event_migration', 70, 55, 'marsh', '苇带迁潮', '事件地标：迁移苇带留下细密水痕。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'mirage_marsh_reed_migration'
+  }),
+  createOpenWorldTile('mirage_marsh:reed_patch', 58, 46, 'marsh', '苇草样本', '可采回泽地常见样本。', {
+    objectType: 'herb',
+    actionId: 'gather',
+    staminaCost: 3,
+    timeCostHours: 0.34,
+    rewardItems: [{ itemId: 'luminous_algae', quantity: 1 }],
+    rewardFamilyId: 'ecology_specimen',
+    rewardFamilyAmount: 2,
+    dailyRefresh: true
+  }),
+  createOpenWorldTile('mirage_marsh:waterbird', 73, 52, 'water', '水鸟影', '水鸟群忽近忽远，观察能补手册记录。', {
+    objectType: 'animal',
+    actionId: 'observe',
+    staminaCost: 2,
+    timeCostHours: 0.25,
+    rewardFamilyId: 'ecology_specimen',
+    rewardFamilyAmount: 1,
+    dailyRefresh: true
+  }),
+  createOpenWorldTile('mirage_marsh:outpost', 66, 43, 'camp', '苇棚据点', '修好苇棚后可作为泽地临时样本台。', {
+    objectType: 'outpost',
+    actionId: 'repair',
+    staminaCost: 4,
+    timeCostHours: 0.5,
+    rewardFamilyId: 'ecology_specimen',
+    rewardFamilyAmount: 1,
+    outpostId: 'mirage_marsh_reed_shed'
+  }),
+  createOpenWorldTile('mirage_marsh:boss', 78, 50, 'water', '潮息异兽', '首领地标：水面下传来周期性的沉重回响。', {
+    objectType: 'boss_landmark',
+    actionId: 'inspect',
+    bossId: 'mirage_marsh_devourer'
+  })
+]
+
+const createCloudHighlandSpecialTiles = (): RegionOpenWorldTileDef[] => [
+  createOpenWorldTile('cloud_highland:gate', 50, 50, 'gate', '云阶入口', '从云阶往上，风声会盖住脚步。', { objectType: 'story', actionId: 'inspect', revealsRadius: 2 }),
+  createOpenWorldTile('cloud_highland:ley_crack', 53, 50, 'ridge', '灵脉采晶线', '旧路线地标：裂隙里有稳定结晶。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'cloud_highland_ley_crack'
+  }),
+  createOpenWorldTile('cloud_highland:skybridge', 56, 47, 'ridge', '云桥巡望线', '旧路线地标：断桥哨点能看见远处风口。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'cloud_highland_skybridge_watch'
+  }),
+  createOpenWorldTile('cloud_highland:patrol', 59, 54, 'ridge', '高地清剿线', '旧路线地标：危险巡路在这里交汇。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'cloud_highland_patrol'
+  }),
+  createOpenWorldTile('cloud_highland:supply', 63, 50, 'camp', '前哨补给线', '旧路线地标：补给栈决定高地推进上限。', {
+    objectType: 'route_landmark',
+    actionId: 'inspect',
+    routeId: 'cloud_highland_supply_push'
+  }),
+  createOpenWorldTile('cloud_highland:event_surge', 55, 58, 'ridge', '脉潮突涌', '事件地标：灵脉短时外涌过。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'cloud_highland_ley_surge'
+  }),
+  createOpenWorldTile('cloud_highland:event_signal', 67, 46, 'ridge', '风哨复讯', '事件地标：断讯风哨仍挂着残绳。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'cloud_highland_signal_patrol'
+  }),
+  createOpenWorldTile('cloud_highland:event_cache', 70, 55, 'camp', '前仓塌线', '事件地标：塌陷前仓露出战备碎片。', {
+    objectType: 'event_landmark',
+    actionId: 'inspect',
+    eventId: 'cloud_highland_cache_collapse'
+  }),
+  createOpenWorldTile('cloud_highland:crystal_patch', 58, 46, 'ridge', '风蚀晶脉', '能采回高地晶脉碎片。', {
+    objectType: 'herb',
+    actionId: 'gather',
+    staminaCost: 4,
+    timeCostHours: 0.5,
+    rewardItems: [{ itemId: 'wind_etched_core', quantity: 1 }],
+    rewardFamilyId: 'ley_crystal',
+    rewardFamilyAmount: 2,
+    dailyRefresh: true
+  }),
+  createOpenWorldTile('cloud_highland:wind_beast', 73, 52, 'ridge', '风兽巡痕', '风口附近有山兽巡回，需要找准撤退路线。', {
+    objectType: 'monster',
+    actionId: 'drive_off',
+    staminaCost: 5,
+    timeCostHours: 0.5,
+    rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
+    rewardFamilyId: 'ley_crystal',
+    rewardFamilyAmount: 1,
+    dailyRefresh: true
+  }),
+  createOpenWorldTile('cloud_highland:outpost', 66, 43, 'camp', '高地前哨', '修好前哨后可承接高地休整。', {
+    objectType: 'outpost',
+    actionId: 'repair',
+    staminaCost: 5,
+    timeCostHours: 0.67,
+    rewardFamilyId: 'ley_crystal',
+    rewardFamilyAmount: 1,
+    outpostId: 'cloud_highland_watchpost'
+  }),
+  createOpenWorldTile('cloud_highland:boss', 78, 50, 'ridge', '云岚守脉者', '首领地标：守脉者的压迫感从裂隙深处传来。', {
+    objectType: 'boss_landmark',
+    actionId: 'inspect',
+    bossId: 'cloud_highland_warden'
+  })
+]
+
+const OPEN_WORLD_LARGE_REGION_PROFILES: Record<RegionOpenWorldId, OpenWorldLargeRegionProfile> = {
+  taoyuan_outskirts: {
+    id: 'taoyuan_outskirts',
+    seed: 'taoyuan-outskirts-v2',
+    rewardFamilyId: 'ancient_archive',
+    terrainAt: getOutskirtsOpenWorldTerrain,
+    specialTiles: createOutskirtsSpecialTiles(),
+    generatedTiles: {
+      resource: [
+        { objectType: 'bamboo', actionId: 'gather', label: '成竹丛', description: '几竿竹子已经够硬，可以砍作材料。', staminaCost: 3, timeCostHours: 0.25, rewardItems: [{ itemId: 'bamboo', quantity: 2 }] },
+        { objectType: 'tree', actionId: 'gather', label: '野树根', description: '树根旁有可用枝料，收拾后能带回木材。', staminaCost: 4, timeCostHours: 0.34, rewardItems: [{ itemId: 'wood', quantity: 2 }] },
+        { objectType: 'herb', actionId: 'gather', label: '草药点', description: '草叶间露出几株常用野药。', staminaCost: 2, timeCostHours: 0.2, rewardItems: [{ itemId: 'herb', quantity: 1 }] }
+      ],
+      animal: [
+        { objectType: 'animal', actionId: 'observe', label: '兽迹窝', description: '浅浅脚印绕过草坡，适合观察小兽去向。', staminaCost: 1, timeCostHours: 0.17, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }] },
+        { objectType: 'animal', actionId: 'observe', label: '鸟影草丛', description: '草叶突然一晃，能补一条近郊生态记录。', staminaCost: 1, timeCostHours: 0.17, rewardFamilyAmount: 1 }
+      ],
+      chest: [
+        { objectType: 'chest', actionId: 'open_chest', label: '旧藤箱', description: '藤蔓缠住的小箱子，里面多半是赶路人遗物。', staminaCost: 2, timeCostHours: 0.25, rewardItems: [{ itemId: 'stone', quantity: 2 }], rewardFamilyAmount: 1 },
+        { objectType: 'chest', actionId: 'open_chest', label: '草间包裹', description: '被草盖住的旧包裹，拆开前先确认没有虫蛇。', staminaCost: 2, timeCostHours: 0.25, rewardItems: [{ itemId: 'firewood', quantity: 1 }], rewardFamilyAmount: 1 }
+      ],
+      event: [
+        { objectType: 'story', actionId: 'drive_off', label: '新脚印', description: '脚印朝更深处延伸，整理线索后能更新手册。', staminaCost: 1, timeCostHours: 0.17, rewardFamilyAmount: 1 },
+        { objectType: 'story', actionId: 'drive_off', label: '竹叶标记', description: '被折过的竹叶像是有人留下的方向标。', staminaCost: 1, timeCostHours: 0.17, rewardFamilyAmount: 1 }
+      ],
+      obstacle: [
+        { objectType: 'roadblock', actionId: 'drive_off', label: '挡路枝', description: '枯枝横在小径上，清开后能顺手带回柴枝。', staminaCost: 3, timeCostHours: 0.25, rewardItems: [{ itemId: 'firewood', quantity: 2 }] },
+        { objectType: 'monster', actionId: 'drive_off', label: '惊草影', description: '草里有小兽受惊乱窜，需要慢慢驱散。', staminaCost: 3, timeCostHours: 0.25, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }] }
+      ]
+    }
+  },
+  ancient_road: {
+    id: 'ancient_road',
+    seed: 'ancient-road-v2',
+    rewardFamilyId: 'ancient_archive',
+    terrainAt: getAncientRoadOpenWorldTerrain,
+    specialTiles: createAncientRoadSpecialTiles(),
+    generatedTiles: {
+      resource: [
+        { objectType: 'herb', actionId: 'gather', label: '荒草药点', description: '荒草下压着耐旱药根。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'herb', quantity: 1 }] },
+        { objectType: 'tree', actionId: 'gather', label: '枯木堆', description: '旧驿旁的枯木还能拆出可用木料。', staminaCost: 4, timeCostHours: 0.34, rewardItems: [{ itemId: 'wood', quantity: 2 }] },
+        { objectType: 'roadblock', actionId: 'drive_off', label: '碎石堆', description: '碎石卡住车辙，清理后能带回一批石材。', staminaCost: 4, timeCostHours: 0.34, rewardItems: [{ itemId: 'stone', quantity: 2 }] }
+      ],
+      animal: [
+        { objectType: 'animal', actionId: 'observe', label: '驿鸦停处', description: '驿鸦绕着废墙盘旋，观察后能判断远处动静。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 },
+        { objectType: 'animal', actionId: 'observe', label: '沙兔伏痕', description: '沙兔脚印从车辙旁闪过。', staminaCost: 2, timeCostHours: 0.25, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }] }
+      ],
+      chest: [
+        { objectType: 'chest', actionId: 'open_chest', label: '半埋驿箱', description: '驿箱只露出一角，里头可能夹着旧文书。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'ancient_waybill', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'chest', actionId: 'open_chest', label: '残墙暗格', description: '残墙里嵌着暗格，敲开能取出拓片。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'archive_rubbing', quantity: 1 }], rewardFamilyAmount: 2 }
+      ],
+      event: [
+        { objectType: 'story', actionId: 'drive_off', label: '断旗线索', description: '断旗压住路线记号，整理后能补一条荒道记载。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 },
+        { objectType: 'story', actionId: 'drive_off', label: '失火驿灯', description: '驿灯焦痕还新，处理后能确认安全方向。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 }
+      ],
+      obstacle: [
+        { objectType: 'monster', actionId: 'drive_off', label: '沙兽伏痕', description: '沙下有东西跟着脚步游走。', staminaCost: 5, timeCostHours: 0.5, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }], rewardFamilyAmount: 1 },
+        { objectType: 'roadblock', actionId: 'drive_off', label: '塌车辙', description: '车辙被风沙压塌，需要清出路形。', staminaCost: 4, timeCostHours: 0.34, rewardItems: [{ itemId: 'stone', quantity: 1 }], rewardFamilyAmount: 1 }
+      ]
+    }
+  },
+  mirage_marsh: {
+    id: 'mirage_marsh',
+    seed: 'mirage-marsh-v2',
+    rewardFamilyId: 'ecology_specimen',
+    terrainAt: getMirageMarshOpenWorldTerrain,
+    specialTiles: createMirageMarshSpecialTiles(),
+    generatedTiles: {
+      resource: [
+        { objectType: 'herb', actionId: 'gather', label: '荧藻点', description: '浅水边浮着荧藻，可以取作样本。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'luminous_algae', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'herb', actionId: 'gather', label: '孢粉苇丛', description: '苇叶上结着潮湿孢粉。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'marsh_spore_sample', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'bamboo', actionId: 'gather', label: '湿苇束', description: '湿苇可以打成临时束材。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'bamboo', quantity: 1 }], rewardFamilyAmount: 1 }
+      ],
+      animal: [
+        { objectType: 'animal', actionId: 'observe', label: '水鸟影', description: '水鸟在雾里起落，记录能补生态样本。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 },
+        { objectType: 'animal', actionId: 'observe', label: '浅滩游迹', description: '浅水有细小游迹，观察后能找到可食鱼虾。', staminaCost: 2, timeCostHours: 0.25, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }] }
+      ],
+      chest: [
+        { objectType: 'chest', actionId: 'open_chest', label: '潮沟木箱', description: '木箱卡在潮沟里，里面多半是样本瓶。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'luminous_algae', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'chest', actionId: 'open_chest', label: '苇下样本匣', description: '样本匣被苇叶遮住，需要先擦掉泥水。', staminaCost: 3, timeCostHours: 0.34, rewardItems: [{ itemId: 'marsh_spore_sample', quantity: 1 }], rewardFamilyAmount: 2 }
+      ],
+      event: [
+        { objectType: 'story', actionId: 'drive_off', label: '潮雾异响', description: '雾里有短促回声，处理后能确认水路变化。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 },
+        { objectType: 'story', actionId: 'drive_off', label: '浮标偏移', description: '旧浮标偏出航线，复位后能留下路线记录。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 }
+      ],
+      obstacle: [
+        { objectType: 'monster', actionId: 'drive_off', label: '湿瘴伏影', description: '湿瘴里有异兽轮廓，需要驱离后再采样。', staminaCost: 5, timeCostHours: 0.5, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }], rewardFamilyAmount: 1 },
+        { objectType: 'roadblock', actionId: 'drive_off', label: '淤泥阻路', description: '淤泥堵住浅滩，需要清出踏点。', staminaCost: 4, timeCostHours: 0.34, rewardFamilyAmount: 1 }
+      ]
+    }
+  },
+  cloud_highland: {
+    id: 'cloud_highland',
+    seed: 'cloud-highland-v2',
+    rewardFamilyId: 'ley_crystal',
+    terrainAt: getCloudHighlandOpenWorldTerrain,
+    specialTiles: createCloudHighlandSpecialTiles(),
+    generatedTiles: {
+      resource: [
+        { objectType: 'herb', actionId: 'gather', label: '风蚀晶点', description: '石缝里露出小片风蚀晶。', staminaCost: 4, timeCostHours: 0.5, rewardItems: [{ itemId: 'wind_etched_core', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'herb', actionId: 'gather', label: '灵脉碎晶', description: '碎晶沿裂隙散落，采集时要避开风口。', staminaCost: 4, timeCostHours: 0.5, rewardItems: [{ itemId: 'ley_crystal_shard', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'tree', actionId: 'gather', label: '高地枯木', description: '高地枯木被风吹干，能拆回木材。', staminaCost: 4, timeCostHours: 0.34, rewardItems: [{ itemId: 'wood', quantity: 2 }], rewardFamilyAmount: 1 }
+      ],
+      animal: [
+        { objectType: 'animal', actionId: 'observe', label: '云禽盘旋', description: '云禽借风滑行，观察轨迹能判断风口。', staminaCost: 2, timeCostHours: 0.25, rewardFamilyAmount: 1 },
+        { objectType: 'animal', actionId: 'observe', label: '岩兽擦痕', description: '岩兽在石脊上留下擦痕。', staminaCost: 2, timeCostHours: 0.25, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }] }
+      ],
+      chest: [
+        { objectType: 'chest', actionId: 'open_chest', label: '前哨战备箱', description: '战备箱被风沙磨白，里面还压着晶料。', staminaCost: 4, timeCostHours: 0.5, rewardItems: [{ itemId: 'ley_crystal_shard', quantity: 1 }], rewardFamilyAmount: 2 },
+        { objectType: 'chest', actionId: 'open_chest', label: '断桥暗匣', description: '暗匣卡在断桥缝隙里，得稳住脚步才能取出。', staminaCost: 4, timeCostHours: 0.5, rewardItems: [{ itemId: 'wind_etched_core', quantity: 1 }], rewardFamilyAmount: 2 }
+      ],
+      event: [
+        { objectType: 'story', actionId: 'drive_off', label: '风哨残音', description: '残音在石脊间回荡，处理后能补高地信号。', staminaCost: 3, timeCostHours: 0.34, rewardFamilyAmount: 1 },
+        { objectType: 'story', actionId: 'drive_off', label: '脉潮闪点', description: '灵脉忽然亮了一瞬，需要记录位置。', staminaCost: 3, timeCostHours: 0.34, rewardFamilyAmount: 1 }
+      ],
+      obstacle: [
+        { objectType: 'monster', actionId: 'drive_off', label: '风兽巡痕', description: '风兽沿着石脊巡回，得找准退路再处理。', staminaCost: 5, timeCostHours: 0.5, rewardItems: [{ itemId: 'wild_meat', quantity: 1 }], rewardFamilyAmount: 1 },
+        { objectType: 'roadblock', actionId: 'drive_off', label: '塌岩边', description: '碎岩压住小路，需要搬开后再继续看图。', staminaCost: 5, timeCostHours: 0.5, rewardItems: [{ itemId: 'stone', quantity: 2 }], rewardFamilyAmount: 1 }
+      ]
+    }
+  }
+}
+
+const createOpenWorldLargeRegionTiles = (profile: OpenWorldLargeRegionProfile): RegionOpenWorldTileDef[] => {
+  const specialByCoord = new Map(profile.specialTiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
   const tiles: RegionOpenWorldTileDef[] = []
-  for (let y = 0; y < OUTSKIRTS_OPEN_WORLD_HEIGHT; y += 1) {
-    for (let x = 0; x < OUTSKIRTS_OPEN_WORLD_WIDTH; x += 1) {
+  const categories: OpenWorldGeneratedTileCategory[] = ['resource', 'animal', 'chest', 'event', 'obstacle']
+  for (let y = 0; y < OPEN_WORLD_LARGE_MAP_HEIGHT; y += 1) {
+    for (let x = 0; x < OPEN_WORLD_LARGE_MAP_WIDTH; x += 1) {
       const specialTile = specialByCoord.get(getOpenWorldTileCoordKey(x, y))
       if (specialTile) {
         tiles.push(specialTile)
         continue
       }
-      const terrain = getOutskirtsEmptyTerrain(x, y)
-      const copy = getOutskirtsEmptyTileCopy(terrain, x, y)
-      tiles.push(createOpenWorldEmptyTile('taoyuan_outskirts', x, y, terrain, copy.label, copy.description))
+      const terrain = profile.terrainAt(x, y)
+      const rewardRoll = hashOpenWorldCoord(profile.seed, x, y, 'reward') % 100
+      if (rewardRoll < OPEN_WORLD_REWARD_DENSITY_PERCENT) {
+        const category = categories[Math.floor(hashOpenWorldCoord(profile.seed, x, y, 'category') % categories.length)]!
+        tiles.push(createOpenWorldGeneratedRewardTile(profile, category, x, y, terrain))
+        continue
+      }
+      const copy = getOpenWorldEmptyTileCopy(profile.id, terrain, x, y)
+      tiles.push(createOpenWorldEmptyTile(profile.id, x, y, terrain, copy.label, copy.description))
     }
   }
   return tiles
@@ -953,265 +1403,53 @@ export const REGION_OPEN_WORLD_DEFS: RegionOpenWorldRegionDef[] = [
     id: 'taoyuan_outskirts',
     name: '近郊竹林',
     description: '村口外的竹径、野树和浅草地，作为开放行旅图的第一张教学地图。',
-    width: OUTSKIRTS_OPEN_WORLD_WIDTH,
-    height: OUTSKIRTS_OPEN_WORLD_HEIGHT,
+    width: OPEN_WORLD_LARGE_MAP_WIDTH,
+    height: OPEN_WORLD_LARGE_MAP_HEIGHT,
     startTileId: 'outskirts:village_gate',
     unlockRegionId: null,
     pressureKind: 'safe',
     pressureLabel: '低压',
     pressureDescription: '近郊安全，只会遇到轻量资源、动物和小路障。',
-    tiles: createOutskirtsOpenWorldTiles()
+    tiles: createOpenWorldLargeRegionTiles(OPEN_WORLD_LARGE_REGION_PROFILES.taoyuan_outskirts)
   }),
   createOpenWorldRegionDef({
     id: 'ancient_road',
     name: '古驿荒道',
     description: '旧驿、商路、残卷和护送压力交错的荒道开放地图。',
-    width: 10,
-    height: 7,
+    width: OPEN_WORLD_LARGE_MAP_WIDTH,
+    height: OPEN_WORLD_LARGE_MAP_HEIGHT,
     startTileId: 'ancient_road:gate',
     unlockRegionId: 'ancient_road',
     pressureKind: 'sand_heat',
     pressureLabel: '沙热',
     pressureDescription: '荒道热风会抬高持续行动压力，据点和补给能降低风险。',
-    tiles: [
-      createOpenWorldTile('ancient_road:gate', 1, 3, 'gate', '荒道入口', '旧路从这里伸向废驿和烽亭。', { objectType: 'story', actionId: 'inspect' }),
-      createOpenWorldTile('ancient_road:supply_relay', 2, 3, 'road', '旧驿补给线', '旧路线地标：沿荒道推进补给与路况排查。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'ancient_road_supply_relay'
-      }),
-      createOpenWorldTile('ancient_road:watchtower', 3, 2, 'ruin', '烽亭探哨线', '旧路线地标：废弃哨点仍能提供远处视野。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'ancient_road_watchtower_scout'
-      }),
-      createOpenWorldTile('ancient_road:archive', 4, 4, 'ruin', '残卷回收线', '旧路线地标：文书残页散在半塌驿墙下。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'ancient_road_archive_recovery'
-      }),
-      createOpenWorldTile('ancient_road:convoy', 5, 3, 'road', '护送风险线', '旧路线地标：车辙在沙地里断断续续。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'ancient_road_convoy_risk'
-      }),
-      createOpenWorldTile('ancient_road:event_blackout', 3, 5, 'ruin', '驿灯失照', '事件地标：旧驿灯架还留着焦痕。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'ancient_road_station_blackout'
-      }),
-      createOpenWorldTile('ancient_road:event_market', 6, 2, 'road', '沙市易卷', '事件地标：临时沙市留下散乱账册。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'ancient_road_sand_market'
-      }),
-      createOpenWorldTile('ancient_road:event_rescue', 6, 5, 'road', '绕路援车', '事件地标：失联车队的轮印绕向副道。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'ancient_road_detour_rescue'
-      }),
-      createOpenWorldTile('ancient_road:road_chest', 4, 2, 'ruin', '驿箱', '半埋在沙里的驿箱，可带回残卷和关券。', {
-        objectType: 'chest',
-        actionId: 'open_chest',
-        staminaCost: 3,
-        timeCostHours: 0.34,
-        rewardItems: [{ itemId: 'ancient_waybill', quantity: 1 }],
-        rewardFamilyId: 'ancient_archive',
-        rewardFamilyAmount: 2,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('ancient_road:sand_beast', 7, 4, 'road', '沙兽伏痕', '沙里有东西沿着车辙游走，需要驱散才能继续摸查。', {
-        objectType: 'monster',
-        actionId: 'drive_off',
-        staminaCost: 5,
-        timeCostHours: 0.5,
-        rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
-        rewardFamilyId: 'ancient_archive',
-        rewardFamilyAmount: 1,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('ancient_road:outpost', 7, 2, 'camp', '废驿据点', '修复后可作为荒道休整点。', {
-        objectType: 'outpost',
-        actionId: 'repair',
-        staminaCost: 4,
-        timeCostHours: 0.5,
-        rewardFamilyId: 'ancient_archive',
-        rewardFamilyAmount: 1,
-        outpostId: 'ancient_road_station'
-      }),
-      createOpenWorldTile('ancient_road:boss', 8, 3, 'ruin', '荒道监军', '首领地标：旧驿要冲仍压着高风险气息。', {
-        objectType: 'boss_landmark',
-        actionId: 'inspect',
-        bossId: 'ancient_road_overseer'
-      })
-    ]
+    tiles: createOpenWorldLargeRegionTiles(OPEN_WORLD_LARGE_REGION_PROFILES.ancient_road)
   }),
   createOpenWorldRegionDef({
     id: 'mirage_marsh',
     name: '蜃潮泽地',
     description: '夜游、样本、潮沟和湿瘴异常构成的泽地开放地图。',
-    width: 10,
-    height: 7,
     startTileId: 'mirage_marsh:gate',
     unlockRegionId: 'mirage_marsh',
     pressureKind: 'miasma',
     pressureLabel: '湿瘴',
     pressureDescription: '泽地湿瘴会压低长时间行动的稳定性，样本和据点能帮助回流。',
-    tiles: [
-      createOpenWorldTile('mirage_marsh:gate', 1, 3, 'gate', '泽地浅滩', '水草把入口分成几条浅浅的潮沟。', { objectType: 'story', actionId: 'inspect' }),
-      createOpenWorldTile('mirage_marsh:night_watch', 2, 3, 'marsh', '夜游观察线', '旧路线地标：夜间生态观察从这里开始。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'mirage_marsh_night_watch'
-      }),
-      createOpenWorldTile('mirage_marsh:reed_drift', 3, 2, 'marsh', '苇流漂采线', '旧路线地标：苇流会把样本带到外圈。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'mirage_marsh_reed_drift'
-      }),
-      createOpenWorldTile('mirage_marsh:specimen', 4, 4, 'water', '样本护送线', '旧路线地标：样本整理与护送都需要稳定路径。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'mirage_marsh_specimen_drive'
-      }),
-      createOpenWorldTile('mirage_marsh:alert', 5, 3, 'marsh', '生态异常线', '旧路线地标：水位异动在这里最明显。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'mirage_marsh_ecology_alert'
-      }),
-      createOpenWorldTile('mirage_marsh:event_spore', 3, 5, 'marsh', '潮雾孢华', '事件地标：短时孢华带会在潮雾里显形。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'mirage_marsh_spore_bloom'
-      }),
-      createOpenWorldTile('mirage_marsh:event_nursery', 6, 2, 'water', '月汐育群', '事件地标：幼体育群区需要轻手记录。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'mirage_marsh_moon_nursery'
-      }),
-      createOpenWorldTile('mirage_marsh:event_migration', 6, 5, 'marsh', '苇带迁潮', '事件地标：迁移苇带留下细密水痕。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'mirage_marsh_reed_migration'
-      }),
-      createOpenWorldTile('mirage_marsh:reed_patch', 4, 2, 'marsh', '苇草样本', '可采回泽地常见样本。', {
-        objectType: 'herb',
-        actionId: 'gather',
-        staminaCost: 3,
-        timeCostHours: 0.34,
-        rewardItems: [{ itemId: 'luminous_algae', quantity: 1 }],
-        rewardFamilyId: 'ecology_specimen',
-        rewardFamilyAmount: 2,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('mirage_marsh:waterbird', 7, 4, 'water', '水鸟影', '水鸟群忽近忽远，观察能补手册记录。', {
-        objectType: 'animal',
-        actionId: 'observe',
-        staminaCost: 2,
-        timeCostHours: 0.25,
-        rewardFamilyId: 'ecology_specimen',
-        rewardFamilyAmount: 1,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('mirage_marsh:outpost', 7, 2, 'camp', '苇棚据点', '修好苇棚后可作为泽地临时样本台。', {
-        objectType: 'outpost',
-        actionId: 'repair',
-        staminaCost: 4,
-        timeCostHours: 0.5,
-        rewardFamilyId: 'ecology_specimen',
-        rewardFamilyAmount: 1,
-        outpostId: 'mirage_marsh_reed_shed'
-      }),
-      createOpenWorldTile('mirage_marsh:boss', 8, 3, 'water', '潮息异兽', '首领地标：水面下传来周期性的沉重回响。', {
-        objectType: 'boss_landmark',
-        actionId: 'inspect',
-        bossId: 'mirage_marsh_devourer'
-      })
-    ]
+    width: OPEN_WORLD_LARGE_MAP_WIDTH,
+    height: OPEN_WORLD_LARGE_MAP_HEIGHT,
+    tiles: createOpenWorldLargeRegionTiles(OPEN_WORLD_LARGE_REGION_PROFILES.mirage_marsh)
   }),
   createOpenWorldRegionDef({
     id: 'cloud_highland',
     name: '云岚高地',
     description: '风口、晶脉、前哨和高压清剿构成的高地开放地图。',
-    width: 10,
-    height: 7,
     startTileId: 'cloud_highland:gate',
     unlockRegionId: 'cloud_highland',
     pressureKind: 'wind_chill',
     pressureLabel: '风寒',
     pressureDescription: '高地风寒会放大长线推进的损耗，前哨和装备能降低压力。',
-    tiles: [
-      createOpenWorldTile('cloud_highland:gate', 1, 3, 'gate', '云阶入口', '从云阶往上，风声会盖住脚步。', { objectType: 'story', actionId: 'inspect' }),
-      createOpenWorldTile('cloud_highland:ley_crack', 2, 3, 'ridge', '灵脉采晶线', '旧路线地标：裂隙里有稳定结晶。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'cloud_highland_ley_crack'
-      }),
-      createOpenWorldTile('cloud_highland:skybridge', 3, 2, 'ridge', '云桥巡望线', '旧路线地标：断桥哨点能看见远处风口。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'cloud_highland_skybridge_watch'
-      }),
-      createOpenWorldTile('cloud_highland:patrol', 4, 4, 'ridge', '高地清剿线', '旧路线地标：危险巡路在这里交汇。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'cloud_highland_patrol'
-      }),
-      createOpenWorldTile('cloud_highland:supply', 5, 3, 'camp', '前哨补给线', '旧路线地标：补给栈决定高地推进上限。', {
-        objectType: 'route_landmark',
-        actionId: 'inspect',
-        routeId: 'cloud_highland_supply_push'
-      }),
-      createOpenWorldTile('cloud_highland:event_surge', 3, 5, 'ridge', '脉潮突涌', '事件地标：灵脉短时外涌过。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'cloud_highland_ley_surge'
-      }),
-      createOpenWorldTile('cloud_highland:event_signal', 6, 2, 'ridge', '风哨复讯', '事件地标：断讯风哨仍挂着残绳。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'cloud_highland_signal_patrol'
-      }),
-      createOpenWorldTile('cloud_highland:event_cache', 6, 5, 'camp', '前仓塌线', '事件地标：塌陷前仓露出战备碎片。', {
-        objectType: 'event_landmark',
-        actionId: 'inspect',
-        eventId: 'cloud_highland_cache_collapse'
-      }),
-      createOpenWorldTile('cloud_highland:crystal_patch', 4, 2, 'ridge', '风蚀晶脉', '能采回高地晶脉碎片。', {
-        objectType: 'herb',
-        actionId: 'gather',
-        staminaCost: 4,
-        timeCostHours: 0.5,
-        rewardItems: [{ itemId: 'wind_etched_core', quantity: 1 }],
-        rewardFamilyId: 'ley_crystal',
-        rewardFamilyAmount: 2,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('cloud_highland:wind_beast', 7, 4, 'ridge', '风兽巡痕', '风口附近有山兽巡回，需要找准撤退路线。', {
-        objectType: 'monster',
-        actionId: 'drive_off',
-        staminaCost: 5,
-        timeCostHours: 0.5,
-        rewardItems: [{ itemId: 'wild_meat', quantity: 1 }],
-        rewardFamilyId: 'ley_crystal',
-        rewardFamilyAmount: 1,
-        dailyRefresh: true
-      }),
-      createOpenWorldTile('cloud_highland:outpost', 7, 2, 'camp', '高地前哨', '修好前哨后可承接高地休整。', {
-        objectType: 'outpost',
-        actionId: 'repair',
-        staminaCost: 5,
-        timeCostHours: 0.67,
-        rewardFamilyId: 'ley_crystal',
-        rewardFamilyAmount: 1,
-        outpostId: 'cloud_highland_watchpost'
-      }),
-      createOpenWorldTile('cloud_highland:boss', 8, 3, 'ridge', '云岚守脉者', '首领地标：守脉者的压迫感从裂隙深处传来。', {
-        objectType: 'boss_landmark',
-        actionId: 'inspect',
-        bossId: 'cloud_highland_warden'
-      })
-    ]
+    width: OPEN_WORLD_LARGE_MAP_WIDTH,
+    height: OPEN_WORLD_LARGE_MAP_HEIGHT,
+    tiles: createOpenWorldLargeRegionTiles(OPEN_WORLD_LARGE_REGION_PROFILES.cloud_highland)
   })
 ]
 
@@ -1248,7 +1486,9 @@ const createDefaultOpenWorldRegionState = (def: RegionOpenWorldRegionDef): Regio
     discoveredTileIds,
     repairedOutpostIds: [],
     tileStates: Object.fromEntries(
-      def.tiles.map(tile => [tile.id, createDefaultOpenWorldTileState(tile, discoveredTileIds.includes(tile.id))])
+      def.tiles
+        .filter(tile => discoveredTileIds.includes(tile.id))
+        .map(tile => [tile.id, createDefaultOpenWorldTileState(tile, true)])
     ),
     lastRefreshDayTag: ''
   }

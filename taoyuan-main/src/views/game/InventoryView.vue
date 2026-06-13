@@ -297,6 +297,48 @@
         <p v-else class="text-xs text-muted/40 text-center py-2">暂无戒指</p>
       </div>
 
+      <!-- 饰品 -->
+      <div class="border border-accent/20 rounded-xs p-2">
+        <div class="mb-1 flex items-center justify-between gap-2">
+          <p class="text-xs text-muted">护符 / 饰物</p>
+          <span class="text-[0.625rem]" :class="isTrinketSlotUnlocked ? 'text-success' : 'text-muted/50'">
+            {{ isTrinketSlotUnlocked ? '已解锁' : '战斗20级' }}
+          </span>
+        </div>
+        <div class="border border-accent/10 rounded-xs px-2 py-1 text-center mb-1">
+          <p class="text-[0.625rem] text-muted">饰品栏</p>
+          <p class="text-xs truncate" :class="isTrinketSlotUnlocked ? 'text-accent' : 'text-muted/40'">
+            {{ isTrinketSlotUnlocked ? equippedTrinketName ?? '已解锁，选择饰物' : '战斗20级解锁' }}
+          </p>
+        </div>
+        <div v-if="isTrinketSlotUnlocked && unlockedTrinketList.length > 0" class="max-h-40 overflow-y-auto flex flex-col space-y-1">
+          <div
+            v-for="trinket in unlockedTrinketList"
+            :key="trinket.id"
+            class="flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
+            :class="trinket.id === inventoryStore.equippedTrinketId ? 'border-accent/30' : 'border-accent/10'"
+            @click="handleToggleTrinket(trinket.id)"
+          >
+            <div class="min-w-0">
+              <span class="text-xs truncate" :class="trinket.id === inventoryStore.equippedTrinketId ? 'text-accent' : ''">
+                {{ trinket.name }}
+              </span>
+              <p class="text-[0.625rem] text-muted truncate">{{ formatEquipEffects(trinket.effects) }}</p>
+              <p class="text-[0.625rem] text-muted/80 truncate">{{ trinket.sourceSummary }}</p>
+            </div>
+            <Button
+              class="py-0 px-1.5 shrink-0 ml-2"
+              :class="trinket.id === inventoryStore.equippedTrinketId ? '!bg-accent !text-bg' : ''"
+              @click.stop="handleToggleTrinket(trinket.id)"
+            >
+              {{ trinket.id === inventoryStore.equippedTrinketId ? '卸下' : '装备' }}
+            </Button>
+          </div>
+        </div>
+        <p v-else-if="isTrinketSlotUnlocked" class="text-xs text-muted/40 text-center py-2">还没有解锁可装备的饰物</p>
+        <p v-else class="text-xs text-muted/40 text-center py-2">战斗达到20级后开放饰品栏</p>
+      </div>
+
       <!-- 套装效果 -->
       <div v-if="inventoryStore.equipmentSetCatalog.length > 0" class="desktop-adaptive-span-all border border-accent/20 rounded-xs p-2 mt-3">
         <p class="text-xs text-muted mb-1">套装效果</p>
@@ -347,63 +389,41 @@
       <div
         v-if="showPresetModal"
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-        @click.self="showPresetModal = false"
+        @click.self="closePresetModal"
       >
         <div class="game-panel relative flex max-h-[82vh] w-full max-w-md flex-col">
-          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showPresetModal = false">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closePresetModal">
             <X :size="14" />
           </button>
           <p class="mb-3 pr-6 text-sm text-accent">装备方案</p>
           <div
             v-if="inventoryStore.equipmentPresets.length > 0"
-            class="mb-3 flex min-h-0 flex-1 flex-col space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
+            data-testid="inventory-equipment-preset-grid"
+            class="mb-3 grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y"
           >
             <div
               v-for="preset in inventoryStore.equipmentPresets"
               :key="preset.id"
-              class="border rounded-xs p-3"
+              class="relative flex min-w-0 flex-col border rounded-xs p-2.5"
               :class="activePresetId === preset.id ? 'border-accent/40' : 'border-accent/10'"
             >
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <template v-if="renamingPresetId === preset.id">
-                  <input
-                    v-model="renameValue"
-                    class="mr-2 w-full rounded-xs border border-accent/30 bg-transparent px-2 py-1 text-xs text-text outline-none"
-                    @keyup.enter="confirmRename(preset.id)"
-                    @blur="confirmRename(preset.id)"
-                  />
-                </template>
-                <template v-else>
-                  <span class="truncate text-xs text-accent">{{ preset.name }}</span>
-                </template>
+              <div class="mb-2 flex min-h-8 items-start justify-between gap-1.5">
+                <span class="min-w-0 truncate text-xs text-accent">{{ preset.name }}</span>
                 <span v-if="activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
-              <div class="mb-2 grid grid-cols-2 gap-1 text-[0.625rem] sm:grid-cols-3">
-                <div
-                  v-for="slot in getPresetEquipmentSummaries(preset)"
-                  :key="`${preset.id}-${slot.label}`"
-                  class="min-w-0 rounded-xs border border-accent/10 px-1.5 py-1"
-                >
-                  <span class="block text-muted">{{ slot.label }}</span>
-                  <span class="block truncate" :class="slot.value ? 'text-text' : 'text-muted/40'">{{ slot.value ?? '空' }}</span>
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <div class="mt-auto grid grid-cols-2 gap-1.5">
                 <Button
-                  class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap"
+                  class="min-h-8 min-w-0 justify-center px-1.5 py-1 text-xs whitespace-nowrap"
                   :disabled="activePresetId === preset.id"
                   @click="handleApplyPreset(preset.id)"
                 >
                   使用
                 </Button>
-                <Button class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap" @click="handleSaveToPreset(preset.id)">保存</Button>
-                <Button class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap" @click="startRename(preset)">改名</Button>
                 <Button
-                  class="min-h-8 justify-center px-2 py-1 text-xs whitespace-nowrap text-danger"
-                  :disabled="activePresetId === preset.id"
-                  @click="handleDeletePreset(preset.id)"
+                  class="min-h-8 min-w-0 justify-center px-1.5 py-1 text-xs whitespace-nowrap"
+                  @click="openPresetActions(preset.id)"
                 >
-                  删除
+                  操作
                 </Button>
               </div>
             </div>
@@ -421,6 +441,47 @@
             新建方案
           </Button>
         </div>
+        <Transition name="dialog-pop">
+          <div
+            v-if="actionPreset"
+            data-testid="inventory-preset-actions-dialog"
+            class="absolute inset-0 z-20 flex items-center justify-center bg-black/40 p-4"
+            @click.self="closePresetActions"
+          >
+            <div class="game-panel relative w-full max-w-xs p-3" @click.stop>
+              <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closePresetActions">
+                <X :size="14" />
+              </button>
+              <p class="mb-3 pr-6 text-sm text-accent">方案操作</p>
+              <label class="mb-3 block">
+                <span class="mb-1 block text-[0.625rem] text-muted">方案名称</span>
+                <input
+                  v-model="actionPresetNameDraft"
+                  data-testid="inventory-preset-actions-name-input"
+                  class="w-full rounded-xs border border-accent/30 bg-transparent px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                  @keyup.enter="handleSavePresetName(actionPreset.id)"
+                />
+              </label>
+              <div class="grid gap-2">
+                <Button
+                  class="min-h-9 justify-center px-3 py-1.5 text-sm whitespace-nowrap"
+                  :disabled="actionPresetNameDraft.trim().length === 0"
+                  @click="handleSavePresetName(actionPreset.id)"
+                >
+                  保存名称
+                </Button>
+                <Button class="min-h-9 justify-center px-3 py-1.5 text-sm whitespace-nowrap" @click="handleSaveToPreset(actionPreset.id)">保存装备</Button>
+                <Button
+                  class="min-h-9 justify-center px-3 py-1.5 text-sm whitespace-nowrap text-danger"
+                  :disabled="activePresetId === actionPreset.id"
+                  @click="handleDeletePreset(actionPreset.id)"
+                >
+                  删除方案
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
     </Transition>
 
@@ -944,7 +1005,7 @@
   import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
-  import { useInventoryStore, type EquipmentPreset } from '@/stores/useInventoryStore'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMiningStore } from '@/stores/useMiningStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -1155,8 +1216,8 @@
   // === 装备方案 ===
 
   const showPresetModal = ref(false)
-  const renamingPresetId = ref<string | null>(null)
-  const renameValue = ref('')
+  const openPresetActionId = ref<string | null>(null)
+  const actionPresetNameDraft = ref('')
 
   const activePresetId = computed(() => inventoryStore.activePresetId)
 
@@ -1165,63 +1226,79 @@
     return inventoryStore.equipmentPresets.find(p => p.id === activePresetId.value)?.name ?? null
   })
 
-  const getPresetEquipmentSummaries = (preset: EquipmentPreset): { label: string; value: string | null }[] => [
-    {
-      label: '武器',
-      value: preset.weaponDefId ? getWeaponDisplayName(preset.weaponDefId, preset.weaponEnchantmentId) : null
-    },
-    {
-      label: '戒指1',
-      value: preset.ringSlot1DefId ? getRingById(preset.ringSlot1DefId)?.name ?? preset.ringSlot1DefId : null
-    },
-    {
-      label: '戒指2',
-      value: preset.ringSlot2DefId ? getRingById(preset.ringSlot2DefId)?.name ?? preset.ringSlot2DefId : null
-    },
-    {
-      label: '帽子',
-      value: preset.hatDefId ? getHatById(preset.hatDefId)?.name ?? preset.hatDefId : null
-    },
-    {
-      label: '鞋子',
-      value: preset.shoeDefId ? getShoeById(preset.shoeDefId)?.name ?? preset.shoeDefId : null
-    },
-    {
-      label: '饰品',
-      value: preset.trinketDefId ? getTrinketById(preset.trinketDefId)?.name ?? preset.trinketDefId : null
-    }
-  ]
+  const actionPreset = computed(() => {
+    if (!openPresetActionId.value) return null
+    return inventoryStore.equipmentPresets.find(p => p.id === openPresetActionId.value) ?? null
+  })
+
+  const closePresetModal = () => {
+    showPresetModal.value = false
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
+  }
+
+  const openPresetActions = (id: string) => {
+    const preset = inventoryStore.equipmentPresets.find(p => p.id === id)
+    openPresetActionId.value = id
+    actionPresetNameDraft.value = preset?.name ?? ''
+  }
+
+  const closePresetActions = () => {
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
+  }
 
   const handleCreatePreset = () => {
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
     inventoryStore.createEquipmentPreset('方案' + (inventoryStore.equipmentPresets.length + 1))
   }
 
-  const startRename = (preset: { id: string; name: string }) => {
-    renamingPresetId.value = preset.id
-    renameValue.value = preset.name
-  }
-
-  const confirmRename = (id: string) => {
-    if (renamingPresetId.value === null) return
-    inventoryStore.renameEquipmentPreset(id, renameValue.value)
-    renamingPresetId.value = null
+  const handleSavePresetName = (id: string) => {
+    const nextName = actionPresetNameDraft.value.trim()
+    if (!nextName) return
+    inventoryStore.renameEquipmentPreset(id, nextName)
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
   }
 
   const handleSaveToPreset = (id: string) => {
-    if (renamingPresetId.value) confirmRename(renamingPresetId.value)
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
     inventoryStore.saveCurrentToPreset(id)
     addLog('已保存当前装备到方案。')
   }
 
   const handleApplyPreset = (id: string) => {
-    if (renamingPresetId.value) confirmRename(renamingPresetId.value)
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
     const result = inventoryStore.applyEquipmentPreset(id)
     addLog(result.message)
   }
 
   const handleDeletePreset = (id: string) => {
-    if (renamingPresetId.value) confirmRename(renamingPresetId.value)
+    openPresetActionId.value = null
+    actionPresetNameDraft.value = ''
     inventoryStore.deleteEquipmentPreset(id)
+  }
+
+  // === 饰品辅助 ===
+
+  const trinketReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'trinket_slot') ?? null)
+  const isTrinketSlotUnlocked = computed(() => !!trinketReward.value?.unlocked || inventoryStore.unlockedTrinkets.length > 0)
+  const equippedTrinketName = computed(() => inventoryStore.equippedTrinket?.name ?? null)
+  const unlockedTrinketList = computed(() => inventoryStore.unlockedTrinkets)
+
+  const handleToggleTrinket = (defId: string) => {
+    if (inventoryStore.equippedTrinketId === defId) {
+      const def = inventoryStore.equippedTrinket
+      if (inventoryStore.unequipTrinket()) addLog(`卸下了${def?.name ?? '饰物'}。`)
+      return
+    }
+    if (inventoryStore.equipTrinket(defId)) {
+      const def = getTrinketById(defId)
+      addLog(`装备了${def?.name ?? '饰物'}。`)
+    }
   }
 
   // === 戒指辅助 ===
@@ -1327,6 +1404,10 @@
   const formatEffectValue = (eff: { type: RingEffectType; value: number }): string => {
     if (PERCENTAGE_EFFECTS.has(eff.type)) return `${Math.round(eff.value * 100)}%`
     return `${eff.value}`
+  }
+
+  const formatEquipEffects = (effects: { type: RingEffectType; value: number }[]): string => {
+    return effects.map(eff => `${RING_EFFECT_NAMES[eff.type]}${eff.value > 0 ? '+' : ''}${formatEffectValue(eff)}`).join(' ')
   }
 
   // === 武器弹窗 ===

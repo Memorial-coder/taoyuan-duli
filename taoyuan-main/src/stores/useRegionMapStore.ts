@@ -63,6 +63,7 @@ import type {
   RegionOpenWorldLogEntry,
   RegionOpenWorldRegionEntry,
   RegionOpenWorldRegionState,
+  RegionOpenWorldRegionWindowView,
   RegionOpenWorldSaveData,
   RegionOpenWorldTileDef,
   RegionOpenWorldTileState,
@@ -197,8 +198,29 @@ const getMoreAdvancedLandmarkStage = (
 const getOpenWorldRegionDef = (regionId: RegionOpenWorldId) =>
   REGION_OPEN_WORLD_DEFS.find(region => region.id === regionId) ?? REGION_OPEN_WORLD_DEFS[0]!
 
+const OPEN_WORLD_VIEWPORT_WIDTH = 16
+const OPEN_WORLD_VIEWPORT_HEIGHT = 12
+
+type OpenWorldViewportOrigin = { minX: number; minY: number }
+
+const getOpenWorldTileCoordKey = (x: number, y: number) => `${x},${y}`
+
+const OPEN_WORLD_TILE_DEFS_BY_REGION = Object.fromEntries(
+  REGION_OPEN_WORLD_DEFS.map(def => [def.id, new Map(def.tiles.map(tile => [tile.id, tile]))])
+) as Record<RegionOpenWorldId, Map<string, RegionOpenWorldTileDef>>
+
+const OPEN_WORLD_TILE_DEFS_BY_COORD = Object.fromEntries(
+  REGION_OPEN_WORLD_DEFS.map(def => [
+    def.id,
+    new Map(def.tiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
+  ])
+) as Record<RegionOpenWorldId, Map<string, RegionOpenWorldTileDef>>
+
 const getOpenWorldTileDef = (regionId: RegionOpenWorldId, tileId: string) =>
-  getOpenWorldRegionDef(regionId).tiles.find(tile => tile.id === tileId) ?? null
+  OPEN_WORLD_TILE_DEFS_BY_REGION[regionId]?.get(tileId) ?? null
+
+const getOpenWorldTileDefAtCoord = (regionId: RegionOpenWorldId, x: number, y: number) =>
+  OPEN_WORLD_TILE_DEFS_BY_COORD[regionId]?.get(getOpenWorldTileCoordKey(x, y)) ?? null
 
 const getOpenWorldTileStateFallback = (tile: RegionOpenWorldTileDef, discovered = false): RegionOpenWorldTileState => ({
   tileId: tile.id,
@@ -216,7 +238,7 @@ const cloneOpenWorldSaveData = (state: RegionOpenWorldSaveData): RegionOpenWorld
   lastRefreshDayTag: state.lastRefreshDayTag,
   regionStates: Object.fromEntries(
     OPEN_WORLD_REGION_IDS.map(regionId => {
-      const regionState = state.regionStates[regionId]
+      const regionState = state.regionStates[regionId] ?? createDefaultRegionOpenWorldSaveData().regionStates[regionId]!
       return [
         regionId,
         {
@@ -1013,8 +1035,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
-  const getOpenWorldRegionState = (regionId: RegionOpenWorldId) =>
-    saveData.value.openWorld.regionStates[regionId] ?? createDefaultRegionOpenWorldSaveData().regionStates[regionId]
+  const getOpenWorldRegionState = (regionId: RegionOpenWorldId) => {
+    const existing = saveData.value.openWorld.regionStates[regionId]
+    if (existing) return existing
+    const fallback = createDefaultRegionOpenWorldSaveData().regionStates[regionId]!
+    saveData.value.openWorld.regionStates[regionId] = fallback
+    return fallback
+  }
 
   const activeOpenWorldRegion = computed(() => getOpenWorldRegionDef(saveData.value.openWorld.activeRegionId))
 
@@ -1046,18 +1073,51 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const getOpenWorldTileState = (regionId: RegionOpenWorldId, tileId: string): RegionOpenWorldTileState | null => {
     const tile = getOpenWorldTileDef(regionId, tileId)
     if (!tile) return null
-    return getOpenWorldRegionState(regionId).tileStates[tileId] ?? getOpenWorldTileStateFallback(tile)
+    const regionState = getOpenWorldRegionState(regionId)
+    return regionState.tileStates[tileId] ?? getOpenWorldTileStateFallback(tile, regionState.discoveredTileIds.includes(tileId))
   }
 
   const getOpenWorldTileDistance = (a: RegionOpenWorldTileDef, b: RegionOpenWorldTileDef) =>
     Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y))
+
+  const getOpenWorldViewportBounds = (
+    def: ReturnType<typeof getOpenWorldRegionDef>,
+    focusTile: RegionOpenWorldTileDef,
+    origin?: OpenWorldViewportOrigin | null
+  ) => {
+    const viewportWidth = Math.min(OPEN_WORLD_VIEWPORT_WIDTH, def.width)
+    const viewportHeight = Math.min(OPEN_WORLD_VIEWPORT_HEIGHT, def.height)
+    const maxOriginX = Math.max(0, def.width - viewportWidth)
+    const maxOriginY = Math.max(0, def.height - viewportHeight)
+    const centeredMinX = focusTile.x - Math.floor(viewportWidth / 2)
+    const centeredMinY = focusTile.y - Math.floor(viewportHeight / 2)
+    const minX = clamp(Math.floor(origin?.minX ?? centeredMinX), 0, maxOriginX)
+    const minY = clamp(Math.floor(origin?.minY ?? centeredMinY), 0, maxOriginY)
+    return {
+      minX,
+      minY,
+      maxX: minX + viewportWidth - 1,
+      maxY: minY + viewportHeight - 1
+    }
+  }
 
   const getOpenWorldRevealTileIds = (regionId: RegionOpenWorldId, tileId: string, radius = 1) => {
     const def = getOpenWorldRegionDef(regionId)
     const center = getOpenWorldTileDef(regionId, tileId)
     if (!center) return []
     const safeRadius = Math.max(0, Math.floor(Number(radius) || 0))
-    return def.tiles.filter(tile => getOpenWorldTileDistance(center, tile) <= safeRadius).map(tile => tile.id)
+    const tileIds: string[] = []
+    const minX = Math.max(0, center.x - safeRadius)
+    const maxX = Math.min(def.width - 1, center.x + safeRadius)
+    const minY = Math.max(0, center.y - safeRadius)
+    const maxY = Math.min(def.height - 1, center.y + safeRadius)
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        const tile = getOpenWorldTileDefAtCoord(regionId, x, y)
+        if (tile && getOpenWorldTileDistance(center, tile) <= safeRadius) tileIds.push(tile.id)
+      }
+    }
+    return tileIds
   }
 
   const markOpenWorldTileDiscovered = (regionId: RegionOpenWorldId, tileId: string) => {
@@ -1168,8 +1228,32 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       ? raw.discoveredTileIds.filter((tileId: unknown): tileId is string => typeof tileId === 'string' && validTileIds.has(tileId))
       : fallback.discoveredTileIds
     const discoveredTileIds = [...new Set([def.startTileId, ...rawDiscoveredTileIds])]
+    const discoveredTileIdSet = new Set(discoveredTileIds)
     const playerTileId = typeof raw?.playerTileId === 'string' && validTileIds.has(raw.playerTileId) ? raw.playerTileId : fallback.playerTileId
     const selectedTileId = typeof raw?.selectedTileId === 'string' && validTileIds.has(raw.selectedTileId) ? raw.selectedTileId : playerTileId
+    const tileStates: RegionOpenWorldRegionState['tileStates'] = {}
+    const rawTileStates = raw?.tileStates && typeof raw.tileStates === 'object' ? raw.tileStates : {}
+    const shouldKeepTileState = (state: RegionOpenWorldTileState) =>
+      state.discovered ||
+      state.status !== 'fresh' ||
+      state.landmarkStage !== 'unknown' ||
+      state.actionCount > 0 ||
+      state.lastActionDayTag.length > 0
+
+    for (const tileId of discoveredTileIds) {
+      const tile = getOpenWorldTileDef(def.id, tileId)
+      if (!tile) continue
+      tileStates[tileId] = normalizeOpenWorldTileState(tile, rawTileStates[tileId], true)
+    }
+
+    for (const [tileId, rawTileState] of Object.entries(rawTileStates)) {
+      if (typeof tileId !== 'string' || !validTileIds.has(tileId) || discoveredTileIdSet.has(tileId)) continue
+      const tile = getOpenWorldTileDef(def.id, tileId)
+      if (!tile) continue
+      const tileState = normalizeOpenWorldTileState(tile, rawTileState, false)
+      if (shouldKeepTileState(tileState)) tileStates[tileId] = tileState
+    }
+
     return {
       regionId: def.id,
       playerTileId,
@@ -1178,12 +1262,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       repairedOutpostIds: Array.isArray(raw?.repairedOutpostIds)
         ? uniqueStrings(raw.repairedOutpostIds)
         : [...fallback.repairedOutpostIds],
-      tileStates: Object.fromEntries(
-        def.tiles.map(tile => [
-          tile.id,
-          normalizeOpenWorldTileState(tile, raw?.tileStates?.[tile.id], discoveredTileIds.includes(tile.id))
-        ])
-      ),
+      tileStates,
       lastRefreshDayTag: typeof raw?.lastRefreshDayTag === 'string' ? raw.lastRefreshDayTag : fallback.lastRefreshDayTag
     }
   }
@@ -1341,16 +1420,37 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
-  const getOpenWorldRegionView = (regionId: RegionOpenWorldId) => {
+  const getOpenWorldRegionView = (
+    regionId: RegionOpenWorldId,
+    viewportOrigin?: OpenWorldViewportOrigin | null
+  ): RegionOpenWorldRegionWindowView => {
     const def = getOpenWorldRegionDef(regionId)
     const state = getOpenWorldRegionState(regionId)
     const unlock = getOpenWorldRegionUnlockInfo(regionId)
+    const playerTile = getOpenWorldTileDef(regionId, state.playerTileId)
+    const focusTile = playerTile ?? getOpenWorldTileDef(regionId, def.startTileId) ?? def.tiles[0]!
+    const bounds = getOpenWorldViewportBounds(def, focusTile, viewportOrigin)
+    const visibleTiles: RegionOpenWorldTileDef[] = []
+    for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
+      for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
+        const tile = getOpenWorldTileDefAtCoord(regionId, x, y)
+        if (tile) visibleTiles.push(tile)
+      }
+    }
+    const validTilesById = OPEN_WORLD_TILE_DEFS_BY_REGION[regionId]
+    const discoveredTileIds = new Set(state.discoveredTileIds.filter(tileId => validTilesById?.has(tileId)))
+    for (const tileState of Object.values(state.tileStates)) {
+      if (tileState.discovered && validTilesById?.has(tileState.tileId)) discoveredTileIds.add(tileState.tileId)
+    }
     return {
       def,
       state,
       unlocked: unlock.unlocked,
       unlockReason: unlock.reason,
-      tiles: def.tiles.map(tile => getOpenWorldTileView(regionId, tile.id)).filter((tile): tile is RegionOpenWorldTileView => Boolean(tile))
+      bounds,
+      totalTileCount: def.tiles.length,
+      discoveredCount: discoveredTileIds.size,
+      tiles: visibleTiles.map(tile => getOpenWorldTileView(regionId, tile.id)).filter((tile): tile is RegionOpenWorldTileView => Boolean(tile))
     }
   }
 
