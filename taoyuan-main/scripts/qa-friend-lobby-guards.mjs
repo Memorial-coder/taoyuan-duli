@@ -13,6 +13,7 @@ const files = new Map([
   ['src/views/GameLayout.vue', path.join(appRoot, 'src', 'views', 'GameLayout.vue')],
   ['src/components/game/MobileMapMenu.vue', path.join(appRoot, 'src', 'components', 'game', 'MobileMapMenu.vue')],
   ['src/views/game/FriendStationView.vue', path.join(appRoot, 'src', 'views', 'game', 'FriendStationView.vue')],
+  ['src/stores/useRealtimeStore.ts', path.join(appRoot, 'src', 'stores', 'useRealtimeStore.ts')],
   ['src/stores/useSocialStore.ts', path.join(appRoot, 'src', 'stores', 'useSocialStore.ts')],
   ['src/utils/onlineProfileApi.ts', path.join(appRoot, 'src', 'utils', 'onlineProfileApi.ts')],
   ['server/src/routes/api.js', path.join(workspaceRoot, 'server', 'src', 'routes', 'api.js')],
@@ -59,6 +60,16 @@ expectContains('src/views/game/FriendStationView.vue', 'refreshFriendLobby(true)
 expectContains('src/views/game/FriendStationView.vue', 'openDiscoveryChat', 'private chat action is missing')
 expectContains('src/views/game/FriendStationView.vue', "name: 'friend-chat'", 'friend private chat action must navigate to chat route')
 expectContains('src/views/game/FriendStationView.vue', '先加好友', 'non-friend discovery cards should guide players to add friends first')
+expectContains('src/views/game/FriendStationView.vue', "import { useFriendChatStore } from '@/stores/useFriendChatStore'", 'friend station must read private chat unread state')
+expectContains('src/views/game/FriendStationView.vue', 'region-social-chat-unread-summary', 'friend station must expose private chat unread summary')
+expectContains('src/views/game/FriendStationView.vue', 'friendChatStore.refreshConversations({ silent: true })', 'friend station refresh must include private chat conversations')
+expectContains('src/views/game/FriendStationView.vue', 'getFriendChatUnreadCount', 'friend list chat button must show per-friend unread count')
+expectContains('src/stores/useRealtimeStore.ts', 'isFriendChatRouteActive', 'realtime chat refresh must know whether the chat page is active')
+expectPattern(
+  'src/stores/useRealtimeStore.ts',
+  /isFriendChatRouteActive\(\)[\s\S]*chatStore\.loadMessages\(chatStore\.activeConversationId\)/,
+  'realtime chat refresh must only auto-load messages while the chat page is active'
+)
 expectContains('src/views/game/FriendStationView.vue', 'sendDiscoveryFriendRequest', 'friend request action is missing')
 expectContains('src/views/game/FriendStationView.vue', 'blockDiscoveryPlayer', 'block action is missing')
 expectContains('src/views/game/FriendStationView.vue', 'reportDiscoveryPlayer', 'report action is missing')

@@ -1,3 +1,4 @@
+/* global process, console */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -20,6 +21,11 @@ const readNumberConst = name => Number(regionData.match(new RegExp(`const ${name
 
 addCheck('RegionMapSaveData has openWorld field', /interface RegionMapSaveData[\s\S]*openWorld:\s*RegionOpenWorldSaveData/.test(regionTypes))
 addCheck('Open world save type exists', /interface RegionOpenWorldSaveData/.test(regionTypes))
+addCheck('Open world camera type exists', /interface RegionOpenWorldViewportCamera[\s\S]*x:\s*number[\s\S]*y:\s*number/.test(regionTypes))
+addCheck('Open world viewport size type exists', /interface RegionOpenWorldViewportSize[\s\S]*columns:\s*number[\s\S]*rows:\s*number/.test(regionTypes))
+addCheck('Open world window view exposes camera and visible size', /interface RegionOpenWorldRegionWindowView[\s\S]*camera:\s*RegionOpenWorldViewportCamera[\s\S]*visibleColumnCount:\s*number[\s\S]*visibleRowCount:\s*number/.test(regionTypes))
+const openWorldSaveType = regionTypes.match(/interface RegionOpenWorldSaveData \{[\s\S]*?\n\}/)?.[0] ?? ''
+addCheck('Open world camera stays out of save data', !/\bcamera\b/.test(openWorldSaveType) && !/\bviewport\b/.test(openWorldSaveType))
 addCheck('Open world defs exported', /export const REGION_OPEN_WORLD_DEFS/.test(regionData))
 
 for (const regionId of ['taoyuan_outskirts', 'ancient_road', 'mirage_marsh', 'cloud_highland']) {
@@ -66,8 +72,15 @@ for (const api of [
 }
 
 addCheck('Daily ecology refresh is idempotent', /lastRefreshDayTag === dayTag/.test(regionStore))
+addCheck('Daily ecology refresh only walks sparse tile states', /Object\.entries\(regionState\.tileStates\)/.test(regionStore) && !/const refreshOpenWorldDailyEcology[\s\S]*for \(const tile of def\.tiles\)/.test(regionStore))
 addCheck('Reveal radius uses bounded grid-neighbor lookup', /getOpenWorldTileDefAtCoord\(regionId,\s*x,\s*y\)/.test(regionStore) && /Math\.max\(Math\.abs\(a\.x - b\.x\), Math\.abs\(a\.y - b\.y\)\)/.test(regionStore))
-addCheck('Movement does not consume stamina', /const moveOpenWorldPlayer[\s\S]*移动不消耗体力和时间/.test(regionStore))
+const moveOpenWorldPlayerBlock = regionStore.match(/const moveOpenWorldPlayer[\s\S]*?\n {2}const performOpenWorldAction/)?.[0] ?? ''
+addCheck('Movement consumes distance-based stamina', /OPEN_WORLD_MOVE_TILES_PER_STAMINA\s*=\s*5/.test(regionStore) && /Math\.hypot\(a\.x - b\.x,\s*a\.y - b\.y\)/.test(regionStore) && /Math\.ceil\(distance \/ OPEN_WORLD_MOVE_TILES_PER_STAMINA\)/.test(regionStore))
+addCheck('Movement consumes stamina before changing player tile', moveOpenWorldPlayerBlock.includes('playerStore.consumeStamina(staminaCost)') && moveOpenWorldPlayerBlock.indexOf('playerStore.consumeStamina(staminaCost)') < moveOpenWorldPlayerBlock.indexOf('regionState.playerTileId = tileId'))
+addCheck('Tile view exposes move stamina preview', /moveDistance/.test(regionTypes) && /moveStaminaCost/.test(regionTypes) && /moveStaminaCost/.test(regionStore))
+addCheck('Open world view uses overscan render bounds', /OPEN_WORLD_VIEWPORT_OVERSCAN\s*=\s*1/.test(regionStore) && /Math\.floor\(cameraX\) - OPEN_WORLD_VIEWPORT_OVERSCAN/.test(regionStore) && /Math\.ceil\(cameraX \+ visibleColumnCount\) \+ OPEN_WORLD_VIEWPORT_OVERSCAN/.test(regionStore))
+addCheck('Open world view accepts measured viewport size', /RegionOpenWorldViewportSize/.test(regionStore) && /normalizeOpenWorldViewportCount/.test(regionStore) && /viewportSize\?\.columns/.test(regionStore) && /viewportSize\?\.rows/.test(regionStore))
+addCheck('Open world region view returns bounded tile window', /for \(let y = bounds\.minY; y <= bounds\.maxY; y \+= 1\)/.test(regionStore) && /for \(let x = bounds\.minX; x <= bounds\.maxX; x \+= 1\)/.test(regionStore) && !/visibleTiles\s*=\s*def\.tiles/.test(regionStore))
 addCheck('Action checks stamina before consuming', /playerStore\.stamina < tile\.staminaCost[\s\S]*playerStore\.consumeStamina/.test(regionStore))
 addCheck('Action checks inventory before rewards', /inventoryStore\.canAddItems\(rewardItems\)[\s\S]*inventoryStore\.addItemsExact\(rewardItems\)/.test(regionStore))
 addCheck('Failed inventory action does not mark tile', /背包空间不足[\s\S]*没有标记格子完成/.test(regionStore))
@@ -77,16 +90,42 @@ for (const testId of [
   'region-open-world-grid',
   'region-open-world-tile-',
   'region-open-world-player',
+  'region-open-world-player-indicator',
+  'region-open-world-focus-current',
+  'region-open-world-zoom-in',
+  'region-open-world-zoom-out',
   'region-open-world-action-',
   'region-open-world-handbook',
   'region-open-world-log'
 ]) {
   addCheck(`Component has test id ${testId}`, openWorldComponent.includes(testId))
 }
+addCheck('Component emits viewport pan from pointer drag', /@pointerdown="handleGridPointerDown"/.test(openWorldComponent) && /emit\('pan-viewport'/.test(openWorldComponent))
+addCheck('Component uses continuous camera viewport shell', /data-testid="region-open-world-viewport"/.test(openWorldComponent) && /class="region-open-world-grid"[\s\S]*:style="gridStyle"/.test(openWorldComponent) && /transform:\s*`translate3d/.test(openWorldComponent))
+addCheck('Component derives viewport size from scaled tile dimensions', /TILE_WIDTH_PX/.test(openWorldComponent) && /TILE_HEIGHT_PX/.test(openWorldComponent) && /zoomedTileStepX/.test(openWorldComponent) && /ResizeObserver/.test(openWorldComponent) && /emit\('viewport-size'/.test(openWorldComponent))
+addCheck('Component drag pan emits float tile deltas', /const deltaX = -dragX \/ cell\.width/.test(openWorldComponent) && /const deltaY = -dragY \/ cell\.height/.test(openWorldComponent) && /emit\('pan-viewport', \{ deltaX, deltaY \}\)/.test(openWorldComponent))
+addCheck('Component no longer truncates drag to full tiles', !/Math\.trunc\([^)]*cell\.(width|height)/.test(openWorldComponent) && !/\bpendingX\b/.test(openWorldComponent) && !/\bpendingY\b/.test(openWorldComponent))
+addCheck('Component suppresses drag click selection', /handleGridClickCapture/.test(openWorldComponent) && /suppressNextClick/.test(openWorldComponent))
+addCheck('Component renders animated player marker overlay', /playerTokenStyle/.test(openWorldComponent) && /transition:\s*left 0\.26s ease,\s*top 0\.26s ease/.test(openWorldComponent))
+addCheck('Component renders offscreen current-position affordance', /playerOffscreenIndicatorVisible/.test(openWorldComponent) && /playerOffscreenIndicatorStyle/.test(openWorldComponent) && /focus-current/.test(openWorldComponent))
+addCheck('Component keeps offscreen current-position indicator clear of zoom controls', /PLAYER_INDICATOR_ZOOM_COLLISION_X_PERCENT/.test(openWorldComponent) && /PLAYER_INDICATOR_ZOOM_COLLISION_Y_PERCENT/.test(openWorldComponent) && /PLAYER_INDICATOR_ZOOM_CONTROL_CLEARANCE/.test(openWorldComponent) && /calc\(100% - \$\{PLAYER_INDICATOR_ZOOM_CONTROL_CLEARANCE\}\)/.test(openWorldComponent))
+addCheck('Component shows move stamina on move button', /selectedTile\.moveStaminaCost > 0/.test(openWorldComponent) && /selectedTile\.moveStaminaCost/.test(openWorldComponent))
+addCheck('Component imports zoom controls icons', /MapPin,\s*Minus,\s*Plus/.test(openWorldComponent))
+addCheck('Component exposes bounded open world zoom state', /const ZOOM_MIN\s*=\s*0\.5/.test(openWorldComponent) && /const ZOOM_MAX\s*=\s*1\.6/.test(openWorldComponent) && /const ZOOM_STEP\s*=\s*0\.15/.test(openWorldComponent) && /const zoomLevel = ref\(1\)/.test(openWorldComponent) && /const canZoomIn/.test(openWorldComponent) && /const canZoomOut/.test(openWorldComponent))
+addCheck('Component renders desktop and mobile zoom buttons', /class="region-open-world-zoom-controls"/.test(openWorldComponent) && /data-testid="region-open-world-zoom-in"/.test(openWorldComponent) && /data-testid="region-open-world-zoom-out"/.test(openWorldComponent) && /:disabled="!canZoomIn"/.test(openWorldComponent) && /:disabled="!canZoomOut"/.test(openWorldComponent) && /\.region-open-world-zoom-button:focus-visible/.test(openWorldComponent) && /@media \(max-width: 767px\)[\s\S]*\.region-open-world-zoom-button/.test(openWorldComponent))
+addCheck('Component zooms open world viewport with desktop wheel', /@wheel="handleGridWheel"/.test(openWorldComponent) && /const handleGridWheel = \(event: WheelEvent\)/.test(openWorldComponent) && /event\.deltaY === 0/.test(openWorldComponent) && /event\.preventDefault\(\)/.test(openWorldComponent) && /setZoomLevel\(zoomLevel\.value \+ \(event\.deltaY < 0 \? ZOOM_STEP : -ZOOM_STEP\)\)/.test(openWorldComponent))
+addCheck('Component applies zoomed tile metrics to grid and viewport', /gridTemplateColumns:[\s\S]*zoomedTileWidth\.value/.test(openWorldComponent) && /gridTemplateRows:[\s\S]*zoomedTileHeight\.value/.test(openWorldComponent) && /getVisibleTileCount\(rect\.width,\s*zoomedTileStepX\.value,\s*zoomedTileGap\.value/.test(openWorldComponent) && /width:\s*zoomedTileStepX\.value/.test(openWorldComponent))
+addCheck('Component scales tile contents with zoom level', /'--region-open-world-zoom': `\$\{zoomLevel\.value\}`/.test(openWorldComponent) && /padding:\s*calc\(0\.25rem \* var\(--region-open-world-zoom, 1\)\)/.test(openWorldComponent) && /font-size:\s*calc\(0\.625rem \* var\(--region-open-world-zoom, 1\)\)/.test(openWorldComponent) && /font-size:\s*calc\(0\.55rem \* var\(--region-open-world-zoom, 1\)\)/.test(openWorldComponent))
+addCheck('Component keeps player marker aligned to zoomed grid', /playerTokenStyle[\s\S]*zoomedTileStepX\.value[\s\S]*zoomedTileWidth\.value \/ 2[\s\S]*zoomedTileStepY\.value[\s\S]*zoomedTileHeight\.value \/ 2/.test(openWorldComponent))
+addCheck('Component handles pinch zoom without tile selection', /activePointerPositions/.test(openWorldComponent) && /pinchState/.test(openWorldComponent) && /startPinchGesture/.test(openWorldComponent) && /handlePinchMove/.test(openWorldComponent) && /setZoomLevel\(state\.startZoom \* \(distance \/ state\.startDistance\)\)/.test(openWorldComponent) && /suppressNextClick\.value = true/.test(openWorldComponent))
 
 addCheck('RegionMapView imports RegionOpenWorldMap', /import RegionOpenWorldMap/.test(regionView))
 addCheck('RegionMapView renders open world before old tabs', regionView.indexOf('<RegionOpenWorldMap') >= 0 && regionView.indexOf('<RegionOpenWorldMap') < regionView.indexOf('data-testid="region-map-tabs"'))
+addCheck('RegionMapView handles viewport pan event', /@pan-viewport="handlePanOpenWorldViewport"/.test(regionView) && /const handlePanOpenWorldViewport/.test(regionView))
+addCheck('RegionMapView handles measured viewport size event', /@viewport-size="handleOpenWorldViewportSize"/.test(regionView) && /openWorldViewportSizes/.test(regionView) && /getOpenWorldViewportSize/.test(regionView))
+addCheck('RegionMapView handles focus current event', /@focus-current="handleFocusCurrentOpenWorldTile"/.test(regionView) && /const handleFocusCurrentOpenWorldTile/.test(regionView) && /view\.state\.playerTileId/.test(regionView))
 addCheck('RegionMapView allows outskirts before old unlock', /近郊 \/ 竹林已可探索/.test(regionView))
+addCheck('RegionMapView keeps temporary float cameras', /openWorldViewportCameras/.test(regionView) && /RegionOpenWorldViewportCamera/.test(regionView) && /view\.camera\.x \+ delta\.deltaX/.test(regionView) && !/openWorldViewportOrigins/.test(regionView))
 addCheck('RegionMapView refreshes open world by day', /ensureOpenWorldState\(currentDayTag\.value\)/.test(regionView))
 addCheck('RegionMapView handles open world passout', /handlePerformOpenWorldAction[\s\S]*handleRegionActionEndDay\(result\)/.test(regionView))
 

@@ -1,3 +1,5 @@
+/* global fetch, process, setTimeout, URL */
+
 import { spawnSync } from 'node:child_process'
 import net from 'node:net'
 
@@ -102,4 +104,4 @@ export function stopWindowsViteProcessesForPort(port, attempts = 20) {
 }
 
 export const isPlaywrightEnvironmentError = error =>
-  /browserType\.launch: spawn EPERM|spawn EPERM/i.test(String(error?.stack || error?.message || error || ''))
+  /browserType\.launch: spawn EPERM|spawn EPERM|Invalid file descriptor to ICU data/i.test(String(error?.stack || error?.message || error || ''))

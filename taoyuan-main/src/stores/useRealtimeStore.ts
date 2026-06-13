@@ -160,13 +160,18 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }, 300)
   }
 
+  const isFriendChatRouteActive = () =>
+    typeof window !== 'undefined' && window.location.hash.includes('/game/chat')
+
   const queueChatRefresh = () => {
     if (chatRefreshTimer !== null) return
     chatRefreshTimer = window.setTimeout(() => {
       chatRefreshTimer = null
       const chatStore = useFriendChatStore()
       void chatStore.refreshConversations({ silent: true })
-        .then(() => chatStore.activeConversationId ? chatStore.loadMessages(chatStore.activeConversationId) : null)
+        .then(() => isFriendChatRouteActive() && chatStore.activeConversationId
+          ? chatStore.loadMessages(chatStore.activeConversationId)
+          : null)
         .catch(error => {
           lastError.value = error instanceof Error ? error.message : '实时私聊刷新失败'
         })

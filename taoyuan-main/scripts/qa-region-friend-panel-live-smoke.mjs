@@ -152,13 +152,16 @@ const getEmbeddedSaveIdentity = decryptedSave => decryptedSave?.meta?.onlineIden
 const createSmokeSeed = () => Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 4)
 
 const seedSessionSave = async (session, startingMoney) => {
+  const slotResult = await fetchSessionJson(session, '/api/taoyuan/save/slots')
+  assert(slotResult.response.ok, `save slots read for ${session.username} returned ${slotResult.response.status}: ${slotResult.data?.msg || 'unknown error'}`)
+  const baseRevision = Number(slotResult.data?.slots?.find(slot => slot.slot === 0)?.revision ?? 0)
   const rawSavePayload = buildSeedSavePayload(session.username, startingMoney)
   const saveResult = await fetchSessionJson(session, '/api/taoyuan/save/0', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       raw: rawSavePayload,
-      revision: Date.now(),
+      base_revision: Number.isFinite(baseRevision) ? baseRevision : 0,
     }),
   })
   assert(saveResult.response.ok, `save write for ${session.username} returned ${saveResult.response.status}: ${saveResult.data?.msg || 'unknown error'}`)
@@ -464,7 +467,7 @@ async function main() {
       browser = await chromium.launch()
     } catch (error) {
       if (isPlaywrightEnvironmentError(error)) {
-        console.log('[region-friend-panel-live-smoke] Skipped: current environment cannot launch Playwright Chromium (spawn EPERM).')
+        console.log('[region-friend-panel-live-smoke] Skipped: current environment cannot launch Playwright Chromium.')
         return
       }
       throw error

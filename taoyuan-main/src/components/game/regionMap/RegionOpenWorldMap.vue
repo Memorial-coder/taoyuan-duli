@@ -64,6 +64,7 @@
           @pointerup="handleGridPointerEnd"
           @pointercancel="handleGridPointerEnd"
           @lostpointercapture="handleGridPointerEnd"
+          @wheel="handleGridWheel"
           @click.capture="handleGridClickCapture"
         >
           <div
@@ -285,6 +286,11 @@
   const ZOOM_MAX = 1.6
   const ZOOM_STEP = 0.15
   const ZOOM_PRECISION = 100
+  const PLAYER_INDICATOR_EDGE_MIN_PERCENT = 6
+  const PLAYER_INDICATOR_EDGE_MAX_PERCENT = 94
+  const PLAYER_INDICATOR_ZOOM_COLLISION_X_PERCENT = 58
+  const PLAYER_INDICATOR_ZOOM_COLLISION_Y_PERCENT = 82
+  const PLAYER_INDICATOR_ZOOM_CONTROL_CLEARANCE = '5.25rem'
   const viewportRef = ref<HTMLElement | null>(null)
   const dragState = ref<DragState | null>(null)
   const pinchState = ref<PinchState | null>(null)
@@ -363,13 +369,16 @@
     }
   })
   const playerOffscreenIndicatorVisible = computed(() => Boolean(playerViewportPosition.value && !isPlayerInVisibleViewport.value))
-  const clampIndicatorPercent = (value: number) => Math.min(94, Math.max(6, value))
+  const clampIndicatorPercent = (value: number) => Math.min(PLAYER_INDICATOR_EDGE_MAX_PERCENT, Math.max(PLAYER_INDICATOR_EDGE_MIN_PERCENT, value))
   const playerOffscreenIndicatorStyle = computed<CSSProperties>(() => {
     const position = playerViewportPosition.value
     if (!position) return {}
+    const left = clampIndicatorPercent(position.x)
+    const top = clampIndicatorPercent(position.y)
+    const shouldClearZoomControls = left >= PLAYER_INDICATOR_ZOOM_COLLISION_X_PERCENT && top >= PLAYER_INDICATOR_ZOOM_COLLISION_Y_PERCENT
     return {
-      left: `${clampIndicatorPercent(position.x)}%`,
-      top: `${clampIndicatorPercent(position.y)}%`
+      left: `${left}%`,
+      top: shouldClearZoomControls ? `min(${top}%, calc(100% - ${PLAYER_INDICATOR_ZOOM_CONTROL_CLEARANCE}))` : `${top}%`
     }
   })
   const playerOffscreenIndicatorArrowStyle = computed<CSSProperties>(() => {
@@ -417,6 +426,12 @@
 
   const handleZoomOut = () => {
     setZoomLevel(zoomLevel.value - ZOOM_STEP)
+  }
+
+  const handleGridWheel = (event: WheelEvent) => {
+    if (event.deltaY === 0) return
+    event.preventDefault()
+    setZoomLevel(zoomLevel.value + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
   }
 
   const scheduleClickSuppressionReset = () => {

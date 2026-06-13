@@ -12,10 +12,25 @@ import {
   type PrivateChatRewardDraft,
   type PrivateChatTargetPayload
 } from '@/utils/friendChatApi'
+import { useDecorationStore } from '@/stores/useDecorationStore'
+import { useInventoryStore } from '@/stores/useInventoryStore'
+import type { Quality } from '@/types/item'
 
 const createDefaultGiftRewards = (): PrivateChatRewardDraft[] => [
   { type: 'item', id: '', quantity: 1, quality: 'normal' }
 ]
+
+const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+
+type NormalizedGiftReward = {
+  type: PrivateChatRewardDraft['type']
+  id: string
+  quantity: number
+  quality?: string
+}
+
+const normalizeGiftQuality = (quality?: string): Quality | undefined =>
+  QUALITY_ORDER.includes(quality as Quality) ? quality as Quality : undefined
 
 export const useFriendChatStore = defineStore('friendChat', () => {
   const conversations = ref<PrivateChatConversationSummary[]>([])
@@ -187,6 +202,38 @@ export const useFriendChatStore = defineStore('friendChat', () => {
     giftRewardsDraft.value = giftRewardsDraft.value.filter((_, currentIndex) => currentIndex !== index)
   }
 
+  const syncSentGiftRewardsLocally = (rewards: NormalizedGiftReward[]) => {
+    try {
+      const inventoryStore = useInventoryStore()
+      const decorationStore = useDecorationStore()
+      for (const reward of rewards) {
+        if (reward.type === 'decoration') {
+          decorationStore.deductUnplacedDecoration(reward.id, reward.quantity)
+          continue
+        }
+
+        let remaining = reward.quantity
+        const normalizedQuality = normalizeGiftQuality(reward.quality)
+        const qualities = normalizedQuality ? [normalizedQuality] : QUALITY_ORDER
+        for (const quality of qualities) {
+          if (remaining <= 0) break
+          const fromTemp = Math.min(remaining, inventoryStore.getTempItemCount(reward.id, quality))
+          if (fromTemp > 0) {
+            inventoryStore.removeItemFromTemp(reward.id, fromTemp, quality)
+            remaining -= fromTemp
+          }
+          const fromUnlockedMain = Math.min(remaining, inventoryStore.getUnlockedItemCount(reward.id, quality))
+          if (fromUnlockedMain > 0) {
+            inventoryStore.removeUnlockedItem(reward.id, fromUnlockedMain, quality)
+            remaining -= fromUnlockedMain
+          }
+        }
+      }
+    } catch {
+      // The server has already accepted the gift; local inventory display will recover on the next save sync.
+    }
+  }
+
   const sendCurrentGift = async () => {
     const rewards = giftRewardsDraft.value
       .map(reward => ({
@@ -210,6 +257,7 @@ export const useFriendChatStore = defineStore('friendChat', () => {
         activeConversationId.value = data.conversation.id
       }
       upsertMessage(data?.message)
+      syncSentGiftRewardsLocally(rewards)
       giftContentDraft.value = ''
       giftRewardsDraft.value = createDefaultGiftRewards()
       return data

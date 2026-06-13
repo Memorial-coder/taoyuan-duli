@@ -128,6 +128,24 @@ export const useDecorationStore = defineStore('decoration', () => {
     return { success: true, message: `收起了${def.name}。` }
   }
 
+  const deductUnplacedDecoration = (id: string, count = 1): boolean => {
+    const def = getDecorationDef(id)
+    if (!def) return false
+    const safeCount = Math.max(1, Math.floor(Number(count) || 1))
+    const ownedCount = getOwnedCount(id)
+    const placedCount = getPlacedCount(id)
+    if (Math.max(0, ownedCount - placedCount) < safeCount) return false
+
+    const nextOwnedCount = ownedCount - safeCount
+    if (nextOwnedCount > 0) owned.value[id] = nextOwnedCount
+    else delete owned.value[id]
+    if (getPlacedCount(id) > nextOwnedCount) {
+      if (nextOwnedCount > 0) placed.value[id] = nextOwnedCount
+      else delete placed.value[id]
+    }
+    return true
+  }
+
   const cloneDecorationCounts = (value?: Record<string, number>) =>
     Object.fromEntries(
       Object.entries(value ?? {}).map(([id, count]) => [id, Math.max(0, Math.floor(Number(count) || 0))])
@@ -161,6 +179,7 @@ export const useDecorationStore = defineStore('decoration', () => {
     buyDecoration,
     placeDecoration,
     removeDecoration,
+    deductUnplacedDecoration,
     serialize,
     deserialize
   }

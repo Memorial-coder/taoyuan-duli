@@ -36,7 +36,7 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-xs">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mt-3 text-xs">
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
           <p class="text-[0.625rem] text-muted">好友</p>
           <p class="text-accent mt-1">{{ socialStore.friends.length }}</p>
@@ -48,6 +48,10 @@
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
           <p class="text-[0.625rem] text-muted">发出申请</p>
           <p class="text-accent mt-1">{{ socialStore.outgoingRequests.length }}</p>
+        </div>
+        <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0" data-testid="region-social-chat-unread-summary">
+          <p class="text-[0.625rem] text-muted">私聊未读</p>
+          <p :class="friendChatStore.totalUnreadCount > 0 ? 'text-danger' : 'text-accent'" class="mt-1">{{ friendChatUnreadLabel }}</p>
         </div>
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
           <p class="text-[0.625rem] text-muted">已拉黑</p>
@@ -171,9 +175,15 @@
                     <HeartHandshake :size="11" />
                     照料
                   </button>
-                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendChat(entry)">
+                  <button
+                    class="online-action-btn online-action-btn--compact"
+                    :class="{ 'online-action-btn--primary': getFriendChatUnreadCount(entry) > 0 }"
+                    :disabled="!getFriendTargetUsername(entry)"
+                    :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`"
+                    @click="openFriendChat(entry)"
+                  >
                     <MessageCircle :size="11" />
-                    私聊
+                    {{ getFriendChatUnreadCount(entry) > 0 ? `${formatFriendChatUnreadCount(entry)} 未读` : '私聊' }}
                   </button>
                   <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-gift-${entry.friendship_id || 'missing'}`" @click="openFriendChat(entry, 'gift')">
                     <Gift :size="11" />
@@ -503,11 +513,13 @@
   import { useRouter } from 'vue-router'
   import { Ban, Copy, Eye, Gift, HeartHandshake, Map, MessageCircle, RefreshCw, Search, ShieldAlert, UserPlus, Users, X } from 'lucide-vue-next'
   import { showFloat } from '@/composables/useGameLog'
+  import { useFriendChatStore } from '@/stores/useFriendChatStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useSocialStore } from '@/stores/useSocialStore'
   import type { OnlineFriendDiscoveryCard, OnlineFriendDiscoveryMode, OnlineFriendDiscoveryRelationStatus, OnlineRelationCard } from '@/utils/onlineProfileApi'
 
   const router = useRouter()
+  const friendChatStore = useFriendChatStore()
   const saveStore = useSaveStore()
   const socialStore = useSocialStore()
   const activeDiscoveryPlayer = ref<OnlineFriendDiscoveryCard | null>(null)
@@ -543,6 +555,9 @@
     [...socialStore.friends]
       .sort((left, right) => Number(right.last_interaction_at ?? right.friends_since ?? 0) - Number(left.last_interaction_at ?? left.friends_since ?? 0))
       .slice(0, 3)
+  )
+  const friendChatUnreadLabel = computed(() =>
+    friendChatStore.totalUnreadCount > 99 ? '99+' : String(friendChatStore.totalUnreadCount)
   )
 
   const formatSocialTime = (timestamp?: number, emptyLabel = '-') => {
@@ -664,6 +679,15 @@
   }
 
   const getFriendTargetUsername = (entry: OnlineRelationCard) => entry.profile.username?.trim() || ''
+  const getFriendChatUnreadCount = (entry: OnlineRelationCard) => {
+    const targetUsername = getFriendTargetUsername(entry)
+    if (!targetUsername) return 0
+    return Math.max(0, Number(friendChatStore.conversations.find(item => item.peer_username === targetUsername)?.unread_count) || 0)
+  }
+  const formatFriendChatUnreadCount = (entry: OnlineRelationCard) => {
+    const count = getFriendChatUnreadCount(entry)
+    return count > 99 ? '99+' : String(count)
+  }
   const buildFriendTargetQuery = (entry: OnlineRelationCard) => {
     const targetUsername = getFriendTargetUsername(entry)
     if (!targetUsername) return null
@@ -725,6 +749,7 @@
 
   const refreshFriendStation = async () => {
     await Promise.all([
+      friendChatStore.refreshConversations({ silent: true }),
       socialStore.refreshRelationships(),
       socialStore.refreshFriendDiscovery({ silent: true })
     ]).catch(error => {

@@ -127,22 +127,49 @@
 
           <div v-else class="friend-chat-gift-compose">
             <input v-model="chatStore.giftContentDraft" class="friend-chat-input" maxlength="240" placeholder="礼物留言（可选）" />
+            <div v-if="availableGiftOptions.length === 0" class="friend-chat-empty" data-testid="friend-chat-owned-gift-empty">
+              背包里暂时没有可寄送的物品
+            </div>
             <div class="friend-chat-gift-rows">
               <div v-for="(reward, index) in chatStore.giftRewardsDraft" :key="`chat-gift-${index}`" class="friend-chat-gift-row">
-                <select v-model="reward.type" class="friend-chat-select">
-                  <option value="item">物品</option>
-                  <option value="seed">种子</option>
-                  <option value="decoration">装饰</option>
+                <select
+                  :value="rewardSelectionValue(reward)"
+                  class="friend-chat-select friend-chat-owned-gift-select"
+                  :data-testid="`friend-chat-owned-gift-picker-${index}`"
+                  :disabled="availableGiftOptions.length === 0"
+                  @change="updateGiftRewardSelection(index, String(($event.target as HTMLSelectElement).value || ''))"
+                >
+                  <option value="">选择背包中的礼物</option>
+                  <option
+                    v-for="option in availableGiftOptions"
+                    :key="option.value"
+                    :value="option.value"
+                    :disabled="getGiftOptionRemaining(option.value, index) <= 0 && rewardSelectionValue(reward) !== option.value"
+                  >
+                    {{ formatGiftOptionLabel(option, index) }}
+                  </option>
                 </select>
-                <input v-model="reward.id" class="friend-chat-input" placeholder="物品 ID" />
-                <input v-model.number="reward.quantity" class="friend-chat-number" type="number" min="1" max="999" />
+                <input
+                  v-model.number="reward.quantity"
+                  class="friend-chat-number"
+                  type="number"
+                  min="1"
+                  :max="getGiftRewardMax(index)"
+                  :disabled="!reward.id"
+                  :data-testid="`friend-chat-owned-gift-quantity-${index}`"
+                  @change="clampGiftRewardQuantity(index)"
+                  @blur="clampGiftRewardQuantity(index)"
+                />
                 <button class="friend-chat-icon-btn" type="button" title="移除" :disabled="chatStore.giftRewardsDraft.length <= 1" @click="chatStore.removeGiftReward(index)">
                   <X :size="13" />
                 </button>
+                <span v-if="getGiftRewardHint(reward, index)" class="friend-chat-gift-row-hint">
+                  {{ getGiftRewardHint(reward, index) }}
+                </span>
               </div>
             </div>
             <div class="friend-chat-gift-actions">
-              <Button class="justify-center" :icon="Plus" :icon-size="13" :disabled="chatStore.sending" @click="chatStore.addGiftReward">
+              <Button class="justify-center" :icon="Plus" :icon-size="13" :disabled="chatStore.sending || availableGiftOptions.length === 0" @click="chatStore.addGiftReward">
                 添加
               </Button>
               <Button class="justify-center" :icon="Gift" :icon-size="13" :disabled="chatStore.sending || !canSendGift" @click="sendGift">
@@ -165,14 +192,38 @@
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import { showFloat } from '@/composables/useGameLog'
+  import { DECORATIONS } from '@/data/decorations'
+  import { getItemById } from '@/data/items'
+  import { useDecorationStore } from '@/stores/useDecorationStore'
   import { useFriendChatStore } from '@/stores/useFriendChatStore'
-  import type { PrivateChatMessage } from '@/utils/friendChatApi'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import type { Quality } from '@/types/item'
+  import type { PrivateChatMessage, PrivateChatRewardDraft } from '@/utils/friendChatApi'
 
   const route = useRoute()
   const router = useRouter()
   const chatStore = useFriendChatStore()
+  const inventoryStore = useInventoryStore()
+  const decorationStore = useDecorationStore()
   const messagePaneRef = ref<HTMLElement | null>(null)
   const composeMode = ref<'message' | 'gift'>('message')
+
+  type GiftPickerOption = {
+    value: string
+    type: PrivateChatRewardDraft['type']
+    id: string
+    quantity: number
+    quality?: Quality
+    label: string
+  }
+
+  const QUALITY_SHORT_LABELS: Record<Quality, string> = {
+    normal: '普',
+    fine: '良',
+    excellent: '优',
+    supreme: '绝'
+  }
+  const decorationNameMap = new Map(DECORATIONS.map(def => [def.id, def.name]))
 
   const getRouteQueryText = (value: unknown) => {
     const raw = Array.isArray(value) ? value[0] : value
@@ -182,9 +233,129 @@
   const canSendMessage = computed(() =>
     !!chatStore.activePeerDisplayName && (!!chatStore.messageDraft.trim() || !!chatStore.photoUrlDraft.trim())
   )
-  const canSendGift = computed(() =>
-    !!chatStore.activePeerDisplayName && chatStore.giftRewardsDraft.some(reward => reward.id.trim())
-  )
+  const availableGiftOptions = computed<GiftPickerOption[]>(() => {
+    const options = new Map<string, GiftPickerOption>()
+    const addStackableOption = (slot: { itemId: string; quality: Quality; quantity: number; locked?: boolean }) => {
+      if (slot.locked) return
+      const slotQuantity = Math.max(0, Number(slot.quantity) || 0)
+      if (slotQuantity <= 0) return
+      const itemDef = getItemById(slot.itemId)
+      if (!itemDef) return
+      const type: PrivateChatRewardDraft['type'] = itemDef.category === 'seed' ? 'seed' : 'item'
+      const value = `${type}::${slot.itemId}::${slot.quality}`
+      const current = options.get(value)
+      const quantity = (current?.quantity || 0) + slotQuantity
+      options.set(value, {
+        value,
+        type,
+        id: slot.itemId,
+        quality: slot.quality,
+        quantity,
+        label: `${itemDef.name}（${QUALITY_SHORT_LABELS[slot.quality] || slot.quality}）×${quantity}`
+      })
+    }
+
+    inventoryStore.items.forEach(addStackableOption)
+    inventoryStore.tempItems.forEach(addStackableOption)
+
+    for (const [id, count] of Object.entries(decorationStore.owned)) {
+      const quantity = Math.max(0, Math.floor(Number(count) || 0) - decorationStore.getPlacedCount(id))
+      if (quantity <= 0) continue
+      const value = `decoration::${id}`
+      options.set(value, {
+        value,
+        type: 'decoration',
+        id,
+        quantity,
+        label: `${decorationNameMap.get(id) || id}×${quantity}`
+      })
+    }
+
+    return [...options.values()].sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
+  })
+
+  const rewardSelectionValue = (reward: Pick<PrivateChatRewardDraft, 'type' | 'id' | 'quality'>) => {
+    if (!reward.id) return ''
+    if (reward.type === 'decoration') return `decoration::${reward.id}`
+    return `${reward.type}::${reward.id}::${reward.quality || 'normal'}`
+  }
+
+  const getGiftOptionRemaining = (value: string, currentIndex: number) => {
+    const option = availableGiftOptions.value.find(entry => entry.value === value)
+    if (!option) return 0
+    const usedByOtherRows = chatStore.giftRewardsDraft.reduce((sum, reward, index) => {
+      if (index === currentIndex || rewardSelectionValue(reward) !== value) return sum
+      return sum + Math.max(1, Math.floor(Number(reward.quantity) || 1))
+    }, 0)
+    return Math.max(0, option.quantity - usedByOtherRows)
+  }
+
+  const getGiftRewardMax = (index: number) => {
+    const reward = chatStore.giftRewardsDraft[index]
+    if (!reward?.id) return 1
+    return Math.max(1, getGiftOptionRemaining(rewardSelectionValue(reward), index))
+  }
+
+  const isGiftRewardAvailable = (reward: PrivateChatRewardDraft, index: number) => {
+    if (!reward.id.trim()) return false
+    const maxQuantity = getGiftOptionRemaining(rewardSelectionValue(reward), index)
+    const quantity = Math.max(1, Math.floor(Number(reward.quantity) || 1))
+    return maxQuantity > 0 && quantity <= maxQuantity
+  }
+
+  const canSendGift = computed(() => {
+    if (!chatStore.activePeerDisplayName) return false
+    const selectedRewards = chatStore.giftRewardsDraft
+      .map((reward, index) => ({ reward, index }))
+      .filter(({ reward }) => reward.id.trim())
+    return selectedRewards.length > 0 && selectedRewards.every(({ reward, index }) => isGiftRewardAvailable(reward, index))
+  })
+
+  const updateGiftRewardSelection = (index: number, value: string) => {
+    const reward = chatStore.giftRewardsDraft[index]
+    if (!reward) return
+    if (!value) {
+      reward.type = 'item'
+      reward.id = ''
+      reward.quality = 'normal'
+      reward.quantity = 1
+      return
+    }
+
+    const option = availableGiftOptions.value.find(entry => entry.value === value)
+    if (!option) return
+    reward.type = option.type
+    reward.id = option.id
+    reward.quality = option.type === 'decoration' ? undefined : option.quality || 'normal'
+    reward.quantity = Math.min(
+      Math.max(1, Math.floor(Number(reward.quantity) || 1)),
+      getGiftRewardMax(index)
+    )
+  }
+
+  const clampGiftRewardQuantity = (index: number) => {
+    const reward = chatStore.giftRewardsDraft[index]
+    if (!reward?.id) return
+    reward.quantity = Math.min(
+      Math.max(1, Math.floor(Number(reward.quantity) || 1)),
+      getGiftRewardMax(index)
+    )
+  }
+
+  const formatGiftOptionLabel = (option: GiftPickerOption, currentIndex: number) => {
+    const remaining = getGiftOptionRemaining(option.value, currentIndex)
+    if (remaining <= 0) return `${option.label} · 已选完`
+    if (remaining < option.quantity) return `${option.label} · 可选${remaining}`
+    return option.label
+  }
+
+  const getGiftRewardHint = (reward: PrivateChatRewardDraft, index: number) => {
+    if (!reward.id) return ''
+    const remaining = getGiftOptionRemaining(rewardSelectionValue(reward), index)
+    if (remaining <= 0) return '这项礼物已没有可用数量'
+    if (Math.max(1, Math.floor(Number(reward.quantity) || 1)) > remaining) return `最多可送 ${remaining}`
+    return ''
+  }
 
   const scrollToBottom = async () => {
     await nextTick()
@@ -602,14 +773,24 @@
 
   .friend-chat-gift-row {
     align-items: center;
+    flex-wrap: wrap;
   }
 
-  .friend-chat-gift-row .friend-chat-select {
-    max-width: 5rem;
+  .friend-chat-owned-gift-select {
+    flex: 1 1 16rem;
+    min-width: min(100%, 12rem);
   }
 
   .friend-chat-gift-row .friend-chat-number {
-    max-width: 4.5rem;
+    flex: 0 0 5rem;
+    max-width: 5rem;
+  }
+
+  .friend-chat-gift-row-hint {
+    flex: 1 0 100%;
+    color: var(--color-danger);
+    font-size: 0.625rem;
+    line-height: 1rem;
   }
 
   .friend-chat-gift-rows {
@@ -648,7 +829,7 @@
       flex-wrap: wrap;
     }
 
-    .friend-chat-gift-row .friend-chat-select,
+    .friend-chat-owned-gift-select,
     .friend-chat-gift-row .friend-chat-number {
       max-width: none;
       flex: 1 1 5rem;

@@ -85,6 +85,15 @@
                 管理展示
               </button>
               <button
+                data-testid="online-manor-owner-primary-manage-access"
+                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
+                type="button"
+                @click="openAccessPolicyDialog"
+              >
+                <Settings :size="14" />
+                管理权限
+              </button>
+              <button
                 data-testid="online-manor-owner-primary-guestbook"
                 class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
                 type="button"
@@ -735,9 +744,21 @@
           <div class="space-y-3">
             <div class="flex flex-col gap-2 border border-accent/10 bg-black/10 p-3 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
-                <div class="flex items-center gap-2 text-accent">
-                  <Sprout :size="13" />
-                  <p class="text-xs">好友庄园照料</p>
+                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div class="flex items-center gap-2 text-accent">
+                    <Sprout :size="13" />
+                    <p class="text-xs">{{ isOwner ? '庄园照料权限' : '好友庄园照料' }}</p>
+                  </div>
+                  <button
+                    v-if="isOwner"
+                    data-testid="online-manor-care-manage-access"
+                    class="online-action-btn online-action-btn--compact shrink-0 justify-center"
+                    type="button"
+                    @click="openAccessPolicyDialog"
+                  >
+                    <Settings :size="12" />
+                    管理权限
+                  </button>
                 </div>
                 <p class="mt-2 text-[0.625rem] leading-5 text-muted">
                   今日访客剩余 {{ careRemainingLabel }} · 庄园剩余 {{ manorCareRemainingLabel }} · 权限 {{ carePermissionLabel }}
@@ -745,10 +766,10 @@
                 <p class="mt-1 text-[0.625rem] leading-5 text-muted">
                   轻采剩余 {{ stealRemainingLabel }} · 庄园轻采 {{ manorStealRemainingLabel }} · 权限 {{ stealPermissionLabel }}
                 </p>
-                <p v-if="!snapshot.care_state.can_care" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
+                <p v-if="careFailureReason" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
                   {{ snapshot.care_state.care_denied_reason || '当前庄园暂未开放照料。' }}
                 </p>
-                <p v-if="!snapshot.steal_state.can_steal" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
+                <p v-if="stealFailureReason" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
                   {{ snapshot.steal_state.steal_denied_reason || '当前庄园暂未开放轻采。' }}
                 </p>
                 <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-care-readable-limits">
@@ -1175,6 +1196,87 @@
     </OnlineActionDialog>
 
     <OnlineActionDialog
+      :open="accessPolicyDialogOpen"
+      title="管理庄园权限"
+      description="调整访客访问、照料和轻采的开放范围。"
+      :running="manorStore.accessPolicyActionRunning"
+      @cancel="closeAccessPolicyDialog"
+      @close="closeAccessPolicyDialog"
+    >
+      <div class="space-y-3" data-testid="online-manor-access-policy-dialog">
+        <label class="block">
+          <span class="text-[0.625rem] leading-4 text-muted">访问权限</span>
+          <select
+            v-model="manorStore.accessVisitModeDraft"
+            data-testid="online-manor-access-visit-select"
+            class="online-select mt-1 w-full"
+            :disabled="manorStore.accessPolicyActionRunning"
+          >
+            <option v-for="option in accessPolicyOptions" :key="`access-visit-${option.id}`" :value="option.id">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-[0.625rem] leading-4 text-muted">照料权限</span>
+          <select
+            v-model="manorStore.accessCareModeDraft"
+            data-testid="online-manor-access-care-select"
+            class="online-select mt-1 w-full"
+            :disabled="manorStore.accessPolicyActionRunning"
+          >
+            <option v-for="option in accessPolicyOptions" :key="`access-care-${option.id}`" :value="option.id">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-[0.625rem] leading-4 text-muted">轻采权限</span>
+          <select
+            v-model="manorStore.accessStealModeDraft"
+            data-testid="online-manor-access-steal-select"
+            class="online-select mt-1 w-full"
+            :disabled="manorStore.accessPolicyActionRunning"
+          >
+            <option v-for="option in accessPolicyOptions" :key="`access-steal-${option.id}`" :value="option.id">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <div class="grid gap-2 border border-accent/10 bg-bg/30 p-2 text-[0.625rem] leading-5 text-muted sm:grid-cols-3">
+          <p>访问：{{ accessModeLabel(manorStore.accessVisitModeDraft) }}</p>
+          <p>照料：{{ accessModeLabel(manorStore.accessCareModeDraft) }}</p>
+          <p>轻采：{{ accessModeLabel(manorStore.accessStealModeDraft) }}</p>
+        </div>
+      </div>
+      <template #details>
+        保存后立即刷新庄园快照；访客是否可照料或轻采仍由服务端权限和每日次数共同判定。
+      </template>
+      <template #footer="{ cancel }">
+        <footer class="flex flex-col-reverse gap-2 border-t border-accent/10 pt-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-action-dialog-cancel"
+            :disabled="manorStore.accessPolicyActionRunning"
+            @click="cancel"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+            data-testid="online-manor-access-policy-save-button"
+            :disabled="manorStore.accessPolicyActionRunning"
+            @click="confirmAccessPolicySave"
+          >
+            <span data-testid="online-action-dialog-confirm">{{ manorStore.accessPolicyActionRunning ? '保存中' : '保存权限' }}</span>
+          </button>
+        </footer>
+      </template>
+    </OnlineActionDialog>
+
+    <OnlineActionDialog
       :open="guestbookDialogOpen"
       title="写一条庄园留言"
       description="选择留言类型，写下问候或建议。提交失败时草稿会留在这里。"
@@ -1582,6 +1684,7 @@
     Route,
     Save,
     Send,
+    Settings,
     Sprout,
     Sparkles,
     Upload,
@@ -1620,6 +1723,7 @@
   const coverInputRef = ref<HTMLInputElement | null>(null)
   const coverDialogOpen = ref(false)
   const themeSaveDialogOpen = ref(false)
+  const accessPolicyDialogOpen = ref(false)
   const guestbookDialogOpen = ref(false)
   const careRoomCreateDialogOpen = ref(false)
   const careRoomCreateMemberLimit = ref(2)
@@ -1673,11 +1777,13 @@
   const activeThemeSource = computed(() => themeWeek.value?.active_theme_source || '暂无来源')
   const themeScoreLabel = computed(() => themeWeek.value ? String(themeWeek.value.score) : '暂无评分')
   const templateOptions = computed(() => themeWeek.value?.template_options ?? [])
+  const accessPolicyOptions = computed(() => snapshot.value?.access_policy.options ?? [])
   const selectedTemplateOption = computed(() => {
     const draftTemplate = templateOptions.value.find(option => option.id === manorStore.templateIdDraft)
     const activeTemplate = templateOptions.value.find(option => option.id === themeWeek.value?.template_id)
     return draftTemplate ?? activeTemplate ?? templateOptions.value[0] ?? null
   })
+  const accessModeLabel = (mode: string) => accessPolicyOptions.value.find(option => option.id === mode)?.label || mode
   const coverImageUrl = computed(() => manorStore.coverImageUrlDraft || themeWeek.value?.cover_image_url || '')
   const coverImageAlt = computed(() => manorStore.coverImageAltDraft || themeWeek.value?.cover_image_alt || '庄园主图')
   const themeRecommendations = computed(() => themeWeek.value?.recommendations ?? [])
@@ -1840,7 +1946,7 @@
   })
   const careFailureReason = computed(() => {
     const careState = snapshot.value?.care_state
-    if (!careState || careState.can_care) return ''
+    if (!careState || careState.can_care || isOwner.value) return ''
     return careState.care_denied_reason || '当前庄园暂未开放照料。'
   })
   const careAntiAbuseSummary = computed(() => {
@@ -1893,7 +1999,7 @@
   })
   const stealFailureReason = computed(() => {
     const stealState = snapshot.value?.steal_state
-    if (!stealState || stealState.can_steal) return ''
+    if (!stealState || stealState.can_steal || isOwner.value) return ''
     return stealState.steal_denied_reason || '当前庄园暂未开放轻采。'
   })
   const stealAntiAbuseSummary = computed(() => {
@@ -2086,6 +2192,15 @@
     themeSaveDialogOpen.value = false
   }
 
+  const openAccessPolicyDialog = () => {
+    accessPolicyDialogOpen.value = true
+  }
+
+  const closeAccessPolicyDialog = () => {
+    if (manorStore.accessPolicyActionRunning) return
+    accessPolicyDialogOpen.value = false
+  }
+
   const openThemeManagementFromOverview = () => {
     activeTab.value = 'theme'
     themeSaveDialogOpen.value = true
@@ -2109,6 +2224,14 @@
     await manorStore.saveThemeWeekSnapshot()
       .then(() => {
         themeSaveDialogOpen.value = false
+      })
+      .catch(() => {})
+  }
+
+  const confirmAccessPolicySave = async () => {
+    await manorStore.saveAccessPolicySnapshot()
+      .then(() => {
+        accessPolicyDialogOpen.value = false
       })
       .catch(() => {})
   }
