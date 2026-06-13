@@ -109,8 +109,8 @@
         </p>
       </div>
       <div v-if="goalStore.dailyGoals.length === 0" class="text-xs text-muted">今日暂无经营提示。</div>
-      <div v-else class="space-y-1.5">
-        <div v-for="goal in goalStore.dailyGoals" :key="goal.id" class="border border-accent/10 rounded-xs px-3 py-2">
+      <div v-else class="quest-card-grid desktop-adaptive-grid--cards" data-testid="quest-daily-goal-grid">
+        <div v-for="goal in goalStore.dailyGoals" :key="goal.id" class="quest-card-grid__item border border-accent/10 rounded-xs px-3 py-2">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs">{{ goal.title }}</p>
             <span class="text-[0.625rem]" :class="goal.completed ? 'text-success' : 'text-accent'">{{ goalStore.getGoalSourceText(goal) }}</span>
@@ -156,8 +156,8 @@
           <span class="text-xs text-accent">+{{ villageProjectStore.getQuestFriendshipBonus() }}</span>
         </div>
       </div>
-      <div v-if="villageQuestProjects.length > 0" class="space-y-1.5">
-        <div v-for="project in villageQuestProjects" :key="project.id" class="border border-accent/10 rounded-xs px-3 py-2">
+      <div v-if="villageQuestProjects.length > 0" class="quest-card-grid desktop-adaptive-grid--cards" data-testid="quest-village-project-grid">
+        <div v-for="project in villageQuestProjects" :key="project.id" class="quest-card-grid__item border border-accent/10 rounded-xs px-3 py-2">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs text-accent truncate">{{ project.name }}</p>
             <span class="text-[0.625rem]" :class="project.canBuildNow ? 'text-success' : 'text-muted'">
@@ -226,11 +226,11 @@
         <Calendar :size="24" />
         <p class="text-xs mt-1">今日暂无委托</p>
       </div>
-      <div v-else class="flex flex-col space-y-1.5">
+      <div v-else class="quest-card-grid desktop-adaptive-grid--cards" data-testid="quest-board-grid">
         <div
           v-for="quest in questStore.boardQuests"
           :key="quest.id"
-          class="flex items-center justify-between rounded-xs px-3 py-1.5 cursor-pointer"
+          class="quest-card-grid__item flex items-center justify-between rounded-xs px-3 py-1.5 cursor-pointer"
           :class="quest.isUrgent ? 'border border-red-500/50 bg-red-500/5 hover:bg-red-500/10' : 'border border-accent/20 hover:bg-accent/5'"
           @click="questModal = { type: 'board', questId: quest.id }"
         >
@@ -260,6 +260,7 @@
               </div>
               <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
               <p v-if="getQuestRewardPreview(quest)" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
+              <p v-if="getOrderDeedHint(quest)" class="text-[0.625rem] text-success/80 mt-0.5 truncate">{{ getOrderDeedHint(quest) }}</p>
               <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
             </div>
           </div>
@@ -298,6 +299,7 @@
                 </span>
               </div>
               <p v-if="questStore.specialOrder.demandHint" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ questStore.specialOrder.demandHint }}</p>
+              <p v-if="getOrderDeedHint(questStore.specialOrder)" class="text-[0.625rem] text-success/80 mt-0.5 truncate">{{ getOrderDeedHint(questStore.specialOrder) }}</p>
         </div>
         <span class="text-xs text-accent whitespace-nowrap ml-2">{{ getQuestMoneyPreviewLabel(questStore.specialOrder) }}</span>
       </div>
@@ -346,11 +348,11 @@
         <Clock :size="24" />
         <p class="text-xs mt-1">暂无进行中的任务</p>
       </div>
-      <div v-else class="flex flex-col space-y-1.5">
+      <div v-else class="quest-card-grid desktop-adaptive-grid--cards" data-testid="quest-active-grid">
         <div
           v-for="quest in questStore.activeQuests"
           :key="quest.id"
-          class="border rounded-xs px-3 py-1.5 cursor-pointer"
+          class="quest-card-grid__item border rounded-xs px-3 py-1.5 cursor-pointer"
           :class="canSubmit(quest) ? 'border-success/50 bg-success/5 hover:bg-success/10' : quest.isUrgent ? 'border-red-500/50 bg-red-500/5 hover:bg-red-500/10' : quest.type === 'special_order' ? 'border-accent/30 hover:bg-accent/5' : 'border-accent/20 hover:bg-accent/5'"
           @click="questModal = { type: 'active', questId: quest.id }"
         >
@@ -385,7 +387,8 @@
                     {{ getStageLabel(quest.relationshipStageRequired) }}
                   </span>
                 </div>
-                <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
+              <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
+                <p v-if="getOrderDeedHint(quest)" class="text-[0.625rem] text-success/80 mt-0.5 truncate">{{ getOrderDeedHint(quest) }}</p>
                 <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
               </div>
             </div>
@@ -425,8 +428,8 @@
         <span class="text-[0.625rem] text-accent">{{ questStore.completedQuestHistory.length }} 条</span>
       </div>
       <div v-if="questStore.completedQuestHistory.length === 0" class="text-[0.625rem] text-muted">还没有已完成订单记录。</div>
-      <div v-else class="space-y-1.5">
-        <div v-for="entry in questStore.completedQuestHistory.slice(0, 6)" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
+      <div v-else class="quest-card-grid desktop-adaptive-grid--cards" data-testid="quest-history-grid">
+        <div v-for="entry in questStore.completedQuestHistory.slice(0, 6)" :key="entry.id" class="quest-card-grid__item border border-accent/10 rounded-xs px-2 py-1.5">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs text-accent truncate">{{ entry.npcName }}：{{ entry.description }}</p>
             <span class="text-[0.625rem]" :class="entry.isSpecialOrder ? 'text-warning' : 'text-muted'">
@@ -778,6 +781,7 @@
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useQuestStore } from '@/stores/useQuestStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
@@ -796,6 +800,7 @@
   const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
   const weeklyPlanQuestActionNodeLabels = computed(() => getWeeklyPlanQuestActionNodes(weeklyPlanSnapshot.value).map(node => node.label))
   const npcStore = useNpcStore()
+  const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()
   const walletStore = useWalletStore()
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('quest')
@@ -841,6 +846,16 @@
 
   const getHybridName = (id: string): string => {
     return getCropById(id)?.name ?? getItemName(id)
+  }
+
+  const orderDeedUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('order_deed') > 0)
+  const getOrderDeedHint = (quest: QuestInstance | null | undefined): string => {
+    if (!orderDeedUnlocked.value || !quest) return ''
+    const itemDef = getItemById(quest.targetItemId)
+    if (itemDef?.category !== 'crop') return ''
+    const cropDef = getCropById(quest.targetItemId)
+    const seedHint = cropDef ? `，建议预留${getItemName(cropDef.seedId)}` : ''
+    return `订单田契：需求${quest.targetItemName}×${quest.targetQuantity}，背包${inventoryStore.getItemCount(quest.targetItemId)}/${quest.targetQuantity}${seedHint}`
   }
 
   const getCategoryLabel = (category?: VillagerQuestCategory): string => {
@@ -1380,3 +1395,9 @@
   })
 
 </script>
+
+<style scoped>
+  .quest-card-grid__item {
+    min-width: 0;
+  }
+</style>

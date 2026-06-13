@@ -653,6 +653,9 @@
 
 <style scoped>
   .friend-chat {
+    height: min(54rem, calc(100vh - 13.5rem));
+    height: min(54rem, calc(100dvh - 13.5rem));
+    min-height: 0;
     min-width: 0;
   }
 
@@ -660,12 +663,21 @@
     display: grid;
     grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
     gap: 0.75rem;
-    min-height: min(720px, calc(100vh - 9rem));
+    height: 100%;
+    min-height: 0;
   }
 
   .friend-chat-list,
   .friend-chat-thread {
+    height: 100%;
+    min-height: 0;
     min-width: 0;
+    overflow: hidden;
+  }
+
+  .friend-chat-list {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .friend-chat-list-header,
@@ -679,8 +691,7 @@
 
   .friend-chat-thread {
     display: grid;
-    grid-template-rows: auto minmax(280px, 1fr) auto;
-    min-height: 620px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
   .friend-chat-thread-title {
@@ -727,6 +738,9 @@
   .friend-chat-conversations {
     display: grid;
     gap: 0.4rem;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.2rem;
   }
 
   .friend-chat-conversation {
@@ -794,6 +808,7 @@
   .friend-chat-messages {
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0.5rem;
     border: 1px solid rgb(var(--color-accent-rgb) / 0.1);
     border-radius: 6px;
@@ -1040,6 +1055,10 @@
   .friend-chat-gift-rows {
     display: grid;
     gap: 0.4rem;
+    max-height: min(10rem, 24vh);
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.2rem;
   }
 
   .friend-chat-gift-picker-dialog {
@@ -1130,14 +1149,30 @@
   }
 
   @media (max-width: 767px) {
+    .friend-chat {
+      height: min(48rem, calc(100vh - 9rem));
+      height: min(48rem, calc(100dvh - 9rem));
+    }
+
     .friend-chat-layout {
       grid-template-columns: 1fr;
-      min-height: auto;
+      grid-template-rows: minmax(0, auto) minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .friend-chat-list {
+      height: auto;
+      max-height: 9rem;
     }
 
     .friend-chat-thread {
-      min-height: 560px;
-      grid-template-rows: auto minmax(320px, 1fr) auto;
+      height: auto;
+      min-height: 0;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .friend-chat-conversations {
+      max-height: 5.75rem;
     }
 
     .friend-chat-conversations {

@@ -10,6 +10,7 @@ import { useInventoryStore } from '@/stores/useInventoryStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useSkillStore } from '@/stores/useSkillStore'
+import { getCropHarvestExperience } from '@/utils/farmingExperience'
 
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 
@@ -31,6 +32,7 @@ export interface FarmHarvestResult {
   harvestedPlots: number
   giant: boolean
   bonusMoney: number
+  experienceGained: number
   leveledUp: boolean
   newLevel?: number
 }
@@ -49,6 +51,7 @@ const buildFailedHarvestResult = (
   harvestedPlots: cropId ? 1 : 0,
   giant: false,
   bonusMoney: 0,
+  experienceGained: 0,
   leveledUp: false
 })
 
@@ -75,6 +78,7 @@ export const harvestFarmPlotWithRewards = (
       harvestedPlots: 0,
       giant: false,
       bonusMoney: 0,
+      experienceGained: 0,
       leveledUp: false
     }
   }
@@ -92,6 +96,7 @@ export const harvestFarmPlotWithRewards = (
         harvestedPlots: groupPlots.length,
         giant: true,
         bonusMoney: 0,
+        experienceGained: 0,
         leveledUp: false
       }
     }
@@ -105,6 +110,7 @@ export const harvestFarmPlotWithRewards = (
         harvestedPlots: groupPlots.length,
         giant: true,
         bonusMoney: 0,
+        experienceGained: 0,
         leveledUp: false
       }
     }
@@ -112,7 +118,8 @@ export const harvestFarmPlotWithRewards = (
     achievementStore.discoverItem(result.cropId)
     achievementStore.recordCropHarvest()
     questStore.onItemObtained(result.cropId, result.quantity)
-    const levelResult = skillStore.addExp('farming', 10)
+    const experienceGained = getCropHarvestExperience(cropDef, 'normal', { giant: true })
+    const levelResult = skillStore.addExp('farming', experienceGained)
 
     return {
       success: true,
@@ -122,6 +129,7 @@ export const harvestFarmPlotWithRewards = (
       harvestedPlots: groupPlots.length,
       giant: true,
       bonusMoney: 0,
+      experienceGained,
       leveledUp: levelResult.leveledUp,
       newLevel: levelResult.newLevel
     }
@@ -162,10 +170,12 @@ export const harvestFarmPlotWithRewards = (
       harvestedPlots: 1,
       giant: false,
       bonusMoney: 0,
+      experienceGained: 0,
       leveledUp: false
     }
   }
 
+  const experienceGained = getCropHarvestExperience(cropDef, quality, { harvestCount: plot.harvestCount })
   const result = farmStore.harvestPlot(plotId)
   if (!result.cropId || !inventoryStore.addItemExact(cropId, harvestQty, quality)) {
     return {
@@ -177,6 +187,7 @@ export const harvestFarmPlotWithRewards = (
       harvestedPlots: 1,
       giant: false,
       bonusMoney: 0,
+      experienceGained: 0,
       leveledUp: false
     }
   }
@@ -184,7 +195,7 @@ export const harvestFarmPlotWithRewards = (
   achievementStore.discoverItem(cropId)
   achievementStore.recordCropHarvest()
   questStore.onItemObtained(cropId, harvestQty)
-  const levelResult = skillStore.addExp('farming', 10)
+  const levelResult = skillStore.addExp('farming', experienceGained)
 
   let bonusMoney = 0
   if (genetics && genetics.sweetness > 0 && cropDef) {
@@ -207,6 +218,7 @@ export const harvestFarmPlotWithRewards = (
     harvestedPlots: 1,
     giant: false,
     bonusMoney,
+    experienceGained,
     leveledUp: levelResult.leveledUp,
     newLevel: levelResult.newLevel
   }
@@ -259,6 +271,7 @@ export const harvestGreenhousePlotWithRewards = (
     return buildFailedHarvestResult(cropId, cropDef?.name ?? cropId, harvestQty, quality)
   }
 
+  const experienceGained = getCropHarvestExperience(cropDef, quality, { harvestCount: plot.harvestCount })
   const harvestedCropId = farmStore.greenhouseHarvestPlot(plotId)
   if (!harvestedCropId || !inventoryStore.addItemExact(cropId, harvestQty, quality)) {
     return buildFailedHarvestResult(cropId, cropDef?.name ?? cropId, harvestQty, quality)
@@ -267,7 +280,7 @@ export const harvestGreenhousePlotWithRewards = (
   achievementStore.discoverItem(cropId)
   achievementStore.recordCropHarvest()
   questStore.onItemObtained(cropId, harvestQty)
-  const levelResult = skillStore.addExp('farming', 10)
+  const levelResult = skillStore.addExp('farming', experienceGained)
 
   let bonusMoney = 0
   if (genetics && genetics.sweetness > 0 && cropDef) {
@@ -290,6 +303,7 @@ export const harvestGreenhousePlotWithRewards = (
     harvestedPlots: 1,
     giant: false,
     bonusMoney,
+    experienceGained,
     leveledUp: levelResult.leveledUp,
     newLevel: levelResult.newLevel
   }

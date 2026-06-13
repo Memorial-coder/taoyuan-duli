@@ -52,18 +52,28 @@ const masteryNodeSkillById = {
   farming_batch_irrigation: 'farming',
   farming_festival_supply: 'farming',
   farming_processing_flow: 'farming',
+  farming_seed_recovery: 'farming',
+  farming_order_deed: 'farming',
   foraging_rare_signal: 'foraging',
   foraging_journey_scout: 'foraging',
   foraging_weather_window: 'foraging',
+  foraging_mountain_hunch: 'foraging',
+  foraging_herb_sample: 'foraging',
   fishing_tide_marker: 'fishing',
   fishing_pond_link: 'fishing',
   fishing_legend_weight: 'fishing',
+  fishing_pond_pedigree: 'fishing',
+  fishing_tide_notebook: 'fishing',
   mining_floor_intel: 'mining',
   mining_bomb_efficiency: 'mining',
   mining_rare_transmute: 'mining',
+  mining_vein_marker: 'mining',
+  mining_stabilized_blasting: 'mining',
   combat_boss_pressure: 'combat',
   combat_escort_margin: 'combat',
-  combat_trinket_tuning: 'combat'
+  combat_trinket_tuning: 'combat',
+  combat_boss_dossier: 'combat',
+  combat_escort_discipline: 'combat'
 }
 
 const createSkill = type => ({ type, exp: 0, level: 0, perk5: null, perk10: null, perk15: null, perk20: null, masteryExp: 0, masteryPoints: 0, unlockedMasteryNodeIds: [] })

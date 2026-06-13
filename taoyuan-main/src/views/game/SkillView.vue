@@ -79,7 +79,7 @@
                 <div class="min-w-0">
                   <p class="text-xs" :class="skillStore.hasSkillMasteryNode(node.id) ? 'text-success' : 'text-text'">{{ node.label }}</p>
                   <p class="text-[0.625rem] text-muted mt-0.5 leading-relaxed">{{ node.summary }}</p>
-                  <p class="text-[0.625rem] text-muted/80 mt-0.5">费用 {{ node.cost }} · {{ node.effectKey }}</p>
+                  <p class="text-[0.625rem] text-muted/80 mt-0.5">费用 {{ node.cost }} · 已接入：{{ SKILL_MASTERY_NODE_SURFACES[node.id] }}</p>
                 </div>
                 <span v-if="skillStore.hasSkillMasteryNode(node.id)" class="inline-flex shrink-0 items-center gap-1 text-[0.625rem] text-success">
                   <CheckCircle2 :size="12" />
@@ -169,7 +169,7 @@
   import { type Component } from 'vue'
   import { Star, Wheat, TreePine, Fish, Pickaxe, Sword, Sparkles, Unlock, CheckCircle2 } from 'lucide-vue-next'
   import { useSkillStore } from '@/stores/useSkillStore'
-  import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20 } from '@/types'
+  import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, SkillMasteryNodeId } from '@/types'
 
   const skillStore = useSkillStore()
 
@@ -203,6 +203,34 @@
     fishing: '钓鱼成功率提升',
     mining: '矿石产出提升',
     combat: '生命值上限+5'
+  }
+
+  const SKILL_MASTERY_NODE_SURFACES: Record<SkillMasteryNodeId, string> = {
+    farming_batch_irrigation: '农田一键浇水',
+    farming_festival_supply: '节庆日出货箱',
+    farming_processing_flow: '工坊加工耗时',
+    farming_seed_recovery: '作物收获返种',
+    farming_order_deed: '任务页作物订单',
+    foraging_rare_signal: '采集页稀有物',
+    foraging_journey_scout: '行旅构筑侦察',
+    foraging_weather_window: '采集环境窗口',
+    foraging_mountain_hunch: '采集页稀有提示',
+    foraging_herb_sample: '采集见闻账本',
+    fishing_tide_marker: '钓鱼页传说鱼提示',
+    fishing_pond_link: '鱼塘每日产出',
+    fishing_legend_weight: '传说鱼经验结算',
+    fishing_pond_pedigree: '鱼塘详情谱系',
+    fishing_tide_notebook: '钓鱼上钩权重',
+    mining_floor_intel: '矿洞层位提示',
+    mining_bomb_efficiency: '矿洞炸弹返还',
+    mining_rare_transmute: '手动采矿奖励',
+    mining_vein_marker: '矿洞进层提示',
+    mining_stabilized_blasting: '矿洞空爆返还',
+    combat_boss_pressure: 'Boss 战奖励',
+    combat_escort_margin: '行旅构筑压险',
+    combat_trinket_tuning: '饰品效果汇总',
+    combat_boss_dossier: 'Boss 战开场日志',
+    combat_escort_discipline: '远征失败结算'
   }
 
   const PERK_DESCS: Record<SkillPerk5 | SkillPerk10 | SkillPerk15 | SkillPerk20, string> = {

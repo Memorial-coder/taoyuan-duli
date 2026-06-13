@@ -5934,6 +5934,7 @@ router.post('/taoyuan/online/chat/conversations/:conversationId/read', createOnl
 router.post('/taoyuan/online/chat/messages/:messageId/claim-gift', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanChatRuntime.claimGiftMessage(req.session.username, req.params.messageId);
+    result.realtime_emitted = emitChatNotificationCreatedEvent('gift_claimed', result);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '领取聊天礼物失败' });

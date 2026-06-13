@@ -2194,7 +2194,7 @@
       top: calc(var(--ai-assistant-mobile-edge, 8px) + constant(safe-area-inset-top, 0px));
       top: calc(var(--ai-assistant-mobile-edge, 8px) + env(safe-area-inset-top, 0px));
       left: var(--ai-assistant-mobile-edge, 8px);
-      right: var(--ai-assistant-mobile-edge, 8px);
+      right: calc(var(--ai-assistant-mobile-edge, 8px) + var(--ai-assistant-mobile-control-rail, 64px));
       justify-content: stretch;
       align-items: flex-end;
       bottom: calc(60px + constant(safe-area-inset-bottom, 0px));

@@ -587,11 +587,11 @@ export const STORY_QUESTS: MainQuestDef[] = [
     chapter: 5,
     order: 10,
     title: '桃源之主',
-    description: '你已经成为桃源乡真正的主人。所有技能满级，财富冠绝乡里。这是最终的挑战。',
+    description: '你已经成为桃源乡真正的主人。所有技能达到大师门槛，财富冠绝乡里。这是最终的挑战。',
     npcId: 'liu_cunzhang',
     objectives: [
       { type: 'earnMoney', label: '累计获得300000文', target: 300000 },
-      { type: 'allSkillsLevel', label: '所有技能达到10级', target: 10 }
+      { type: 'allSkillsLevel', label: '所有技能达到大师门槛（10级）', target: 10 }
     ],
     moneyReward: 10000,
     itemReward: [{ itemId: 'prismatic_shard', quantity: 1 }],

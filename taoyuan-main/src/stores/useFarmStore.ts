@@ -713,7 +713,7 @@ export const useFarmStore = defineStore('farm', () => {
 
   /** 扩建农场 */
   const expandFarm = (): FarmSize | null => {
-    const sizes: FarmSize[] = [4, 6, 8]
+    const sizes: FarmSize[] = [4, 6, 8, 10, 12]
     const currentIndex = sizes.indexOf(farmSize.value)
     if (currentIndex >= sizes.length - 1) return null
     const newSize = sizes[currentIndex + 1]!

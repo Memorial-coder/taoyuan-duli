@@ -35,6 +35,20 @@ const scenarios = [
   { label: 'skills', hash: '/#/game/skills', selector: '[data-testid="skill-layout-grid"]' },
   { label: 'tool-upgrade', hash: '/#/game/upgrade', selector: '[data-testid="tool-upgrade-list"]' },
   {
+    label: 'workshop-processing',
+    hash: '/#/game/workshop',
+    selector: '[data-testid="processing-machine-group-layout"]',
+    recipeGridSelector: '.processing-option-grid',
+    expectedRecipeGridColumns: ({ width, mode }) => (mode === 'adaptive' && width >= 1280 && width < 1920 ? 5 : 3),
+    slotListSelector: '.processing-machine-slot-list',
+    expectedSlotListColumns: () => 1,
+    prepare: async page => {
+      await page.waitForFunction(() => typeof window.__TAOYUAN_PROCESSING_DEBUG__?.prepareAlchemySmoke === 'function')
+      await page.evaluate(() => window.__TAOYUAN_PROCESSING_DEBUG__.prepareAlchemySmoke())
+    },
+  },
+  { label: 'decoration-shop', hash: '/#/game/decoration', selector: '[data-testid="decoration-shop-grid"]' },
+  {
     label: 'inventory-equipment',
     hash: '/#/game/inventory',
     selector: '[data-testid="inventory-equipment-layout"]',
@@ -52,8 +66,8 @@ const launchChromiumBrowser = async () => {
     return await chromium.launch({ headless: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!message.includes('Executable doesn\'t exist')) throw error
-    console.warn('qa-desktop-layout-smoke: bundled Chromium missing, falling back to system Chrome')
+    if (!message.includes('Executable doesn\'t exist') && !isPlaywrightEnvironmentError(error)) throw error
+    console.warn('qa-desktop-layout-smoke: bundled Chromium unavailable, falling back to system Chrome')
     return await chromium.launch({ channel: 'chrome', headless: true })
   }
 }
@@ -203,6 +217,26 @@ const assertLayout = async ({ page, viewport, scenario, mode }) => {
   }
   if (metrics.attr !== mode) {
     throw new Error(`${scenario.label}-${viewport.label}-${mode}: html attr is ${metrics.attr}`)
+  }
+  if (scenario.recipeGridSelector && scenario.expectedRecipeGridColumns) {
+    const recipeGridMetrics = await readLayoutMetrics(page, scenario.recipeGridSelector)
+    if (!recipeGridMetrics.visible) {
+      throw new Error(`${scenario.label}-${viewport.label}-${mode}: recipe grid is not visible`)
+    }
+    const expectedRecipeColumns = scenario.expectedRecipeGridColumns({ width: viewport.width, mode })
+    if (recipeGridMetrics.columns !== expectedRecipeColumns) {
+      throw new Error(`${scenario.label}-${viewport.label}-${mode}: expected ${expectedRecipeColumns} recipe columns, got ${recipeGridMetrics.columns}`)
+    }
+  }
+  if (scenario.slotListSelector && scenario.expectedSlotListColumns) {
+    const slotListMetrics = await readLayoutMetrics(page, scenario.slotListSelector)
+    if (!slotListMetrics.visible) {
+      throw new Error(`${scenario.label}-${viewport.label}-${mode}: machine slot list is not visible`)
+    }
+    const expectedSlotColumns = scenario.expectedSlotListColumns({ width: viewport.width, mode })
+    if (slotListMetrics.columns !== expectedSlotColumns) {
+      throw new Error(`${scenario.label}-${viewport.label}-${mode}: expected ${expectedSlotColumns} machine-slot columns, got ${slotListMetrics.columns}`)
+    }
   }
 }
 

@@ -16,6 +16,7 @@ import { getFertilizerById } from '@/data/processing'
 import { ACTION_TIME_COSTS } from '@/data/timeConstants'
 import type { Quality, ItemCategory } from '@/types'
 import type { FertilizerType } from '@/types/processing'
+import { getCropHarvestExperience } from '@/utils/farmingExperience'
 import { addLog, showFloat } from './useGameLog'
 import { handleEndDay } from './useEndDay'
 import { sfxDig, sfxPlant, sfxWater, sfxHarvest, sfxLevelUp, sfxBuy, sfxCoin } from './useAudio'
@@ -29,6 +30,17 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 
 /** 仙缘结缘：作物祝福（crop_blessing）概率品质+1 */
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+const SEED_RECOVERY_EXCLUDED_CROP_IDS = new Set(['ancient_fruit'])
+const SEED_RECOVERY_CHANCE = 0.08
+
+const canRecoverSeedFromHarvest = (cropId: string, quality: Quality): boolean => {
+  if (quality === 'normal') return false
+  if (SEED_RECOVERY_EXCLUDED_CROP_IDS.has(cropId)) return false
+  const crop = getCropById(cropId)
+  if (!crop || crop.seedPrice <= 0 || !crop.seedId) return false
+  return true
+}
+
 export const applyCropBlessing = (quality: Quality): Quality => {
   const bondBonus = useHiddenNpcStore().getBondBonusByType('crop_blessing')
   if (bondBonus?.type === 'crop_blessing' && Math.random() < bondBonus.chance) {
@@ -216,13 +228,26 @@ export const handlePlotClick = (plotId: number) => {
       addLog('背包空间不足，无法收获。')
       return
     }
+    const harvestExp = getCropHarvestExperience(cropDef, quality, { harvestCount: plot.harvestCount })
     const result = farmStore.harvestPlot(plotId)
     if (result.cropId) {
       inventoryStore.addItemExact(cropId, harvestQty, quality)
       achievementStore.discoverItem(cropId)
       achievementStore.recordCropHarvest()
       useQuestStore().onItemObtained(cropId, harvestQty)
-      const { leveledUp, newLevel } = skillStore.addExp('farming', 10)
+      const seedRecoveryUnlocked = skillStore.getSkillMasteryEffectValue('seed_recovery') > 0
+      const recoveredSeed =
+        seedRecoveryUnlocked &&
+        canRecoverSeedFromHarvest(cropId, quality) &&
+        Math.random() < SEED_RECOVERY_CHANCE &&
+        inventoryStore.canAddItem(cropDef!.seedId, 1)
+          ? cropDef!.seedId
+          : null
+      if (recoveredSeed) {
+        inventoryStore.addItem(recoveredSeed, 1)
+        achievementStore.discoverItem(recoveredSeed)
+      }
+      const { leveledUp, newLevel } = skillStore.addExp('farming', harvestExp)
       const qualityLabel = quality !== 'normal' ? `(${QUALITY_NAMES[quality]})` : ''
       sfxHarvest()
       const qtyLabel = intensiveDouble || grandmasterDouble || deityDouble || yieldDouble ? '×2' : ''
@@ -232,6 +257,7 @@ export const handlePlotClick = (plotId: number) => {
       if (grandmasterDouble) msg += ' 宗师精耕，双倍丰收！'
       if (deityDouble) msg += ' 丰收之神庇佑，双倍丰收！'
       if (yieldDouble) msg += ' 育种产量加成，双倍丰收！'
+      if (recoveredSeed) msg += ` 良种回收：回收了${getItemById(recoveredSeed)?.name ?? '种子'}×1。`
       // 育种甜度加成：额外铜钱
       if (genetics && genetics.sweetness > 0 && cropDef) {
         const bonusMoney = Math.floor((cropDef.sellPrice * harvestQty * genetics.sweetness) / 200)
@@ -494,6 +520,7 @@ export const handleBatchHarvest = () => {
       addLog('背包空间不足，部分巨型作物未收获。')
       continue
     }
+    const groupCropDef = getCropById(cropId)
     const result = farmStore.harvestGiantCrop(groupPlot.id)
     if (result) {
       const cropDef = getCropById(result.cropId)
@@ -501,7 +528,7 @@ export const handleBatchHarvest = () => {
       achievementStore.discoverItem(result.cropId)
       achievementStore.recordCropHarvest()
       useQuestStore().onItemObtained(result.cropId, result.quantity)
-      skillStore.addExp('farming', 10)
+      skillStore.addExp('farming', getCropHarvestExperience(groupCropDef, 'normal', { giant: true }))
       harvested++
       harvestedCrops.push(`巨型${cropDef?.name ?? result.cropId}x${result.quantity}`)
     }
@@ -531,13 +558,14 @@ export const handleBatchHarvest = () => {
       addLog('背包空间不足，部分成熟作物未收获。')
       continue
     }
+    const harvestExp = getCropHarvestExperience(cropDef, quality, { harvestCount: plot.harvestCount })
     const result = farmStore.harvestPlot(plot.id)
     if (result.cropId) {
       inventoryStore.addItemExact(cropId, harvestQty, quality)
       achievementStore.discoverItem(cropId)
       achievementStore.recordCropHarvest()
       useQuestStore().onItemObtained(cropId, harvestQty)
-      skillStore.addExp('farming', 10)
+      skillStore.addExp('farming', harvestExp)
       harvested++
       harvestedCrops.push(cropDef?.name ?? cropId)
       // 育种甜度加成

@@ -511,6 +511,14 @@
             </div>
           </div>
 
+          <div v-if="pondPedigreeUnlocked && detailFishPedigreeLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-3 bg-accent/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">鱼塘谱系</p>
+              <span class="text-[0.625rem] text-muted">信息型精研</span>
+            </div>
+            <p v-for="line in detailFishPedigreeLines" :key="line" class="text-[0.625rem] text-muted leading-4 mt-1">{{ line }}</p>
+          </div>
+
           <!-- 操作按钮 -->
           <div class="flex flex-col space-y-1">
             <Button
@@ -637,6 +645,7 @@
   import { useGameStore } from '@/stores/useGameStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { handleEndDay } from '@/composables/useEndDay'
@@ -651,6 +660,7 @@
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
+  const skillStore = useSkillStore()
   const isCompactMobile = ref(false)
   const fishPondPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
@@ -941,6 +951,32 @@
       { key: 'diseaseRes', label: '抗病', value: g.diseaseRes, barClass: 'bg-water' },
       { key: 'qualityGene', label: '品质', value: g.qualityGene, barClass: 'bg-quality-fine' },
       { key: 'mutationRate', label: '变异', value: g.mutationRate, barClass: 'bg-danger' }
+    ]
+  })
+
+  const pondPedigreeUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('pond_pedigree') > 0)
+  const detailFishPondableDef = computed(() => (detailFish.value ? getPondableFish(detailFish.value.fishId) ?? null : null))
+  const formatRate = (value: number): string => `${Math.round(value * 1000) / 10}%`
+  const detailFishPedigreeLines = computed(() => {
+    if (!pondPedigreeUnlocked.value || !detailFish.value || !detailFishPondableDef.value) return []
+    const fish = detailFish.value
+    const def = detailFishPondableDef.value
+    const pondLinkBonus = skillStore.getSkillMasteryEffectValue('pond_link')
+    const weightBonus = (fish.genetics.weight / 200) * (def.productionWeightBonusMultiplier ?? 1)
+    const skillBonus = pondLinkBonus * (def.productionSkillBonusMultiplier ?? 1)
+    const uncappedRate = def.baseProductionRate + weightBonus + skillBonus
+    const maxRate = def.maxProductionRate ?? 1
+    const finalRate = Math.min(1, maxRate, uncappedRate)
+    const breedLine = def.allowBreeding === false
+      ? '繁殖：该鱼种不可作为亲本。'
+      : fish.mature && !fish.sick
+        ? '繁殖：当前可作为亲本。'
+        : '繁殖：成熟且健康后可作为亲本。'
+    return [
+      `产物：${getItemName(def.productItemId)}；今日喂食后单鱼产出率约 ${formatRate(finalRate)}。`,
+      `构成：基础 ${formatRate(def.baseProductionRate)} + 体重 ${formatRate(weightBonus)} + 鱼塘联动 ${formatRate(skillBonus)}，封顶 ${formatRate(maxRate)}。`,
+      breedLine,
+      `周赛：${detailFishContestEligible.value ? '适配本周报名条件。' : '暂不适配本周报名条件。'}`
     ]
   })
 

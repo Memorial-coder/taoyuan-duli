@@ -1502,7 +1502,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 175,
     seedPrice: 0,
     deepWatering: false,
-    description: '辣椒的火热与芝麻的醇香碰撞，一口入魂。'
+    description: '辣椒的火热与花生的酥香碰撞，一口入魂。'
   },
   {
     id: 'honey_gourd',
@@ -1535,7 +1535,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 180,
     seedPrice: 0,
     deepWatering: false,
-    description: '红枣的甜蜜与大蒜的辛辣奇异融合，回味无穷。'
+    description: '红枣的甜蜜与生姜的辛香奇异融合，回味无穷。'
   },
   {
     id: 'bean_eggplant',
@@ -2150,7 +2150,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 650,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与翡翠茶经风雨淬炼而成的珍品。'
+    description: '蜜茶果与翡翠茶经风雨淬炼而成的珍品。'
   },
   {
     id: 'cloud_bean',
@@ -2161,7 +2161,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 654,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与凤凰椒在清风中交融，自然之韵。'
+    description: '蜜茶果与凤凰椒在清风中交融，自然之韵。'
   },
   {
     id: 'rain_rice',
@@ -2172,7 +2172,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 658,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与月光稻沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与月光稻沐浴露霜，天地灵气所化。'
   },
   {
     id: 'hoar_tuber',
@@ -2183,7 +2183,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 662,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与霜雪蒜在星光下蜕变，风物之精。'
+    description: '蜜茶果与霜雪蒜在星光下蜕变，风物之精。'
   },
   {
     id: 'thunder_green',
@@ -2194,7 +2194,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 666,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与翡翠萝卜汇聚山川之气，化为珍品。'
+    description: '蜜茶果与翡翠萝卜汇聚山川之气，化为珍品。'
   },
   {
     id: 'rainbow_fruit',
@@ -2205,7 +2205,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 670,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与碧玉笋经风雨淬炼而成的珍品。'
+    description: '蜜茶果与玉竹芽经风雨淬炼而成的珍品。'
   },
   {
     id: 'dew_bloom',
@@ -2216,7 +2216,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 674,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与金油薯在清风中交融，自然之韵。'
+    description: '蜜茶果与金油薯在清风中交融，自然之韵。'
   },
   {
     id: 'dawn_tea',
@@ -2227,7 +2227,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 679,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与桃花茶沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与桃花茶沐浴露霜，天地灵气所化。'
   },
   {
     id: 'dusk_shoot',
@@ -2238,7 +2238,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 683,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与红宝豆在星光下蜕变，风物之精。'
+    description: '蜜茶果与红宝豆在星光下蜕变，风物之精。'
   },
   {
     id: 'star_lotus',
@@ -2249,7 +2249,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 687,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与双子豆汇聚山川之气，化为珍品。'
+    description: '蜜茶果与双子豆汇聚山川之气，化为珍品。'
   },
   {
     id: 'wind_splendor_wheat',
@@ -2260,7 +2260,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 691,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与碧玉瓜经风雨淬炼而成的珍品。'
+    description: '蜜茶果与碧玉瓜经风雨淬炼而成的珍品。'
   },
   {
     id: 'cloud_splendor_sesame',
@@ -2271,7 +2271,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 695,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与珍珠谷在清风中交融，自然之韵。'
+    description: '蜜茶果与珍珠谷在清风中交融，自然之韵。'
   },
   {
     id: 'rain_splendor_pepper',
@@ -2282,7 +2282,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 699,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与金穗玉米沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与金穗玉米沐浴露霜，天地灵气所化。'
   },
   {
     id: 'hoar_splendor_root',
@@ -2293,7 +2293,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 703,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与莲心茶在星光下蜕变，风物之精。'
+    description: '蜜茶果与莲心茶在星光下蜕变，风物之精。'
   },
   {
     id: 'thunder_splendor_sprout',
@@ -2304,7 +2304,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 707,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与紫竹茄汇聚山川之气，化为珍品。'
+    description: '蜜茶果与紫竹茄汇聚山川之气，化为珍品。'
   },
   {
     id: 'rainbow_splendor_vine',
@@ -2315,7 +2315,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 711,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与蜜桃瓜经风雨淬炼而成的珍品。'
+    description: '蜜茶果与蜜桃瓜经风雨淬炼而成的珍品。'
   },
   {
     id: 'dew_splendor_bud',
@@ -2326,7 +2326,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 715,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与火豆在清风中交融，自然之韵。'
+    description: '蜜茶果与火豆在清风中交融，自然之韵。'
   },
   {
     id: 'dawn_splendor_orchid',
@@ -2337,7 +2337,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 719,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与丝豆沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与丝豆沐浴露霜，天地灵气所化。'
   },
   {
     id: 'dusk_splendor_gourd',
@@ -2348,7 +2348,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 723,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与双油籽在星光下蜕变，风物之精。'
+    description: '蜜茶果与双油籽在星光下蜕变，风物之精。'
   },
   {
     id: 'star_splendor_herb',
@@ -2359,7 +2359,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 728,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与莲花薯汇聚山川之气，化为珍品。'
+    description: '蜜茶果与莲薯汇聚山川之气，化为珍品。'
   },
   {
     id: 'wind_jade3_chestnut',
@@ -2370,7 +2370,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 732,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与翡翠南瓜经风雨淬炼而成的珍品。'
+    description: '蜜茶果与翡翠南瓜经风雨淬炼而成的珍品。'
   },
   {
     id: 'cloud_jade3_apricot',
@@ -2381,7 +2381,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 736,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与水晶山药在清风中交融，自然之韵。'
+    description: '蜜茶果与水晶山药在清风中交融，自然之韵。'
   },
   {
     id: 'rain_jade3_pear',
@@ -2392,7 +2392,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 740,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与桂花茶沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与桂花茶沐浴露霜，天地灵气所化。'
   },
   {
     id: 'hoar_jade3_berry',
@@ -2403,7 +2403,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 744,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与山竹薯在星光下蜕变，风物之精。'
+    description: '蜜茶果与山竹薯在星光下蜕变，风物之精。'
   },
   {
     id: 'thunder_jade3_peach_t',
@@ -2414,7 +2414,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 748,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与金秋果汇聚山川之气，化为珍品。'
+    description: '蜜茶果与金秋果汇聚山川之气，化为珍品。'
   },
   {
     id: 'rainbow_jade3_melon',
@@ -2425,7 +2425,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 752,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与花生薯经风雨淬炼而成的珍品。'
+    description: '蜜茶果与花生薯经风雨淬炼而成的珍品。'
   },
   {
     id: 'dew_jade3_bean',
@@ -2436,7 +2436,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 756,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与秋枣豆在清风中交融，自然之韵。'
+    description: '蜜茶果与秋枣豆在清风中交融，自然之韵。'
   },
   {
     id: 'dawn_jade3_rice',
@@ -2447,7 +2447,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 760,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与枣花桃沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与枣花桃沐浴露霜，天地灵气所化。'
   },
   {
     id: 'dusk_jade3_tuber',
@@ -2458,7 +2458,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 764,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与姜花菜在星光下蜕变，风物之精。'
+    description: '蜜茶果与姜花菜在星光下蜕变，风物之精。'
   },
   {
     id: 'star_jade3_green',
@@ -2469,7 +2469,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 768,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与仙菊菜汇聚山川之气，化为珍品。'
+    description: '蜜茶果与仙菊菜汇聚山川之气，化为珍品。'
   },
   {
     id: 'wind_aura_fruit',
@@ -2480,7 +2480,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 772,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与御品白菜经风雨淬炼而成的珍品。'
+    description: '蜜茶果与御品白菜经风雨淬炼而成的珍品。'
   },
   {
     id: 'cloud_aura_bloom',
@@ -2491,7 +2491,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 777,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与蒜香萝卜在清风中交融，自然之韵。'
+    description: '蜜茶果与蒜香萝卜在清风中交融，自然之韵。'
   },
   {
     id: 'rain_aura_tea',
@@ -2502,7 +2502,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 781,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与雪茶沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与雪茶沐浴露霜，天地灵气所化。'
   },
   {
     id: 'hoar_aura_shoot',
@@ -2513,7 +2513,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 785,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与春韭菜在星光下蜕变，风物之精。'
+    description: '蜜茶果与春韭菜在星光下蜕变，风物之精。'
   },
   {
     id: 'thunder_aura_lotus',
@@ -2524,7 +2524,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 789,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与麦香薯汇聚山川之气，化为珍品。'
+    description: '蜜茶果与麦香薯汇聚山川之气，化为珍品。'
   },
   {
     id: 'rainbow_aura_wheat',
@@ -2535,7 +2535,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 793,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与绿桃经风雨淬炼而成的珍品。'
+    description: '蜜茶果与绿桃经风雨淬炼而成的珍品。'
   },
   {
     id: 'dew_aura_sesame',
@@ -2546,7 +2546,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 797,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与芥香豆在清风中交融，自然之韵。'
+    description: '蜜茶果与芥香豆在清风中交融，自然之韵。'
   },
   {
     id: 'dawn_aura_pepper',
@@ -2557,7 +2557,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 801,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与霜油菜沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与霜油菜沐浴露霜，天地灵气所化。'
   },
   {
     id: 'dusk_aura_root',
@@ -2568,7 +2568,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 805,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与紫晶瓜在星光下蜕变，风物之精。'
+    description: '蜜茶果与紫晶瓜在星光下蜕变，风物之精。'
   },
   {
     id: 'star_aura_sprout',
@@ -2579,7 +2579,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 809,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与金芝稻汇聚山川之气，化为珍品。'
+    description: '蜜茶果与金芝稻汇聚山川之气，化为珍品。'
   },
   {
     id: 'wind_glow_vine',
@@ -2590,7 +2590,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 813,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与双莲经风雨淬炼而成的珍品。'
+    description: '蜜茶果与双莲经风雨淬炼而成的珍品。'
   },
   {
     id: 'cloud_glow_bud',
@@ -2601,7 +2601,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 817,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与火麻仁在清风中交融，自然之韵。'
+    description: '蜜茶果与火麻仁在清风中交融，自然之韵。'
   },
   {
     id: 'rain_glow_orchid',
@@ -2612,7 +2612,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 821,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与丝穗沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与丝穗沐浴露霜，天地灵气所化。'
   },
   {
     id: 'hoar_glow_gourd',
@@ -2623,7 +2623,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 826,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与紫莲茄在星光下蜕变，风物之精。'
+    description: '蜜茶果与紫莲茄在星光下蜕变，风物之精。'
   },
   {
     id: 'thunder_glow_herb',
@@ -2634,7 +2634,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 830,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与菊瓜汇聚山川之气，化为珍品。'
+    description: '蜜茶果与菊瓜汇聚山川之气，化为珍品。'
   },
   {
     id: 'rainbow_glow_chestnut',
@@ -2645,7 +2645,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 834,
     seedPrice: 0,
     deepWatering: true,
-    description: '金瓜与南瓜稻经风雨淬炼而成的珍品。'
+    description: '蜜茶果与南瓜稻经风雨淬炼而成的珍品。'
   },
   {
     id: 'dew_glow_apricot',
@@ -2656,7 +2656,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 838,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与山莲在清风中交融，自然之韵。'
+    description: '蜜茶果与山莲在清风中交融，自然之韵。'
   },
   {
     id: 'dawn_glow_pear',
@@ -2667,7 +2667,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 842,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与双果仁沐浴露霜，天地灵气所化。'
+    description: '蜜茶果与双果仁沐浴露霜，天地灵气所化。'
   },
   {
     id: 'dusk_glow_berry',
@@ -2678,7 +2678,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 846,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与甜丝瓜在星光下蜕变，风物之精。'
+    description: '蜜茶果与甜丝瓜在星光下蜕变，风物之精。'
   },
   {
     id: 'star_glow_peach_t',
@@ -2689,7 +2689,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 850,
     seedPrice: 0,
     deepWatering: false,
-    description: '金瓜与紫柿汇聚山川之气，化为珍品。'
+    description: '蜜茶果与紫柿汇聚山川之气，化为珍品。'
   },
   // === 四代杂交作物 ===,
   {
@@ -2701,7 +2701,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 800,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与金瓜在天光下交融，绽放华彩。'
+    description: '风瓜与金蜜瓜在天光下交融，绽放华彩。'
   },
   {
     id: 'sun_hua_bean',
@@ -2712,7 +2712,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 804,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与翡翠茶承日月精华，辉映四方。'
+    description: '风瓜与翡翠茶承日月精华，辉映四方。'
   },
   {
     id: 'sky_hua_rice',
@@ -2723,7 +2723,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 808,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与凤凰椒凝天地灵气，瑞光盈盈。'
+    description: '风瓜与凤凰椒凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'gem_hua_tuber',
@@ -2734,7 +2734,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 812,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与月光稻沐浴星辉，祥瑞之兆。'
+    description: '风瓜与月光稻沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'prism_hua_green',
@@ -2745,7 +2745,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 816,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与霜雪蒜在月华中蜕变，天赐之品。'
+    description: '风瓜与霜雪蒜在月华中蜕变，天赐之品。'
   },
   {
     id: 'silver_hua_fruit',
@@ -2756,7 +2756,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 820,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与翡翠萝卜在天光下交融，绽放华彩。'
+    description: '风瓜与翡翠萝卜在天光下交融，绽放华彩。'
   },
   {
     id: 'verdant_hua_bloom',
@@ -2767,7 +2767,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 824,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与碧玉笋承日月精华，辉映四方。'
+    description: '风瓜与玉竹芽承日月精华，辉映四方。'
   },
   {
     id: 'violet_hua_tea',
@@ -2778,7 +2778,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 829,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与金油薯凝天地灵气，瑞光盈盈。'
+    description: '风瓜与金油薯凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'scarlet_hua_shoot',
@@ -2789,7 +2789,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 833,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与桃花茶沐浴星辉，祥瑞之兆。'
+    description: '风瓜与桃花茶沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'azure_hua_lotus',
@@ -2800,7 +2800,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 837,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与红宝豆在月华中蜕变，天赐之品。'
+    description: '风瓜与红宝豆在月华中蜕变，天赐之品。'
   },
   {
     id: 'moon_shine_wheat',
@@ -2811,7 +2811,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 841,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与双子豆在天光下交融，绽放华彩。'
+    description: '风瓜与双子豆在天光下交融，绽放华彩。'
   },
   {
     id: 'sun_shine_sesame',
@@ -2822,7 +2822,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 845,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与碧玉瓜承日月精华，辉映四方。'
+    description: '风瓜与碧玉瓜承日月精华，辉映四方。'
   },
   {
     id: 'sky_shine_pepper',
@@ -2833,7 +2833,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 849,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与珍珠谷凝天地灵气，瑞光盈盈。'
+    description: '风瓜与珍珠谷凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'gem_shine_root',
@@ -2844,7 +2844,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 853,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与金穗玉米沐浴星辉，祥瑞之兆。'
+    description: '风瓜与金穗玉米沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'prism_shine_sprout',
@@ -2855,7 +2855,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 857,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与莲心茶在月华中蜕变，天赐之品。'
+    description: '风瓜与莲心茶在月华中蜕变，天赐之品。'
   },
   {
     id: 'silver_shine_vine',
@@ -2866,7 +2866,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 861,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与紫竹茄在天光下交融，绽放华彩。'
+    description: '风瓜与紫竹茄在天光下交融，绽放华彩。'
   },
   {
     id: 'verdant_shine_bud',
@@ -2877,7 +2877,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 865,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与蜜桃瓜承日月精华，辉映四方。'
+    description: '风瓜与蜜桃瓜承日月精华，辉映四方。'
   },
   {
     id: 'violet_shine_orchid',
@@ -2888,7 +2888,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 869,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与火豆凝天地灵气，瑞光盈盈。'
+    description: '风瓜与火豆凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'scarlet_shine_gourd',
@@ -2899,7 +2899,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 873,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与丝豆沐浴星辉，祥瑞之兆。'
+    description: '风瓜与丝豆沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'azure_shine_herb',
@@ -2910,7 +2910,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 878,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与双油籽在月华中蜕变，天赐之品。'
+    description: '风瓜与双油籽在月华中蜕变，天赐之品。'
   },
   {
     id: 'moon_fortune_chestnut',
@@ -2921,7 +2921,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 882,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与莲花薯在天光下交融，绽放华彩。'
+    description: '风瓜与莲薯在天光下交融，绽放华彩。'
   },
   {
     id: 'sun_fortune_apricot',
@@ -2932,7 +2932,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 886,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与翡翠南瓜承日月精华，辉映四方。'
+    description: '风瓜与翡翠南瓜承日月精华，辉映四方。'
   },
   {
     id: 'sky_fortune_pear',
@@ -2943,7 +2943,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 890,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与水晶山药凝天地灵气，瑞光盈盈。'
+    description: '风瓜与水晶山药凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'gem_fortune_berry',
@@ -2954,7 +2954,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 894,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与桂花茶沐浴星辉，祥瑞之兆。'
+    description: '风瓜与桂花茶沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'prism_fortune_peach_t',
@@ -2965,7 +2965,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 898,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与山竹薯在月华中蜕变，天赐之品。'
+    description: '风瓜与山竹薯在月华中蜕变，天赐之品。'
   },
   {
     id: 'silver_fortune_melon',
@@ -2976,7 +2976,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 902,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与金秋果在天光下交融，绽放华彩。'
+    description: '风瓜与金秋果在天光下交融，绽放华彩。'
   },
   {
     id: 'verdant_fortune_bean',
@@ -2987,7 +2987,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 906,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与花生薯承日月精华，辉映四方。'
+    description: '风瓜与花生薯承日月精华，辉映四方。'
   },
   {
     id: 'violet_fortune_rice',
@@ -2998,7 +2998,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 910,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与秋枣豆凝天地灵气，瑞光盈盈。'
+    description: '风瓜与秋枣豆凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'scarlet_fortune_tuber',
@@ -3009,7 +3009,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 914,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与枣花桃沐浴星辉，祥瑞之兆。'
+    description: '风瓜与枣花桃沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'azure_fortune_green',
@@ -3020,7 +3020,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 918,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与姜花菜在月华中蜕变，天赐之品。'
+    description: '风瓜与姜花菜在月华中蜕变，天赐之品。'
   },
   {
     id: 'moon_glory_fruit',
@@ -3031,7 +3031,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 922,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与仙菊菜在天光下交融，绽放华彩。'
+    description: '风瓜与仙菊菜在天光下交融，绽放华彩。'
   },
   {
     id: 'sun_glory_bloom',
@@ -3042,7 +3042,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 927,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与御品白菜承日月精华，辉映四方。'
+    description: '风瓜与御品白菜承日月精华，辉映四方。'
   },
   {
     id: 'sky_glory_tea',
@@ -3053,7 +3053,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 931,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与蒜香萝卜凝天地灵气，瑞光盈盈。'
+    description: '风瓜与蒜香萝卜凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'gem_glory_shoot',
@@ -3064,7 +3064,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 935,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与雪茶沐浴星辉，祥瑞之兆。'
+    description: '风瓜与雪茶沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'prism_glory_lotus',
@@ -3075,7 +3075,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 939,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与春韭菜在月华中蜕变，天赐之品。'
+    description: '风瓜与春韭菜在月华中蜕变，天赐之品。'
   },
   {
     id: 'silver_glory_wheat',
@@ -3086,7 +3086,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 943,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与麦香薯在天光下交融，绽放华彩。'
+    description: '风瓜与麦香薯在天光下交融，绽放华彩。'
   },
   {
     id: 'verdant_glory_sesame',
@@ -3097,7 +3097,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 947,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与绿桃承日月精华，辉映四方。'
+    description: '风瓜与绿桃承日月精华，辉映四方。'
   },
   {
     id: 'violet_glory_pepper',
@@ -3108,7 +3108,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 951,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与芥香豆凝天地灵气，瑞光盈盈。'
+    description: '风瓜与芥香豆凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'scarlet_glory_root',
@@ -3119,7 +3119,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 955,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与霜油菜沐浴星辉，祥瑞之兆。'
+    description: '风瓜与霜油菜沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'azure_glory_sprout',
@@ -3130,7 +3130,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 959,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与紫晶瓜在月华中蜕变，天赐之品。'
+    description: '风瓜与紫晶瓜在月华中蜕变，天赐之品。'
   },
   {
     id: 'moon_prism4_vine',
@@ -3141,7 +3141,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 963,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与金芝稻在天光下交融，绽放华彩。'
+    description: '风瓜与金芝稻在天光下交融，绽放华彩。'
   },
   {
     id: 'sun_prism4_bud',
@@ -3152,7 +3152,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 967,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与双莲承日月精华，辉映四方。'
+    description: '风瓜与双莲承日月精华，辉映四方。'
   },
   {
     id: 'sky_prism4_orchid',
@@ -3163,7 +3163,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 971,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与火麻仁凝天地灵气，瑞光盈盈。'
+    description: '风瓜与火麻仁凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'gem_prism4_gourd',
@@ -3174,7 +3174,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 976,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与丝穗沐浴星辉，祥瑞之兆。'
+    description: '风瓜与丝穗沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'prism_prism4_herb',
@@ -3185,7 +3185,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 980,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与紫莲茄在月华中蜕变，天赐之品。'
+    description: '风瓜与紫莲茄在月华中蜕变，天赐之品。'
   },
   {
     id: 'silver_prism4_chestnut',
@@ -3196,7 +3196,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 984,
     seedPrice: 0,
     deepWatering: true,
-    description: '蜜茶果与菊瓜在天光下交融，绽放华彩。'
+    description: '风瓜与菊瓜在天光下交融，绽放华彩。'
   },
   {
     id: 'verdant_prism4_apricot',
@@ -3207,7 +3207,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 988,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与南瓜稻承日月精华，辉映四方。'
+    description: '风瓜与南瓜稻承日月精华，辉映四方。'
   },
   {
     id: 'violet_prism4_pear',
@@ -3218,7 +3218,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 992,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与山莲凝天地灵气，瑞光盈盈。'
+    description: '风瓜与山莲凝天地灵气，瑞光盈盈。'
   },
   {
     id: 'scarlet_prism4_berry',
@@ -3229,7 +3229,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 996,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与双果仁沐浴星辉，祥瑞之兆。'
+    description: '风瓜与双果仁沐浴星辉，祥瑞之兆。'
   },
   {
     id: 'azure_prism4_peach_t',
@@ -3240,7 +3240,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1000,
     seedPrice: 0,
     deepWatering: false,
-    description: '蜜茶果与甜丝瓜在月华中蜕变，天赐之品。'
+    description: '风瓜与甜丝瓜在月华中蜕变，天赐之品。'
   },
   // === 五代杂交作物 ===,
   {
@@ -3252,7 +3252,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1000,
     seedPrice: 0,
     deepWatering: true,
-    description: '风瓜与蜜茶果的精华凝结，珍贵异常。'
+    description: '月华瓜与蜜茶果的精华凝结，珍贵异常。'
   },
   {
     id: 'rare_light5_bean',
@@ -3263,7 +3263,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1010,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与龙火椒在晨曦中绽放瑶光。'
+    description: '月华瓜与龙火椒在晨曦中绽放瑶光。'
   },
   {
     id: 'magnif_light5_rice',
@@ -3274,7 +3274,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1021,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与天香稻汇聚琼露，锦绣天成。'
+    description: '月华瓜与天香稻汇聚琼露，锦绣天成。'
   },
   {
     id: 'radiant_light5_tuber',
@@ -3285,7 +3285,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1031,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与冰莲璃光交映，绮丽非凡。'
+    description: '月华瓜与冰莲璃光交映，绮丽非凡。'
   },
   {
     id: 'lustrous_light5_green',
@@ -3296,7 +3296,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1042,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与翠桃茶凝珊瑚之精，琳琅之品。'
+    description: '月华瓜与翠桃茶凝珊瑚之精，琳琅之品。'
   },
   {
     id: 'precious_hua5_fruit',
@@ -3307,7 +3307,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1052,
     seedPrice: 0,
     deepWatering: true,
-    description: '风瓜与金龙果的精华凝结，珍贵异常。'
+    description: '月华瓜与金龙果的精华凝结，珍贵异常。'
   },
   {
     id: 'rare_hua5_bloom',
@@ -3318,7 +3318,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1063,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与月霜稻在晨曦中绽放瑶光。'
+    description: '月华瓜与月霜稻在晨曦中绽放瑶光。'
   },
   {
     id: 'magnif_hua5_tea',
@@ -3329,7 +3329,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1073,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与翡翠金瓜汇聚琼露，锦绣天成。'
+    description: '月华瓜与翡翠金瓜汇聚琼露，锦绣天成。'
   },
   {
     id: 'radiant_hua5_shoot',
@@ -3340,7 +3340,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1083,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与仙人花璃光交映，绮丽非凡。'
+    description: '月华瓜与仙人花璃光交映，绮丽非凡。'
   },
   {
     id: 'lustrous_hua5_lotus',
@@ -3351,7 +3351,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1094,
     seedPrice: 0,
     deepWatering: false,
-    description: '风瓜与龙珠凝珊瑚之精，琳琅之品。'
+    description: '月华瓜与龙珠凝珊瑚之精，琳琅之品。'
   },
   {
     id: 'precious_dewdrop_wheat',
@@ -3362,7 +3362,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1104,
     seedPrice: 0,
     deepWatering: true,
-    description: '云豆与冰莲的精华凝结，珍贵异常。'
+    description: '日华豆与冰莲的精华凝结，珍贵异常。'
   },
   {
     id: 'rare_dewdrop_sesame',
@@ -3373,7 +3373,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1115,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与翠桃茶在晨曦中绽放瑶光。'
+    description: '日华豆与翠桃茶在晨曦中绽放瑶光。'
   },
   {
     id: 'magnif_dewdrop_pepper',
@@ -3384,7 +3384,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1125,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与金龙果汇聚琼露，锦绣天成。'
+    description: '日华豆与金龙果汇聚琼露，锦绣天成。'
   },
   {
     id: 'radiant_dewdrop_root',
@@ -3395,7 +3395,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1135,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与月霜稻璃光交映，绮丽非凡。'
+    description: '日华豆与月霜稻璃光交映，绮丽非凡。'
   },
   {
     id: 'lustrous_dewdrop_sprout',
@@ -3406,7 +3406,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1146,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与翡翠金瓜凝珊瑚之精，琳琅之品。'
+    description: '日华豆与翡翠金瓜凝珊瑚之精，琳琅之品。'
   },
   {
     id: 'precious_soul_vine',
@@ -3417,7 +3417,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1156,
     seedPrice: 0,
     deepWatering: true,
-    description: '云豆与仙人花的精华凝结，珍贵异常。'
+    description: '日华豆与仙人花的精华凝结，珍贵异常。'
   },
   {
     id: 'rare_soul_bud',
@@ -3428,7 +3428,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1167,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与龙珠在晨曦中绽放瑶光。'
+    description: '日华豆与龙珠在晨曦中绽放瑶光。'
   },
   {
     id: 'magnif_soul_orchid',
@@ -3439,7 +3439,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1177,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与蜜茶果汇聚琼露，锦绣天成。'
+    description: '日华豆与蜜茶果汇聚琼露，锦绣天成。'
   },
   {
     id: 'radiant_soul_gourd',
@@ -3450,7 +3450,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1188,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与龙火椒璃光交映，绮丽非凡。'
+    description: '日华豆与龙火椒璃光交映，绮丽非凡。'
   },
   {
     id: 'lustrous_soul_herb',
@@ -3461,7 +3461,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1198,
     seedPrice: 0,
     deepWatering: false,
-    description: '云豆与天香稻凝珊瑚之精，琳琅之品。'
+    description: '日华豆与天香稻凝珊瑚之精，琳琅之品。'
   },
   {
     id: 'precious_silk5_chestnut',
@@ -3472,7 +3472,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1208,
     seedPrice: 0,
     deepWatering: true,
-    description: '雨稻与月霜稻的精华凝结，珍贵异常。'
+    description: '天华稻与月霜稻的精华凝结，珍贵异常。'
   },
   {
     id: 'rare_silk5_apricot',
@@ -3483,7 +3483,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1219,
     seedPrice: 0,
     deepWatering: false,
-    description: '雨稻与翡翠金瓜在晨曦中绽放瑶光。'
+    description: '天华稻与翡翠金瓜在晨曦中绽放瑶光。'
   },
   {
     id: 'magnif_silk5_pear',
@@ -3494,7 +3494,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1229,
     seedPrice: 0,
     deepWatering: false,
-    description: '雨稻与仙人花汇聚琼露，锦绣天成。'
+    description: '天华稻与仙人花汇聚琼露，锦绣天成。'
   },
   {
     id: 'radiant_silk5_berry',
@@ -3505,7 +3505,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1240,
     seedPrice: 0,
     deepWatering: false,
-    description: '雨稻与龙珠璃光交映，绮丽非凡。'
+    description: '天华稻与龙珠璃光交映，绮丽非凡。'
   },
   {
     id: 'lustrous_silk5_peach_t',
@@ -3516,7 +3516,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1250,
     seedPrice: 0,
     deepWatering: false,
-    description: '雨稻与蜜茶果凝珊瑚之精，琳琅之品。'
+    description: '天华稻与蜜茶果凝珊瑚之精，琳琅之品。'
   },
   // === 六代杂交作物 ===,
   {
@@ -3528,7 +3528,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1200,
     seedPrice: 0,
     deepWatering: true,
-    description: '月华瓜与风瓜灵气交汇，仙韵天成。'
+    description: '瑶光瓜与风瓜灵气交汇，仙韵天成。'
   },
   {
     id: 'fairy_wonder_bean',
@@ -3539,7 +3539,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1213,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与云豆圣华流转，超凡入圣。'
+    description: '瑶光瓜与云豆圣华流转，超凡入圣。'
   },
   {
     id: 'holy_wonder_rice',
@@ -3550,7 +3550,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1225,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与雨稻神妙莫测，真灵之品。'
+    description: '瑶光瓜与雨稻神妙莫测，真灵之品。'
   },
   {
     id: 'divine_wonder_tuber',
@@ -3561,7 +3561,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1238,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与霜薯幻梦交织，禅意盎然。'
+    description: '瑶光瓜与霜薯幻梦交织，禅意盎然。'
   },
   {
     id: 'trueth_wonder_green',
@@ -3572,7 +3572,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1250,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与雷菜仙灵缭绕，不染尘埃。'
+    description: '瑶光瓜与雷菜仙灵缭绕，不染尘埃。'
   },
   {
     id: 'spirit_grace6_fruit',
@@ -3583,7 +3583,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1263,
     seedPrice: 0,
     deepWatering: true,
-    description: '月华瓜与虹果灵气交汇，仙韵天成。'
+    description: '瑶光瓜与虹果灵气交汇，仙韵天成。'
   },
   {
     id: 'fairy_grace6_bloom',
@@ -3594,7 +3594,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1275,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与露花圣华流转，超凡入圣。'
+    description: '瑶光瓜与露花圣华流转，超凡入圣。'
   },
   {
     id: 'holy_grace6_tea',
@@ -3605,7 +3605,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1288,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与晨茶神妙莫测，真灵之品。'
+    description: '瑶光瓜与晨茶神妙莫测，真灵之品。'
   },
   {
     id: 'divine_grace6_shoot',
@@ -3616,7 +3616,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1300,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与暮笋幻梦交织，禅意盎然。'
+    description: '瑶光瓜与暮笋幻梦交织，禅意盎然。'
   },
   {
     id: 'trueth_grace6_lotus',
@@ -3627,7 +3627,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1313,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与星莲仙灵缭绕，不染尘埃。'
+    description: '瑶光瓜与星莲仙灵缭绕，不染尘埃。'
   },
   {
     id: 'spirit_phantom_wheat',
@@ -3638,7 +3638,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1325,
     seedPrice: 0,
     deepWatering: true,
-    description: '月华瓜与风华麦灵气交汇，仙韵天成。'
+    description: '瑶光瓜与风华麦灵气交汇，仙韵天成。'
   },
   {
     id: 'fairy_phantom_sesame',
@@ -3649,7 +3649,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1338,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与云华芝圣华流转，超凡入圣。'
+    description: '瑶光瓜与云华芝圣华流转，超凡入圣。'
   },
   {
     id: 'holy_phantom_pepper',
@@ -3660,7 +3660,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1350,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与雨华椒神妙莫测，真灵之品。'
+    description: '瑶光瓜与雨华椒神妙莫测，真灵之品。'
   },
   {
     id: 'divine_phantom_root',
@@ -3671,7 +3671,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1363,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与霜华参幻梦交织，禅意盎然。'
+    description: '瑶光瓜与霜华参幻梦交织，禅意盎然。'
   },
   {
     id: 'trueth_phantom_sprout',
@@ -3682,7 +3682,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1375,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与雷华芽仙灵缭绕，不染尘埃。'
+    description: '瑶光瓜与雷华芽仙灵缭绕，不染尘埃。'
   },
   {
     id: 'spirit_dream_vine',
@@ -3693,7 +3693,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1388,
     seedPrice: 0,
     deepWatering: true,
-    description: '月华瓜与虹华藤灵气交汇，仙韵天成。'
+    description: '瑶光瓜与虹华藤灵气交汇，仙韵天成。'
   },
   {
     id: 'fairy_dream_bud',
@@ -3704,7 +3704,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1400,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与露华蕾圣华流转，超凡入圣。'
+    description: '瑶光瓜与露华蕾圣华流转，超凡入圣。'
   },
   {
     id: 'holy_dream_orchid',
@@ -3715,7 +3715,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1413,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与晨华兰神妙莫测，真灵之品。'
+    description: '瑶光瓜与晨华兰神妙莫测，真灵之品。'
   },
   {
     id: 'divine_dream_gourd',
@@ -3726,7 +3726,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1425,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与暮华葫幻梦交织，禅意盎然。'
+    description: '瑶光瓜与暮华葫幻梦交织，禅意盎然。'
   },
   {
     id: 'trueth_dream_herb',
@@ -3737,7 +3737,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1438,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与星华草仙灵缭绕，不染尘埃。'
+    description: '瑶光瓜与星华草仙灵缭绕，不染尘埃。'
   },
   {
     id: 'spirit_zen_chestnut',
@@ -3748,7 +3748,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1450,
     seedPrice: 0,
     deepWatering: true,
-    description: '月华瓜与风翠栗灵气交汇，仙韵天成。'
+    description: '瑶光瓜与风翠栗灵气交汇，仙韵天成。'
   },
   {
     id: 'fairy_zen_apricot',
@@ -3759,7 +3759,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1463,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与云翠杏圣华流转，超凡入圣。'
+    description: '瑶光瓜与云翠杏圣华流转，超凡入圣。'
   },
   {
     id: 'holy_zen_pear',
@@ -3770,7 +3770,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1475,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与雨翠梨神妙莫测，真灵之品。'
+    description: '瑶光瓜与雨翠梨神妙莫测，真灵之品。'
   },
   {
     id: 'divine_zen_berry',
@@ -3781,7 +3781,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1488,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与霜翠莓幻梦交织，禅意盎然。'
+    description: '瑶光瓜与霜翠莓幻梦交织，禅意盎然。'
   },
   {
     id: 'trueth_zen_peach_t',
@@ -3792,7 +3792,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1500,
     seedPrice: 0,
     deepWatering: false,
-    description: '月华瓜与雷翠桃仙灵缭绕，不染尘埃。'
+    description: '瑶光瓜与雷翠桃仙灵缭绕，不染尘埃。'
   },
   // === 七代杂交作物 ===,
   {
@@ -3804,7 +3804,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1500,
     seedPrice: 0,
     deepWatering: true,
-    description: '瑶光瓜与月华瓜的神力融合，有神兽之威。'
+    description: '灵妙瓜与月华瓜的神力融合，有神兽之威。'
   },
   {
     id: 'fenghuang_song_bean',
@@ -3815,7 +3815,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1513,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与日华豆龙吟凤鸣，瑞兽降世。'
+    description: '灵妙瓜与日华豆龙吟凤鸣，瑞兽降世。'
   },
   {
     id: 'qilin_song_rice',
@@ -3826,7 +3826,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1525,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与天华稻虎啸山林，鹤舞九天。'
+    description: '灵妙瓜与天华稻虎啸山林，鹤舞九天。'
   },
   {
     id: 'crane_song_tuber',
@@ -3837,7 +3837,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1538,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与玉华薯麟光闪耀，百兽朝拜。'
+    description: '灵妙瓜与玉华薯麟光闪耀，百兽朝拜。'
   },
   {
     id: 'tiger_song_green',
@@ -3848,7 +3848,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1550,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与琉华菜蛟龙出水，威震八方。'
+    description: '灵妙瓜与琉华菜蛟龙出水，威震八方。'
   },
   {
     id: 'draco_dance_fruit',
@@ -3859,7 +3859,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1563,
     seedPrice: 0,
     deepWatering: true,
-    description: '瑶光瓜与银华果的神力融合，有神兽之威。'
+    description: '灵妙瓜与银华果的神力融合，有神兽之威。'
   },
   {
     id: 'fenghuang_dance_bloom',
@@ -3870,7 +3870,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1575,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与翠华花龙吟凤鸣，瑞兽降世。'
+    description: '灵妙瓜与翠华花龙吟凤鸣，瑞兽降世。'
   },
   {
     id: 'qilin_dance_tea',
@@ -3881,7 +3881,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1588,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与紫华茶虎啸山林，鹤舞九天。'
+    description: '灵妙瓜与紫华茶虎啸山林，鹤舞九天。'
   },
   {
     id: 'crane_dance_shoot',
@@ -3892,7 +3892,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1600,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与丹华笋麟光闪耀，百兽朝拜。'
+    description: '灵妙瓜与丹华笋麟光闪耀，百兽朝拜。'
   },
   {
     id: 'tiger_dance_lotus',
@@ -3903,7 +3903,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1613,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与青华莲蛟龙出水，威震八方。'
+    description: '灵妙瓜与青华莲蛟龙出水，威震八方。'
   },
   {
     id: 'draco_gleam7_wheat',
@@ -3914,7 +3914,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1625,
     seedPrice: 0,
     deepWatering: true,
-    description: '瑶光瓜与月辉麦的神力融合，有神兽之威。'
+    description: '灵妙瓜与月辉麦的神力融合，有神兽之威。'
   },
   {
     id: 'fenghuang_gleam7_sesame',
@@ -3925,7 +3925,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1638,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与日辉芝龙吟凤鸣，瑞兽降世。'
+    description: '灵妙瓜与日辉芝龙吟凤鸣，瑞兽降世。'
   },
   {
     id: 'qilin_gleam7_pepper',
@@ -3936,7 +3936,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1650,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与天辉椒虎啸山林，鹤舞九天。'
+    description: '灵妙瓜与天辉椒虎啸山林，鹤舞九天。'
   },
   {
     id: 'crane_gleam7_root',
@@ -3947,7 +3947,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1663,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与玉辉参麟光闪耀，百兽朝拜。'
+    description: '灵妙瓜与玉辉参麟光闪耀，百兽朝拜。'
   },
   {
     id: 'tiger_gleam7_sprout',
@@ -3958,7 +3958,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1675,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与琉辉芽蛟龙出水，威震八方。'
+    description: '灵妙瓜与琉辉芽蛟龙出水，威震八方。'
   },
   {
     id: 'draco_shadow_vine',
@@ -3969,7 +3969,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1688,
     seedPrice: 0,
     deepWatering: true,
-    description: '瑶光瓜与银辉藤的神力融合，有神兽之威。'
+    description: '灵妙瓜与银辉藤的神力融合，有神兽之威。'
   },
   {
     id: 'fenghuang_shadow_bud',
@@ -3980,7 +3980,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1700,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与翠辉蕾龙吟凤鸣，瑞兽降世。'
+    description: '灵妙瓜与翠辉蕾龙吟凤鸣，瑞兽降世。'
   },
   {
     id: 'qilin_shadow_orchid',
@@ -3991,7 +3991,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1713,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与紫辉兰虎啸山林，鹤舞九天。'
+    description: '灵妙瓜与紫辉兰虎啸山林，鹤舞九天。'
   },
   {
     id: 'crane_shadow_gourd',
@@ -4002,7 +4002,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1725,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与丹辉葫麟光闪耀，百兽朝拜。'
+    description: '灵妙瓜与丹辉葫麟光闪耀，百兽朝拜。'
   },
   {
     id: 'tiger_shadow_herb',
@@ -4013,7 +4013,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1738,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与青辉草蛟龙出水，威震八方。'
+    description: '灵妙瓜与青辉草蛟龙出水，威震八方。'
   },
   {
     id: 'draco_roar_chestnut',
@@ -4024,7 +4024,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1750,
     seedPrice: 0,
     deepWatering: true,
-    description: '瑶光瓜与月瑞栗的神力融合，有神兽之威。'
+    description: '灵妙瓜与月瑞栗的神力融合，有神兽之威。'
   },
   {
     id: 'fenghuang_roar_apricot',
@@ -4035,7 +4035,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1763,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与日瑞杏龙吟凤鸣，瑞兽降世。'
+    description: '灵妙瓜与日瑞杏龙吟凤鸣，瑞兽降世。'
   },
   {
     id: 'qilin_roar_pear',
@@ -4046,7 +4046,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1775,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与天瑞梨虎啸山林，鹤舞九天。'
+    description: '灵妙瓜与天瑞梨虎啸山林，鹤舞九天。'
   },
   {
     id: 'crane_roar_berry',
@@ -4057,7 +4057,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1788,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与玉瑞莓麟光闪耀，百兽朝拜。'
+    description: '灵妙瓜与玉瑞莓麟光闪耀，百兽朝拜。'
   },
   {
     id: 'tiger_roar_peach_t',
@@ -4068,7 +4068,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1800,
     seedPrice: 0,
     deepWatering: false,
-    description: '瑶光瓜与琉瑞桃蛟龙出水，威震八方。'
+    description: '灵妙瓜与琉瑞桃蛟龙出水，威震八方。'
   },
   // === 八代杂交作物 ===,
   {
@@ -4080,7 +4080,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1800,
     seedPrice: 0,
     deepWatering: true,
-    description: '灵妙瓜与瑶光瓜天地之气凝聚，元气充沛。'
+    description: '龙吟瓜与瑶光瓜天地之气凝聚，元气充沛。'
   },
   {
     id: 'firmament_origin_bean',
@@ -4091,7 +4091,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1817,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与琼光豆乾坤交泰，阴阳和合。'
+    description: '龙吟瓜与琼光豆乾坤交泰，阴阳和合。'
   },
   {
     id: 'terra_origin_rice',
@@ -4102,7 +4102,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1833,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与瑰光稻太初之力觉醒，混元归一。'
+    description: '龙吟瓜与瑰光稻太初之力觉醒，混元归一。'
   },
   {
     id: 'primal_origin_tuber',
@@ -4113,7 +4113,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1850,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与曦光薯天极之光降临，万物归元。'
+    description: '龙吟瓜与曦光薯天极之光降临，万物归元。'
   },
   {
     id: 'chaos_origin_green',
@@ -4124,7 +4124,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1867,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与璃光菜元气混沌初开，太一显化。'
+    description: '龙吟瓜与璃光菜元气混沌初开，太一显化。'
   },
   {
     id: 'supreme_vital8_fruit',
@@ -4135,7 +4135,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1883,
     seedPrice: 0,
     deepWatering: true,
-    description: '灵妙瓜与瑶华果天地之气凝聚，元气充沛。'
+    description: '龙吟瓜与瑶华果天地之气凝聚，元气充沛。'
   },
   {
     id: 'firmament_vital8_bloom',
@@ -4146,7 +4146,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1900,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与琼华花乾坤交泰，阴阳和合。'
+    description: '龙吟瓜与琼华花乾坤交泰，阴阳和合。'
   },
   {
     id: 'terra_vital8_tea',
@@ -4157,7 +4157,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1917,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与瑰华茶太初之力觉醒，混元归一。'
+    description: '龙吟瓜与瑰华茶太初之力觉醒，混元归一。'
   },
   {
     id: 'primal_vital8_shoot',
@@ -4168,7 +4168,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1933,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与曦华笋天极之光降临，万物归元。'
+    description: '龙吟瓜与曦华笋天极之光降临，万物归元。'
   },
   {
     id: 'chaos_vital8_lotus',
@@ -4179,7 +4179,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1950,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与璃华莲元气混沌初开，太一显化。'
+    description: '龙吟瓜与璃华莲元气混沌初开，太一显化。'
   },
   {
     id: 'supreme_glory8_wheat',
@@ -4190,7 +4190,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1967,
     seedPrice: 0,
     deepWatering: true,
-    description: '灵妙瓜与瑶露麦天地之气凝聚，元气充沛。'
+    description: '龙吟瓜与瑶露麦天地之气凝聚，元气充沛。'
   },
   {
     id: 'firmament_glory8_sesame',
@@ -4201,7 +4201,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 1983,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与琼露芝乾坤交泰，阴阳和合。'
+    description: '龙吟瓜与琼露芝乾坤交泰，阴阳和合。'
   },
   {
     id: 'terra_glory8_pepper',
@@ -4212,7 +4212,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2000,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与瑰露椒太初之力觉醒，混元归一。'
+    description: '龙吟瓜与瑰露椒太初之力觉醒，混元归一。'
   },
   {
     id: 'primal_glory8_root',
@@ -4223,7 +4223,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2017,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与曦露参天极之光降临，万物归元。'
+    description: '龙吟瓜与曦露参天极之光降临，万物归元。'
   },
   {
     id: 'chaos_glory8_sprout',
@@ -4234,7 +4234,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2033,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与璃露芽元气混沌初开，太一显化。'
+    description: '龙吟瓜与璃露芽元气混沌初开，太一显化。'
   },
   {
     id: 'supreme_zenith_vine',
@@ -4245,7 +4245,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2050,
     seedPrice: 0,
     deepWatering: true,
-    description: '灵妙瓜与瑶灵藤天地之气凝聚，元气充沛。'
+    description: '龙吟瓜与瑶灵藤天地之气凝聚，元气充沛。'
   },
   {
     id: 'firmament_zenith_bud',
@@ -4256,7 +4256,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2067,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与琼灵蕾乾坤交泰，阴阳和合。'
+    description: '龙吟瓜与琼灵蕾乾坤交泰，阴阳和合。'
   },
   {
     id: 'terra_zenith_orchid',
@@ -4267,7 +4267,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2083,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与瑰灵兰太初之力觉醒，混元归一。'
+    description: '龙吟瓜与瑰灵兰太初之力觉醒，混元归一。'
   },
   {
     id: 'primal_zenith_gourd',
@@ -4278,7 +4278,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2100,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与曦灵葫天极之光降临，万物归元。'
+    description: '龙吟瓜与曦灵葫天极之光降临，万物归元。'
   },
   {
     id: 'chaos_zenith_herb',
@@ -4289,7 +4289,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2117,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与璃灵草元气混沌初开，太一显化。'
+    description: '龙吟瓜与璃灵草元气混沌初开，太一显化。'
   },
   {
     id: 'supreme_core_chestnut',
@@ -4300,7 +4300,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2133,
     seedPrice: 0,
     deepWatering: true,
-    description: '灵妙瓜与瑶锦栗天地之气凝聚，元气充沛。'
+    description: '龙吟瓜与瑶锦栗天地之气凝聚，元气充沛。'
   },
   {
     id: 'firmament_core_apricot',
@@ -4311,7 +4311,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2150,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与琼锦杏乾坤交泰，阴阳和合。'
+    description: '龙吟瓜与琼锦杏乾坤交泰，阴阳和合。'
   },
   {
     id: 'terra_core_pear',
@@ -4322,7 +4322,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2167,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与瑰锦梨太初之力觉醒，混元归一。'
+    description: '龙吟瓜与瑰锦梨太初之力觉醒，混元归一。'
   },
   {
     id: 'primal_core_berry',
@@ -4333,7 +4333,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2183,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与曦锦莓天极之光降临，万物归元。'
+    description: '龙吟瓜与曦锦莓天极之光降临，万物归元。'
   },
   {
     id: 'chaos_core_peach_t',
@@ -4344,7 +4344,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2200,
     seedPrice: 0,
     deepWatering: false,
-    description: '灵妙瓜与璃锦桃元气混沌初开，太一显化。'
+    description: '龙吟瓜与璃锦桃元气混沌初开，太一显化。'
   },
   // === 九代杂交作物 ===,
   {
@@ -4356,7 +4356,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2200,
     seedPrice: 0,
     deepWatering: true,
-    description: '龙吟瓜与灵妙瓜鸿蒙之力交汇，通灵化境。'
+    description: '太初瓜与灵妙瓜鸿蒙之力交汇，通灵化境。'
   },
   {
     id: 'ancient_meng_bean',
@@ -4367,7 +4367,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2225,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与仙妙豆太古洪荒之气，开天辟地。'
+    description: '太初瓜与仙妙豆太古洪荒之气，开天辟地。'
   },
   {
     id: 'infinite_meng_rice',
@@ -4378,7 +4378,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2250,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与圣妙稻无极之道显现，玄之又玄。'
+    description: '太初瓜与圣妙稻无极之道显现，玄之又玄。'
   },
   {
     id: 'primeval_meng_tuber',
@@ -4389,7 +4389,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2275,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与神妙薯洪荒大力，超越万物。'
+    description: '太初瓜与神妙薯洪荒大力，超越万物。'
   },
   {
     id: 'genesis_meng_green',
@@ -4400,7 +4400,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2300,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与真妙菜鸿蒙初判，天地为之变色。'
+    description: '太初瓜与真妙菜鸿蒙初判，天地为之变色。'
   },
   {
     id: 'vast_apex9_fruit',
@@ -4411,7 +4411,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2325,
     seedPrice: 0,
     deepWatering: true,
-    description: '龙吟瓜与灵华果鸿蒙之力交汇，通灵化境。'
+    description: '太初瓜与灵华果鸿蒙之力交汇，通灵化境。'
   },
   {
     id: 'ancient_apex9_bloom',
@@ -4422,7 +4422,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2350,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与仙华花太古洪荒之气，开天辟地。'
+    description: '太初瓜与仙华花太古洪荒之气，开天辟地。'
   },
   {
     id: 'infinite_apex9_tea',
@@ -4433,7 +4433,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2375,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与圣华茶无极之道显现，玄之又玄。'
+    description: '太初瓜与圣华茶无极之道显现，玄之又玄。'
   },
   {
     id: 'primeval_apex9_shoot',
@@ -4444,7 +4444,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2400,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与神华笋洪荒大力，超越万物。'
+    description: '太初瓜与神华笋洪荒大力，超越万物。'
   },
   {
     id: 'genesis_apex9_lotus',
@@ -4455,7 +4455,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2425,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与真华莲鸿蒙初判，天地为之变色。'
+    description: '太初瓜与真华莲鸿蒙初判，天地为之变色。'
   },
   {
     id: 'vast_wilder_wheat',
@@ -4466,7 +4466,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2450,
     seedPrice: 0,
     deepWatering: true,
-    description: '龙吟瓜与灵幻麦鸿蒙之力交汇，通灵化境。'
+    description: '太初瓜与灵幻麦鸿蒙之力交汇，通灵化境。'
   },
   {
     id: 'ancient_wilder_sesame',
@@ -4477,7 +4477,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2475,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与仙幻芝太古洪荒之气，开天辟地。'
+    description: '太初瓜与仙幻芝太古洪荒之气，开天辟地。'
   },
   {
     id: 'infinite_wilder_pepper',
@@ -4488,7 +4488,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2500,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与圣幻椒无极之道显现，玄之又玄。'
+    description: '太初瓜与圣幻椒无极之道显现，玄之又玄。'
   },
   {
     id: 'primeval_wilder_root',
@@ -4499,7 +4499,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2525,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与神幻参洪荒大力，超越万物。'
+    description: '太初瓜与神幻参洪荒大力，超越万物。'
   },
   {
     id: 'genesis_wilder_sprout',
@@ -4510,7 +4510,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2550,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与真幻芽鸿蒙初判，天地为之变色。'
+    description: '太初瓜与真幻芽鸿蒙初判，天地为之变色。'
   },
   {
     id: 'vast_empyrean_vine',
@@ -4521,7 +4521,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2575,
     seedPrice: 0,
     deepWatering: true,
-    description: '龙吟瓜与灵梦藤鸿蒙之力交汇，通灵化境。'
+    description: '太初瓜与灵梦藤鸿蒙之力交汇，通灵化境。'
   },
   {
     id: 'ancient_empyrean_bud',
@@ -4532,7 +4532,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2600,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与仙梦蕾太古洪荒之气，开天辟地。'
+    description: '太初瓜与仙梦蕾太古洪荒之气，开天辟地。'
   },
   {
     id: 'infinite_empyrean_orchid',
@@ -4543,7 +4543,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2625,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与圣梦兰无极之道显现，玄之又玄。'
+    description: '太初瓜与圣梦兰无极之道显现，玄之又玄。'
   },
   {
     id: 'primeval_empyrean_gourd',
@@ -4554,7 +4554,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2650,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与神梦葫洪荒大力，超越万物。'
+    description: '太初瓜与神梦葫洪荒大力，超越万物。'
   },
   {
     id: 'genesis_empyrean_herb',
@@ -4565,7 +4565,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2675,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与真梦草鸿蒙初判，天地为之变色。'
+    description: '太初瓜与真梦草鸿蒙初判，天地为之变色。'
   },
   {
     id: 'vast_spirit9_chestnut',
@@ -4576,7 +4576,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2700,
     seedPrice: 0,
     deepWatering: true,
-    description: '龙吟瓜与灵禅栗鸿蒙之力交汇，通灵化境。'
+    description: '太初瓜与灵禅栗鸿蒙之力交汇，通灵化境。'
   },
   {
     id: 'ancient_spirit9_apricot',
@@ -4587,7 +4587,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2725,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与仙禅杏太古洪荒之气，开天辟地。'
+    description: '太初瓜与仙禅杏太古洪荒之气，开天辟地。'
   },
   {
     id: 'infinite_spirit9_pear',
@@ -4598,7 +4598,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2750,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与圣禅梨无极之道显现，玄之又玄。'
+    description: '太初瓜与圣禅梨无极之道显现，玄之又玄。'
   },
   {
     id: 'primeval_spirit9_berry',
@@ -4609,7 +4609,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2775,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与神禅莓洪荒大力，超越万物。'
+    description: '太初瓜与神禅莓洪荒大力，超越万物。'
   },
   {
     id: 'genesis_spirit9_peach_t',
@@ -4620,7 +4620,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2800,
     seedPrice: 0,
     deepWatering: false,
-    description: '龙吟瓜与真禅桃鸿蒙初判，天地为之变色。'
+    description: '太初瓜与真禅桃鸿蒙初判，天地为之变色。'
   },
   // === 十代杂交作物 ===,
   {
@@ -4632,7 +4632,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2800,
     seedPrice: 0,
     deepWatering: true,
-    description: '太初瓜与龙吟瓜造化之力成就，永恒不朽之品。'
+    description: '鸿蒙瓜与龙吟瓜造化之力成就，永恒不朽之品。'
   },
   {
     id: 'eternal_change_bean',
@@ -4643,7 +4643,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2829,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与凤吟豆天命所归，万象更新。'
+    description: '鸿蒙瓜与凤吟豆天命所归，万象更新。'
   },
   {
     id: 'undying_change_rice',
@@ -4654,7 +4654,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2858,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与麟吟稻不朽轮回，涅槃重生。'
+    description: '鸿蒙瓜与麟吟稻不朽轮回，涅槃重生。'
   },
   {
     id: 'heavenly_change_tuber',
@@ -4665,7 +4665,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2888,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与鹤吟薯造化弄人，终成至宝。'
+    description: '鸿蒙瓜与鹤吟薯造化弄人，终成至宝。'
   },
   {
     id: 'myriad_change_green',
@@ -4676,7 +4676,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2917,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与虎吟菜永恒不灭之光，照耀天地。'
+    description: '鸿蒙瓜与虎吟菜永恒不灭之光，照耀天地。'
   },
   {
     id: 'creation_lasting_fruit',
@@ -4687,7 +4687,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2946,
     seedPrice: 0,
     deepWatering: true,
-    description: '太初瓜与龙舞果造化之力成就，永恒不朽之品。'
+    description: '鸿蒙瓜与龙舞果造化之力成就，永恒不朽之品。'
   },
   {
     id: 'eternal_lasting_bloom',
@@ -4698,7 +4698,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 2975,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与凤舞花天命所归，万象更新。'
+    description: '鸿蒙瓜与凤舞花天命所归，万象更新。'
   },
   {
     id: 'undying_lasting_tea',
@@ -4709,7 +4709,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3004,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与麟舞茶不朽轮回，涅槃重生。'
+    description: '鸿蒙瓜与麟舞茶不朽轮回，涅槃重生。'
   },
   {
     id: 'heavenly_lasting_shoot',
@@ -4720,7 +4720,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3033,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与鹤舞笋造化弄人，终成至宝。'
+    description: '鸿蒙瓜与鹤舞笋造化弄人，终成至宝。'
   },
   {
     id: 'myriad_lasting_lotus',
@@ -4731,7 +4731,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3063,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与虎舞莲永恒不灭之光，照耀天地。'
+    description: '鸿蒙瓜与虎舞莲永恒不灭之光，照耀天地。'
   },
   {
     id: 'creation_timeless_wheat',
@@ -4742,7 +4742,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3092,
     seedPrice: 0,
     deepWatering: true,
-    description: '太初瓜与龙辉麦造化之力成就，永恒不朽之品。'
+    description: '鸿蒙瓜与龙辉麦造化之力成就，永恒不朽之品。'
   },
   {
     id: 'eternal_timeless_sesame',
@@ -4753,7 +4753,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3121,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与凤辉芝天命所归，万象更新。'
+    description: '鸿蒙瓜与凤辉芝天命所归，万象更新。'
   },
   {
     id: 'undying_timeless_pepper',
@@ -4764,7 +4764,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3150,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与麟辉椒不朽轮回，涅槃重生。'
+    description: '鸿蒙瓜与麟辉椒不朽轮回，涅槃重生。'
   },
   {
     id: 'heavenly_timeless_root',
@@ -4775,7 +4775,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3179,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与鹤辉参造化弄人，终成至宝。'
+    description: '鸿蒙瓜与鹤辉参造化弄人，终成至宝。'
   },
   {
     id: 'myriad_timeless_sprout',
@@ -4786,7 +4786,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3208,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与虎辉芽永恒不灭之光，照耀天地。'
+    description: '鸿蒙瓜与虎辉芽永恒不灭之光，照耀天地。'
   },
   {
     id: 'creation_destiny_vine',
@@ -4797,7 +4797,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3238,
     seedPrice: 0,
     deepWatering: true,
-    description: '太初瓜与龙影藤造化之力成就，永恒不朽之品。'
+    description: '鸿蒙瓜与龙影藤造化之力成就，永恒不朽之品。'
   },
   {
     id: 'eternal_destiny_bud',
@@ -4808,7 +4808,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3267,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与凤影蕾天命所归，万象更新。'
+    description: '鸿蒙瓜与凤影蕾天命所归，万象更新。'
   },
   {
     id: 'undying_destiny_orchid',
@@ -4819,7 +4819,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3296,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与麟影兰不朽轮回，涅槃重生。'
+    description: '鸿蒙瓜与麟影兰不朽轮回，涅槃重生。'
   },
   {
     id: 'heavenly_destiny_gourd',
@@ -4830,7 +4830,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3325,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与鹤影葫造化弄人，终成至宝。'
+    description: '鸿蒙瓜与鹤影葫造化弄人，终成至宝。'
   },
   {
     id: 'myriad_destiny_herb',
@@ -4841,7 +4841,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3354,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与虎影草永恒不灭之光，照耀天地。'
+    description: '鸿蒙瓜与虎影草永恒不灭之光，照耀天地。'
   },
   {
     id: 'creation_form_chestnut',
@@ -4852,7 +4852,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3383,
     seedPrice: 0,
     deepWatering: true,
-    description: '太初瓜与龙啸栗造化之力成就，永恒不朽之品。'
+    description: '鸿蒙瓜与龙啸栗造化之力成就，永恒不朽之品。'
   },
   {
     id: 'eternal_form_apricot',
@@ -4863,7 +4863,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3413,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与凤啸杏天命所归，万象更新。'
+    description: '鸿蒙瓜与凤啸杏天命所归，万象更新。'
   },
   {
     id: 'undying_form_pear',
@@ -4874,7 +4874,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3442,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与麟啸梨不朽轮回，涅槃重生。'
+    description: '鸿蒙瓜与麟啸梨不朽轮回，涅槃重生。'
   },
   {
     id: 'heavenly_form_berry',
@@ -4885,7 +4885,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3471,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与鹤啸莓造化弄人，终成至宝。'
+    description: '鸿蒙瓜与鹤啸莓造化弄人，终成至宝。'
   },
   {
     id: 'myriad_form_peach_t',
@@ -4896,7 +4896,7 @@ export const CROPS: CropDef[] = [
     sellPrice: 3500,
     seedPrice: 0,
     deepWatering: false,
-    description: '太初瓜与虎啸桃永恒不灭之光，照耀天地。'
+    description: '鸿蒙瓜与虎啸桃永恒不灭之光，照耀天地。'
   },
   // === 远古作物 ===
   {

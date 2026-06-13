@@ -552,6 +552,76 @@ try {
     )
   })
 
+  await runCheck('private chat gift claim notification refreshes sender through websocket', async () => {
+    const giftSender = await bootstrapSession('smkgsa')
+    const giftRecipient = await bootstrapSession('smkgsb')
+    const requestResult = await fetchSessionJson(giftSender, '/api/taoyuan/online/social/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_save_id: giftRecipient.identity.save_id }),
+    })
+    assert(requestResult.response.ok, `gift friendship request returned ${requestResult.response.status}: ${requestResult.data?.msg || 'unknown error'}`)
+    const giftFriendRequestId = String(requestResult.data?.request?.id || '')
+    assert(giftFriendRequestId, 'gift friendship request id missing')
+    const acceptResult = await fetchSessionJson(giftRecipient, `/api/taoyuan/online/social/friend-requests/${encodeURIComponent(giftFriendRequestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(acceptResult.response.ok, `gift friendship accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+
+    let giftSenderSocket = null
+    try {
+      giftSenderSocket = await openRealtimeSocket(giftSender)
+      await expectMessage(giftSenderSocket, 'realtime.ready', payload =>
+        payload.username === giftSender.username && payload.save_id === giftSender.identity.save_id
+      )
+
+      const sendOffset = giftSenderSocket.messages.length
+      const giftResult = await fetchSessionJson(giftSender, '/api/taoyuan/online/chat/gifts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_save_id: giftRecipient.identity.save_id,
+          content: 'Realtime smoke gift claim sync.',
+          rewards: [
+            { type: 'item', id: 'wood', quantity: 1, quality: 'normal' },
+          ],
+        }),
+      })
+      assert(giftResult.response.ok, `private chat gift returned ${giftResult.response.status}: ${giftResult.data?.msg || 'unknown error'}`)
+      const giftMessageId = String(giftResult.data?.message?.id || '')
+      assert(giftMessageId, 'private chat gift message id missing')
+      assert(giftResult.data?.message?.gift?.is_claimed === false, 'private chat gift should start unclaimed')
+      await expectMessageAfter(giftSenderSocket, sendOffset, 'notification.created', payload =>
+        payload.category === 'chat'
+          && payload.action === 'gift_created'
+          && payload.message?.id === giftMessageId
+          && payload.message?.type === 'gift'
+          && payload.message?.sender_username === giftSender.username
+          && payload.message?.recipient_username === giftRecipient.username
+      )
+
+      const claimOffset = giftSenderSocket.messages.length
+      const claimResult = await fetchSessionJson(giftRecipient, `/api/taoyuan/online/chat/messages/${encodeURIComponent(giftMessageId)}/claim-gift`, {
+        method: 'POST',
+      })
+      assert(claimResult.response.ok, `private chat gift claim returned ${claimResult.response.status}: ${claimResult.data?.msg || 'unknown error'}`)
+      assert(Number(claimResult.data?.realtime_emitted) >= 1, 'private chat gift claim should emit realtime notification to online sender')
+      assert(claimResult.data?.message?.gift?.is_claimed === true, 'private chat gift claim response should expose claimed gift state')
+      await expectMessageAfter(giftSenderSocket, claimOffset, 'notification.created', payload =>
+        payload.category === 'chat'
+          && payload.action === 'gift_claimed'
+          && payload.refresh_required === true
+          && payload.message?.id === giftMessageId
+          && payload.message?.type === 'gift'
+          && payload.message?.sender_username === giftSender.username
+          && payload.message?.recipient_username === giftRecipient.username
+          && payload.conversation?.id === giftResult.data?.conversation?.id
+      )
+    } finally {
+      giftSenderSocket?.close()
+    }
+  })
+
   await runCheck('offline private chat notification event is replayed and acknowledged after reconnect', async () => {
     friendSocket.close()
     friendSocket = null

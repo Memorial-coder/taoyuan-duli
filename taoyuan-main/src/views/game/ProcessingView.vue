@@ -66,11 +66,15 @@
       </div>
 
       <!-- 机器列表（按类型分组） -->
-      <div v-else class="flex flex-col space-y-2">
+      <div
+        v-else
+        class="processing-machine-group-layout desktop-adaptive-grid--cards"
+        data-testid="processing-machine-group-layout"
+      >
         <div
           v-for="group in machineGroupsView"
           :key="group.machineType"
-          class="border border-accent/10 rounded-xs"
+          class="processing-machine-group-card border border-accent/10 rounded-xs"
           :data-testid="`processing-machine-group-${group.machineType}`"
         >
           <!-- 分组标题（可折叠） -->
@@ -119,10 +123,10 @@
           </div>
 
           <!-- 展开的机器明细 -->
-          <div v-if="!collapsedGroups.has(group.machineType)" class="flex flex-col space-y-1.5 px-2 pb-2">
+          <div v-if="!collapsedGroups.has(group.machineType)" class="processing-machine-slot-list px-2 pb-2">
             <div
               v-if="group.recommendationOptions.length > 0"
-              class="rounded-xs border border-accent/15 bg-accent/5 px-2 py-1.5"
+              class="processing-machine-recommendations rounded-xs border border-accent/15 bg-accent/5 px-2 py-1.5"
             >
               <p class="text-[0.625rem] text-accent mb-1">用途推荐</p>
               <div
@@ -143,7 +147,7 @@
             <div
               v-for="{ slot, originalIndex } in group.slots"
               :key="originalIndex"
-              class="border rounded-xs p-2"
+              class="processing-machine-slot-card border rounded-xs p-2"
               :class="slot.ready ? 'border-success/30' : 'border-accent/20'"
             >
               <div class="flex items-center justify-between mb-1.5">
@@ -157,14 +161,15 @@
               <div v-if="!slot.recipeId">
                 <!-- 种子制造机：按品质展开 -->
                 <template v-if="group.isSeedMaker">
-                  <div v-if="group.seedRecipeOptions.length > 0" class="processing-option-grid grid grid-cols-3 gap-1.5 md:grid-cols-5">
+                  <div v-if="group.seedRecipeOptions.length > 0" class="processing-option-grid grid gap-1.5">
                     <Button
                       v-for="option in group.seedRecipeOptions"
                       :key="option.key"
                       class="processing-option-card"
-                      :disabled="option.disabled"
+                      :class="{ 'processing-option-card--unavailable': option.disabled }"
+                      :aria-disabled="option.disabled ? 'true' : 'false'"
                       :data-testid="`processing-recipe-${option.recipeId}`"
-                      @click="handleStartProcessing(originalIndex, option.recipeId, option.quality)"
+                      @click="openProcessingRecipeDetail(originalIndex, option)"
                     >
                       <span class="processing-option-card__body">
                         <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
@@ -191,14 +196,15 @@
                 </template>
                 <!-- 其他机器：普通配方列表 -->
                 <template v-else>
-                  <div v-if="group.recipeOptions.length > 0" class="processing-option-grid grid grid-cols-3 gap-1.5 md:grid-cols-5">
+                  <div v-if="group.recipeOptions.length > 0" class="processing-option-grid grid gap-1.5">
                     <Button
                       v-for="option in group.recipeOptions"
                       :key="option.key"
                       class="processing-option-card"
-                      :disabled="option.disabled"
+                      :class="{ 'processing-option-card--unavailable': option.disabled }"
+                      :aria-disabled="option.disabled ? 'true' : 'false'"
                       :data-testid="`processing-recipe-${option.recipeId}`"
-                      @click="handleStartProcessing(originalIndex, option.recipeId)"
+                      @click="openProcessingRecipeDetail(originalIndex, option)"
                     >
                       <span class="processing-option-card__body">
                         <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
@@ -583,8 +589,24 @@
               <span class="text-xs">{{ currentBatchOption?.displayName ?? currentBatchRecipe.name }}{{ batchQualityLabel }}</span>
               <span class="text-[0.625rem] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
             </div>
-            <div v-if="currentBatchOption?.alchemyLimitText" class="text-[0.625rem] text-muted mb-1.5">
-              {{ [currentBatchOption.alchemyLimitText, currentBatchOption.alchemyMetaText, currentBatchOption.cropUseText, currentBatchOption.substitutionText].filter(Boolean).join(' · ') }}
+
+            <div class="processing-recipe-material-list mb-1.5" data-testid="processing-batch-recipe-materials">
+              <div
+                v-for="line in batchRecipeMaterialLines"
+                :key="line.key"
+                class="processing-recipe-material-row"
+              >
+                <span class="processing-recipe-material-row__item">
+                  <ItemIcon :item="line.item" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ line.itemName }}</span>
+                </span>
+                <span :class="line.fulfilled ? 'text-text' : 'text-danger'">{{ line.count }}/{{ line.quantity }}</span>
+              </div>
+              <p v-if="batchRecipeMaterialLines.length === 0" class="text-[0.625rem] text-muted">无需投入原料</p>
+            </div>
+
+            <div v-if="batchRecipeDetailLines.length > 0" class="text-[0.625rem] text-muted mb-1.5 space-y-0.5">
+              <p v-for="line in batchRecipeDetailLines" :key="line">{{ line }}</p>
             </div>
             <div class="flex items-center space-x-1 mb-1.5">
               <Button class="h-6 px-1.5 py-0.5 text-xs justify-center" :disabled="batchQuantity <= 1" @click="addBatchQuantity(-1)">-</Button>
@@ -611,6 +633,87 @@
             @click="handleStartBatchProcessing"
           >
             开始批量加工{{ currentBatchRecipe ? ` ×${batchQuantity}` : '' }}
+          </Button>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 单机加工配方详情弹窗 -->
+    <Transition name="panel-fade">
+      <div
+        v-if="processingRecipeDetail && currentRecipeDetailOption"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="closeProcessingRecipeDetail"
+      >
+        <div class="game-panel max-w-sm w-full relative" data-testid="processing-recipe-detail-modal">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closeProcessingRecipeDetail">
+            <X :size="14" />
+          </button>
+
+          <div class="flex items-start gap-2 pr-6 mb-2">
+            <ItemIcon
+              :item="currentRecipeDetailOption.outputItem"
+              size="sm"
+              :quality="currentRecipeDetailOption.quality ?? 'normal'"
+              :silhouette="currentRecipeDetailOption.hiddenUndiscovered"
+            />
+            <div class="min-w-0">
+              <p class="text-sm text-accent truncate">
+                {{ currentRecipeDetailOption.displayName }}
+                <span v-if="currentRecipeDetailOption.qualityLabel" class="text-muted">{{ currentRecipeDetailOption.qualityLabel }}</span>
+              </p>
+              <p class="text-[0.625rem] text-muted mt-0.5">
+                {{ currentRecipeDetailMachineName }} · {{ currentRecipeDetailOption.recipe.processingDays }}天
+              </p>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2" data-testid="processing-recipe-detail-materials">
+            <p class="text-xs text-muted mb-1">所需材料</p>
+            <div v-if="recipeDetailMaterialLines.length > 0" class="processing-recipe-material-list">
+              <div
+                v-for="line in recipeDetailMaterialLines"
+                :key="line.key"
+                class="processing-recipe-material-row"
+              >
+                <span class="processing-recipe-material-row__item">
+                  <ItemIcon :item="line.item" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ line.itemName }}</span>
+                </span>
+                <span :class="line.fulfilled ? 'text-text' : 'text-danger'">{{ line.count }}/{{ line.quantity }}</span>
+              </div>
+            </div>
+            <p v-else class="text-[0.625rem] text-muted">无需投入原料</p>
+          </div>
+
+          <div v-if="recipeDetailInfoLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p
+              v-for="line in recipeDetailInfoLines"
+              :key="line"
+              class="text-[0.625rem] text-muted leading-4"
+            >
+              {{ line }}
+            </p>
+          </div>
+
+          <p
+            v-if="recipeDetailDisabledReason"
+            class="text-[0.625rem] text-danger mb-2"
+            data-testid="processing-recipe-detail-disabled-reason"
+          >
+            {{ recipeDetailDisabledReason }}
+          </p>
+
+          <Button
+            class="w-full justify-center"
+            :class="{ '!bg-accent !text-bg': canConfirmProcessingDetail }"
+            :icon="Boxes"
+            :icon-size="12"
+            :disabled="!canConfirmProcessingDetail"
+            data-testid="processing-recipe-detail-start"
+            @click="handleConfirmProcessingDetail"
+          >
+            开始加工
           </Button>
         </div>
       </div>
@@ -714,6 +817,10 @@
     quantity: number
   }
 
+  interface ProcessingRecipeMaterialLine extends RecipeInputViewModel {
+    fulfilled: boolean
+  }
+
   interface RecipeOptionViewModel {
     key: string
     recipe: ProcessingRecipeDef
@@ -735,6 +842,12 @@
     recommendationText: string
     alchemyBlocked: boolean
     hiddenUndiscovered: boolean
+  }
+
+  interface ProcessingRecipeDetailState {
+    slotIndex: number
+    recipeId: string
+    quality?: Quality
   }
 
   interface MachineSlotViewModel {
@@ -1155,6 +1268,7 @@
 
   const batchProcessModal = ref<{ machineType: MachineType; recipeId: string | null; quality?: Quality } | null>(null)
   const batchQuantity = ref(1)
+  const processingRecipeDetail = ref<ProcessingRecipeDetailState | null>(null)
 
   const openBatchProcessModal = (machineType: MachineType) => {
     batchProcessModal.value = { machineType, recipeId: null }
@@ -1211,6 +1325,54 @@
 
   const batchQualityLabel = computed(() => (currentBatchOption.value?.qualityLabel ? ` ${currentBatchOption.value.qualityLabel}` : ''))
 
+  const buildProcessingRecipeMaterialLines = (option: RecipeOptionViewModel | null, quantity = 1): ProcessingRecipeMaterialLine[] => {
+    if (!option) return []
+    const multiplier = Math.max(1, Math.floor(quantity) || 1)
+    const lines: ProcessingRecipeMaterialLine[] = []
+    const addLine = (input: RecipeInputViewModel) => {
+      const requiredQuantity = input.quantity * multiplier
+      lines.push({
+        ...input,
+        quantity: requiredQuantity,
+        fulfilled: input.count >= requiredQuantity
+      })
+    }
+
+    if (option.recipe.inputItemId !== null) {
+      addLine({
+        key: `${option.key}:main:${option.recipe.inputItemId}`,
+        itemId: option.recipe.inputItemId,
+        item: option.inputItem ?? undefined,
+        itemName: option.inputItemName ?? getItemName(option.recipe.inputItemId),
+        count: option.count,
+        quantity: option.recipe.inputQuantity
+      })
+    }
+
+    for (const extra of option.extraInputs) {
+      addLine(extra)
+    }
+
+    return lines
+  }
+
+  const buildProcessingRecipeDetailLines = (option: RecipeOptionViewModel | null, quantity = 1): string[] => {
+    if (!option) return []
+    const substitutionText = option.recipe.alchemy
+      ? processingStore.getAlchemySubstitutionText(option.recipe.id, quantity, option.quality)
+      : option.substitutionText
+    return [
+      option.qualityLabel ? `品质要求：${option.qualityLabel.replace(/^\[|\]$/g, '')}` : '',
+      option.alchemyLimitText,
+      option.alchemyMetaText,
+      option.cropUseText,
+      substitutionText
+    ].filter(Boolean)
+  }
+
+  const batchRecipeMaterialLines = computed(() => buildProcessingRecipeMaterialLines(currentBatchOption.value, batchQuantity.value))
+  const batchRecipeDetailLines = computed(() => buildProcessingRecipeDetailLines(currentBatchOption.value, batchQuantity.value))
+
   const setBatchQuantity = (value: number) => {
     batchQuantity.value = Math.max(1, Math.min(value, batchMaxCount.value || 1))
   }
@@ -1252,6 +1414,51 @@
     }
     addLog('空闲机器不足或材料不足，无法开始批量加工。')
   }
+
+  const openProcessingRecipeDetail = (slotIndex: number, option: RecipeOptionViewModel) => {
+    processingRecipeDetail.value = { slotIndex, recipeId: option.recipeId, quality: option.quality }
+  }
+
+  const closeProcessingRecipeDetail = () => {
+    processingRecipeDetail.value = null
+  }
+
+  const currentRecipeDetailSlot = computed(() => {
+    const detail = processingRecipeDetail.value
+    if (!detail) return null
+    return processingStore.machines[detail.slotIndex] ?? null
+  })
+
+  const currentRecipeDetailOption = computed(() => {
+    const detail = processingRecipeDetail.value
+    const slot = currentRecipeDetailSlot.value
+    if (!detail || !slot || slot.recipeId) return null
+    const recipe = getProcessingRecipeById(detail.recipeId)
+    if (!recipe || recipe.machineType !== slot.machineType) return null
+    return buildRecipeOption(recipe, detail.quality)
+  })
+
+  const currentRecipeDetailMachineName = computed(() => {
+    const slot = currentRecipeDetailSlot.value
+    return slot ? getMachineName(slot.machineType) : ''
+  })
+
+  const recipeDetailMaterialLines = computed(() => buildProcessingRecipeMaterialLines(currentRecipeDetailOption.value))
+  const recipeDetailInfoLines = computed(() => buildProcessingRecipeDetailLines(currentRecipeDetailOption.value))
+
+  const getProcessingRecipeDisabledReason = (option: RecipeOptionViewModel | null): string => {
+    if (!option?.disabled) return ''
+    if (option.alchemyBlocked) return '今日炼制次数已满，暂时无法开工。'
+    return '材料不足，暂时无法开工。'
+  }
+
+  const recipeDetailDisabledReason = computed(() => getProcessingRecipeDisabledReason(currentRecipeDetailOption.value))
+  const canConfirmProcessingDetail = computed(() => {
+    const detail = processingRecipeDetail.value
+    const option = currentRecipeDetailOption.value
+    const slot = currentRecipeDetailSlot.value
+    return !!detail && !!option && !!slot && !slot.recipeId && !option.disabled
+  })
 
   // === 工坊升级 ===
 
@@ -1876,22 +2083,37 @@
 
   // === 加工处理 ===
 
-  const handleStartProcessing = (slotIndex: number, recipeId: string, quality?: Quality) => {
+  const handleStartProcessing = (slotIndex: number, recipeId: string, quality?: Quality): boolean => {
     const recipe = getProcessingRecipeById(recipeId)
     const substitutionText = recipe?.alchemy ? processingStore.getAlchemySubstitutionText(recipeId, 1, quality) : ''
     if (processingStore.startProcessing(slotIndex, recipeId, quality)) {
       sfxClick()
       const qualityLabel = quality && quality !== 'normal' ? `(${QUALITY_NAMES[quality]})` : ''
       addLog(`开始加工${recipe ? processingStore.getProcessingRecipeDisplayName(recipe.id) : recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。${substitutionText ? ` ${substitutionText}。` : ''}`)
+      return true
     } else {
       if (recipe?.alchemy) {
         const status = processingStore.getAlchemyDailyLimitStatus(recipeId)
         if (status?.blocked) {
           addLog(`今日${ALCHEMY_PILL_ROLE_LABELS[status.role]}炼制次数已达上限。`)
-          return
+          return false
         }
       }
       addLog('原料不足或机器正在使用。')
+      return false
+    }
+  }
+
+  const handleConfirmProcessingDetail = () => {
+    const detail = processingRecipeDetail.value
+    if (!detail) return
+    if (!canConfirmProcessingDetail.value) {
+      const message = recipeDetailDisabledReason.value || '原料不足或机器正在使用。'
+      addLog(message)
+      return
+    }
+    if (handleStartProcessing(detail.slotIndex, detail.recipeId, detail.quality)) {
+      closeProcessingRecipeDetail()
     }
   }
 
@@ -1954,12 +2176,40 @@
     grid-auto-rows: minmax(58px, auto);
   }
 
+  .processing-option-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .processing-machine-group-card,
+  .processing-machine-recommendations {
+    min-width: 0;
+  }
+
+  .processing-machine-slot-list {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 1fr;
+    gap: 0.375rem;
+  }
+
+  .processing-machine-recommendations {
+    grid-column: 1 / -1;
+  }
+
   .processing-option-card {
     min-width: 0;
     min-height: 58px;
     justify-content: flex-start;
     padding: 6px;
     text-align: left;
+  }
+
+  .processing-option-card--unavailable {
+    opacity: 0.58;
+  }
+
+  .processing-option-card--unavailable:hover {
+    opacity: 0.76;
   }
 
   .processing-option-card :deep(> span) {
@@ -2016,5 +2266,49 @@
     min-height: 58px;
     gap: 3px;
     transition: border-color 0.16s ease, background-color 0.16s ease;
+  }
+
+  .processing-recipe-material-list {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .processing-recipe-material-row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .processing-recipe-material-row__item {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--color-muted);
+  }
+
+  @media (min-width: 1280px) {
+    :global(html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .processing-option-grid) {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    :global(html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .processing-craft-grid) {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1920px) {
+    :global(html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .processing-option-grid) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    :global(html[data-desktop-layout-mode='adaptive'] #app:not(.app-shell--admin) .processing-craft-grid) {
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
   }
 </style>

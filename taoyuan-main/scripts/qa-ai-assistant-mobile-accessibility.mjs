@@ -1,3 +1,5 @@
+/* global console */
+
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,6 +45,7 @@ assert.match(widgetSource, /overscroll-behavior:\s*contain/, 'panel scroll shoul
 assert.match(widgetSource, /100dvh/, 'mobile panel sizing should use dynamic viewport height for soft keyboard changes');
 assert.match(widgetSource, /safe-area-inset-bottom/, 'panel/input should account for bottom safe area');
 assert.match(widgetSource, /safe-area-inset-top/, 'mobile panel should account for top safe area');
+assert.match(widgetSource, /right:\s*calc\(var\(--ai-assistant-mobile-edge,\s*8px\) \+ var\(--ai-assistant-mobile-control-rail,\s*64px\)\)/, 'mobile assistant panel should reserve the right-side map/fullscreen control rail');
 
 assert.match(widgetSource, /\.ai-panel__quick\s*\{[\s\S]*flex-wrap:\s*nowrap/, 'quick questions should not wrap into more than two visual lines');
 assert.match(widgetSource, /\.ai-panel__quick\s*\{[\s\S]*overflow-x:\s*auto/, 'quick questions should scroll horizontally on small screens');
@@ -52,6 +55,7 @@ assert.match(widgetSource, /class="ai-quick-btn__text"/, 'quick question text sh
 assert.match(widgetSource, /\.ai-panel__send\s*\{[\s\S]*min-height:\s*var\(--ai-assistant-touch-target/, 'mobile send button should meet touch target height');
 assert.match(appCssSource, /--ai-assistant-touch-target:\s*44px/, 'global CSS should define assistant touch target size');
 assert.match(appCssSource, /--ai-assistant-mobile-edge:\s*8px/, 'global CSS should define assistant mobile edge spacing');
+assert.match(appCssSource, /--ai-assistant-mobile-control-rail:\s*64px/, 'global CSS should define a mobile side rail for game controls');
 
 assert.equal(
   packageJson.scripts?.['qa:ai-assistant-mobile-accessibility'],

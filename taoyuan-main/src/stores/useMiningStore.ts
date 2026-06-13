@@ -63,6 +63,7 @@ const COMBAT_TIME_NORMAL = 0.17
 const COMBAT_TIME_LONG = 0.25
 const MINING_COMBAT_LOG_LIMIT = 120
 const MINING_BASE_STAMINA_COST = 2
+const MINE_GRID_SIZE = 6
 const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
 const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
   copper_ore: 'iron_ore',
@@ -88,6 +89,31 @@ const MINING_ITEM_EXP: Record<string, number> = {
   obsidian: 28,
   dragon_jade: 36,
   prismatic_shard: 60
+}
+
+const getMineTileValueScore = (tile: MineTile): number => {
+  if (tile.type === 'treasure') return 100 + (tile.data?.treasureMoney ?? 0) / 20
+  if (tile.type === 'mushroom') return 45
+  if (tile.type !== 'ore') return 0
+  const oreId = tile.data?.oreId ?? 'copper_ore'
+  return (MINING_ITEM_EXP[oreId] ?? getItemById(oreId)?.sellPrice ?? 1) * (tile.data?.oreQuantity ?? 1)
+}
+
+const getMineTileValueLabel = (tile: MineTile): string => {
+  if (tile.type === 'treasure') return '宝箱'
+  if (tile.type === 'mushroom') return '菌菇'
+  if (tile.type === 'ore') return getItemById(tile.data?.oreId ?? '')?.name ?? '矿石'
+  return '高价值格子'
+}
+
+const getRelativeMineDirection = (fromIndex: number, toIndex: number): string => {
+  const fromRow = Math.floor(fromIndex / MINE_GRID_SIZE)
+  const fromCol = fromIndex % MINE_GRID_SIZE
+  const toRow = Math.floor(toIndex / MINE_GRID_SIZE)
+  const toCol = toIndex % MINE_GRID_SIZE
+  const vertical = toRow < fromRow ? '北' : toRow > fromRow ? '南' : ''
+  const horizontal = toCol < fromCol ? '西' : toCol > fromCol ? '东' : ''
+  return `${vertical}${horizontal}` || '脚下'
 }
 
 type CombatActionResult = {
@@ -285,6 +311,31 @@ export const useMiningStore = defineStore('mining', () => {
       lines.push(`主要矿石：${oreNames.join('、')}`)
     }
     return lines.length > 0 ? ` 层位情报：${lines.join('；')}。` : ''
+  }
+
+  const getVeinMarkerMessage = (): string => {
+    if (skillStore.getSkillMasteryEffectValue('vein_marker') <= 0) return ''
+    const candidates = floorGrid.value
+      .filter(tile => tile.state === 'hidden' && (tile.type === 'ore' || tile.type === 'treasure' || tile.type === 'mushroom'))
+      .map(tile => ({
+        tile,
+        score: getMineTileValueScore(tile),
+        distance: Math.abs(Math.floor(tile.index / MINE_GRID_SIZE) - Math.floor(entryIndex.value / MINE_GRID_SIZE)) + Math.abs((tile.index % MINE_GRID_SIZE) - (entryIndex.value % MINE_GRID_SIZE))
+      }))
+      .filter(entry => entry.score > 0)
+      .sort((a, b) => b.score - a.score || a.distance - b.distance || a.tile.index - b.tile.index)
+    const target = candidates[0]
+    if (!target) return ''
+    return ` 矿脉标记：入口${getRelativeMineDirection(entryIndex.value, target.tile.index)}方约${target.distance}步有${getMineTileValueLabel(target.tile)}反应。`
+  }
+
+  const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getVeinMarkerMessage()}`
+
+  const getBossDossierMessage = (monster: MonsterDef, isFirstKill: boolean): string => {
+    if (skillStore.getSkillMasteryEffectValue('boss_dossier') <= 0) return ''
+    const weakPoint = monster.defense >= monster.attack ? '优先破防或使用高攻击武器' : '优先稳血，避免长回合换血'
+    const rematchHint = isFirstKill ? '' : '；复战弱点：该首领已被记录，弱化版更适合速战'
+    return ` 首领档案：生命${monster.hp}，攻击${monster.attack}，防御${monster.defense}；${weakPoint}${rematchHint}。`
   }
 
   const recordItemLoot = (itemId: string, quantity: number) => {
@@ -889,7 +940,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     if (tile.type === 'boss') {
       const isFirstKill = !defeatedBosses.value.includes(monster.id)
-      combatLog.value = [`BOSS战！再次挑战${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}`]
+      combatLog.value = [`BOSS战！再次挑战${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}${getBossDossierMessage(monster, isFirstKill)}`]
       combatIsBoss.value = true
     } else {
       combatLog.value = [`再次遭遇${monster.name}！(HP: ${monster.hp})`]
@@ -1061,7 +1112,7 @@ export const useMiningStore = defineStore('mining', () => {
     combatRound.value = 0
 
     const isFirstKill = !defeatedBosses.value.includes(monster.id)
-    combatLog.value = [`BOSS战！遭遇了${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}  (${formatMiningStaminaCostTag(staminaCost)})`]
+    combatLog.value = [`BOSS战！遭遇了${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}  (${formatMiningStaminaCostTag(staminaCost)})${getBossDossierMessage(monster, isFirstKill)}`]
     combatIsBoss.value = true
     inCombat.value = true
 
@@ -1355,6 +1406,15 @@ export const useMiningStore = defineStore('mining', () => {
     const moneyReward = buildMoneyRewardDisplayEntry(bombMoney)
     if (moneyReward) rewards.push(moneyReward)
     if (rewards.length > 0) setRecentRewards(rewards)
+    const stabilizedBlastingSaved =
+      !bombSaved &&
+      skillStore.getSkillMasteryEffectValue('stabilized_blasting') > 0 &&
+      oreCollected === 0 &&
+      monstersKilled === 0 &&
+      rewards.length === 0
+    if (stabilizedBlastingSaved) {
+      inventoryStore.addItem(bombId, 1)
+    }
 
     let msg = `${bombDef.name}爆炸了！`
     if (oreCollected > 0) msg += `采集了${oreCollected}份矿石`
@@ -1363,6 +1423,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (rewards.length > 0) msg += `，刚获得：${formatRewardLabels(rewards)}`
     msg += '！'
     if (bombSaved) msg += `（${bombEfficiencySaved ? '爆破效率' : '挖掘者'}：炸弹未消耗！）`
+    if (stabilizedBlastingSaved) msg += '（稳压爆破：空爆返还炸弹。）'
     if (inventoryBlocked) msg += '（部分奖励因背包空间不足未领取）'
     return { success: true, message: msg, rewards: rewards.length > 0 ? rewards : undefined }
   }
@@ -1382,7 +1443,7 @@ export const useMiningStore = defineStore('mining', () => {
     // BOSS 层自动进入战斗（如果格子中有 boss 且入口邻格就是 boss）
     _checkAutoBossCombat()
 
-    return `进入云隐矿洞，当前第${currentFloor.value}层。${getFloorIntelMessage()}`
+    return `进入云隐矿洞，当前第${currentFloor.value}层。${getMineMasteryEntryHints()}`
   }
 
   /** 进入骷髅矿穴（可选择起始安全点楼层） */
@@ -1399,7 +1460,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     _checkAutoBossCombat()
 
-    return `进入骷髅矿穴，当前第${skullCavernFloor.value}层。${getFloorIntelMessage()}`
+    return `进入骷髅矿穴，当前第${skullCavernFloor.value}层。${getMineMasteryEntryHints()}`
   }
 
   /** 检查是否自动触发BOSS战（BOSS格在入口邻格时） */
@@ -1915,7 +1976,7 @@ export const useMiningStore = defineStore('mining', () => {
           skullCavernFloor.value = 1
           cacheSkullFloor(1)
           _generateGrid()
-          return { success: true, message: `你穿过矿洞最深处的裂隙，进入了骷髅矿穴第1层！${getFloorIntelMessage()}` }
+          return { success: true, message: `你穿过矿洞最深处的裂隙，进入了骷髅矿穴第1层！${getMineMasteryEntryHints()}` }
         }
         return { success: false, message: '已经到达矿洞最深处！（击败60层BOSS可解锁骷髅矿穴）' }
       }
@@ -1945,7 +2006,7 @@ export const useMiningStore = defineStore('mining', () => {
     const specialLabel = newFloor?.specialType ? (specialLabels[newFloor.specialType] ?? '') : ''
     let msg = `前进到${locationName}第${activeFloorNum}层。${newFloor?.isSafePoint ? '（安全点！）' : ''}`
     if (specialLabel) msg += ` [${specialLabel}]`
-    msg += getFloorIntelMessage(newFloor)
+    msg += getMineMasteryEntryHints(newFloor)
     return { success: true, message: msg }
   }
 

@@ -2169,6 +2169,12 @@ expectContains('views/game/FriendChatView.vue', '@keydown.enter.exact.prevent="s
 expectContains('views/game/FriendChatView.vue', 'friend-chat-message-input-row', '好友私聊发送按钮应和输入框保持同一行')
 expectContains('views/game/FriendChatView.vue', 'friend-chat-send-btn', '好友私聊发送按钮应贴在输入框右侧')
 
+expectContains('views/game/FriendChatView.vue', 'height: min(54rem, calc(100dvh - 13.5rem));', 'friend private chat page should lock to a single desktop viewport')
+expectContains('views/game/FriendChatView.vue', 'grid-template-rows: auto minmax(0, 1fr) auto;', 'friend private chat thread should reserve the middle row for internal message scrolling')
+expectContains('views/game/FriendChatView.vue', '.friend-chat-conversations', 'friend private chat should keep the conversation list as its own scroll region')
+expectContains('views/game/FriendChatView.vue', 'max-height: min(10rem, 24vh);', 'friend private chat gift rows should scroll instead of pushing the composer off screen')
+expectContains('views/game/FriendChatView.vue', 'overscroll-behavior: contain;', 'friend private chat messages should contain scroll gestures inside the message pane')
+
 if (failures.length > 0) {
   console.error('在线 UI 结构静态检查失败：')
   for (const failure of failures) {

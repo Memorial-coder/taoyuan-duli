@@ -101,6 +101,59 @@ export const HYBRID_MASTERY_DEFS: HybridMasteryDef[] = [
     },
     rewardSummary: '后续可承接宠物、家居、祝福和家园成长方向。',
     flavor: '你擅长的不只是赚钱，而是让一整套生活循环彼此养起来。'
+  },
+  {
+    id: 'mastery_ricefish_loop',
+    label: '水田匠师',
+    skillRequirements: {
+      farming: 18,
+      fishing: 18
+    },
+    rewardSummary: '后续可承接水田、鱼肥循环与鱼塘作物轻联动方向。',
+    flavor: '你开始把田里的水、塘里的鱼和节令供货看成同一个循环。'
+  },
+  {
+    id: 'mastery_artisan_foundry',
+    label: '工台匠师',
+    skillRequirements: {
+      farming: 18,
+      mining: 18
+    },
+    rewardSummary: '后续可承接高级工台、温室校准、工具精修与工坊扩展方向。',
+    flavor: '你的农具和工坊不再只是消耗资源，而是在反过来校准整座农场。'
+  },
+  {
+    id: 'mastery_wild_frontier',
+    label: '险境行者',
+    skillRequirements: {
+      foraging: 18,
+      combat: 18
+    },
+    rewardSummary: '后续可承接危险区域探索、隐藏节点与护送路线判断方向。',
+    flavor: '你能读懂山林里的危险，也知道什么时候该绕路、什么时候该拔剑。'
+  },
+  {
+    id: 'mastery_subterranean_tide',
+    label: '地下水脉师',
+    skillRequirements: {
+      fishing: 18,
+      mining: 18
+    },
+    rewardSummary: '后续可承接地下水域、矿洞鱼线与深层资源线索方向。',
+    flavor: '你开始听见岩层里的水声，也知道哪些鱼会沿着暗河来到矿洞深处。'
+  },
+  {
+    id: 'mastery_taoyuan_allrounder',
+    label: '桃源全才',
+    skillRequirements: {
+      farming: 20,
+      foraging: 20,
+      fishing: 20,
+      mining: 20,
+      combat: 20
+    },
+    rewardSummary: '后续只承接称号、证书、展示和少量便利，不提供巨额倍率。',
+    flavor: '你已经把桃源乡的每条长线都走到了能彼此照亮的程度。'
   }
 ]
 

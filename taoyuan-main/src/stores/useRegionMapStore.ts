@@ -4642,6 +4642,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           ? getRouteJourneyBuildSnapshot(session.routeId)
           : null
     const journeyOutcome = journeySnapshot?.outcome ?? createEmptyJourneyOutcomeModifiers()
+    const escortDisciplineBonus = useSkillStore().getSkillMasteryEffectValue('escort_discipline')
+    const getEscortDisciplineReserve = (cap: number) =>
+      escortDisciplineBonus > 0 && session.pendingRewardFamilyId
+        ? Math.min(cap, Math.max(0, Math.floor((session.pendingRewardAmount + bonusReward) * escortDisciplineBonus)))
+        : 0
     let rewardAmount = 0
     let rewardItems: Array<{ itemId: string; quantity: number }> = []
     const bonusReward = Math.max(0, Math.floor(session.findings / (session.mode === 'boss' ? 3 : 2)))
@@ -4696,17 +4701,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       if (session.mode === 'boss' && session.bossId && session.pendingRewardFamilyId) {
         const currentFailureStreak = saveData.value.bossFailureStreaks[session.regionId] ?? 0
         const pityRewardAmount = resourceFeatureEnabled.value && currentFailureStreak <= 0 && (saveData.value.bossClearCounts[session.regionId] ?? 0) <= 0 ? 1 : 0
+        const escortDisciplineReserve = getEscortDisciplineReserve(2)
         const refund = Math.max(1, Math.floor((getRegionBossDef(session.regionId)?.staminaCost ?? 2) / 2))
         playerStore.restoreStamina(refund)
-        if (pityRewardAmount > 0) {
-          addFamilyResources(session.pendingRewardFamilyId, pityRewardAmount)
+        rewardAmount = pityRewardAmount + escortDisciplineReserve
+        if (rewardAmount > 0) {
+          addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
         }
-        rewardAmount = pityRewardAmount
         recordBossFailure(
           session.regionId,
           session.bossId,
           session.pendingRewardFamilyId,
-          pityRewardAmount,
+          rewardAmount,
           session.recommendedRouteId ?? getRecommendedRecoveryRoute(session.regionId)?.id ?? null,
           dayTag
         )
@@ -4714,12 +4720,20 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         if (pityRewardAmount > 0) {
           summaryLines.push(`发放 ${pityRewardAmount} 份保底区域资源。`)
         }
+        if (escortDisciplineReserve > 0) {
+          summaryLines.push(`护送纪律额外保全 ${escortDisciplineReserve} 份区域资源。`)
+        }
       } else if (session.pendingRewardFamilyId) {
-        rewardAmount = Math.max(0, Math.floor((session.findings / 3) * (1 + journeyOutcome.resourceFindBonus * 0.25)))
+        const baseFailureRewardAmount = Math.max(0, Math.floor((session.findings / 3) * (1 + journeyOutcome.resourceFindBonus * 0.25)))
+        const escortDisciplineReserve = getEscortDisciplineReserve(5)
+        rewardAmount = baseFailureRewardAmount + escortDisciplineReserve
         if (rewardAmount > 0) {
           addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
         }
         summaryLines.push(rewardAmount > 0 ? `仍带回 ${rewardAmount} 份零散资源。` : '没能带回成型战利品。')
+        if (escortDisciplineReserve > 0) {
+          summaryLines.push(`护送纪律减少损失：额外保全 ${escortDisciplineReserve} 份。`)
+        }
       }
       title = '远征失利'
     }

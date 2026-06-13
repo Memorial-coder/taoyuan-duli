@@ -32,11 +32,11 @@
         <Flower :size="20" />
         <p class="text-xs mt-1">尚未放置任何装饰</p>
       </div>
-      <div v-else class="flex flex-col space-y-1">
+      <div v-else class="decoration-card-grid desktop-adaptive-grid--cards" data-testid="decoration-placed-grid">
         <div
           v-for="item in placedDecorations"
           :key="item.def.id"
-          class="flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1"
+          class="decoration-card-grid__item flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1"
         >
           <div class="min-w-0">
             <span class="text-xs">{{ item.def.name }}</span>
@@ -67,11 +67,11 @@
         </div>
       </div>
 
-      <div class="flex flex-col space-y-1.5">
+      <div class="decoration-card-grid desktop-adaptive-grid--cards" data-testid="decoration-shop-grid">
         <div
           v-for="def in filteredDecorations"
           :key="def.id"
-          class="border rounded-xs px-3 py-2"
+          class="decoration-card-grid__item border rounded-xs px-3 py-2"
           :class="isUnavailable(def) ? 'border-accent/10 opacity-50' : 'border-accent/20'"
         >
           <div class="flex items-center justify-between">
@@ -171,3 +171,9 @@
     addLog(result.message)
   }
 </script>
+
+<style scoped>
+  .decoration-card-grid__item {
+    min-width: 0;
+  }
+</style>

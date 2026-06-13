@@ -33,6 +33,7 @@
         <span v-if="isForestFarm" class="text-[0.625rem] text-success">森林农场：经验×1.25</span>
         <span v-if="rareSignalBonus > 0" class="text-[0.625rem] text-success">稀有信号：稀有概率+{{ Math.round(rareSignalBonus * 100) }}%</span>
         <span v-if="weatherWindowBonus > 0 && environmentWindow.forage.active" class="text-[0.625rem] text-success">天候窗口：窗口概率+{{ Math.round(weatherWindowBonus * 100) }}%</span>
+        <span v-if="mountainHunchUnlocked && mountainHunchItem" class="text-[0.625rem] text-success">山路预感：{{ mountainHunchItem.name }}</span>
       </div>
       <div v-if="environmentWindow.forage.active" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
         <div class="flex items-center justify-between gap-2">
@@ -41,6 +42,15 @@
         </div>
         <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ environmentWindow.forage.summary }}</p>
         <p class="text-[0.625rem] text-muted/80 leading-4 mt-1">{{ environmentWindow.forage.routeHint }}</p>
+      </div>
+      <div v-if="mountainHunchUnlocked && mountainHunchItem" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[0.625rem] text-accent">山路预感</p>
+          <span class="text-[0.625rem] text-muted">信息型精研</span>
+        </div>
+        <p class="text-[0.625rem] text-muted leading-4 mt-1">
+          今日竹林更值得留意「{{ mountainHunchItem.name }}」，基础出现率约 {{ Math.round(mountainHunchItem.chance * 100) }}%。这条预感只帮助规划，不会额外抬高产出。
+        </p>
       </div>
     </div>
 
@@ -283,6 +293,22 @@
   const cookingLuckBuff = computed(() => (cookingStore.activeBuff?.type === 'luck' ? cookingStore.activeBuff.value : 0))
   const rareSignalBonus = computed(() => skillStore.getSkillMasteryEffectValue('rare_signal'))
   const weatherWindowBonus = computed(() => skillStore.getSkillMasteryEffectValue('weather_window'))
+  const mountainHunchUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('mountain_hunch') > 0)
+  const herbSampleUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('herb_sample') > 0)
+  const mountainHunchItem = computed(() => {
+    if (!mountainHunchUnlocked.value) return null
+    const candidates = currentForage.value
+      .filter(item => item.chance <= 0.12)
+      .sort((a, b) => a.chance - b.chance || a.itemId.localeCompare(b.itemId))
+    const fallback = currentForage.value
+      .slice()
+      .sort((a, b) => a.chance - b.chance || a.itemId.localeCompare(b.itemId))
+    const pool = candidates.length > 0 ? candidates : fallback
+    if (pool.length <= 0) return null
+    const seasonOffset = gameStore.season === 'spring' ? 3 : gameStore.season === 'summer' ? 7 : gameStore.season === 'autumn' ? 11 : 17
+    const index = Math.abs(gameStore.year * 97 + gameStore.day * 17 + seasonOffset) % pool.length
+    return pool[index] ?? null
+  })
 
   const handleForage = () => {
     if (gameStore.isPastBedtime) {
@@ -330,6 +356,7 @@
       options: {
         trackQuest?: boolean
         expReward?: number
+        sampleEligible?: boolean
       } = {}
     ) => {
       const itemDef = getItemById(itemId)
@@ -346,7 +373,16 @@
         return false
       }
 
+      const firstDiscovery = !achievementStore.isDiscovered(itemId)
       achievementStore.discoverItem(itemId)
+      if (herbSampleUnlocked.value && options.sampleEligible && firstDiscovery) {
+        gathered.push({
+          label: `药材留样：${name}已记入见闻账本（不额外产出）`,
+          itemId,
+          quantity: 0,
+          quality
+        })
+      }
       if (options.trackQuest) {
         questStore.onItemObtained(itemId, quantity)
       }
@@ -392,7 +428,8 @@
         const finalQty = herbDouble && (item.itemId === 'herb' || item.itemId === 'ginseng') ? qty * 2 : qty
         attemptGather(item.itemId, finalQty, quality, {
           trackQuest: true,
-          expReward: item.expReward
+          expReward: item.expReward,
+          sampleEligible: item.chance <= 0.12
         })
       }
     }
@@ -412,12 +449,12 @@
       const randomItem = items[Math.floor(Math.random() * items.length)]!
       const trackerAllSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
       const quality = skillStore.rollForageQuality(trackerAllSkillsBuff)
-      attemptGather(randomItem.itemId, extraItemQty, quality)
+      attemptGather(randomItem.itemId, extraItemQty, quality, { sampleEligible: randomItem.chance <= 0.12 })
     }
 
     // 仙缘能力：月华（yue_tu_3）采集概率获得月草，夜间或每月14日概率更高
     if (moonHerbChance > 0 && Math.random() < moonHerbChance) {
-      attemptGather('moon_herb', 1, 'normal', { expReward: 15 })
+      attemptGather('moon_herb', 1, 'normal', { expReward: 15, sampleEligible: true })
     }
 
     if ((beastSourceTouched || treeSourceTouched) && Math.random() < FOREST_BEAST_ENCOUNTER_CHANCE) {

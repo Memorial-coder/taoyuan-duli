@@ -1,3 +1,5 @@
+/* global console */
+
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -88,6 +90,7 @@ const textareaCss = cssBlock('.ai-textarea');
 assertContains(textareaCss, /max-height:\s*28dvh/, 'textarea height should be capped on small screens');
 
 assertContains(widgetSource, /@media \(max-width:\s*768px\)[\s\S]*\.ai-panel\s*\{[\s\S]*max-height:\s*min\(100%,\s*calc\(100dvh - 76px - env\(safe-area-inset-bottom/, 'mobile panel should stay inside dynamic viewport');
+assertContains(widgetSource, /@media \(max-width:\s*768px\)[\s\S]*\.ai-panel-wrap\s*\{[\s\S]*right:\s*calc\(var\(--ai-assistant-mobile-edge,\s*8px\) \+ var\(--ai-assistant-mobile-control-rail,\s*64px\)\)/, 'mobile panel should leave the map/fullscreen control rail uncovered');
 assertContains(widgetSource, /@media \(max-width:\s*768px\)[\s\S]*\.ai-panel__messages\s*\{[\s\S]*min-height:\s*120px/, 'mobile message viewport should keep enough readable space');
 assertContains(widgetSource, /@media \(max-width:\s*768px\)[\s\S]*\.ai-panel__send\s*\{[\s\S]*min-height:\s*var\(--ai-assistant-touch-target/, 'mobile send button should keep touch target height');
 

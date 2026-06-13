@@ -4,6 +4,28 @@
 
 ## [未发布]
 
+### 0613 农场 12×12 后期扩建
+- 农场扩建上限从 8×8 延伸到 12×12，扩建链调整为 4×4 → 6×6 → 8×8 → 10×10 → 12×12。
+- 8×8 之后改为高成本、采集等级、建设券与木石材四重门槛：8×8 → 10×10 需要 20000 文、采集 Lv.12、建设券×3、木材×600、石材×400；10×10 → 12×12 需要 50000 文、采集 Lv.16、建设券×6、木材×1000、石材×800。
+- 商店扩建入口会显示采集等级、建设券与材料需求，购买弹窗和购买处理会再次拦截条件不足；木石材消耗会合并检查背包、临时背包和仓库，共同农田尺寸归一化同步接受 10×10 / 12×12 存档，并新增 `scripts/qa-farm-expansion-guards.mjs` 静态守卫。
+- 本轮验证：`node scripts/qa-farm-expansion-guards.mjs`、目标前端文件 ESLint、`node --check server/src/taoyuanCohabitationRuntime.js` 和目标文件 `git diff --check` 通过；`npm run type-check` 仍被当前工作区既有 `src/views/game/AchievementView.vue`、`src/views/game/ProcessingView.vue` 与 `src/views/game/SkillView.vue` 类型错误阻塞。
+
+### 0613 技能精研终局扩展首批
+- 技能最终主线目标口径从“满级=10级”收束为“所有技能达到大师门槛（10级）”，避免和真实 Lv20 满级、后20级精研混淆。
+- 技能页的精研节点不再显示 `effectKey` 开发字段，改为展示“已接入”的玩法落点；新增采集“山路预感”和钓鱼“鱼塘谱系”两个 2 点信息型精研节点，分别提示今日稀有采集物和鱼塘产出 / 封顶 / 繁殖 / 周赛适配。
+- 混合精通新增水田匠师、工台匠师、险境行者、地下水脉师和桃源全才 5 条终局方向，全部保持展示 / 规划 / 功能挂点口径，不提供巨额倍率。
+- `qa:skill-mastery-effect-guards` 已更新鱼塘联动的封顶保护模型，并覆盖山路预感、鱼塘谱系、技能页展示和混合精通口径；本轮验证还复跑了技能存档归一化与鱼塘稀有产物保护守卫。
+
+### 0613 作物收获经验按周期与品质调整
+- 作物收获经验从固定 10 点改为按本次成熟周期与品质计算：短周期作物保持接近原值，长周期作物略高，优良 / 精品 / 极品只提供小幅额外经验，单次收获封顶 20 点，避免后期高品质作物经验膨胀。
+- 多茬作物第一次收获按 `growthDays` 计算，后续再生收获按 `regrowthDays` 计算；普通农田、温室、雇工 / 配偶收获和旧一键收获入口共用同一公式，并新增 `qa:farming-experience-guards` 守护范围、品质差和禁止写死 +10。
+
+### 0613 工坊与长列表宽屏多栏布局
+- 工坊加工区在桌面多列模式下改为按机器分组自适应分栏，同类机器槽位在分组内保持单列，避免种子制造机等多配方机器被二次压窄。
+- 工坊单机配方改为点击摘要后查看详情并确认开工，材料不足时也能看清缺口；配方摘要在宽屏两栏 / 三栏布局下分别显示 5 / 3 个，批量加工弹窗同步展示总材料消耗。
+- 制造区卡片网格在宽屏多列模式下继续扩展列数；任务页的每日目标、村庄建设线、今日委托、进行中委托和订单历史也会在宽屏下自动分栏。
+- 装饰页的已放置装饰和装饰商店改为宽屏多栏卡片，`qa:desktop-layout-smoke` 纳入工坊加工区、工坊配方摘要和装饰商店列数回归；新增 `qa:processing-recipe-detail-guards` 守护配方详情确认入口。
+
 ### 0613 好友私聊输入体验优化
 - 好友私聊文字输入支持普通回车直接发送，Shift+Enter 保留换行；发送按钮移到输入框右侧，图片链接与说明保留在下方辅助行。
 - `qa:online-ui-structure` 补充回车发送与输入框右侧发送按钮的静态守卫。
@@ -19,7 +41,9 @@
 - 聊天礼物 API payload 保持不变；发送成功后前端会 best-effort 同步扣减本地可见的临时背包、未锁定主背包或未摆放装饰，发送失败不改本地显示。
 - `qa:online-ui-structure` 新增送礼弹窗、选项 test id、图标辅助选择以及禁止退回 `<select>` 的静态守卫。
 - 私聊礼物消息卡现在展示“包含：物品名×数量”，领取后展示“已领取：物品名×数量”；领取成功浮窗也会提示实际入账内容，避免只看到“已领取”。
+- 修复好友领取私聊礼物后，发送方自己的聊天气泡不会实时刷新为“已领取”、必须重新加载存档才能看到领取状态的问题；领取接口现在会推送 `gift_claimed` 聊天实时通知，发送方停留在私聊页时会自动刷新当前会话。
 - 本轮验证：`node --check server/src/taoyuanChatRuntime.js`、`node --check server/scripts/qa-private-chat-flow.mjs`、`npm --prefix server run qa:private-chat-flow`、前端目标文件 ESLint 与目标文件 `git diff --check` 通过；`qa:online-ui-structure` 新增私聊礼物明细与弹窗选择守卫已执行，但当前仍被既有 `FarmView.vue` 控件类断言阻塞；`type-check` 当前被既有 `RegionOpenWorldMap.vue` handler 类型错误与 `AchievementView.vue(847,142)` 类型错误阻塞。
+- 领取同步补验：`node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`node --check server/scripts/qa-private-chat-flow.mjs`、`npm --prefix server run qa:private-chat-flow` 与目标文件 `git diff --check` 通过；`qa:realtime-smoke` 已跑过私聊礼物领取实时通知段，随后仍被既有 `festival stall smoke offer should be exchangeable` 阻塞。
 
 ### 0613 在线庄园权限管理入口修复
 - 在线庄园主人态概览和照料页补回“管理权限”入口，弹窗内可调整访问、照料和轻采开放范围，并继续复用既有庄园访问权限保存接口。

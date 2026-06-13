@@ -8165,10 +8165,11 @@ function normalizePersistentSharedMap(value) {
 }
 
 function normalizeFarmSize(value, plotCount = 0) {
+  const supportedFarmSizes = [4, 6, 8, 10, 12];
   const size = Number(value);
-  if ([4, 6, 8].includes(size)) return size;
+  if (supportedFarmSizes.includes(size)) return size;
   const inferred = Math.sqrt(Number(plotCount) || 0);
-  if ([4, 6, 8].includes(inferred)) return inferred;
+  if (supportedFarmSizes.includes(inferred)) return inferred;
   return 4;
 }
 

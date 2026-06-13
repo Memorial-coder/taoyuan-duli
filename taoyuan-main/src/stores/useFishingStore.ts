@@ -148,10 +148,32 @@ export const useFishingStore = defineStore('fishing', () => {
 
   /** 当前钓鱼地点 */
   const fishingLocation = ref<FishingLocation>('creek')
+  const tideNotebookCastLocation = ref<FishingLocation | null>(null)
+  const tideNotebookCastStreak = ref(0)
 
   /** 切换钓鱼地点 */
   const setLocation = (loc: FishingLocation) => {
     fishingLocation.value = loc
+  }
+
+  const recordTideNotebookCast = (): number => {
+    const cap = skillStore.getSkillMasteryEffectValue('tide_notebook')
+    if (cap <= 0) return 0
+    if (tideNotebookCastLocation.value === fishingLocation.value) {
+      tideNotebookCastStreak.value++
+    } else {
+      tideNotebookCastLocation.value = fishingLocation.value
+      tideNotebookCastStreak.value = 1
+    }
+    return Math.min(cap, Math.max(0, (tideNotebookCastStreak.value - 1) * 0.05))
+  }
+
+  const getTideNotebookWeightBonus = (fish: FishDef): number => {
+    if ((fish.location ?? 'creek') !== fishingLocation.value) return 0
+    if (fish.difficulty === 'easy') return 0
+    const cap = skillStore.getSkillMasteryEffectValue('tide_notebook')
+    if (cap <= 0) return 0
+    return Math.min(cap, Math.max(0, (tideNotebookCastStreak.value - 1) * 0.05))
   }
 
   /** 当前可钓的鱼 */
@@ -374,6 +396,7 @@ export const useFishingStore = defineStore('fishing', () => {
     }
 
     activeBaitDef.value = baitDef ?? null
+    const tideNotebookBonus = recordTideNotebookCast()
 
     // 垃圾判定：基础12%概率钓到垃圾，钓鱼等级每级-1%，使用鱼饵减半
     const junkBase = 0.12 - skillStore.fishingLevel * 0.01
@@ -425,6 +448,7 @@ export const useFishingStore = defineStore('fishing', () => {
     if (activeBaitDef.value) msg += ` [${activeBaitDef.value.name}]`
     if (activeTackleDef.value) msg += ` [${activeTackleDef.value.name}]`
     if (environmentWindow.value.fishing.active) msg += ` ${environmentWindow.value.fishing.label}：${environmentWindow.value.fishing.summary}`
+    if (tideNotebookBonus > 0) msg += ` 鱼汛笔记：同水域目标鱼权重+${Math.round(tideNotebookBonus * 100)}%。`
     return { success: true, message: msg }
   }
 
@@ -532,19 +556,20 @@ export const useFishingStore = defineStore('fishing', () => {
     const bondBonus = hiddenNpcStore.getBondBonusByType('fish_attraction')
     const fishAttractionMult = bondBonus?.type === 'fish_attraction' ? 1.5 : 1
     const weights: number[] = fishPool.map(f => {
+      const tideNotebookMult = 1 + getTideNotebookWeightBonus(f)
       if (f.difficulty === 'legendary') {
         const minLevel = (hasAngler || hasLegendaryAngler || hasFishGod) ? 6 : 8
         if (rodTier === 'basic' || effectiveLevel < minLevel) return 0
         const legendaryWeight = hasFishGod ? 5.0 : hasLegendaryAngler ? 3.0 : hasAngler ? 1.5 : 0.5
-        return legendaryWeight * (1 + luckBuff) * legendaryMult * legendaryBoost
+        return legendaryWeight * (1 + luckBuff) * legendaryMult * legendaryBoost * tideNotebookMult
       }
       if (f.difficulty === 'hard') {
         if (rodTier === 'basic' && effectiveLevel < 4) return 0
-        return (rodTier === 'basic' ? 0.5 : 1) * (1 + luckBuff) * hardMult * fishAttractionMult
+        return (rodTier === 'basic' ? 0.5 : 1) * (1 + luckBuff) * hardMult * fishAttractionMult * tideNotebookMult
       }
       if (f.difficulty === 'easy') return 3
-      if (f.difficulty === 'normal') return 2
-      return 0.5
+      if (f.difficulty === 'normal') return 2 * tideNotebookMult
+      return 0.5 * tideNotebookMult
     })
     const total = weights.reduce((a, b) => a + b, 0)
     if (total <= 0) return null

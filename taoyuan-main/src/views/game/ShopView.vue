@@ -886,7 +886,8 @@
                   `${farmStore.farmSize}×${farmStore.farmSize} → ${farmExpandInfo.newSize}×${farmExpandInfo.newSize}`,
                   discounted(farmExpandInfo.price),
                   handleBuyFarmExpand,
-                  () => playerStore.money >= discounted(farmExpandInfo!.price)
+                  canBuyFarmExpansion,
+                  farmExpandRequirementLines
                 )
               "
             >
@@ -895,6 +896,7 @@
                 <p class="text-muted text-xs">
                   {{ farmStore.farmSize }}×{{ farmStore.farmSize }} → {{ farmExpandInfo.newSize }}×{{ farmExpandInfo.newSize }}
                 </p>
+                <p v-if="farmExpandRequirementLabel" class="text-muted text-[0.625rem] mt-0.5">{{ farmExpandRequirementLabel }}</p>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(farmExpandInfo.price) }}文</span>
             </div>
@@ -1847,6 +1849,8 @@
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useShopStore } from '@/stores/useShopStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
+  import { useWalletStore } from '@/stores/useWalletStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { getItemById, getNpcById } from '@/data'
@@ -1872,6 +1876,7 @@
   import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
+  import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { getInventoryExpansionPrice, getNextInventoryCapacity } from '@/utils/inventoryCapacity'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
   import type { MarketCategory, MarketTrend } from '@/data/market'
@@ -1902,6 +1907,8 @@
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
   const farmStore = useFarmStore()
+  const skillStore = useSkillStore()
+  const walletStore = useWalletStore()
   const warehouseStore = useWarehouseStore()
   const gameStore = useGameStore()
   const homeStore = useHomeStore()
@@ -3218,13 +3225,109 @@
     )
   }
 
-  const farmExpandInfo = computed(() => {
-    const prices: Record<number, { newSize: number; price: number }> = {
+  type FarmExpandInfo = {
+    newSize: number
+    price: number
+    requiredForagingLevel?: number
+    requiredConstructionTickets?: number
+    materials?: { itemId: string; quantity: number }[]
+  }
+
+  const farmExpandInfo = computed<FarmExpandInfo | null>(() => {
+    const prices: Record<number, FarmExpandInfo> = {
       4: { newSize: 6, price: 2000 },
-      6: { newSize: 8, price: 5000 }
+      6: { newSize: 8, price: 5000 },
+      8: {
+        newSize: 10,
+        price: 20000,
+        requiredForagingLevel: 12,
+        requiredConstructionTickets: 3,
+        materials: [
+          { itemId: 'wood', quantity: 600 },
+          { itemId: 'stone', quantity: 400 }
+        ]
+      },
+      10: {
+        newSize: 12,
+        price: 50000,
+        requiredForagingLevel: 16,
+        requiredConstructionTickets: 6,
+        materials: [
+          { itemId: 'wood', quantity: 1000 },
+          { itemId: 'stone', quantity: 800 }
+        ]
+      }
     }
     return prices[farmStore.farmSize] ?? null
   })
+
+  const foragingLevel = computed(() => skillStore.getSkill('foraging').level)
+  const constructionTicketLabel = computed(() => REWARD_TICKET_LABELS.construction ?? '建设券')
+
+  const hasFarmExpandSkillRequirement = computed(() => {
+    const requiredLevel = farmExpandInfo.value?.requiredForagingLevel ?? 0
+    return requiredLevel <= 0 || foragingLevel.value >= requiredLevel
+  })
+
+  const hasFarmExpandTicketRequirement = computed(() => {
+    const requiredTickets = farmExpandInfo.value?.requiredConstructionTickets ?? 0
+    return requiredTickets <= 0 || walletStore.canAffordRewardTickets('construction', requiredTickets)
+  })
+
+  const hasFarmExpandMaterialRequirement = computed(() => {
+    const materials = farmExpandInfo.value?.materials ?? []
+    return materials.every(mat => getCombinedItemCount(mat.itemId) >= mat.quantity)
+  })
+
+  const farmExpandMaterialLines = computed(() => {
+    return (farmExpandInfo.value?.materials ?? []).map(mat => {
+      const name = getItemById(mat.itemId)?.name ?? mat.itemId
+      return `${name}×${mat.quantity}（持有 ${getCombinedItemCount(mat.itemId)}）`
+    })
+  })
+
+  const farmExpandRequirementLines = computed(() => {
+    const lines: string[] = []
+    const requiredLevel = farmExpandInfo.value?.requiredForagingLevel ?? 0
+    const requiredTickets = farmExpandInfo.value?.requiredConstructionTickets ?? 0
+    if (requiredLevel > 0) lines.push(`需要采集 Lv.${requiredLevel}（当前 Lv.${foragingLevel.value}）`)
+    if (requiredTickets > 0) {
+      lines.push(`${constructionTicketLabel.value}×${requiredTickets}（持有 ${walletStore.getRewardTicketBalance('construction')}）`)
+    }
+    lines.push(...farmExpandMaterialLines.value)
+    return lines
+  })
+
+  const farmExpandRequirementLabel = computed(() => {
+    return farmExpandRequirementLines.value.join(' · ')
+  })
+
+  const canBuyFarmExpand = computed(() => {
+    const info = farmExpandInfo.value
+    return Boolean(
+      info &&
+        hasFarmExpandSkillRequirement.value &&
+        hasFarmExpandTicketRequirement.value &&
+        hasFarmExpandMaterialRequirement.value &&
+        playerStore.money >= discounted(info.price)
+    )
+  })
+
+  const canBuyFarmExpansion = () => canBuyFarmExpand.value
+
+  const refundFarmExpandTickets = (tickets: number) => {
+    if (tickets > 0) walletStore.addRewardTickets({ construction: tickets }, { applyMultiplier: false, source: 'farm_expand_refund' })
+  }
+
+  const farmExpandExtraCostText = (info: FarmExpandInfo): string => {
+    const parts: string[] = []
+    const tickets = info.requiredConstructionTickets ?? 0
+    if (tickets > 0) parts.push(`${constructionTicketLabel.value}×${tickets}`)
+    for (const mat of info.materials ?? []) {
+      parts.push(`${getItemById(mat.itemId)?.name ?? mat.itemId}×${mat.quantity}`)
+    }
+    return parts.join(' + ')
+  }
 
   const handleBuyBag = () => {
     const actualPrice = discounted(bagPrice.value)
@@ -3262,16 +3365,42 @@
   const handleBuyFarmExpand = () => {
     const info = farmExpandInfo.value
     if (!info) return
+    if (!hasFarmExpandSkillRequirement.value) {
+      addLog(`采集等级不足，需要采集 Lv.${info.requiredForagingLevel} 才能继续扩建。`)
+      return
+    }
+    if (!hasFarmExpandTicketRequirement.value) {
+      addLog(`${constructionTicketLabel.value}不足，需要${constructionTicketLabel.value}×${info.requiredConstructionTickets}才能继续扩建。`)
+      return
+    }
+    if (!hasFarmExpandMaterialRequirement.value) {
+      addLog('扩建材料不足。')
+      return
+    }
     const actualPrice = discounted(info.price)
     if (!playerStore.spendMoney(actualPrice)) {
       addLog('铜钱不足。')
       return
     }
+    const ticketCost = info.requiredConstructionTickets ?? 0
+    if (!walletStore.spendRewardTickets('construction', ticketCost)) {
+      playerStore.earnMoney(actualPrice, { countAsEarned: false })
+      addLog(`${constructionTicketLabel.value}不足，需要${constructionTicketLabel.value}×${ticketCost}才能继续扩建。`)
+      return
+    }
+    if (!removeCombinedItems(info.materials ?? [])) {
+      playerStore.earnMoney(actualPrice, { countAsEarned: false })
+      refundFarmExpandTickets(ticketCost)
+      addLog('扩建材料不足。')
+      return
+    }
     const newSize = farmStore.expandFarm()
     if (newSize) {
-      addLog(`农场扩建至${newSize}×${newSize}！(-${actualPrice}文)`)
+      const extraCostText = farmExpandExtraCostText(info)
+      addLog(`农场扩建至${newSize}×${newSize}！(-${actualPrice}文${extraCostText ? `，${extraCostText}` : ''})`)
     } else {
       playerStore.earnMoney(actualPrice, { countAsEarned: false })
+      refundFarmExpandTickets(ticketCost)
       addLog('农场已满级。')
     }
   }

@@ -57,6 +57,7 @@
   --online-visual-touch-target: 44px;
   --ai-assistant-touch-target: 44px;
   --ai-assistant-mobile-edge: 8px;
+  --ai-assistant-mobile-control-rail: 64px;
   --ai-assistant-markdown-border: rgba(200, 164, 92, 0.18);
   --ai-assistant-markdown-soft-bg: rgba(255, 255, 255, 0.04);
   --ai-assistant-info-border: rgba(120, 190, 255, 0.28);
@@ -257,7 +258,7 @@ button {
   }
 }
 
-@media (min-width: 1536px) {
+@media (min-width: 1180px) {
   #app {
     max-width: none;
   }
