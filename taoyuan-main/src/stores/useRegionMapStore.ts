@@ -2635,6 +2635,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
 
+    if (useSkillStore().isMasteryRewardUnlocked('journey_map_markers')) {
+      const markerRegion = focusedRegion?.unlocked ? focusedRegion : regionSummaries.value.find(region => region.unlocked) ?? null
+      if (markerRegion) {
+        const pendingEvent = getActiveRegionEvents(markerRegion.id).find(event => event.weeklyCompletions <= 0)
+        if (pendingEvent) {
+          nextHookSummaries.unshift(`精通地图标记：${markerRegion.name}优先看「${pendingEvent.name}」，${pendingEvent.handoffHint ?? pendingEvent.encounterHint ?? '适合先处理本周事件'}`)
+        } else {
+          nextHookSummaries.unshift(`精通地图标记：${markerRegion.name}适合检查${getLinkedSystemLabels(markerRegion.linkedSystems).slice(0, 2).join(' / ')}承接。`)
+        }
+      }
+    }
+
     if (latestJourney) {
       highlightSummaries.push(`上次回城：${latestJourney.targetName} / ${latestJourney.outcome === 'victory' ? '凯旋' : latestJourney.outcome === 'retreated' ? '撤退' : '失利'}`)
     }

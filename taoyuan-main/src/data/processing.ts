@@ -342,6 +342,7 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     id: 'spirit_forge',
     name: '仙灵炉',
     description: '炼制仙灵信物的神秘炉台，可制作求缘与结缘信物。',
+    masteryRewardId: 'advanced_workbench',
     craftCost: [
       { itemId: 'dragon_jade', quantity: 3 },
       { itemId: 'moonstone', quantity: 5 },
@@ -2254,6 +2255,42 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '优质以上桃子、蜜桃脯与月草文火同炼，凝成带灵果药性的高阶醒神丹。'
   },
   // 特殊饲料
+  {
+    id: 'alchemy_ley_prismatic_transmutation',
+    machineType: 'alchemy_furnace',
+    name: '灵脉转彩丹',
+    visibility: 'hidden',
+    hiddenMeta: {
+      unknownName: '未知转化丹方',
+      familyId: 'mastery_transmutation',
+      gate: { masteryRewardId: 'transmutation_recipe' },
+      revealOn: 'collect'
+    },
+    inputItemId: 'ley_crystal_shard',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'wind_etched_core', quantity: 1 },
+      { itemId: 'rare_elixir_crystal', quantity: 1 },
+      { itemId: 'iridium_ore', quantity: 5 }
+    ],
+    outputItemId: 'prismatic_shard',
+    outputQuantity: 1,
+    processingDays: 3,
+    alchemy: {
+      role: 'main',
+      nature: 'clear',
+      mainMaterialId: 'ley_crystal_shard',
+      supportMaterialIds: ['wind_etched_core', 'rare_elixir_crystal'],
+      primerItemId: 'iridium_ore',
+      heat: 'strong',
+      shortEffect: '高耗材稀有资源转化，受每日主丹限次约束。',
+      results: buildAlchemyResultRules('prismatic_shard'),
+      effect: {
+        description: '消耗灵脉碎晶、风蚀晶核、奇丹晶和铱矿进行一次高风险转化；每日主丹限次提供冷却。'
+      }
+    },
+    description: '把云岚高地的灵脉碎晶与风蚀晶核压入丹炉，尝试换取五彩碎片。材料昂贵，失败也会消耗投入。'
+  },
   {
     id: 'mill_premium_feed',
     machineType: 'mill',

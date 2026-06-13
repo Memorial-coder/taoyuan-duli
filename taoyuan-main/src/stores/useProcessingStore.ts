@@ -155,11 +155,25 @@ export const useProcessingStore = defineStore('processing', () => {
     return recipe.name
   }
 
+  const getMasteryRewardLabel = (rewardId: string): string => skillStore.masteryRewards.find(entry => entry.id === rewardId)?.label ?? rewardId
+
+  const isMachineCraftUnlocked = (machineType: MachineType): boolean => {
+    const def = PROCESSING_MACHINES.find(machine => machine.id === machineType)
+    return !def?.masteryRewardId || skillStore.isMasteryRewardUnlocked(def.masteryRewardId)
+  }
+
+  const getMachineCraftLockedReason = (machineType: MachineType): string => {
+    const def = PROCESSING_MACHINES.find(machine => machine.id === machineType)
+    if (!def?.masteryRewardId || skillStore.isMasteryRewardUnlocked(def.masteryRewardId)) return ''
+    return `需要解锁「${getMasteryRewardLabel(def.masteryRewardId)}」。`
+  }
+
   const canAccessProcessingRecipe = (recipe: ProcessingRecipeDef): boolean => {
     if (recipe.visibility !== 'hidden') return true
     const gate = recipe.hiddenMeta?.gate
     if (gate?.workshopLevel !== undefined && workshopLevel.value < gate.workshopLevel) return false
     if (gate?.requiredItemId && getCombinedItemCount(gate.requiredItemId) <= 0) return false
+    if (gate?.masteryRewardId && !skillStore.isMasteryRewardUnlocked(gate.masteryRewardId)) return false
     return true
   }
 
@@ -534,6 +548,7 @@ export const useProcessingStore = defineStore('processing', () => {
     if (machines.value.length >= maxMachines.value) return false
     const def = PROCESSING_MACHINES.find(m => m.id === machineType)
     if (!def) return false
+    if (!isMachineCraftUnlocked(machineType)) return false
     if (!consumeCraftMaterials(def.craftCost, def.craftMoney)) return false
     machines.value.push({
       machineType,
@@ -1172,6 +1187,8 @@ export const useProcessingStore = defineStore('processing', () => {
     isHiddenProcessingRecipeDiscovered,
     discoverProcessingRecipe,
     getProcessingRecipeDisplayName,
+    isMachineCraftUnlocked,
+    getMachineCraftLockedReason,
     startProcessing,
     startProcessingBatch,
     collectProduct,

@@ -402,6 +402,10 @@
     if (goalStore.currentThemeWeek?.name) {
       notes.push(`主题周承接：${goalStore.currentThemeWeek.name} 会一起影响今天该看哪些地图信号。`)
     }
+    if (journeyMapReward.value?.unlocked) {
+      const masteryMarker = regionMapStore.frontierDigest.nextHookSummaries.find(line => line.includes('精通地图标记'))
+      if (masteryMarker) notes.push(masteryMarker)
+    }
 
     return notes.slice(0, 4)
   })

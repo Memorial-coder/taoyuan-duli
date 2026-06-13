@@ -162,35 +162,35 @@ export const MASTERY_REWARD_DEFS: MasteryRewardDef[] = [
     id: 'blessing_altar',
     label: '每日祝福神像',
     unlockMasteryId: 'mastery_life',
-    summary: '每天会给出一条轻度偏向，让你更容易决定今天偏钓鱼、采集、挖矿还是社交。',
+    summary: '每天会给出一条轻度偏向，并接入体力、出货、寻宝、送礼等既有公式，让你更容易决定今天偏钓鱼、采集、挖矿还是社交。',
     panelHint: '小屋'
   },
   {
     id: 'trinket_slot',
     label: '护符 / 饰物位',
     unlockMasteryId: 'mastery_combat',
-    summary: '角色信息里会出现专属饰物位，后续可承接护符与战备小构筑。',
+    summary: '角色信息和背包装备已接入专属饰物位，饰品调校会小幅强化已装备饰物的效果。',
     panelHint: '角色信息 / 背包装备'
   },
   {
     id: 'advanced_workbench',
     label: '高级工台权限',
-    unlockMasteryId: 'mastery_mining',
-    summary: '设施页会先提示高阶工台与精修加工位的后续方向。',
-    panelHint: '设施'
+    unlockMasteryId: 'mastery_artisan_foundry',
+    summary: '解锁后才可制作仙灵炉这类高阶工台，用于承接护符、信物和终局加工。',
+    panelHint: '加工坊 / 制造'
   },
   {
     id: 'transmutation_recipe',
     label: '稀有资源转化配方',
     unlockMasteryId: 'mastery_research',
-    summary: '精通会先标出更深层资源转化与研究型加工的后续方向。',
-    panelHint: '技能 / 后续加工线'
+    summary: '炼丹炉解锁隐藏转化丹方，消耗区域稀有材料与奇丹晶，并受每日主丹限次约束。',
+    panelHint: '加工坊 / 炼丹炉'
   },
   {
     id: 'journey_map_markers',
     label: '特殊地图标记能力',
     unlockMasteryId: 'mastery_journey',
-    summary: '资料与行旅系统会先提示更偏路线和远征判断的标记能力方向。',
-    panelHint: '新手路线 / 行旅图'
+    summary: '行旅图摘要会标记本周焦点事件、路线承接和风险信号，偏规划能力，不直接增加奖励。',
+    panelHint: '行旅图 / 新手路线'
   }
 ]

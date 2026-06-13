@@ -1575,8 +1575,11 @@
         materials: m.craftCost,
         cost: m.craftMoney,
         onCraft: () => handleCraftMachine(m.id),
-        canCraft: () => canAffordCraft(m.craftCost, m.craftMoney) && processingStore.machineCount < processingStore.maxMachines,
-        badge: `已有${getMachineCountByType(m.id)}`,
+        canCraft: () =>
+          processingStore.isMachineCraftUnlocked(m.id) &&
+          canAffordCraft(m.craftCost, m.craftMoney) &&
+          processingStore.machineCount < processingStore.maxMachines,
+        badge: processingStore.getMachineCraftLockedReason(m.id) || `已有${getMachineCountByType(m.id)}`,
         batchable: true,
         maxBatch: () => processingStore.maxMachines - processingStore.machineCount
       }))

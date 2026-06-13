@@ -188,6 +188,7 @@ export const useSkillStore = defineStore('skill', () => {
       unlocked: unlockedMasteryIds.value.includes(def.unlockMasteryId)
     }))
   )
+  const isMasteryRewardUnlocked = (rewardId: string): boolean => masteryRewards.value.some(entry => entry.id === rewardId && entry.unlocked)
   const dailyBlessingPreview = computed(() => {
     const blessingReward = masteryRewards.value.find(entry => entry.id === 'blessing_altar' && entry.unlocked)
     if (!blessingReward) return null
@@ -577,6 +578,7 @@ export const useSkillStore = defineStore('skill', () => {
     masteryRewards,
     dailyBlessingPreview,
     skillMasteryExpPerPoint: SKILL_MASTERY_EXP_PER_POINT,
+    isMasteryRewardUnlocked,
     getBlessingEffectValue,
     getSkill,
     addExp,
