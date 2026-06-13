@@ -78,6 +78,7 @@
     "hall_post": "reject_hard_review_soft",
     "hall_reply": "reject_hard_review_soft",
     "admin_content": "warn_hard_review_soft",
-    "admin_mail_campaign": "warn_hard_review_soft"
+    "admin_mail_campaign": "warn_hard_review_soft",
+    "admin_announcement": "reject_hard_allow_soft"
   }
 }

@@ -205,6 +205,33 @@ function assertCanChat(username, targetPayload) {
   return target;
 }
 
+function buildRewardSummary(reward) {
+  if (!reward || typeof reward !== 'object') return null;
+  const type = sanitizeText(reward.type, 40);
+  if (!type) return null;
+  const summary = { type };
+  const id = sanitizeText(reward.id, 80);
+  const quality = sanitizeText(reward.quality, 20);
+  const amount = Math.max(0, Math.floor(Number(reward.amount) || 0));
+  const quantity = Math.max(0, Math.floor(Number(reward.quantity) || 0));
+  if (id) summary.id = id;
+  if (amount > 0) summary.amount = amount;
+  if (quantity > 0) summary.quantity = quantity;
+  if (quality) summary.quality = quality;
+  const source = sanitizeText(reward.source, 80);
+  if (source) summary.source = source;
+  const targetRewardType = sanitizeText(reward.target_reward_type, 40);
+  const targetRewardId = sanitizeText(reward.target_reward_id, 80);
+  if (targetRewardType) summary.target_reward_type = targetRewardType;
+  if (targetRewardId) summary.target_reward_id = targetRewardId;
+  return summary;
+}
+
+function buildRewardSummaries(rewards) {
+  if (!Array.isArray(rewards)) return [];
+  return rewards.map(buildRewardSummary).filter(Boolean).slice(0, 20);
+}
+
 function buildGiftState(message, viewerUsername) {
   if (message.type !== 'gift' || !message.gift_delivery_id) return null;
   const isRecipient = normalizeUsername(viewerUsername) === message.recipient_username;
@@ -217,6 +244,8 @@ function buildGiftState(message, viewerUsername) {
     is_claimed: !!claimedAt,
     claimed_at: claimedAt,
     claim_status: mail?.claim_status || (claimedAt ? 'claimed' : 'claimable'),
+    rewards: buildRewardSummaries(mail?.rewards),
+    claimed_rewards: buildRewardSummaries(mail?.claim_result?.applied_rewards),
   };
 }
 

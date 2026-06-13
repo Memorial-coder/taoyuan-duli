@@ -72,6 +72,9 @@
                     <div>
                       <p class="friend-chat-gift-title">礼物包裹</p>
                       <p class="friend-chat-gift-meta">{{ message.gift.reward_count }} 项 · {{ formatGiftStatus(message) }}</p>
+                      <p v-if="getGiftContentText(message)" class="friend-chat-gift-rewards">
+                        {{ message.gift.is_claimed ? '已领取：' : '包含：' }}{{ getGiftContentText(message) }}
+                      </p>
                     </div>
                     <button
                       v-if="message.gift.can_claim"
@@ -107,22 +110,25 @@
           </div>
 
           <div v-if="composeMode === 'message'" class="friend-chat-message-compose">
-            <textarea
-              v-model="chatStore.messageDraft"
-              maxlength="1200"
-              rows="3"
-              class="friend-chat-textarea"
-              placeholder="输入私聊内容"
-              data-testid="friend-chat-message-input"
-              @keydown.ctrl.enter.prevent="sendMessage"
-            />
+            <div class="friend-chat-message-input-row">
+              <textarea
+                v-model="chatStore.messageDraft"
+                maxlength="1200"
+                rows="2"
+                class="friend-chat-textarea"
+                placeholder="输入私聊内容"
+                data-testid="friend-chat-message-input"
+                @keydown.enter.exact.prevent="sendMessage"
+                @keydown.ctrl.enter.prevent="sendMessage"
+              />
+              <Button class="friend-chat-send-btn justify-center" :icon="Send" :icon-size="13" :disabled="chatStore.sending || !canSendMessage" @click="sendMessage">
+                {{ chatStore.sending ? '发送中' : '发送' }}
+              </Button>
+            </div>
             <div class="friend-chat-photo-row">
               <input v-model="chatStore.photoUrlDraft" class="friend-chat-input" maxlength="300" placeholder="图片链接（可选）" />
               <input v-model="chatStore.photoAltDraft" class="friend-chat-input" maxlength="80" placeholder="图片说明" />
             </div>
-            <Button class="w-full justify-center" :icon="Send" :icon-size="13" :disabled="chatStore.sending || !canSendMessage" @click="sendMessage">
-              {{ chatStore.sending ? '发送中...' : '发送' }}
-            </Button>
           </div>
 
           <div v-else class="friend-chat-gift-compose">
@@ -132,23 +138,20 @@
             </div>
             <div class="friend-chat-gift-rows">
               <div v-for="(reward, index) in chatStore.giftRewardsDraft" :key="`chat-gift-${index}`" class="friend-chat-gift-row">
-                <select
-                  :value="rewardSelectionValue(reward)"
-                  class="friend-chat-select friend-chat-owned-gift-select"
+                <button
+                  type="button"
+                  class="friend-chat-owned-gift-picker"
+                  :class="{ 'friend-chat-owned-gift-picker--selected': !!reward.id }"
                   :data-testid="`friend-chat-owned-gift-picker-${index}`"
                   :disabled="availableGiftOptions.length === 0"
-                  @change="updateGiftRewardSelection(index, String(($event.target as HTMLSelectElement).value || ''))"
+                  @click="openGiftPicker(index)"
                 >
-                  <option value="">选择背包中的礼物</option>
-                  <option
-                    v-for="option in availableGiftOptions"
-                    :key="option.value"
-                    :value="option.value"
-                    :disabled="getGiftOptionRemaining(option.value, index) <= 0 && rewardSelectionValue(reward) !== option.value"
-                  >
-                    {{ formatGiftOptionLabel(option, index) }}
-                  </option>
-                </select>
+                  <span class="friend-chat-owned-gift-picker-copy">
+                    <span class="friend-chat-owned-gift-picker-title">{{ getGiftRewardButtonTitle(reward) }}</span>
+                    <span class="friend-chat-owned-gift-picker-meta">{{ getGiftRewardButtonMeta(reward, index) }}</span>
+                  </span>
+                  <ChevronDown :size="13" />
+                </button>
                 <input
                   v-model.number="reward.quantity"
                   class="friend-chat-number"
@@ -182,23 +185,75 @@
         </div>
       </section>
     </div>
+
+    <OnlineActionDialog
+      :open="activeGiftPickerIndex !== null"
+      :title="activeGiftPickerTitle"
+      :description="giftPickerDescription"
+      confirm-label="完成"
+      cancel-label="关闭"
+      @confirm="closeGiftPicker"
+      @cancel="closeGiftPicker"
+      @close="closeGiftPicker"
+    >
+      <div class="friend-chat-gift-picker-dialog" data-testid="friend-chat-owned-gift-dialog">
+        <div v-if="availableGiftOptions.length === 0" class="friend-chat-empty">
+          背包里暂时没有可寄送的物品
+        </div>
+        <div v-else class="friend-chat-gift-picker-grid">
+          <button
+            v-for="option in availableGiftOptions"
+            :key="option.value"
+            type="button"
+            class="friend-chat-gift-picker-option"
+            :class="{ 'friend-chat-gift-picker-option--active': activeGiftPickerCurrentValue === option.value }"
+            :disabled="isGiftPickerOptionDisabled(option)"
+            :aria-pressed="activeGiftPickerCurrentValue === option.value"
+            :aria-label="`选择 ${formatGiftOptionLabel(option, activeGiftPickerIndex ?? -1)}`"
+            :data-testid="`friend-chat-owned-gift-option-${option.value}`"
+            @click="selectGiftPickerOption(option.value)"
+          >
+            <ItemIcon
+              v-if="option.item"
+              :item="option.item"
+              size="sm"
+              :quality="option.quality || 'normal'"
+            />
+            <span v-else class="friend-chat-gift-picker-decoration-icon" aria-hidden="true">
+              <Gift :size="16" />
+            </span>
+            <span class="friend-chat-gift-picker-option-copy">
+              <span class="friend-chat-gift-picker-option-name">{{ option.name }}</span>
+              <span class="friend-chat-gift-picker-option-meta">{{ getGiftOptionMeta(option, activeGiftPickerIndex ?? -1) }}</span>
+            </span>
+            <Check v-if="activeGiftPickerCurrentValue === option.value" class="friend-chat-gift-picker-check" :size="13" />
+          </button>
+        </div>
+      </div>
+    </OnlineActionDialog>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, nextTick, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { ArrowLeft, Gift, MessageCircle, Plus, RefreshCw, Send, X } from 'lucide-vue-next'
+  import { ArrowLeft, Check, ChevronDown, Gift, MessageCircle, Plus, RefreshCw, Send, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import OnlineActionDialog from '@/components/game/online/OnlineActionDialog.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { DECORATIONS } from '@/data/decorations'
+  import { getHatById } from '@/data/hats'
   import { getItemById } from '@/data/items'
+  import { getRingById } from '@/data/rings'
+  import { getShoeById } from '@/data/shoes'
+  import { getWeaponById } from '@/data/weapons'
   import { useDecorationStore } from '@/stores/useDecorationStore'
   import { useFriendChatStore } from '@/stores/useFriendChatStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
-  import type { Quality } from '@/types/item'
-  import type { PrivateChatMessage, PrivateChatRewardDraft } from '@/utils/friendChatApi'
+  import type { ItemDef, Quality } from '@/types/item'
+  import type { PrivateChatGiftReward, PrivateChatMessage, PrivateChatRewardDraft } from '@/utils/friendChatApi'
 
   const route = useRoute()
   const router = useRouter()
@@ -207,6 +262,7 @@
   const decorationStore = useDecorationStore()
   const messagePaneRef = ref<HTMLElement | null>(null)
   const composeMode = ref<'message' | 'gift'>('message')
+  const activeGiftPickerIndex = ref<number | null>(null)
 
   type GiftPickerOption = {
     value: string
@@ -215,6 +271,9 @@
     quantity: number
     quality?: Quality
     label: string
+    name: string
+    sourceLabel: string
+    item?: ItemDef | null
   }
 
   const QUALITY_SHORT_LABELS: Record<Quality, string> = {
@@ -242,6 +301,7 @@
       const itemDef = getItemById(slot.itemId)
       if (!itemDef) return
       const type: PrivateChatRewardDraft['type'] = itemDef.category === 'seed' ? 'seed' : 'item'
+      const qualityLabel = QUALITY_SHORT_LABELS[slot.quality] || slot.quality
       const value = `${type}::${slot.itemId}::${slot.quality}`
       const current = options.get(value)
       const quantity = (current?.quantity || 0) + slotQuantity
@@ -251,7 +311,10 @@
         id: slot.itemId,
         quality: slot.quality,
         quantity,
-        label: `${itemDef.name}（${QUALITY_SHORT_LABELS[slot.quality] || slot.quality}）×${quantity}`
+        label: `${itemDef.name}（${qualityLabel}）×${quantity}`,
+        name: itemDef.name,
+        sourceLabel: type === 'seed' ? '种子' : '物品',
+        item: itemDef
       })
     }
 
@@ -262,12 +325,16 @@
       const quantity = Math.max(0, Math.floor(Number(count) || 0) - decorationStore.getPlacedCount(id))
       if (quantity <= 0) continue
       const value = `decoration::${id}`
+      const name = decorationNameMap.get(id) || id
       options.set(value, {
         value,
         type: 'decoration',
         id,
         quantity,
-        label: `${decorationNameMap.get(id) || id}×${quantity}`
+        label: `${name}×${quantity}`,
+        name,
+        sourceLabel: '装饰',
+        item: null
       })
     }
 
@@ -349,6 +416,75 @@
     return option.label
   }
 
+  const getGiftOptionMeta = (option: GiftPickerOption, currentIndex: number) => {
+    const remaining = getGiftOptionRemaining(option.value, currentIndex)
+    const meta = [option.sourceLabel]
+    if (option.quality) meta.push(QUALITY_SHORT_LABELS[option.quality] || option.quality)
+    meta.push(remaining <= 0 ? '已选完' : `可选 ${remaining}`)
+    if (remaining < option.quantity) meta.push(`总数 ${option.quantity}`)
+    return meta.join(' · ')
+  }
+
+  const getGiftRewardOption = (reward: Pick<PrivateChatRewardDraft, 'type' | 'id' | 'quality'>) => {
+    const value = rewardSelectionValue(reward)
+    if (!value) return null
+    return availableGiftOptions.value.find(option => option.value === value) ?? null
+  }
+
+  const getGiftRewardButtonTitle = (reward: PrivateChatRewardDraft) => {
+    if (!reward.id) return '选择礼物'
+    return getGiftRewardOption(reward)?.name || reward.id
+  }
+
+  const getGiftRewardButtonMeta = (reward: PrivateChatRewardDraft, index: number) => {
+    if (!reward.id) return '从背包中挑选，再填写数量'
+    const option = getGiftRewardOption(reward)
+    if (!option) return '当前礼物已不在可用列表'
+    const quantity = Math.max(1, Math.floor(Number(reward.quantity) || 1))
+    return `${getGiftOptionMeta(option, index)} · 已填 ${quantity}`
+  }
+
+  const activeGiftPickerReward = computed(() => {
+    if (activeGiftPickerIndex.value === null) return null
+    return chatStore.giftRewardsDraft[activeGiftPickerIndex.value] ?? null
+  })
+
+  const activeGiftPickerCurrentValue = computed(() =>
+    activeGiftPickerReward.value ? rewardSelectionValue(activeGiftPickerReward.value) : ''
+  )
+
+  const activeGiftPickerTitle = computed(() => {
+    if (activeGiftPickerIndex.value === null) return '选择礼物'
+    return `选择第 ${activeGiftPickerIndex.value + 1} 项礼物`
+  })
+
+  const giftPickerDescription = computed(() =>
+    availableGiftOptions.value.length === 0
+      ? '背包里暂时没有可寄送的物品。'
+      : '从背包、临时背包或未摆放装饰中选一项，数量回到送礼栏填写。'
+  )
+
+  const openGiftPicker = (index: number) => {
+    if (availableGiftOptions.value.length === 0) return
+    activeGiftPickerIndex.value = index
+  }
+
+  const closeGiftPicker = () => {
+    activeGiftPickerIndex.value = null
+  }
+
+  const isGiftPickerOptionDisabled = (option: GiftPickerOption) => {
+    if (activeGiftPickerIndex.value === null) return true
+    return getGiftOptionRemaining(option.value, activeGiftPickerIndex.value) <= 0 &&
+      activeGiftPickerCurrentValue.value !== option.value
+  }
+
+  const selectGiftPickerOption = (value: string) => {
+    if (activeGiftPickerIndex.value === null) return
+    updateGiftRewardSelection(activeGiftPickerIndex.value, value)
+    closeGiftPicker()
+  }
+
   const getGiftRewardHint = (reward: PrivateChatRewardDraft, index: number) => {
     if (!reward.id) return ''
     const remaining = getGiftOptionRemaining(rewardSelectionValue(reward), index)
@@ -423,8 +559,13 @@
   }
 
   const claimGift = async (messageId: string) => {
-    await chatStore.claimGift(messageId).then(() => {
-      showFloat('礼物已领取', 'success')
+    await chatStore.claimGift(messageId).then(data => {
+      const claimedText = getGiftRewardListText(
+        data?.message?.gift?.claimed_rewards?.length
+          ? data.message.gift.claimed_rewards
+          : data?.message?.gift?.rewards
+      )
+      showFloat(claimedText ? `已领取 ${claimedText}` : '礼物已领取', 'success')
     }).catch(error => {
       showFloat(error instanceof Error ? error.message : '领取聊天礼物失败', 'danger')
     })
@@ -456,6 +597,39 @@
     if (message.gift.is_claimed) return '已领取'
     if (message.gift.can_claim) return '可领取'
     return message.is_own ? '待对方领取' : '待领取'
+  }
+
+  const formatRewardQuality = (quality?: string) => {
+    if (!quality) return ''
+    return `（${QUALITY_SHORT_LABELS[quality as Quality] || quality}）`
+  }
+
+  const formatGiftReward = (reward: PrivateChatGiftReward) => {
+    if (reward.type === 'money') return `桃源乡铜钱×${Math.max(0, Number(reward.amount) || 0)}`
+    const rewardId = String(reward.id || '')
+    const quantity = Math.max(1, Math.floor(Number(reward.quantity) || 1))
+    if (reward.type === 'item' || reward.type === 'seed') {
+      return `${getItemById(rewardId)?.name || rewardId}${formatRewardQuality(reward.quality)}×${quantity}`
+    }
+    if (reward.type === 'decoration') return `${decorationNameMap.get(rewardId) || rewardId}×${quantity}`
+    if (reward.type === 'weapon') return `${getWeaponById(rewardId)?.name || rewardId}×${quantity}`
+    if (reward.type === 'ring') return `${getRingById(rewardId)?.name || rewardId}×${quantity}`
+    if (reward.type === 'hat') return `${getHatById(rewardId)?.name || rewardId}×${quantity}`
+    if (reward.type === 'shoe') return `${getShoeById(rewardId)?.name || rewardId}×${quantity}`
+    return `${rewardId || reward.type}×${quantity}`
+  }
+
+  const getGiftRewardListText = (rewards?: PrivateChatGiftReward[] | null) => {
+    if (!Array.isArray(rewards) || rewards.length === 0) return ''
+    return rewards.map(formatGiftReward).join('、')
+  }
+
+  const getGiftContentText = (message: PrivateChatMessage) => {
+    if (!message.gift) return ''
+    const rewards = message.gift.is_claimed && message.gift.claimed_rewards?.length
+      ? message.gift.claimed_rewards
+      : message.gift.rewards
+    return getGiftRewardListText(rewards)
   }
 
   onMounted(() => {
@@ -694,6 +868,15 @@
     font-size: 0.75rem;
   }
 
+  .friend-chat-gift-rewards {
+    max-width: min(24rem, 62vw);
+    margin-top: 0.15rem;
+    color: rgb(var(--color-text));
+    font-size: 0.6875rem;
+    line-height: 1.1rem;
+    overflow-wrap: anywhere;
+  }
+
   .friend-chat-claim-btn {
     min-width: 3.25rem;
     height: 2rem;
@@ -737,9 +920,21 @@
     gap: 0.5rem;
   }
 
+  .friend-chat-message-input-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .friend-chat-send-btn {
+    min-width: 5.25rem;
+    min-height: 100%;
+    white-space: nowrap;
+  }
+
   .friend-chat-textarea,
   .friend-chat-input,
-  .friend-chat-select,
   .friend-chat-number {
     width: 100%;
     min-width: 0;
@@ -758,7 +953,6 @@
   }
 
   .friend-chat-input,
-  .friend-chat-select,
   .friend-chat-number {
     height: 2.25rem;
     padding: 0 0.5rem;
@@ -776,9 +970,59 @@
     flex-wrap: wrap;
   }
 
-  .friend-chat-owned-gift-select {
+  .friend-chat-owned-gift-picker {
+    display: inline-flex;
     flex: 1 1 16rem;
     min-width: min(100%, 12rem);
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
+    border-radius: 4px;
+    padding: 0.45rem 0.55rem;
+    color: rgb(var(--color-text));
+    text-align: left;
+    background: rgb(var(--color-bg) / 0.72);
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+  }
+
+  .friend-chat-owned-gift-picker:hover,
+  .friend-chat-owned-gift-picker:focus-visible,
+  .friend-chat-owned-gift-picker--selected {
+    border-color: rgb(var(--color-accent-rgb) / 0.44);
+    background: rgb(var(--color-accent-rgb) / 0.08);
+  }
+
+  .friend-chat-owned-gift-picker:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
+
+  .friend-chat-owned-gift-picker-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.15rem;
+  }
+
+  .friend-chat-owned-gift-picker-title,
+  .friend-chat-owned-gift-picker-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .friend-chat-owned-gift-picker-title {
+    color: rgb(var(--color-text));
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .friend-chat-owned-gift-picker-meta {
+    color: var(--color-muted);
+    font-size: 0.625rem;
+    line-height: 0.9rem;
   }
 
   .friend-chat-gift-row .friend-chat-number {
@@ -796,6 +1040,87 @@
   .friend-chat-gift-rows {
     display: grid;
     gap: 0.4rem;
+  }
+
+  .friend-chat-gift-picker-dialog {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .friend-chat-gift-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  .friend-chat-gift-picker-option {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 4rem;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.16);
+    border-radius: 4px;
+    padding: 0.5rem;
+    color: rgb(var(--color-text));
+    text-align: left;
+    background: rgb(var(--color-bg) / 0.48);
+    transition: border-color 0.16s ease, background-color 0.16s ease, opacity 0.16s ease;
+  }
+
+  .friend-chat-gift-picker-option:hover,
+  .friend-chat-gift-picker-option:focus-visible,
+  .friend-chat-gift-picker-option--active {
+    border-color: rgb(var(--color-accent-rgb) / 0.48);
+    background: rgb(var(--color-accent-rgb) / 0.08);
+  }
+
+  .friend-chat-gift-picker-option:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .friend-chat-gift-picker-decoration-icon {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.28);
+    border-radius: 4px;
+    color: var(--color-accent);
+    background: rgb(var(--color-accent-rgb) / 0.08);
+  }
+
+  .friend-chat-gift-picker-option-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0.2rem;
+  }
+
+  .friend-chat-gift-picker-option-name,
+  .friend-chat-gift-picker-option-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .friend-chat-gift-picker-option-name {
+    color: rgb(var(--color-text));
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .friend-chat-gift-picker-option-meta {
+    color: var(--color-muted);
+    font-size: 0.625rem;
+    line-height: 0.9rem;
+  }
+
+  .friend-chat-gift-picker-check {
+    color: var(--color-accent);
   }
 
   .friend-chat-error {
@@ -829,10 +1154,24 @@
       flex-wrap: wrap;
     }
 
-    .friend-chat-owned-gift-select,
+    .friend-chat-message-input-row {
+      grid-template-columns: minmax(0, 1fr) 4.75rem;
+      gap: 0.4rem;
+    }
+
+    .friend-chat-send-btn {
+      min-width: 0;
+      padding-inline: 0.5rem;
+    }
+
+    .friend-chat-owned-gift-picker,
     .friend-chat-gift-row .friend-chat-number {
       max-width: none;
       flex: 1 1 5rem;
+    }
+
+    .friend-chat-gift-picker-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

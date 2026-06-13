@@ -94,6 +94,10 @@ for (const testId of [
   'region-open-world-focus-current',
   'region-open-world-zoom-in',
   'region-open-world-zoom-out',
+  'region-open-world-tile-dialog',
+  'region-open-world-tile-dialog-close',
+  'region-open-world-tile-dialog-move',
+  'region-open-world-tile-dialog-action-',
   'region-open-world-action-',
   'region-open-world-handbook',
   'region-open-world-log'
@@ -110,7 +114,11 @@ addCheck('Component renders animated player marker overlay', /playerTokenStyle/.
 addCheck('Component renders offscreen current-position affordance', /playerOffscreenIndicatorVisible/.test(openWorldComponent) && /playerOffscreenIndicatorStyle/.test(openWorldComponent) && /focus-current/.test(openWorldComponent))
 addCheck('Component keeps offscreen current-position indicator clear of zoom controls', /PLAYER_INDICATOR_ZOOM_COLLISION_X_PERCENT/.test(openWorldComponent) && /PLAYER_INDICATOR_ZOOM_COLLISION_Y_PERCENT/.test(openWorldComponent) && /PLAYER_INDICATOR_ZOOM_CONTROL_CLEARANCE/.test(openWorldComponent) && /calc\(100% - \$\{PLAYER_INDICATOR_ZOOM_CONTROL_CLEARANCE\}\)/.test(openWorldComponent))
 addCheck('Component shows move stamina on move button', /selectedTile\.moveStaminaCost > 0/.test(openWorldComponent) && /selectedTile\.moveStaminaCost/.test(openWorldComponent))
-addCheck('Component imports zoom controls icons', /MapPin,\s*Minus,\s*Plus/.test(openWorldComponent))
+addCheck('Component opens tile detail dialog from tile clicks', /@click="handleTileClick\(tile\.id\)"/.test(openWorldComponent) && /const handleTileClick = \(tileId: string\)/.test(openWorldComponent) && /emit\('select-tile', tileId\)/.test(openWorldComponent) && /tileDetailDialogOpen\.value = true/.test(openWorldComponent))
+addCheck('Component renders accessible tile detail dialog', /v-if="tileDetailDialogOpen && selectedTile"/.test(openWorldComponent) && /data-testid="region-open-world-tile-dialog"/.test(openWorldComponent) && /role="dialog"/.test(openWorldComponent) && /aria-modal="true"/.test(openWorldComponent) && /:aria-labelledby="tileDetailDialogTitleId"/.test(openWorldComponent) && /@click\.self="closeTileDetailDialog"/.test(openWorldComponent) && /handleTileDetailDialogKeydown/.test(openWorldComponent))
+addCheck('Component keeps tile dialog actions on existing event contract', /const handleTileDialogMove = \(\) => \{[\s\S]*emit\('move', tile\.id\)[\s\S]*closeTileDetailDialog\(\)/.test(openWorldComponent) && /const handleTileDialogAction = \(\) => \{[\s\S]*emit\('perform-action', tile\.id, tile\.actionId\)[\s\S]*closeTileDetailDialog\(\)/.test(openWorldComponent))
+addCheck('Component styles tile dialog for desktop and mobile', /\.region-open-world-tile-dialog-shell/.test(openWorldComponent) && /@media \(max-width: 767px\)[\s\S]*\.region-open-world-tile-dialog-overlay[\s\S]*align-items: flex-end/.test(openWorldComponent))
+addCheck('Component imports zoom and dialog icons', /MapPin,\s*Minus,\s*Plus,\s*X/.test(openWorldComponent))
 addCheck('Component exposes bounded open world zoom state', /const ZOOM_MIN\s*=\s*0\.5/.test(openWorldComponent) && /const ZOOM_MAX\s*=\s*1\.6/.test(openWorldComponent) && /const ZOOM_STEP\s*=\s*0\.15/.test(openWorldComponent) && /const zoomLevel = ref\(1\)/.test(openWorldComponent) && /const canZoomIn/.test(openWorldComponent) && /const canZoomOut/.test(openWorldComponent))
 addCheck('Component renders desktop and mobile zoom buttons', /class="region-open-world-zoom-controls"/.test(openWorldComponent) && /data-testid="region-open-world-zoom-in"/.test(openWorldComponent) && /data-testid="region-open-world-zoom-out"/.test(openWorldComponent) && /:disabled="!canZoomIn"/.test(openWorldComponent) && /:disabled="!canZoomOut"/.test(openWorldComponent) && /\.region-open-world-zoom-button:focus-visible/.test(openWorldComponent) && /@media \(max-width: 767px\)[\s\S]*\.region-open-world-zoom-button/.test(openWorldComponent))
 addCheck('Component zooms open world viewport with desktop wheel', /@wheel="handleGridWheel"/.test(openWorldComponent) && /const handleGridWheel = \(event: WheelEvent\)/.test(openWorldComponent) && /event\.deltaY === 0/.test(openWorldComponent) && /event\.preventDefault\(\)/.test(openWorldComponent) && /setZoomLevel\(zoomLevel\.value \+ \(event\.deltaY < 0 \? ZOOM_STEP : -ZOOM_STEP\)\)/.test(openWorldComponent))

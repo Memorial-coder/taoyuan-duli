@@ -4,11 +4,22 @@
 
 ## [未发布]
 
+### 0613 好友私聊输入体验优化
+- 好友私聊文字输入支持普通回车直接发送，Shift+Enter 保留换行；发送按钮移到输入框右侧，图片链接与说明保留在下方辅助行。
+- `qa:online-ui-structure` 补充回车发送与输入框右侧发送按钮的静态守卫。
+
+### 0613 管理员公告软审核放行
+- 管理员公告标题、正文和按钮文案命中广告、外挂、引流等软风险词时不再阻断保存，改为写入 `allowed_with_review` 脱敏审核事件；硬拦截词和 CTA URL 校验仍按原规则拒绝。
+- 默认内容审核规则补齐 `admin_announcement: reject_hard_allow_soft`，`qa:announcement-flow` 覆盖软风险放行、脱敏审核事件与硬违规拒绝，`qa:content-moderation-guard` 已复跑通过。
+
 ### 0613 好友私聊送礼背包选择
+- 好友私聊送礼选择从长下拉框改为弹窗式背包选择：每个礼物行点击“选择礼物”打开物品卡片弹窗，选中后回填该行，数量仍在送礼栏填写，保留一次发送多项礼物。
 - 好友私聊送礼从手填 `类型 / 物品 ID / 数量` 改为从已拥有内容选择：主背包、临时背包和未摆放装饰都会生成可选项，锁定背包槽位不会出现在列表里。
 - 礼物选择项显示物品名、品质和可用数量；同一物品多行选择时会合并占用数量，数量输入上限跟随当前剩余可用量，空背包时禁用添加和发送。
 - 聊天礼物 API payload 保持不变；发送成功后前端会 best-effort 同步扣减本地可见的临时背包、未锁定主背包或未摆放装饰，发送失败不改本地显示。
-- 本轮验证：目标文件 ESLint 与目标文件 `git diff --check` 通过；`qa:online-ui-structure` 新增私聊送礼守卫已执行，但当前仍被既有 `FarmView.vue` 控件类断言阻塞；`type-check` 仍被既有 `AchievementView.vue(847,142)` 类型错误阻塞。
+- `qa:online-ui-structure` 新增送礼弹窗、选项 test id、图标辅助选择以及禁止退回 `<select>` 的静态守卫。
+- 私聊礼物消息卡现在展示“包含：物品名×数量”，领取后展示“已领取：物品名×数量”；领取成功浮窗也会提示实际入账内容，避免只看到“已领取”。
+- 本轮验证：`node --check server/src/taoyuanChatRuntime.js`、`node --check server/scripts/qa-private-chat-flow.mjs`、`npm --prefix server run qa:private-chat-flow`、前端目标文件 ESLint 与目标文件 `git diff --check` 通过；`qa:online-ui-structure` 新增私聊礼物明细与弹窗选择守卫已执行，但当前仍被既有 `FarmView.vue` 控件类断言阻塞；`type-check` 当前被既有 `RegionOpenWorldMap.vue` handler 类型错误与 `AchievementView.vue(847,142)` 类型错误阻塞。
 
 ### 0613 在线庄园权限管理入口修复
 - 在线庄园主人态概览和照料页补回“管理权限”入口，弹窗内可调整访问、照料和轻采开放范围，并继续复用既有庄园访问权限保存接口。

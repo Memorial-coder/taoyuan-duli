@@ -212,6 +212,8 @@ const giftResult = await chatRuntime.sendGift(sender, {
 })
 assert.equal(giftResult.message.type, 'gift', 'friend gift should be stored as gift message')
 assert.ok(giftResult.message.gift?.delivery_id, 'gift message should expose hidden delivery id')
+assert.equal(giftResult.message.gift?.rewards?.[0]?.id, 'wood', 'gift message should expose reward summary id')
+assert.equal(giftResult.message.gift?.rewards?.[0]?.quantity, 2, 'gift message should expose reward summary quantity')
 assert.equal(readItemQuantity(sender, 'wood'), senderWoodBeforeGift - 2, 'chat gift should deduct sender inventory')
 
 const hiddenDeliveryId = giftResult.message.gift.delivery_id
@@ -225,6 +227,8 @@ const claimed = await chatRuntime.claimGiftMessage(recipient, giftResult.message
 assert.equal(claimed.claim.result.applied_rewards[0]?.id, 'wood', 'chat gift claim should reuse mailbox reward application')
 assert.equal(readItemQuantity(recipient, 'wood'), recipientWoodBeforeClaim + 2, 'chat gift claim should grant reward once')
 assert.equal(claimed.message.gift?.is_claimed, true, 'claimed chat gift should update message gift state')
+assert.equal(claimed.message.gift?.claimed_rewards?.[0]?.id, 'wood', 'claimed chat gift should expose applied reward summary')
+assert.equal(claimed.message.gift?.claimed_rewards?.[0]?.quantity, 2, 'claimed chat gift should expose applied reward quantity')
 
 await expectRejected('second chat gift claim', () => chatRuntime.claimGiftMessage(recipient, giftResult.message.id), 400)
 assert.equal(readItemQuantity(recipient, 'wood'), recipientWoodBeforeClaim + 2, 'second claim must not duplicate reward')

@@ -15,7 +15,8 @@ const RUNTIME_RULES_FILE = path.join(DATA_DIR, 'taoyuan_content_moderation_rules
 const DEFAULT_RULE_VERSION = String(process.env.CONTENT_MODERATION_RULE_VERSION || '2026.0603.1');
 const DEFAULT_SCENE_POLICY = 'reject_hard_reject_soft';
 const ADMIN_WARNING_POLICY = 'warn_hard_review_soft';
-const ALLOW_REVIEW_SCENES = new Set(['admin_mail_campaign']);
+const ADMIN_ANNOUNCEMENT_POLICY = 'reject_hard_allow_soft';
+const ALLOW_REVIEW_SCENES = new Set(['admin_mail_campaign', 'admin_announcement']);
 let rulesCache = null;
 
 const DEFAULT_BANNED_TERMS = Object.freeze([
@@ -121,6 +122,7 @@ function normalizeScenePolicy(scenePolicy = {}) {
     hall_reply: 'reject_hard_review_soft',
     admin_content: ADMIN_WARNING_POLICY,
     admin_mail_campaign: ADMIN_WARNING_POLICY,
+    admin_announcement: ADMIN_ANNOUNCEMENT_POLICY,
   };
   const source = scenePolicy && typeof scenePolicy === 'object' && !Array.isArray(scenePolicy)
     ? scenePolicy

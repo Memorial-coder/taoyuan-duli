@@ -80,7 +80,7 @@
             :style="tileGridStyle(tile)"
             :disabled="tile.locked && !tile.discovered"
             :data-testid="`region-open-world-tile-${tile.id}`"
-            @click="$emit('select-tile', tile.id)"
+            @click="handleTileClick(tile.id)"
           >
             <span class="region-open-world-object">{{ tileIcon(tile) }}</span>
             <span class="region-open-world-label">{{ tile.discovered ? tile.label : '迷雾' }}</span>
@@ -220,13 +220,98 @@
         </div>
       </aside>
     </div>
+
+    <Transition name="dialog-pop">
+      <div
+        v-if="tileDetailDialogOpen && selectedTile"
+        class="region-open-world-tile-dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-3 py-4"
+        data-testid="region-open-world-tile-dialog"
+        @click.self="closeTileDetailDialog"
+      >
+        <section
+          ref="tileDetailDialogRef"
+          class="region-open-world-tile-dialog-shell w-full max-w-md border border-accent/25 rounded-xs bg-bg p-4 shadow-2xl"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="tileDetailDialogTitleId"
+          tabindex="-1"
+        >
+          <div class="flex items-start justify-between gap-3 border-b border-accent/10 pb-3">
+            <div class="min-w-0">
+              <p class="text-[0.625rem] text-muted">当前格</p>
+              <p :id="tileDetailDialogTitleId" class="text-sm text-accent mt-1">
+                {{ selectedTile.discovered ? selectedTile.label : '未发现区域' }}
+              </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="text-[0.625rem]" :class="selectedTile.current ? 'text-success' : 'text-muted'">
+                {{ selectedTile.current ? '脚下' : selectedTile.discovered ? '已发现' : '迷雾' }}
+              </span>
+              <button
+                type="button"
+                class="region-open-world-tile-dialog-close"
+                aria-label="关闭地块详情"
+                data-testid="region-open-world-tile-dialog-close"
+                @click="closeTileDetailDialog"
+              >
+                <X :size="15" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-3 space-y-3">
+            <p class="text-xs text-muted leading-5">
+              {{ selectedTile.discovered ? selectedTile.description : '靠近这片区域后才会显形。' }}
+            </p>
+            <div v-if="selectedTile.discovered" class="grid grid-cols-2 gap-2 text-[0.625rem]">
+              <div class="border border-accent/10 rounded-xs px-2 py-1.5">
+                <span class="text-muted">对象</span>
+                <p class="text-accent mt-0.5">{{ selectedTile.objectLabel }}</p>
+              </div>
+              <div class="border border-accent/10 rounded-xs px-2 py-1.5">
+                <span class="text-muted">状态</span>
+                <p class="text-accent mt-0.5">{{ selectedTile.statusLabel }}</p>
+              </div>
+            </div>
+            <div v-if="selectedTile.discovered" class="flex flex-col gap-2">
+              <button
+                type="button"
+                class="border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5 disabled:text-muted disabled:hover:bg-transparent"
+                :disabled="!selectedTile.canMove"
+                data-testid="region-open-world-tile-dialog-move"
+                @click="handleTileDialogMove"
+              >
+                前往
+                <span v-if="selectedTile.moveStaminaCost > 0" class="text-[0.625rem] text-muted ml-1">
+                  {{ selectedTile.moveStaminaCost }}体
+                </span>
+              </button>
+              <button
+                v-if="selectedTile.actionId"
+                type="button"
+                class="border border-success/30 rounded-xs px-3 py-2 text-xs text-success hover:bg-success/10 disabled:text-muted disabled:border-muted/20 disabled:hover:bg-transparent"
+                :disabled="!selectedTile.canAct"
+                :data-testid="`region-open-world-tile-dialog-action-${selectedTile.actionId}`"
+                @click="handleTileDialogAction"
+              >
+                {{ selectedTile.actionLabel }}
+                <span v-if="selectedTile.staminaCost > 0 || selectedTile.timeCostHours > 0" class="text-[0.625rem] text-muted ml-1">
+                  {{ selectedTile.staminaCost }}体 / {{ selectedTile.timeCostHours }}h
+                </span>
+              </button>
+              <p v-if="selectedTile.disabledReason" class="text-[0.625rem] text-muted leading-4">{{ selectedTile.disabledReason }}</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </Transition>
   </section>
 </template>
 
 <script setup lang="ts">
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import type { CSSProperties } from 'vue'
-  import { MapPin, Minus, Plus } from 'lucide-vue-next'
+  import { MapPin, Minus, Plus, X } from 'lucide-vue-next'
   import type {
     RegionOpenWorldActionId,
     RegionOpenWorldId,
@@ -297,6 +382,10 @@
   const isDragging = ref(false)
   const suppressNextClick = ref(false)
   const zoomLevel = ref(1)
+  const tileDetailDialogOpen = ref(false)
+  const tileDetailDialogRef = ref<HTMLElement | null>(null)
+  const tileDetailDialogPreviousFocus = ref<HTMLElement | null>(null)
+  const tileDetailDialogTitleId = 'region-open-world-tile-dialog-title'
   const activePointerPositions = new Map<number, PointerPosition>()
   let viewportResizeObserver: ResizeObserver | null = null
 
@@ -476,6 +565,40 @@
     return true
   }
 
+  const closeTileDetailDialog = () => {
+    tileDetailDialogOpen.value = false
+  }
+
+  const focusTileDetailDialog = async () => {
+    await nextTick()
+    tileDetailDialogRef.value?.focus()
+  }
+
+  const handleTileClick = (tileId: string) => {
+    emit('select-tile', tileId)
+    tileDetailDialogOpen.value = true
+  }
+
+  const handleTileDialogMove = () => {
+    const tile = props.selectedTile
+    if (!tile || !tile.discovered || !tile.canMove) return
+    emit('move', tile.id)
+    closeTileDetailDialog()
+  }
+
+  const handleTileDialogAction = () => {
+    const tile = props.selectedTile
+    if (!tile || !tile.actionId || !tile.canAct) return
+    emit('perform-action', tile.id, tile.actionId)
+    closeTileDetailDialog()
+  }
+
+  const handleTileDetailDialogKeydown = (event: KeyboardEvent) => {
+    if (!tileDetailDialogOpen.value || event.key !== 'Escape') return
+    event.preventDefault()
+    closeTileDetailDialog()
+  }
+
   onMounted(() => {
     void nextTick(updateViewportSize)
     if (typeof ResizeObserver === 'undefined' || !viewportRef.value) return
@@ -486,17 +609,36 @@
   onBeforeUnmount(() => {
     viewportResizeObserver?.disconnect()
     viewportResizeObserver = null
+    if (typeof window !== 'undefined') window.removeEventListener('keydown', handleTileDetailDialogKeydown)
   })
 
   watch(
     () => props.activeRegion.def.id,
     () => {
+      closeTileDetailDialog()
       void nextTick(updateViewportSize)
     }
   )
 
   watch(zoomLevel, () => {
     void nextTick(updateViewportSize)
+  })
+
+  watch(tileDetailDialogOpen, isOpen => {
+    if (typeof window === 'undefined') return
+    if (isOpen) {
+      tileDetailDialogPreviousFocus.value = typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+      window.addEventListener('keydown', handleTileDetailDialogKeydown)
+      void focusTileDetailDialog()
+      return
+    }
+    window.removeEventListener('keydown', handleTileDetailDialogKeydown)
+    void nextTick(() => {
+      tileDetailDialogPreviousFocus.value?.focus()
+      tileDetailDialogPreviousFocus.value = null
+    })
   })
 
   const handleGridPointerDown = (event: PointerEvent) => {
@@ -854,6 +996,37 @@
     background: rgba(17, 19, 24, 0.82);
   }
 
+  .region-open-world-tile-dialog-overlay {
+    align-items: center;
+  }
+
+  .region-open-world-tile-dialog-shell {
+    max-height: min(88vh, 32rem);
+    overflow-y: auto;
+    outline: none;
+    box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.42);
+  }
+
+  .region-open-world-tile-dialog-close {
+    width: 1.85rem;
+    height: 1.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(168, 138, 86, 0.22);
+    border-radius: 0.125rem;
+    color: rgb(236, 207, 153);
+    background: rgba(15, 17, 22, 0.76);
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .region-open-world-tile-dialog-close:hover,
+  .region-open-world-tile-dialog-close:focus-visible {
+    border-color: rgba(236, 207, 153, 0.65);
+    background: rgba(168, 138, 86, 0.14);
+    outline: none;
+  }
+
   .terrain-grass {
     background: linear-gradient(135deg, rgba(55, 112, 73, 0.34), rgba(39, 69, 54, 0.65));
     color: rgb(205, 232, 196);
@@ -919,6 +1092,22 @@
     .region-open-world-zoom-button {
       width: 2.6rem;
       height: 2.6rem;
+    }
+
+    .region-open-world-tile-dialog-overlay {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .region-open-world-tile-dialog-shell {
+      max-width: none;
+      max-height: 82vh;
+      border-right: 0;
+      border-bottom: 0;
+      border-left: 0;
+      border-radius: 0.375rem 0.375rem 0 0;
+      padding: 0.9rem;
+      padding-bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px));
     }
   }
 

@@ -266,9 +266,9 @@ try {
       version: 'qa-announcement-rules',
       updated_at: 0,
       hard_block: [{ category: 'qa_block', terms: ['QA_BLOCKED_TERM'] }],
-      soft_block: [],
+      soft_block: [{ category: 'qa_soft_review', terms: ['QA_SOFT_REVIEW_TERM'] }],
       scene_policy: {
-        admin_announcement: 'reject_hard_reject_soft',
+        admin_announcement: 'reject_hard_allow_soft',
       },
     }, null, 2),
     'utf8',
@@ -470,6 +470,34 @@ try {
     },
   });
   assert.equal(invalidCta.response.status, 400, 'invalid CTA URL should be rejected');
+
+  const softReviewText = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'Soft review announcement',
+      body: 'This official announcement mentions QA_SOFT_REVIEW_TERM and should be saved for admin review.',
+    },
+  });
+  assert.equal(softReviewText.response.status, 200, 'admin announcement should allow soft-review text');
+  assert.equal(softReviewText.data?.ok, true, 'soft-review announcement should return ok=true');
+  assert.match(
+    softReviewText.data?.announcement?.body || '',
+    /QA_SOFT_REVIEW_TERM/,
+    'soft-review announcement should retain original admin body text',
+  );
+  const moderationEventsRaw = JSON.parse(await fs.readFile(
+    path.join(tempDir, 'taoyuan_content_moderation_events.json'),
+    'utf8',
+  ));
+  assert.ok((moderationEventsRaw.events || []).some(event => (
+    event.scene === 'admin_announcement'
+    && event.field === 'body'
+    && event.action === 'soft_review'
+    && event.outcome === 'allowed_with_review'
+    && event.matched_category === 'qa_soft_review'
+    && event.matched_term_hash
+    && !event.matched_term
+  )), 'soft-review admin announcement should create a sanitized moderation audit event');
 
   const blockedText = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
     method: 'POST',

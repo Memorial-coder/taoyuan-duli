@@ -15,6 +15,17 @@ export interface PrivateChatPeerProfile {
   primary_route_label?: string
 }
 
+export interface PrivateChatGiftReward {
+  type: string
+  id?: string
+  amount?: number
+  quantity?: number
+  quality?: string
+  source?: string
+  target_reward_type?: string
+  target_reward_id?: string
+}
+
 export interface PrivateChatGiftState {
   delivery_id: string
   reward_count: number
@@ -22,6 +33,8 @@ export interface PrivateChatGiftState {
   is_claimed: boolean
   claimed_at: number | null
   claim_status: PrivateChatGiftClaimStatus
+  rewards?: PrivateChatGiftReward[]
+  claimed_rewards?: PrivateChatGiftReward[]
 }
 
 export interface PrivateChatMessage {
