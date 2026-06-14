@@ -3714,7 +3714,7 @@ export const BOMBS: BombDef[] = [
   {
     id: 'bomb',
     name: '火药包',
-    description: '大范围爆破，获取5份矿石并清除怪物。',
+    description: '大范围爆破，获取5份矿石并清除普通怪物；感染层和BOSS仍需正面处理。',
     oreMultiplier: 5,
     clearsMonster: true,
     craftCost: [
@@ -3728,7 +3728,7 @@ export const BOMBS: BombDef[] = [
   {
     id: 'mega_bomb',
     name: '雷火弹',
-    description: '超大范围爆破，获取8份矿石并清除怪物。',
+    description: '超大范围爆破，获取8份矿石并清除普通怪物；不会覆盖整层，感染层和BOSS仍需正面处理。',
     oreMultiplier: 8,
     clearsMonster: true,
     craftCost: [

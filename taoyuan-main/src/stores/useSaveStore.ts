@@ -10,6 +10,7 @@ import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useFarmStore } from './useFarmStore'
 import { useSkillStore } from './useSkillStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useNpcStore } from './useNpcStore'
 import { useMiningStore } from './useMiningStore'
 import { useCookingStore } from './useCookingStore'
@@ -1224,6 +1225,7 @@ export const useSaveStore = defineStore('save', () => {
     const inventoryStore = useInventoryStore()
     const farmStore = useFarmStore()
     const skillStore = useSkillStore()
+    const potentialStore = usePotentialStore()
     const npcStore = useNpcStore()
     const miningStore = useMiningStore()
     const cookingStore = useCookingStore()
@@ -1258,6 +1260,7 @@ export const useSaveStore = defineStore('save', () => {
       inventory: inventoryStore.serialize(),
       farm: farmStore.serialize(),
       skill: skillStore.serialize(),
+      potential: potentialStore.serialize(),
       npc: npcStore.serialize(),
       mining: miningStore.serialize(),
       cooking: cookingStore.serialize(),
@@ -1366,6 +1369,7 @@ export const useSaveStore = defineStore('save', () => {
     const inventoryStore = useInventoryStore()
     const farmStore = useFarmStore()
     const skillStore = useSkillStore()
+    const potentialStore = usePotentialStore()
     const npcStore = useNpcStore()
     const miningStore = useMiningStore()
     const cookingStore = useCookingStore()
@@ -1406,6 +1410,7 @@ export const useSaveStore = defineStore('save', () => {
       inventory: inventoryStore.serialize(),
       farm: farmStore.serialize(),
       skill: skillStore.serialize(),
+      potential: potentialStore.serialize(),
       npc: npcStore.serialize(),
       mining: miningStore.serialize(),
       cooking: cookingStore.serialize(),
@@ -1506,6 +1511,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMapStore.deserialize(emptyState)
       frontierChronicleStore.deserialize(emptyState)
       playerRecordCenterStore.deserialize(emptyState)
+      potentialStore.deserialize(emptyState)
       onlineMailRewards.value = createEmptyOnlineMailRewards()
     }
 
@@ -1515,6 +1521,7 @@ export const useSaveStore = defineStore('save', () => {
       inventoryStore.deserialize(snapshot.inventory)
       farmStore.deserialize(snapshot.farm)
       skillStore.deserialize(snapshot.skill)
+      potentialStore.deserialize(snapshot.potential)
       npcStore.deserialize(snapshot.npc)
       miningStore.deserialize(snapshot.mining)
       cookingStore.deserialize(snapshot.cooking)
@@ -1558,6 +1565,7 @@ export const useSaveStore = defineStore('save', () => {
       inventoryStore.deserialize(payload.inventory)
       farmStore.deserialize(payload.farm)
       if (payload.skill) skillStore.deserialize(payload.skill)
+      potentialStore.deserialize(payload.potential ?? {})
       if (payload.npc) npcStore.deserialize(payload.npc)
       if (payload.mining) miningStore.deserialize(payload.mining)
       if (payload.cooking) cookingStore.deserialize(payload.cooking)

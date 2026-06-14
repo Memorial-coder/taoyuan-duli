@@ -152,7 +152,6 @@ export const useFarmStore = defineStore('farm', () => {
         plot.watered = false
         plot.unwateredDays = 0
         plot.harvestCount = 0
-        plot.fertilizer = null
         plot.giantCropGroup = null
         plot.seedGenetics = null
         plot.infested = false
@@ -173,7 +172,6 @@ export const useFarmStore = defineStore('farm', () => {
       plot.growthDays = 0
       plot.watered = false
       plot.unwateredDays = 0
-      plot.fertilizer = null
       plot.harvestCount = 0
       plot.giantCropGroup = null
       plot.seedGenetics = null
@@ -434,7 +432,6 @@ export const useFarmStore = defineStore('farm', () => {
           plot.growthDays = 0
           plot.watered = false
           plot.unwateredDays = 0
-          plot.fertilizer = null
           plot.harvestCount = 0
           plot.giantCropGroup = null
           plot.seedGenetics = null
@@ -456,7 +453,6 @@ export const useFarmStore = defineStore('farm', () => {
           plot.growthDays = 0
           plot.watered = false
           plot.unwateredDays = 0
-          plot.fertilizer = null
           plot.harvestCount = 0
           plot.giantCropGroup = null
           plot.seedGenetics = null
@@ -493,7 +489,6 @@ export const useFarmStore = defineStore('farm', () => {
           plot.cropId = null
           plot.growthDays = 0
           plot.unwateredDays = 0
-          plot.fertilizer = null
           plot.harvestCount = 0
           plot.giantCropGroup = null
           plot.seedGenetics = null
@@ -610,7 +605,6 @@ export const useFarmStore = defineStore('farm', () => {
     target.growthDays = 0
     target.watered = false
     target.unwateredDays = 0
-    target.fertilizer = null
     target.harvestCount = 0
     target.giantCropGroup = null
     target.seedGenetics = null
@@ -636,7 +630,6 @@ export const useFarmStore = defineStore('farm', () => {
     target.growthDays = 0
     target.watered = false
     target.unwateredDays = 0
-    target.fertilizer = null
     target.harvestCount = 0
     target.giantCropGroup = null
     target.seedGenetics = null
@@ -699,7 +692,6 @@ export const useFarmStore = defineStore('farm', () => {
       gp.growthDays = 0
       gp.watered = false
       gp.unwateredDays = 0
-      gp.fertilizer = null
       gp.harvestCount = 0
       gp.giantCropGroup = null
       gp.seedGenetics = null
@@ -1021,7 +1013,6 @@ export const useFarmStore = defineStore('farm', () => {
         plot.watered = false
         plot.unwateredDays = 0
         plot.harvestCount = 0
-        plot.fertilizer = null
         plot.seedGenetics = null
       } else {
         plot.state = 'growing'
@@ -1035,7 +1026,6 @@ export const useFarmStore = defineStore('farm', () => {
       plot.growthDays = 0
       plot.watered = false
       plot.unwateredDays = 0
-      plot.fertilizer = null
       plot.harvestCount = 0
       plot.seedGenetics = null
     }

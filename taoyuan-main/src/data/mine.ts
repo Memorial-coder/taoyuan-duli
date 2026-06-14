@@ -796,8 +796,10 @@ export const getBombIndices = (center: number, bombId: string): number[] => {
       if (manhattanDistance(center, i) <= 2) indices.push(i)
     }
   } else if (bombId === 'mega_bomb') {
-    // 全部 36 格
-    for (let i = 0; i < GRID_TOTAL; i++) indices.push(i)
+    // 雷火弹：大范围菱形爆破，但不再覆盖整层
+    for (let i = 0; i < GRID_TOTAL; i++) {
+      if (manhattanDistance(center, i) <= 3) indices.push(i)
+    }
   }
 
   return indices

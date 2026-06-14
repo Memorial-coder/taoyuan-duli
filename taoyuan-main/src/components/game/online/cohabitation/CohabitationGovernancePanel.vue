@@ -135,7 +135,7 @@
         <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
           <div v-for="entry in permissionAudits" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
             <p class="text-xs text-text">{{ entry.actor_display_name || entry.actor_username }}</p>
-            <p class="mt-1 text-[0.625rem] text-muted">{{ entry.action }} · {{ formatTime(entry.at) }}</p>
+            <p class="mt-1 text-[0.625rem] text-muted">{{ permissionAuditActionLabel(entry.action) }} · {{ formatTime(entry.at) }}</p>
           </div>
         </div>
       </div>
@@ -220,4 +220,13 @@
     'toggle-permission': [member: PermissionMember, option: PermissionToggleOption]
     'change-role': [member: RoleMember, option: CohabitationFamilyRoleOption]
   }>()
+
+  const permissionAuditActionLabel = (action: string): string => {
+    const labels: Record<string, string> = {
+      permissions_updated: '权限已更新',
+      permissions_default_restored: '默认权限已恢复',
+      family_role_updated: '家族职位已调整',
+    }
+    return labels[action] || '权限记录'
+  }
 </script>

@@ -1947,8 +1947,8 @@
             <div v-if="warehouseLedger.length === 0" class="mt-3 text-xs leading-5 text-muted">还没有共同仓库流水。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in warehouseLedger" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
-                <p class="mt-1 text-[0.625rem] text-muted">{{ entry.item_id }} x{{ entry.quantity }} · {{ formatTime(entry.created_at) }}</p>
+                <p class="text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ warehouseLedgerActionLabel(entry) }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ warehouseLedgerItemLabel(entry) }} x{{ entry.quantity }} · {{ formatTime(entry.created_at) }}</p>
                 <p
                   v-if="entry.withdrawal_risk_level || entry.item_policy"
                   class="mt-1 text-[0.625rem] text-muted"
@@ -2228,7 +2228,7 @@
             <div v-for="entry in fundLedger" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
-                  <p class="truncate text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
+                  <p class="truncate text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ fundLedgerActionLabel(entry) }}</p>
                   <p class="mt-1 text-[0.625rem] text-muted">{{ fundLedgerPurposeLabel(entry) }} · {{ formatTime(entry.created_at) }}</p>
                   <p
                     v-if="hasSimultaneousOnlineBonus(entry.simultaneous_online_bonus)"
@@ -4462,7 +4462,7 @@
       request_real_demolition_review: '请求真实拆除复核',
       record_building_rollback_or_manual_receipt: '记录回滚或人工回执',
     }
-    return labels[action] || action || '待人工收口'
+    return labels[action] || '待人工收口'
   }
   const separationDecorationBuildingSplitReceipts = computed<CohabitationSeparationDecorationBuildingSplitReceipt[]>(() => {
     const receipts = separationExecutionRequest.value?.decoration_building_split_receipts
@@ -5862,7 +5862,7 @@
       warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
     }
-    return labels[action] || action
+    return labels[action] || '补偿审计记录'
   }
   const warehouseOperatorReceiptAuditActionLabel = (action: string) => {
     const labels: Record<string, string> = {
@@ -5870,7 +5870,7 @@
       operator_receipt_disputed: '回执存在争议',
       audit_only: '仅审计归档',
     }
-    return labels[action] || action
+    return labels[action] || '回执审计记录'
   }
   const warehouseManualAppealResolutionActionLabel = (action: string) => {
     const labels: Record<string, string> = {
@@ -5879,14 +5879,14 @@
       manual_appeal_denied: '申诉驳回',
       audit_only: '仅审计归档',
     }
-    return labels[action] || action
+    return labels[action] || '人工申诉记录'
   }
   const warehouseCompensationAuditAppealActionLabel = (action: string) => {
     const labels: Record<string, string> = {
       operator_receipt_audit_review: '回执审计复核',
       manual_appeal_resolution: '人工申诉处理',
     }
-    return labels[action] || action
+    return labels[action] || '补偿复核动作'
   }
   const warehouseCompensationAuditTargetRows = computed(() => {
     const target: Record<string, unknown> = warehouseCompensationAuditBundle.value?.target_save ?? {}
@@ -8093,7 +8093,7 @@
       settle_shared_daily: '共同庄园日结',
       collect_offline_auto_income: '离线自动收益领取',
     }
-    return labels[action] || action
+    return labels[action] || '离线队列动作'
   }
   const offlineQueueResultStatusLabel = (status: string) => {
     if (status === 'committed') return '已提交'
@@ -9283,6 +9283,27 @@
     const base = warehouseSellUnitPrice(item.item_id)
     if (base <= 0) return 0
     return Math.floor(base * warehouseQualitySellMultiplier(item.quality || 'normal'))
+  }
+  const warehouseLedgerActionLabel = (entry: CohabitationWarehouseLedgerEntry) => {
+    const labels: Record<string, string> = {
+      deposit: '放入仓库',
+      withdraw: '取出仓库',
+      sell: '卖出物品',
+      refund: '退回仓库',
+      restore: '恢复仓库',
+    }
+    return labels[entry.action] || '仓库流水'
+  }
+  const warehouseLedgerItemLabel = (entry: CohabitationWarehouseLedgerEntry) =>
+    warehouseItemLabels[entry.item_id] || '未知物品'
+  const fundLedgerActionLabel = (entry: CohabitationFundLedgerEntry) => {
+    const labels: Record<string, string> = {
+      contribute: '注入基金',
+      spend: '基金支出',
+      refund: '基金退款',
+      income: '基金入账',
+    }
+    return labels[entry.action] || '基金流水'
   }
   const fundLedgerPurposeLabel = (entry: CohabitationFundLedgerEntry) => {
     const label = entry.spend_purpose_label || entry.purpose || 'shared_fund'
@@ -11809,7 +11830,7 @@
       reverted: '回滚记录',
       family_building_spend: '建筑支出',
     }
-    return labels[value] || value || '建筑流水'
+    return labels[value] || '建筑流水'
   }
 
   const familyBuildingLedgerStatusLabel = (value: CohabitationFamilyBuildingLedgerEntry['status']) => {
@@ -11912,7 +11933,7 @@
       separation_child_arrangement_resolved: '孩子安排记录',
       separation_personal_family_receipts_written: '家庭回执写入',
     }
-    return labels[action] || action
+    return labels[action] || '共同日志'
   }
 
   const sharedLogKindLabel = (action: string) => {

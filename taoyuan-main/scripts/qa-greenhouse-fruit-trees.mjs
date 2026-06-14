@@ -115,10 +115,18 @@ const { useFarmStore } = await import(pathToFileURL(path.join(srcRoot, 'stores',
 const { GREENHOUSE_FRUIT_TREE_SLOT_COUNT } = await import(pathToFileURL(path.join(srcRoot, 'data', 'fruitTrees.ts')).href)
 
 const farmViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'FarmView.vue'), 'utf8')
+const farmTabNavIndex = farmViewSource.indexOf('<!-- 标签切换 -->')
+const farmFieldTabIndex = farmViewSource.indexOf('<!-- 田庄标签 -->')
+const farmTabNavSource = farmViewSource.slice(farmTabNavIndex, farmFieldTabIndex)
+const farmEntryGridIndex = farmViewSource.indexOf('data-testid="shipping-box-entry"')
+const shippingBoxModalIndex = farmViewSource.indexOf('<!-- 出货箱弹窗 -->')
+const farmEntryGridSource = farmViewSource.slice(farmEntryGridIndex, shippingBoxModalIndex)
 const greenhouseModalIndex = farmViewSource.indexOf('v-if="showGreenhouseModal"')
 const chopFruitTreeModalIndex = farmViewSource.indexOf('<!-- 砍伐果树确认弹窗 -->')
 const scriptSetupIndex = farmViewSource.indexOf('<script setup')
 
+assert(farmTabNavSource.includes('data-testid="farm-greenhouse-tab"'), '温室入口应放在农场页顶部页签栏，与林木相邻。')
+assert(!farmEntryGridSource.includes('showGreenhouseModal'), '田庄内容区不应再保留单独温室入口卡片，避免和顶部页签重复。')
 assert(greenhouseModalIndex >= 0, '农场页应保留温室弹窗。')
 assert(chopFruitTreeModalIndex > greenhouseModalIndex, '砍伐果树确认弹窗应挂在温室弹窗之后，避免温室内点击果树后被页签或弹窗层级挡住。')
 assert(chopFruitTreeModalIndex < scriptSetupIndex, '砍伐果树确认弹窗应位于 template 内。')

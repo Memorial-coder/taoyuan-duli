@@ -199,42 +199,104 @@
         </div>
         <div v-if="randomNpcBoard.relationshipMilestoneAudit.length > 0" class="border border-warning/20 rounded-xs p-2 mt-2 bg-warning/5" data-testid="random-npc-relationship-audit">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <p class="text-[0.625rem] text-warning">随机 NPC 关系审计</p>
+            <p class="text-[0.625rem] text-warning">随机来访关系回看</p>
             <span class="text-[0.625rem] text-muted">最近 {{ randomNpcBoard.relationshipMilestoneAudit.length }}/24 条 · 本地存档</span>
           </div>
+          <p class="text-[0.625rem] text-muted leading-4">
+            本地存档已保留关键关系节点，用于读档后防止重复推进；普通游玩不会公开这些记录。
+          </p>
           <div
-            v-for="entry in randomNpcBoard.relationshipMilestoneAudit.slice(-6).reverse()"
+            v-for="entry in recentRelationshipMilestoneAuditEntries"
             :key="entry.id"
-            class="text-[0.625rem] border-t border-warning/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
+            class="text-[0.625rem] border-t border-warning/10 py-1 mt-1 first:border-t-0 first:pt-0 last:pb-0"
             :data-testid="`random-npc-relationship-audit-${entry.action}`"
           >
             <div class="flex items-start justify-between gap-2">
-              <p class="text-warning min-w-0">{{ entry.dayTag }} · {{ entry.npcName }} · {{ entry.action }}</p>
-              <span class="text-muted shrink-0">{{ entry.privacyScope }}</span>
+              <p class="text-warning min-w-0">{{ entry.dayTag }} · {{ entry.npcName }}</p>
+              <span class="text-muted shrink-0">{{ getRandomNpcRelationshipAuditActionLabel(entry.action) }}</span>
             </div>
-            <p class="text-muted leading-4">{{ entry.summary }}</p>
-            <p class="text-muted/80 leading-4 mt-0.5">{{ entry.targetRef }} · {{ entry.idempotencyKey }}</p>
+            <p class="text-muted leading-4">{{ getRandomNpcRelationshipAuditSummary(entry) }}</p>
+            <OnlineTechnicalDetails
+              v-if="saveStore.isBuiltInSampleRuntime"
+              class="mt-1"
+              title="关系审计技术详情"
+              summary="样例档和 QA 回看时用于核对本地存档节点，默认不进入玩家主信息层。"
+              tone="warning"
+              :copyable="[entry.id, entry.action, entry.targetRef, entry.idempotencyKey]"
+            >
+              <dl class="grid gap-1" data-testid="random-npc-relationship-audit-technical-detail">
+                <div>
+                  <dt class="text-accent">action</dt>
+                  <dd class="break-all">{{ entry.action }}</dd>
+                </div>
+                <div>
+                  <dt class="text-accent">targetRef</dt>
+                  <dd class="break-all">{{ entry.targetRef }}</dd>
+                </div>
+                <div>
+                  <dt class="text-accent">idempotencyKey</dt>
+                  <dd class="break-all">{{ entry.idempotencyKey }}</dd>
+                </div>
+                <div>
+                  <dt class="text-accent">privacyScope</dt>
+                  <dd class="break-all">{{ entry.privacyScope }}</dd>
+                </div>
+              </dl>
+            </OnlineTechnicalDetails>
           </div>
         </div>
       </div>
 
       <div v-if="randomNpcBoard.generationAnomalyAudit.length > 0" class="border border-danger/20 rounded-xs p-2 mb-3 bg-danger/5" data-testid="random-npc-generation-anomaly-audit">
         <div class="flex items-center justify-between gap-2 mb-1">
-          <p class="text-[0.625rem] text-danger">随机 NPC 生成审计</p>
+          <p class="text-[0.625rem] text-danger">随机来访存档修复</p>
           <span class="text-[0.625rem] text-muted">最近 {{ randomNpcBoard.generationAnomalyAudit.length }}/12 条 · 本地存档</span>
         </div>
+        <p class="text-[0.625rem] text-muted leading-4">
+          读档时发现来访记录数量或模板引用异常，系统已按本地护栏收束到安全范围。
+        </p>
         <div
-          v-for="entry in randomNpcBoard.generationAnomalyAudit.slice(-4).reverse()"
+          v-for="entry in recentGenerationAnomalyAuditEntries"
           :key="entry.id"
-          class="text-[0.625rem] border-t border-danger/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
+          class="text-[0.625rem] border-t border-danger/10 py-1 mt-1 first:border-t-0 first:pt-0 last:pb-0"
           :data-testid="`random-npc-generation-anomaly-${entry.action}`"
         >
           <div class="flex items-start justify-between gap-2">
-            <p class="text-danger min-w-0">{{ entry.weekId || entry.dayTag }} · {{ entry.action }} · {{ entry.observedCount }}/{{ entry.limit }}</p>
-            <span class="text-muted shrink-0">{{ entry.privacyScope }}</span>
+            <p class="text-danger min-w-0">{{ entry.weekId || entry.dayTag }} · {{ getRandomNpcGenerationAnomalyActionLabel(entry.action) }}</p>
+            <span class="text-muted shrink-0">{{ entry.observedCount }}/{{ entry.limit }}</span>
           </div>
-          <p class="text-muted leading-4">{{ entry.summary }}</p>
-          <p class="text-muted/80 leading-4 mt-0.5">{{ entry.visitorIds.join('、') || entry.templateIds.join('、') }} · {{ entry.idempotencyKey }}</p>
+          <p class="text-muted leading-4">{{ getRandomNpcGenerationAnomalySummary(entry) }}</p>
+          <OnlineTechnicalDetails
+            v-if="saveStore.isBuiltInSampleRuntime"
+            class="mt-1"
+            title="生成修复技术详情"
+            summary="样例档和 QA 回看时用于核对本地修复证据，默认不进入玩家主信息层。"
+            tone="danger"
+            :copyable="[entry.id, entry.action, entry.idempotencyKey]"
+          >
+            <dl class="grid gap-1" data-testid="random-npc-generation-anomaly-technical-detail">
+              <div>
+                <dt class="text-accent">action</dt>
+                <dd class="break-all">{{ entry.action }}</dd>
+              </div>
+              <div>
+                <dt class="text-accent">visitorIds</dt>
+                <dd class="break-all">{{ entry.visitorIds.join('、') || '无' }}</dd>
+              </div>
+              <div>
+                <dt class="text-accent">templateIds</dt>
+                <dd class="break-all">{{ entry.templateIds.join('、') || '无' }}</dd>
+              </div>
+              <div>
+                <dt class="text-accent">idempotencyKey</dt>
+                <dd class="break-all">{{ entry.idempotencyKey }}</dd>
+              </div>
+              <div>
+                <dt class="text-accent">privacyScope</dt>
+                <dd class="break-all">{{ entry.privacyScope }}</dd>
+              </div>
+            </dl>
+          </OnlineTechnicalDetails>
         </div>
       </div>
 
@@ -975,14 +1037,35 @@
                   <p class="text-[0.625rem] text-muted">家族节点</p>
                   <span class="text-[0.625rem] text-accent">本地 {{ selectedRandomNpcResident.familyTies.length }}/4</span>
                 </div>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-1">
+                  家族节点有什么用：先见面建立家族评价，见过节点后才会点亮家人线、家族委托和核心深线；深线会按节点类型给材料奖励，并把这段关系写进本地记录。
+                </p>
+                <div class="grid grid-cols-3 gap-1 mt-2">
+                  <div class="border border-accent/10 rounded-xs px-2 py-1">
+                    <p class="text-[0.625rem] text-muted">见面进度</p>
+                    <p class="text-[0.625rem] text-accent">{{ getRandomNpcFamilyMeetingSummary(selectedRandomNpcResident) }}</p>
+                  </div>
+                  <div class="border border-accent/10 rounded-xs px-2 py-1">
+                    <p class="text-[0.625rem] text-muted">深线进度</p>
+                    <p class="text-[0.625rem] text-accent">{{ getRandomNpcFamilySpecialSummary(selectedRandomNpcResident) }}</p>
+                  </div>
+                  <div class="border border-accent/10 rounded-xs px-2 py-1">
+                    <p class="text-[0.625rem] text-muted">当前作用</p>
+                    <p class="text-[0.625rem] text-accent">{{ getRandomNpcFamilyCurrentUseSummary(selectedRandomNpcResident) }}</p>
+                  </div>
+                </div>
                 <div class="mt-1 space-y-1">
                   <div
                     v-for="tie in selectedRandomNpcResident.familyTies"
                     :key="`${selectedRandomNpcResident.residentId}-${tie.id}`"
                     class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
-                    <p class="text-accent">{{ getRandomNpcFamilyTieKindLabel(tie.kind) }} · {{ tie.relation }} · {{ tie.name }}</p>
+                    <div class="flex items-start justify-between gap-2">
+                      <p class="text-accent">{{ getRandomNpcFamilyTieKindLabel(tie.kind) }} · {{ tie.relation }} · {{ tie.name }}</p>
+                      <span class="shrink-0 text-muted">{{ getRandomNpcFamilyTieProgressText(selectedRandomNpcResident, tie) }}</span>
+                    </div>
                     <p class="text-muted leading-4">{{ tie.summary }}（{{ getRandomNpcFamilyTieAttitudeLabel(tie.attitude) }}）</p>
+                    <p class="text-accent/80 leading-4 mt-0.5">用途：{{ getRandomNpcFamilyTieUtilityText(selectedRandomNpcResident, tie) }}</p>
                   </div>
                 </div>
               </div>
@@ -992,6 +1075,9 @@
                   <span class="text-[0.625rem] text-accent">评价 {{ selectedRandomNpcResident.familyLine.reputation }}/100</span>
                 </div>
                 <p class="text-[0.625rem] text-accent/90 leading-4 mt-1">{{ selectedRandomNpcResident.familyLine.lastReview }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">
+                  评价会影响家人线、订婚和婚后家业门槛；按钮灰掉时，按钮文字就是下一步卡点。
+                </p>
                 <div class="grid grid-cols-2 gap-1 mt-2">
                   <Button
                     v-for="tie in selectedRandomNpcResident.familyTies"
@@ -1008,6 +1094,9 @@
                 </p>
                 <div v-if="getSpecialFamilyTies(selectedRandomNpcResident).length > 0" class="border-t border-accent/10 mt-2 pt-2">
                   <p class="text-[0.625rem] text-accent">核心家族深线</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">
+                    已见过的核心节点才可推进深线；每段给对应材料，若已开启家人线还会追加差异奖励。
+                  </p>
                   <div class="grid grid-cols-1 gap-1 mt-1">
                     <Button
                       v-for="tie in getSpecialFamilyTies(selectedRandomNpcResident)"
@@ -2163,6 +2252,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
@@ -2201,7 +2291,9 @@
     RandomNpcRelationLineKind,
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
+    RandomNpcGenerationAnomalyEntry,
     RandomNpcRelationshipDirection,
+    RandomNpcRelationshipMilestoneAuditEntry,
     RandomNpcRelationshipGrowthPreviewEntry,
     RandomNpcRelationshipSignals,
     RandomNpcRelationshipTag,
@@ -2220,6 +2312,7 @@
   import HiddenNpcModal from '@/components/game/HiddenNpcModal.vue'
   import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
   import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import type { DiscoveryStep } from '@/types/hiddenNpc'
   import type { DiscoveryCondition } from '@/types/hiddenNpc'
 
@@ -2229,6 +2322,7 @@
   const cookingStore = useCookingStore()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
+  const saveStore = useSaveStore()
   const tutorialStore = useTutorialStore()
   const hiddenNpcStore = useHiddenNpcStore()
   const villageProjectStore = useVillageProjectStore()
@@ -2265,6 +2359,8 @@
     return project ? npcStore.getZhijiProjectChainPreview(project.projectId, project.npcId) : null
   })
   const randomNpcBoard = computed(() => npcStore.getRandomNpcBoard())
+  const recentRelationshipMilestoneAuditEntries = computed(() => randomNpcBoard.value.relationshipMilestoneAudit.slice(-6).reverse())
+  const recentGenerationAnomalyAuditEntries = computed(() => randomNpcBoard.value.generationAnomalyAudit.slice(-4).reverse())
   const randomNpcAcquaintanceThreshold = RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold
   const randomNpcMaxAcquaintances = RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
   const randomNpcLongStayThreshold = RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold
@@ -2618,6 +2714,18 @@
     distant: '疏远',
     burdened: '牵挂'
   } as const
+  const RANDOM_NPC_FAMILY_TIE_UTILITY_TEXT: Record<RandomNpcFamilyTieKind, { effect: string; reward: string }> = {
+    parent: { effect: '抬高家族认可，支撑家人线与婚约判断', reward: '草药、蜂蜜' },
+    sibling: { effect: '补足手足认可，让关系线更像被家里接住', reward: '纸张、野果' },
+    distant_relative: { effect: '打开旧家往来，补远亲消息和人情边界', reward: '纸张、木材、翡翠' },
+    mentor: { effect: '证明你尊重师门来处，推进手艺与家族印象', reward: '竹子、药材干' },
+    caravan: { effect: '接住外路担保，让商路、人情账和消息有来源', reward: '西域香料、丝绸' },
+    old_debt: { effect: '把旧债从心结变成可处理的阶段记录', reward: '草药、药材干、翡翠' },
+    family_business: { effect: '连接婚后家业与旧业小账，给后续经营留口', reward: '纸张、竹子、布匹' },
+    sworn_kin: { effect: '确认义亲边界，稳住结拜与家人线的托付感', reward: '布匹、待客清茶' },
+    old_flame: { effect: '收束前缘边界，避免旧情压住新关系', reward: '待客清茶' },
+    child: { effect: '给孩子兴趣影响和家庭记录提供来处', reward: '本地成长记录' }
+  }
   const RANDOM_NPC_RELATION_LINE_LABELS: Record<RandomNpcRelationLineKind, string> = {
     friend: '只做朋友',
     family: '家人线',
@@ -2657,6 +2765,101 @@
     RANDOM_NPC_FAMILY_TIE_ATTITUDE_LABELS[attitude]
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string =>
     RANDOM_NPC_RELATION_LINE_LABELS[kind]
+  const getRandomNpcAuditFamilyTieLabel = (kind?: RandomNpcFamilyTieKind): string =>
+    kind ? getRandomNpcFamilyTieKindLabel(kind) : '家族'
+  const getRandomNpcAuditRelationLineLabel = (kind?: RandomNpcRelationLineKind): string =>
+    kind ? getRandomNpcRelationLineLabel(kind) : '关系线'
+  const getRandomNpcRelationshipAuditActionLabel = (action: RandomNpcRelationshipMilestoneAuditEntry['action']): string => {
+    switch (action) {
+      case 'acquaintance_added':
+        return '加入熟人册'
+      case 'long_stay_promoted':
+        return '转为长住'
+      case 'long_stay_story_progressed':
+        return '记忆推进'
+      case 'family_tie_met':
+        return '家族节点见面'
+      case 'family_special_event_progressed':
+        return '家庭事件推进'
+      case 'family_commission_fulfilled':
+        return '家族委托完成'
+      case 'relation_line_started':
+        return '关系线开启'
+      case 'relation_line_severed':
+        return '关系线收束'
+      case 'relation_line_engaged':
+        return '婚约记录'
+      case 'relation_line_married':
+        return '成婚记录'
+      case 'married_life_recorded':
+        return '婚后日常'
+      case 'family_business_progressed':
+        return '婚后家业'
+      case 'child_family_influence_applied':
+        return '孩子兴趣影响'
+      case 'child_family_event_progressed':
+        return '孩子家庭事件'
+    }
+  }
+  const getRandomNpcRelationshipAuditSummary = (entry: RandomNpcRelationshipMilestoneAuditEntry): string => {
+    const stageText = typeof entry.stage === 'number' && entry.stage > 0 ? `第 ${entry.stage} 阶段` : '关键节点'
+    const relationLineLabel = getRandomNpcAuditRelationLineLabel(entry.relationLineKind)
+    const familyTieLabel = getRandomNpcAuditFamilyTieLabel(entry.familyTieKind)
+    switch (entry.action) {
+      case 'acquaintance_added':
+        return `${entry.npcName} 已加入熟人册，后续来访会保留旧识线索。`
+      case 'long_stay_promoted':
+        return `${entry.npcName} 已转为长住居民，关系线进入可持续推进状态。`
+      case 'long_stay_story_progressed':
+        return `${entry.npcName} 的长住记忆已推进到${stageText}。`
+      case 'family_tie_met':
+        return `${entry.npcName} 已见过${familyTieLabel}相关人物，家族印象推进到${stageText}。`
+      case 'family_special_event_progressed':
+        return `${entry.npcName} 的${familyTieLabel}家庭事件推进到${stageText}。`
+      case 'family_commission_fulfilled':
+        return `${entry.npcName} 的${familyTieLabel}家族委托已完成，并写入本地关系回看。`
+      case 'relation_line_started':
+        return `${entry.npcName} 的${relationLineLabel}已开启。`
+      case 'relation_line_severed':
+        return `${entry.npcName} 的关系线已收束，旧识记录仍会保留。`
+      case 'relation_line_engaged':
+        return `${entry.npcName} 的婚约节点已记录。`
+      case 'relation_line_married':
+        return `${entry.npcName} 的成婚节点已记录。`
+      case 'married_life_recorded':
+        return `${entry.npcName} 的婚后日常已记录到${relationLineLabel}。`
+      case 'family_business_progressed':
+        return `${entry.npcName} 的婚后家业推进到${stageText}。`
+      case 'child_family_influence_applied':
+        return `孩子兴趣已受到 ${entry.npcName} 的家族来处影响。`
+      case 'child_family_event_progressed':
+        return `孩子家庭事件已随 ${entry.npcName} 的家族线推进到${stageText}。`
+    }
+  }
+  const getRandomNpcGenerationAnomalyActionLabel = (action: RandomNpcGenerationAnomalyEntry['action']): string => {
+    switch (action) {
+      case 'active_visitor_overflow':
+        return '来访人数超限'
+      case 'duplicate_visitor_id':
+        return '重复来访编号'
+      case 'invalid_template_reference':
+        return '模板引用异常'
+      case 'weekly_generation_overflow':
+        return '本周生成超限'
+    }
+  }
+  const getRandomNpcGenerationAnomalySummary = (entry: RandomNpcGenerationAnomalyEntry): string => {
+    switch (entry.action) {
+      case 'active_visitor_overflow':
+        return `当前来访记录超过上限，已收束为最多 ${entry.limit} 名可用来访者。`
+      case 'duplicate_visitor_id':
+        return `发现重复来访编号，已按本地存档护栏去重。`
+      case 'invalid_template_reference':
+        return `发现不可用的来访模板引用，已跳过异常模板并保留可恢复记录。`
+      case 'weekly_generation_overflow':
+        return `本周生成记录超过上限，已保留最近 ${entry.limit} 条安全记录。`
+    }
+  }
   const getRandomNpcRelationshipSignalText = (signals: RandomNpcRelationshipSignals): string => {
     const entries = (Object.keys(RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS) as RandomNpcRelationshipDirection[])
       .map(direction => ({ direction, value: signals?.[direction] ?? 0 }))
@@ -2712,24 +2915,59 @@
   }
   const canMeetRandomNpcFamilyTie = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canMeetRandomNpcFamilyTie(resident.residentId, tieId)
+  const isRandomNpcSpecialFamilyTieKind = (kind: RandomNpcFamilyTieKind): boolean =>
+    kind === 'parent' ||
+    kind === 'sibling' ||
+    kind === 'distant_relative' ||
+    kind === 'mentor' ||
+    kind === 'caravan' ||
+    kind === 'old_debt' ||
+    kind === 'family_business' ||
+    kind === 'sworn_kin' ||
+    kind === 'old_flame'
   const getSpecialFamilyTies = (resident: RandomNpcLongStayEntry): RandomNpcFamilyTieDef[] =>
-    resident.familyTies.filter(tie =>
-      tie.kind === 'parent' ||
-      tie.kind === 'sibling' ||
-      tie.kind === 'distant_relative' ||
-      tie.kind === 'mentor' ||
-      tie.kind === 'caravan' ||
-      tie.kind === 'old_debt' ||
-      tie.kind === 'family_business' ||
-      tie.kind === 'sworn_kin' ||
-      tie.kind === 'old_flame'
-    )
+    resident.familyTies.filter(tie => isRandomNpcSpecialFamilyTieKind(tie.kind))
   const canProgressRandomNpcFamilySpecialEvent = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canProgressRandomNpcFamilySpecialEvent(resident.residentId, tieId)
   const getRandomNpcFamilyMeetingStage = (resident: RandomNpcLongStayEntry, tieId: string): 0 | 1 | 2 | 3 =>
     resident.familyLine.familyMeetingStages?.[tieId] ?? (resident.familyLine.metTieIds.includes(tieId) ? 1 : 0)
   const getRandomNpcFamilySpecialStage = (resident: RandomNpcLongStayEntry, tieId: string): 0 | 1 | 2 | 3 =>
     resident.familyLine.specialTieEventStages?.[tieId] ?? 0
+  const getRandomNpcFamilyMeetingSummary = (resident: RandomNpcLongStayEntry): string => {
+    const total = resident.familyTies.length * 3
+    const completed = resident.familyTies.reduce((sum, tie) => sum + getRandomNpcFamilyMeetingStage(resident, tie.id), 0)
+    return `${completed}/${total}`
+  }
+  const getRandomNpcFamilySpecialSummary = (resident: RandomNpcLongStayEntry): string => {
+    const specialTies = getSpecialFamilyTies(resident)
+    if (specialTies.length <= 0) return '无核心节点'
+    const total = specialTies.length * 3
+    const completed = specialTies.reduce((sum, tie) => sum + getRandomNpcFamilySpecialStage(resident, tie.id), 0)
+    return `${completed}/${total}`
+  }
+  const getRandomNpcFamilyCurrentUseSummary = (resident: RandomNpcLongStayEntry): string => {
+    const metCount = resident.familyTies.filter(tie => getRandomNpcFamilyMeetingStage(resident, tie.id) > 0).length
+    if (metCount <= 0) return '先见任一节点'
+    if (resident.relationshipLine.kind === 'family' && resident.relationshipLine.stage > 0) return '家人线加赠'
+    if (resident.familyLine.reputation >= 60) return '可撑婚后家业'
+    if (resident.familyLine.reputation >= 55) return '可撑订婚评价'
+    return '继续涨评价'
+  }
+  const getRandomNpcFamilyTieProgressText = (resident: RandomNpcLongStayEntry, tie: RandomNpcFamilyTieDef): string => {
+    const meetingStage = getRandomNpcFamilyMeetingStage(resident, tie.id)
+    if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return `见面 ${meetingStage}/3`
+    return `见面 ${meetingStage}/3 · 深线 ${getRandomNpcFamilySpecialStage(resident, tie.id)}/3`
+  }
+  const getRandomNpcFamilyTieUtilityText = (resident: RandomNpcLongStayEntry, tie: RandomNpcFamilyTieDef): string => {
+    const utility = RANDOM_NPC_FAMILY_TIE_UTILITY_TEXT[tie.kind]
+    const meetingStage = getRandomNpcFamilyMeetingStage(resident, tie.id)
+    const specialStage = getRandomNpcFamilySpecialStage(resident, tie.id)
+    if (meetingStage <= 0) return `${utility.effect}；先见过这个节点。`
+    if (isRandomNpcSpecialFamilyTieKind(tie.kind) && specialStage < 3) {
+      return `${utility.effect}；深线奖励：${utility.reward}；下一段 ${specialStage + 1}/3。`
+    }
+    return `${utility.effect}；已可作为关系回看和后续门槛依据。`
+  }
   const getRandomNpcFamilyMeetingButtonText = (
     resident: RandomNpcLongStayEntry,
     tieId: string,

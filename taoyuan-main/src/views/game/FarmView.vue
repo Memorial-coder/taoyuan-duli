@@ -18,6 +18,16 @@
       >
         林木
       </Button>
+      <Button
+        v-if="showGreenhouse"
+        data-testid="farm-greenhouse-tab"
+        class="flex-1 justify-center"
+        :class="{ '!bg-accent !text-bg': showGreenhouseModal }"
+        :icon="Warehouse"
+        @click="showGreenhouseModal = true"
+      >
+        温室
+      </Button>
     </div>
 
     <!-- 田庄标签 -->
@@ -548,20 +558,6 @@
           </div>
           <span v-if="shippingBoxTotal > 0" class="text-xs text-accent">≈{{ shippingBoxTotal }}文</span>
           <span v-else class="text-xs text-muted">空</span>
-        </div>
-
-        <!-- 温室入口 -->
-        <div
-          v-if="showGreenhouse"
-          class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-          @click="showGreenhouseModal = true"
-        >
-          <div class="flex items-center space-x-1.5">
-            <Warehouse :size="14" class="text-accent" />
-            <span class="text-sm text-accent">温室</span>
-            <span v-if="ghHarvestableCount > 0" class="text-xs text-accent">{{ ghHarvestableCount }}块可收获</span>
-          </div>
-          <span class="text-xs text-muted">{{ farmStore.greenhousePlots.length }}块地 · 果树{{ ghFruitTreeCount }}/{{ GREENHOUSE_FRUIT_TREE_SLOT_COUNT }}</span>
         </div>
       </div>
 

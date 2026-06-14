@@ -293,8 +293,11 @@ for (const action of [
   assertIncludes(useNpcStore, `action: '${action}'`, `random NPC relationship audit missing action ${action}`)
 }
 assertIncludes(npcView, 'random-npc-relationship-audit', 'NPC page must read back random NPC relationship audit panel')
-assertIncludes(npcView, 'randomNpcBoard.relationshipMilestoneAudit.slice(-6).reverse()', 'NPC page must only show recent relationship audit rows')
-assertIncludes(npcView, 'entry.idempotencyKey', 'NPC page relationship audit must read back idempotency key')
+assertIncludes(npcView, 'recentRelationshipMilestoneAuditEntries', 'NPC page must only show recent relationship audit rows')
+assertIncludes(npcView, 'getRandomNpcRelationshipAuditSummary(entry)', 'NPC page relationship audit must expose player-readable summaries')
+assertIncludes(npcView, 'saveStore.isBuiltInSampleRuntime', 'NPC page relationship audit technical rows must be limited to built-in sample runtime')
+assertIncludes(npcView, 'random-npc-relationship-audit-technical-detail', 'NPC page relationship audit must keep technical evidence in folded details')
+assertIncludes(npcView, 'entry.idempotencyKey', 'NPC page relationship audit technical detail must read back idempotency key')
 
 assertIncludes(npcTypes, 'export interface RandomNpcGenerationAnomalyEntry', 'random NPC generation anomaly audit must expose structured entries')
 for (const field of [
@@ -321,7 +324,9 @@ assertIncludes(useNpcStore, "action: 'duplicate_visitor_id'", 'random NPC save l
 assertIncludes(useNpcStore, "action: 'invalid_template_reference'", 'random NPC save load must audit invalid template references')
 assertIncludes(useNpcStore, "action: 'weekly_generation_overflow'", 'random NPC weekly generation must audit generation overflow')
 assertIncludes(npcView, 'random-npc-generation-anomaly-audit', 'NPC page must read back random NPC generation anomaly audit panel')
-assertIncludes(npcView, 'randomNpcBoard.generationAnomalyAudit.slice(-4).reverse()', 'NPC page must only show recent generation anomaly audit rows')
+assertIncludes(npcView, 'recentGenerationAnomalyAuditEntries', 'NPC page must only show recent generation anomaly audit rows')
+assertIncludes(npcView, 'getRandomNpcGenerationAnomalySummary(entry)', 'NPC page generation anomaly audit must expose player-readable summaries')
+assertIncludes(npcView, 'random-npc-generation-anomaly-technical-detail', 'NPC page generation anomaly audit must keep technical evidence in folded details')
 
 const collectFiles = async (root, extensions) => {
   const entries = await readdir(root, { withFileTypes: true })

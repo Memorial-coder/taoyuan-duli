@@ -66,6 +66,68 @@ const getCrabPotLimitForFishingLevel = (level: number): number => {
   return BASE_CRAB_POTS_LIMIT
 }
 
+export const FISH_GOD_BASE_LEGENDARY_WEIGHT = 3.5
+export const FISH_GOD_LEGENDARY_SHARE_CAP = 0.45
+export const FISH_GOD_TARGETED_LEGENDARY_SHARE_CAP = 0.5
+export const FISH_GOD_PITY_START = 4
+export const FISH_GOD_PITY_STEP = 0.08
+export const FISH_GOD_PITY_CAP_BONUS = 0.16
+export const FISH_GOD_LEGENDARY_SHARE_HARD_CAP = 0.58
+export const FISH_GOD_COOLDOWN_CASTS = 2
+export const FISH_GOD_COOLDOWN_MULTIPLIER = 0.45
+export const FISH_GOD_MISS_STREAK_CAP = 8
+export const LUREMASTER_BAIT_EFFECT_MULTIPLIER = 2
+export const BAIT_MASTER_BAIT_EFFECT_MULTIPLIER = 4
+export const LURE_DEITY_BAIT_EFFECT_MULTIPLIER = 8
+
+export const getFishingBaitEffectMultiplier = (skill: { perk10?: string | null; perk15?: string | null; perk20?: string | null }): number => {
+  if (skill.perk20 === 'lure_deity') return LURE_DEITY_BAIT_EFFECT_MULTIPLIER
+  if (skill.perk15 === 'bait_master') return BAIT_MASTER_BAIT_EFFECT_MULTIPLIER
+  if (skill.perk10 === 'luremaster') return LUREMASTER_BAIT_EFFECT_MULTIPLIER
+  return 1
+}
+
+export const applyFishingBaitWeightMultiplier = (baseMultiplier: number | undefined, baitEffectMultiplier: number): number => {
+  const base = Number.isFinite(Number(baseMultiplier)) ? Number(baseMultiplier) : 1
+  const effect = Number.isFinite(Number(baitEffectMultiplier)) ? Math.max(1, Number(baitEffectMultiplier)) : 1
+  return 1 + Math.max(0, base - 1) * effect
+}
+
+export const getFishGodLegendaryShareCap = (hasTargetedBait: boolean, missStreak: number): number => {
+  const baseCap = hasTargetedBait ? FISH_GOD_TARGETED_LEGENDARY_SHARE_CAP : FISH_GOD_LEGENDARY_SHARE_CAP
+  const pitySteps = Math.max(0, Math.floor(missStreak) - FISH_GOD_PITY_START + 1)
+  const pityBonus = Math.min(FISH_GOD_PITY_CAP_BONUS, pitySteps * FISH_GOD_PITY_STEP)
+  return Math.min(FISH_GOD_LEGENDARY_SHARE_HARD_CAP, baseCap + pityBonus)
+}
+
+export const getFishGodLegendaryPressureMultiplier = (cooldownCasts: number, missStreak: number): number => {
+  const cooldownMult = cooldownCasts > 0 ? FISH_GOD_COOLDOWN_MULTIPLIER : 1
+  const pitySteps = Math.max(0, Math.floor(missStreak) - FISH_GOD_PITY_START + 1)
+  const pityMult = 1 + Math.min(0.48, pitySteps * 0.12)
+  return cooldownMult * pityMult
+}
+
+export const capLegendaryWeightShare = <T extends { difficulty: FishDef['difficulty'] }>(
+  fishPool: readonly T[],
+  weights: readonly number[],
+  legendaryShareCap: number
+): number[] => {
+  const cap = Math.min(1, Math.max(0, legendaryShareCap))
+  if (cap >= 1) return [...weights]
+  let legendaryWeight = 0
+  let otherWeight = 0
+  for (let i = 0; i < weights.length; i++) {
+    const weight = Math.max(0, weights[i] ?? 0)
+    if (fishPool[i]?.difficulty === 'legendary') legendaryWeight += weight
+    else otherWeight += weight
+  }
+  if (legendaryWeight <= 0 || otherWeight <= 0) return [...weights]
+  const maxLegendaryWeight = otherWeight * (cap / (1 - cap))
+  if (legendaryWeight <= maxLegendaryWeight) return [...weights]
+  const scale = maxLegendaryWeight / legendaryWeight
+  return weights.map((weight, index) => (fishPool[index]?.difficulty === 'legendary' ? weight * scale : weight))
+}
+
 /** 蟹笼产物池 */
 const CRAB_POT_LOOT: { itemId: string; weight: number; locationOverride?: FishingLocation; replaces?: string }[] = [
   { itemId: 'snail', weight: 20 },
@@ -151,10 +213,44 @@ export const useFishingStore = defineStore('fishing', () => {
   const fishingLocation = ref<FishingLocation>('creek')
   const tideNotebookCastLocation = ref<FishingLocation | null>(null)
   const tideNotebookCastStreak = ref(0)
+  const fishGodPressureKey = ref('')
+  const fishGodLegendaryMissStreak = ref(0)
+  const fishGodLegendaryCooldownCasts = ref(0)
+
+  const getFishGodPressureKey = () => `${gameStore.year}:${gameStore.season}:${gameStore.day}:${fishingLocation.value}`
+
+  const resetFishGodPressure = () => {
+    fishGodPressureKey.value = getFishGodPressureKey()
+    fishGodLegendaryMissStreak.value = 0
+    fishGodLegendaryCooldownCasts.value = 0
+  }
+
+  const syncFishGodPressure = () => {
+    if (fishGodPressureKey.value !== getFishGodPressureKey()) {
+      resetFishGodPressure()
+    }
+  }
+
+  const recordFishGodFishSelection = (fish: FishDef, hasEligibleLegendaryFish: boolean) => {
+    syncFishGodPressure()
+    if (skillStore.getSkill('fishing').perk20 !== 'fish_god' || !hasEligibleLegendaryFish) {
+      fishGodLegendaryMissStreak.value = 0
+      fishGodLegendaryCooldownCasts.value = Math.max(0, fishGodLegendaryCooldownCasts.value - 1)
+      return
+    }
+    if (fish.difficulty === 'legendary') {
+      fishGodLegendaryMissStreak.value = 0
+      fishGodLegendaryCooldownCasts.value = FISH_GOD_COOLDOWN_CASTS
+      return
+    }
+    fishGodLegendaryMissStreak.value = Math.min(FISH_GOD_MISS_STREAK_CAP, fishGodLegendaryMissStreak.value + 1)
+    fishGodLegendaryCooldownCasts.value = Math.max(0, fishGodLegendaryCooldownCasts.value - 1)
+  }
 
   /** 切换钓鱼地点 */
   const setLocation = (loc: FishingLocation) => {
     fishingLocation.value = loc
+    resetFishGodPressure()
   }
 
   const recordTideNotebookCast = (): number => {
@@ -357,7 +453,7 @@ export const useFishingStore = defineStore('fishing', () => {
       return { success: false, message: '体力不足，无法钓鱼。' }
     }
 
-    const lureDietyActive = _fishingSkill.perk20 === 'lure_deity' || _fishingSkill.perk15 === 'bait_master'
+    const baitConservationActive = _fishingSkill.perk20 === 'lure_deity' || _fishingSkill.perk15 === 'bait_master'
     const equippedBaitId = equippedBait.value
     let baitDef: BaitDef | null = equippedBaitId ? (getBaitById(equippedBaitId) ?? null) : null
     const previewFishPool = getFishPoolForBait(baitDef)
@@ -369,7 +465,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
     let consumedBaitId: BaitType | null = null
     let shouldRestoreEquippedBait = false
-    if (equippedBaitId && baitDef && !lureDietyActive) {
+    if (equippedBaitId && baitDef && !baitConservationActive) {
       if (!inventoryStore.removeItem(equippedBaitId, 1)) {
         equippedBait.value = null
         baitDef = null
@@ -546,11 +642,12 @@ export const useFishingStore = defineStore('fishing', () => {
     const fishingSkill = skillStore.getSkill('fishing')
     const hasAngler = fishingSkill.perk10 === 'angler'
     const hasLegendaryAngler = fishingSkill.perk15 === 'legendary_angler' || fishingSkill.perk15 === 'aquatic_merchant'
-    const hasFishGod = fishingSkill.perk20 === 'fish_god' || fishingSkill.perk20 === 'ocean_trader'
-    // 定向鱼饵权重倍率（诱饵宗师：效果翻倍）
-    const baitMasterMult = fishingSkill.perk15 === 'bait_master' ? 2 : 1
-    const hardMult = ((activeBaitDef.value?.hardWeightMult ?? 1) - 1) * baitMasterMult + 1
-    const legendaryMult = ((activeBaitDef.value?.legendaryWeightMult ?? 1) - 1) * baitMasterMult + 1
+    const hasFishGod = fishingSkill.perk20 === 'fish_god'
+    if (hasFishGod) syncFishGodPressure()
+    // 诱饵线只放大鱼饵自身提供的额外权重，保留基础鱼池权重。
+    const baitEffectMultiplier = getFishingBaitEffectMultiplier(fishingSkill)
+    const hardMult = applyFishingBaitWeightMultiplier(activeBaitDef.value?.hardWeightMult, baitEffectMultiplier)
+    const legendaryMult = applyFishingBaitWeightMultiplier(activeBaitDef.value?.legendaryWeightMult, baitEffectMultiplier)
     // 仙缘：龙瞳（long_ling_3）传说鱼捕获率+20%，鱼引结缘提升稀有鱼概率
     const hiddenNpcStore = useHiddenNpcStore()
     const legendaryBoost = 1 + hiddenNpcStore.getAbilityValue('long_ling_3') / 100
@@ -561,8 +658,11 @@ export const useFishingStore = defineStore('fishing', () => {
       if (f.difficulty === 'legendary') {
         const minLevel = (hasAngler || hasLegendaryAngler || hasFishGod) ? 6 : 8
         if (rodTier === 'basic' || effectiveLevel < minLevel) return 0
-        const legendaryWeight = hasFishGod ? 5.0 : hasLegendaryAngler ? 3.0 : hasAngler ? 1.5 : 0.5
-        return legendaryWeight * (1 + luckBuff) * legendaryMult * legendaryBoost * tideNotebookMult
+        const fishGodPressureMult = hasFishGod
+          ? getFishGodLegendaryPressureMultiplier(fishGodLegendaryCooldownCasts.value, fishGodLegendaryMissStreak.value)
+          : 1
+        const legendaryWeight = hasFishGod ? FISH_GOD_BASE_LEGENDARY_WEIGHT : hasLegendaryAngler ? 3.0 : hasAngler ? 1.5 : 0.5
+        return legendaryWeight * (1 + luckBuff) * legendaryMult * legendaryBoost * tideNotebookMult * fishGodPressureMult
       }
       if (f.difficulty === 'hard') {
         if (rodTier === 'basic' && effectiveLevel < 4) return 0
@@ -572,12 +672,24 @@ export const useFishingStore = defineStore('fishing', () => {
       if (f.difficulty === 'normal') return 2 * tideNotebookMult
       return 0.5 * tideNotebookMult
     })
-    const total = weights.reduce((a, b) => a + b, 0)
+    const weightedPool = hasFishGod
+      ? capLegendaryWeightShare(
+        fishPool,
+        weights,
+        getFishGodLegendaryShareCap(activeBaitDef.value?.id === 'targeted_bait', fishGodLegendaryMissStreak.value)
+      )
+      : weights
+    const hasEligibleLegendaryFish = weightedPool.some((weight, index) => weight > 0 && fishPool[index]?.difficulty === 'legendary')
+    const total = weightedPool.reduce((a, b) => a + b, 0)
     if (total <= 0) return null
     let roll = Math.random() * total
     for (let i = 0; i < fishPool.length; i++) {
-      roll -= weights[i]!
-      if (roll <= 0) return fishPool[i]!
+      roll -= weightedPool[i]!
+      if (roll <= 0) {
+        const selectedFish = fishPool[i]!
+        recordFishGodFishSelection(selectedFish, hasEligibleLegendaryFish)
+        return selectedFish
+      }
     }
     return null
   }
@@ -652,11 +764,10 @@ export const useFishingStore = defineStore('fishing', () => {
       }
     }
 
-    // 野生鱼饵：概率双倍（诱饵师专精翻倍；诱饵宗师再翻倍）
+    // 野生鱼饵：概率双倍，诱饵线按 2/4/8 倍放大鱼饵效果。
     const _catchFishSkill = skillStore.getSkill('fishing')
-    const luremasterCatchMult = _catchFishSkill.perk10 === 'luremaster' ? 2 : 1
-    const baitMasterCatchMult = _catchFishSkill.perk15 === 'bait_master' ? 2 : 1
-    const doubleCatchChance = (activeBaitDef.value?.doubleCatchChance ?? 0) * luremasterCatchMult * baitMasterCatchMult
+    const baitEffectMultiplier = getFishingBaitEffectMultiplier(_catchFishSkill)
+    const doubleCatchChance = Math.min(1, (activeBaitDef.value?.doubleCatchChance ?? 0) * baitEffectMultiplier)
     const catchQty = doubleCatchChance > 0 && Math.random() < doubleCatchChance ? 2 : 1
     const caughtFish = { name: currentFish.value.name, id: currentFish.value.id, difficulty: currentFish.value.difficulty, sellPrice: currentFish.value.sellPrice, description: currentFish.value.description }
 
@@ -920,6 +1031,9 @@ export const useFishingStore = defineStore('fishing', () => {
       tackleDurability: tackleDurability.value,
       unequippedTackleDurabilities: normalizeTackleDurabilityMap(unequippedTackleDurabilities.value),
       fishingLocation: fishingLocation.value,
+      fishGodPressureKey: fishGodPressureKey.value,
+      fishGodLegendaryMissStreak: fishGodLegendaryMissStreak.value,
+      fishGodLegendaryCooldownCasts: fishGodLegendaryCooldownCasts.value,
       crabPots: crabPots.value
     }
   }
@@ -938,6 +1052,16 @@ export const useFishingStore = defineStore('fishing', () => {
     tackleDurability.value = equippedTackle.value ? restoredDurability : 0
     unequippedTackleDurabilities.value = normalizeTackleDurabilityMap((data as any).unequippedTackleDurabilities)
     fishingLocation.value = data.fishingLocation ?? 'creek'
+    fishGodPressureKey.value = typeof (data as any).fishGodPressureKey === 'string' ? (data as any).fishGodPressureKey : getFishGodPressureKey()
+    fishGodLegendaryMissStreak.value = Math.min(
+      FISH_GOD_MISS_STREAK_CAP,
+      Math.max(0, Math.floor(Number((data as any).fishGodLegendaryMissStreak) || 0))
+    )
+    fishGodLegendaryCooldownCasts.value = Math.min(
+      FISH_GOD_COOLDOWN_CASTS,
+      Math.max(0, Math.floor(Number((data as any).fishGodLegendaryCooldownCasts) || 0))
+    )
+    syncFishGodPressure()
     crabPots.value = (data as any).crabPots ?? []
   }
 

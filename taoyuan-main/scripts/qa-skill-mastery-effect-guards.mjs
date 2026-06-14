@@ -184,10 +184,32 @@ assert(fishingStoreSource.includes('(tideNotebookCastStreak.value - 1) * 0.05'),
 assert(fishingStoreSource.includes('Math.min(cap, Math.max(0, (tideNotebookCastStreak.value - 1) * 0.05))'), '鱼汛笔记必须按 effect 值封顶。')
 assert(fishingStoreSource.includes('const tideNotebookMult = 1 + getTideNotebookWeightBonus(f)'), '鱼汛笔记必须进入上钩权重公式。')
 assert(fishingStoreSource.includes('鱼汛笔记：同水域目标鱼权重+'), '鱼汛笔记生效时必须在抛竿消息中提示。')
+assert(fishingStoreSource.includes('export const FISH_GOD_BASE_LEGENDARY_WEIGHT = 3.5'), '鱼神传说鱼基础权重必须从原 5.0 下调到可控基准。')
+assert(fishingStoreSource.includes('export const FISH_GOD_LEGENDARY_SHARE_CAP = 0.45'), '鱼神传说鱼占比必须有默认封顶。')
+assert(fishingStoreSource.includes('export const FISH_GOD_TARGETED_LEGENDARY_SHARE_CAP = 0.5'), '定向鱼饵下鱼神传说鱼占比也必须封顶。')
+assert(fishingStoreSource.includes('export const FISH_GOD_COOLDOWN_MULTIPLIER = 0.45'), '鱼神连续钓上传说鱼后必须有短暂权重冷却。')
+assert(fishingStoreSource.includes("const hasFishGod = fishingSkill.perk20 === 'fish_god'"), '海洋商人不得再被当作鱼神参与传说鱼权重。')
+assert(!fishingStoreSource.includes("fishingSkill.perk20 === 'fish_god' || fishingSkill.perk20 === 'ocean_trader'"), '鱼神权重判断不得包含海洋商人。')
+assert(fishingStoreSource.includes('capLegendaryWeightShare('), '鱼神传说鱼权重必须经过占比封顶 helper。')
+assert(fishingStoreSource.includes('recordFishGodFishSelection(selectedFish, hasEligibleLegendaryFish)'), '鱼神必须记录传说鱼命中/未命中状态。')
+assert(fishingStoreSource.includes('fishGodLegendaryMissStreak'), '鱼神必须保存未命中保底进度。')
+assert(fishingStoreSource.includes('fishGodLegendaryCooldownCasts'), '鱼神必须保存连续传说鱼冷却进度。')
+assert(!skillViewSource.includes("fish_god: '任何时间任何天气均可钓到传说鱼'"), '技能页鱼神文案不得承诺任何时间任何天气。')
+assert(!readSource('src/components/game/PerkSelectDialog.vue').includes('传说鱼必定出现，钓鱼体力消耗清零'), '技能选择弹窗鱼神文案不得承诺传说鱼必定出现。')
+assert(fishingStoreSource.includes('export const LUREMASTER_BAIT_EFFECT_MULTIPLIER = 2'), '诱饵师必须显式把鱼饵效果放大到 2 倍。')
+assert(fishingStoreSource.includes('export const BAIT_MASTER_BAIT_EFFECT_MULTIPLIER = 4'), '诱饵宗师必须显式把鱼饵效果放大到 4 倍。')
+assert(fishingStoreSource.includes('export const LURE_DEITY_BAIT_EFFECT_MULTIPLIER = 8'), '诱饵神必须显式把鱼饵效果放大到 8 倍。')
+assert(fishingStoreSource.includes('const hardMult = applyFishingBaitWeightMultiplier(activeBaitDef.value?.hardWeightMult, baitEffectMultiplier)'), '困难鱼权重鱼饵必须吃到诱饵线倍率。')
+assert(fishingStoreSource.includes('const legendaryMult = applyFishingBaitWeightMultiplier(activeBaitDef.value?.legendaryWeightMult, baitEffectMultiplier)'), '传说鱼权重鱼饵必须吃到诱饵线倍率。')
+assert(fishingStoreSource.includes('const doubleCatchChance = Math.min(1, (activeBaitDef.value?.doubleCatchChance ?? 0) * baitEffectMultiplier)'), '野生鱼饵双倍鱼获概率必须吃到诱饵线倍率并封顶。')
+assert(!skillViewSource.includes("lure_deity: '无需鱼饵，自动吸引最稀有的鱼'"), '技能页诱饵神文案不得承诺无需鱼饵或自动锁定最稀有鱼。')
 
 assert(miningStoreSource.includes("skillStore.getSkillMasteryEffectValue('bomb_efficiency')"), '挖矿炸弹流程必须读取爆破效率效果。')
 assert(miningStoreSource.includes('!excavatorPerkSaved && bombEfficiencyChance > 0'), '爆破效率不得和旧挖掘者返还重复判定。')
-assert(miningStoreSource.includes('bombEfficiencySaved ? \'爆破效率\' : \'挖掘者\''), '炸弹返还消息必须区分精研与旧专精。')
+assert(miningStoreSource.includes('const DEEP_EXCAVATOR_BOMB_REFUND_CHANCE = 0.5'), '15级深渊挖掘者必须保持 50% 炸弹返还。')
+assert(miningStoreSource.includes('const ABYSS_MINER_GUARANTEED_REFUNDS_PER_FLOOR = 1'), '20级深渊矿工必须按层限制保底返还。')
+assert(miningStoreSource.includes('const ABYSS_MINER_EXTRA_REFUND_CHANCE = 0.6'), '20级深渊矿工后续返还必须是受控概率。')
+assert(miningStoreSource.includes('bombEfficiencySaved ? \'爆破效率\' : excavatorRefundLabel'), '炸弹返还消息必须区分精研与挖掘者系专精。')
 assert(miningStoreSource.includes('const calculateOreQuantityWithBonuses = (baseQuantity: number, oreMultiplier = 1): number =>'), '矿石数量加成必须集中到统一 helper。')
 assert(miningStoreSource.includes('let quantity = Math.max(1, Math.floor(baseQuantity * oreMultiplier))'), '矿石数量 helper 必须先应用基础矿石倍率。')
 assert(miningStoreSource.includes('const quantity = calculateOreQuantityWithBonuses(tile.data?.oreQuantity ?? 1)'), '手动采矿必须使用统一矿石数量加成 helper。')
@@ -215,6 +237,7 @@ assert(miningStoreSource.includes('（稀矿转化）'), '稀矿转化触发时�
 assert(miningStoreSource.includes("skillStore.getSkillMasteryEffectValue('stabilized_blasting')"), '炸弹流程必须读取稳压爆破效果。')
 assert(miningStoreSource.includes('oreCollected === 0 &&'), '稳压爆破必须只在未采到矿石时触发。')
 assert(miningStoreSource.includes('monstersKilled === 0 &&'), '稳压爆破必须只在未击杀怪物时触发。')
+assert(miningStoreSource.includes('utilityTargetsRevealed === 0 &&'), '稳压爆破必须只在没有揭示怪物、BOSS、陷阱或楼梯时触发。')
 assert(miningStoreSource.includes('rewards.length === 0'), '稳压爆破必须只在没有任何奖励时触发。')
 assert(miningStoreSource.includes('稳压爆破：空爆返还炸弹'), '稳压爆破触发时必须提示返还原因。')
 assert(miningStoreSource.includes("skillStore.getSkillMasteryEffectValue('boss_dossier')"), 'Boss 战流程必须读取首领档案效果。')
@@ -409,6 +432,55 @@ const getTideNotebookBonusModel = (streak, cap = 0.25) => Math.min(cap, Math.max
 assert(near(getTideNotebookBonusModel(1), 0), '模型用例：鱼汛笔记首次同水域抛竿不应加权。')
 assert(near(getTideNotebookBonusModel(3), 0.1), '模型用例：鱼汛笔记连续第三竿应提供 10% 权重。')
 assert(near(getTideNotebookBonusModel(12), 0.25), '模型用例：鱼汛笔记必须封顶到 25%。')
+
+const getFishGodLegendaryShareCapModel = (hasTargetedBait, missStreak) => {
+  const baseCap = hasTargetedBait ? 0.5 : 0.45
+  const pitySteps = Math.max(0, Math.floor(missStreak) - 4 + 1)
+  const pityBonus = Math.min(0.16, pitySteps * 0.08)
+  return Math.min(0.58, baseCap + pityBonus)
+}
+const getFishGodLegendaryPressureMultiplierModel = (cooldownCasts, missStreak) => {
+  const cooldownMult = cooldownCasts > 0 ? 0.45 : 1
+  const pitySteps = Math.max(0, Math.floor(missStreak) - 4 + 1)
+  const pityMult = 1 + Math.min(0.48, pitySteps * 0.12)
+  return cooldownMult * pityMult
+}
+const capLegendaryWeightShareModel = (fishPool, weights, shareCap) => {
+  const cap = Math.min(1, Math.max(0, shareCap))
+  let legendaryWeight = 0
+  let otherWeight = 0
+  weights.forEach((weight, index) => {
+    if (fishPool[index].difficulty === 'legendary') legendaryWeight += Math.max(0, weight)
+    else otherWeight += Math.max(0, weight)
+  })
+  if (cap >= 1 || legendaryWeight <= 0 || otherWeight <= 0) return [...weights]
+  const maxLegendaryWeight = otherWeight * (cap / (1 - cap))
+  if (legendaryWeight <= maxLegendaryWeight) return [...weights]
+  const scale = maxLegendaryWeight / legendaryWeight
+  return weights.map((weight, index) => (fishPool[index].difficulty === 'legendary' ? weight * scale : weight))
+}
+const fishGodCapPool = [{ difficulty: 'legendary' }, { difficulty: 'easy' }, { difficulty: 'normal' }, { difficulty: 'hard' }]
+const fishGodCappedWeights = capLegendaryWeightShareModel(fishGodCapPool, [12, 3, 2, 1], getFishGodLegendaryShareCapModel(false, 0))
+const fishGodCappedShare = fishGodCappedWeights[0] / fishGodCappedWeights.reduce((sum, weight) => sum + weight, 0)
+assert(near(fishGodCappedShare, 0.45), '模型用例：鱼神传说鱼权重应被压到默认 45% 占比上限。')
+assert(near(getFishGodLegendaryShareCapModel(true, 0), 0.5), '模型用例：定向鱼饵下鱼神传说鱼占比上限应为 50%。')
+assert(near(getFishGodLegendaryShareCapModel(false, 4), 0.53), '模型用例：鱼神连续未中传说鱼后应开始提高占比上限。')
+assert(near(getFishGodLegendaryShareCapModel(true, 8), 0.58), '模型用例：鱼神保底占比必须受硬上限保护。')
+assert(near(getFishGodLegendaryPressureMultiplierModel(2, 0), 0.45), '模型用例：鱼神刚钓上传说鱼后应短暂冷却。')
+assert(near(getFishGodLegendaryPressureMultiplierModel(0, 6), 1.36), '模型用例：鱼神连续未中传说鱼后应提高传说鱼权重。')
+const getFishingBaitEffectMultiplierModel = ({ perk10 = null, perk15 = null, perk20 = null }) => {
+  if (perk20 === 'lure_deity') return 8
+  if (perk15 === 'bait_master') return 4
+  if (perk10 === 'luremaster') return 2
+  return 1
+}
+const applyFishingBaitWeightMultiplierModel = (baseMultiplier, baitEffectMultiplier) => 1 + Math.max(0, baseMultiplier - 1) * Math.max(1, baitEffectMultiplier)
+assert(getFishingBaitEffectMultiplierModel({ perk10: 'luremaster' }) === 2, '模型用例：诱饵师应提供 2 倍鱼饵效果。')
+assert(getFishingBaitEffectMultiplierModel({ perk15: 'bait_master' }) === 4, '模型用例：诱饵宗师应提供 4 倍鱼饵效果。')
+assert(getFishingBaitEffectMultiplierModel({ perk20: 'lure_deity' }) === 8, '模型用例：诱饵神应提供 8 倍鱼饵效果。')
+assert(near(applyFishingBaitWeightMultiplierModel(2, 8), 9), '模型用例：诱饵神应把定向鱼饵困难鱼权重从 ×2 放大到 ×9。')
+assert(near(applyFishingBaitWeightMultiplierModel(1.5, 8), 5), '模型用例：诱饵神应把定向鱼饵传说鱼权重从 ×1.5 放大到 ×5。')
+assert(near(Math.min(1, 0.25 * getFishingBaitEffectMultiplierModel({ perk20: 'lure_deity' })), 1), '模型用例：诱饵神应让野生鱼饵双倍鱼获概率封顶到 100%。')
 
 const rareTransmuteUpgradeModel = {
   copper_ore: 'iron_ore',

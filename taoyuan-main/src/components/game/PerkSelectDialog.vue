@@ -260,11 +260,11 @@
     },
     fishing: {
       legendary_angler: [
-        { id: 'fish_god', name: '鱼神', description: '传说鱼必定出现，钓鱼体力消耗清零' },
+        { id: 'fish_god', name: '鱼神', description: '传说鱼窗口内出现率大幅提升，钓鱼体力消耗清零' },
         { id: 'ocean_trader', name: '海洋贸易商', description: '所有鱼售价+100%' }
       ],
       aquatic_merchant: [
-        { id: 'fish_god', name: '鱼神', description: '传说鱼必定出现，钓鱼体力消耗清零' },
+        { id: 'fish_god', name: '鱼神', description: '传说鱼窗口内出现率大幅提升，钓鱼体力消耗清零' },
         { id: 'ocean_trader', name: '海洋贸易商', description: '所有鱼售价+100%' }
       ],
       sea_captain: [
@@ -286,11 +286,11 @@
         { id: 'forge_god', name: '锻造之神', description: '金属矿石售价×3' }
       ],
       deep_excavator: [
-        { id: 'abyss_miner', name: '深渊矿工', description: '炸弹永不消耗，爆炸范围+1' },
+        { id: 'abyss_miner', name: '深渊矿工', description: '每层首次炸弹必定返还，之后60%概率返还' },
         { id: 'gem_emperor', name: '宝石皇帝', description: '击败怪物必定掉落稀有矿石' }
       ],
       gem_collector: [
-        { id: 'abyss_miner', name: '深渊矿工', description: '炸弹永不消耗，爆炸范围+1' },
+        { id: 'abyss_miner', name: '深渊矿工', description: '每层首次炸弹必定返还，之后60%概率返还' },
         { id: 'gem_emperor', name: '宝石皇帝', description: '击败怪物必定掉落稀有矿石' }
       ]
     },

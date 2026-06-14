@@ -171,6 +171,9 @@ for (const fragment of [
   'getRandomNpcResidentGrowthPreview',
   'getRecentRandomNpcFamilyReviews(resident)',
   'getRecentRandomNpcFamilySpecialEvents(resident)',
+  '家族节点有什么用',
+  'getRandomNpcFamilyTieUtilityText',
+  'getRandomNpcFamilyCurrentUseSummary',
   "family: '家人线'",
   "const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'family', 'romance', 'zhiji', 'sworn', 'rivalry']",
   '可开启家人线：把见家人、家族委托和核心深线作为本地可回看的长期关系，不写入联机公开关系图。'

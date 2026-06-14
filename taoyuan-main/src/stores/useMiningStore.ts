@@ -64,6 +64,10 @@ const COMBAT_TIME_LONG = 0.25
 const MINING_COMBAT_LOG_LIMIT = 120
 const MINING_BASE_STAMINA_COST = 2
 const MINE_GRID_SIZE = 6
+const EXCAVATOR_BOMB_REFUND_CHANCE = 0.3
+const DEEP_EXCAVATOR_BOMB_REFUND_CHANCE = 0.5
+const ABYSS_MINER_GUARANTEED_REFUNDS_PER_FLOOR = 1
+const ABYSS_MINER_EXTRA_REFUND_CHANCE = 0.6
 const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
 const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
   copper_ore: 'iron_ore',
@@ -264,6 +268,8 @@ export const useMiningStore = defineStore('mining', () => {
   const _combatTileIndex = ref(-1)
   /** 当前楼层是否已使用过怪物诱饵 */
   const monsterLureUsedOnFloor = ref(false)
+  /** 当前楼层深渊矿工已触发的保底炸弹返还次数 */
+  const abyssMinerGuaranteedRefundsUsedOnFloor = ref(0)
 
   // ==================== 骷髅矿穴辅助 ====================
 
@@ -875,6 +881,7 @@ export const useMiningStore = defineStore('mining', () => {
     const floor = getActiveFloorData()
     if (!floor) return
 
+    abyssMinerGuaranteedRefundsUsedOnFloor.value = 0
     const floorNum = getActiveFloorNum()
     const scaleFactor = isInSkullCavern.value ? (cachedSkullFloorData.value?.scaleFactor ?? 1) : 1
 
@@ -1275,16 +1282,32 @@ export const useMiningStore = defineStore('mining', () => {
     if (!bombDef) return { success: false, message: '无效的炸弹。' }
     if (!inventoryStore.removeItem(bombId)) return { success: false, message: '背包中没有该炸弹。' }
 
-    // 挖掘者专精：30%概率不消耗炸弹；perk15深渊挖掘者/perk20深渊矿工：必定不消耗
+    // 挖掘者系专精只提供受控返还，不再让高级炸弹无限连发。
     const _miningSkill = skillStore.getSkill('mining')
     const abyssMinerActive = _miningSkill.perk20 === 'abyss_miner'
     const deepExcavatorActive = _miningSkill.perk15 === 'deep_excavator'
-    const excavatorPerkSaved = abyssMinerActive || deepExcavatorActive || (_miningSkill.perk10 === 'excavator' && Math.random() < 0.3)
+    const abyssMinerGuaranteedSaved = abyssMinerActive && abyssMinerGuaranteedRefundsUsedOnFloor.value < ABYSS_MINER_GUARANTEED_REFUNDS_PER_FLOOR
+    const abyssMinerChanceSaved = abyssMinerActive && !abyssMinerGuaranteedSaved && Math.random() < ABYSS_MINER_EXTRA_REFUND_CHANCE
+    const deepExcavatorSaved = !abyssMinerActive && deepExcavatorActive && Math.random() < DEEP_EXCAVATOR_BOMB_REFUND_CHANCE
+    const excavatorSaved =
+      !abyssMinerActive &&
+      !deepExcavatorActive &&
+      _miningSkill.perk10 === 'excavator' &&
+      Math.random() < EXCAVATOR_BOMB_REFUND_CHANCE
+    const excavatorPerkSaved = abyssMinerGuaranteedSaved || abyssMinerChanceSaved || deepExcavatorSaved || excavatorSaved
+    const excavatorRefundLabel = abyssMinerGuaranteedSaved || abyssMinerChanceSaved
+      ? '深渊矿工'
+      : deepExcavatorSaved
+        ? '深渊挖掘者'
+        : excavatorSaved
+          ? '挖掘者'
+          : ''
     const bombEfficiencyChance = skillStore.getSkillMasteryEffectValue('bomb_efficiency')
     const bombEfficiencySaved = !excavatorPerkSaved && bombEfficiencyChance > 0 && Math.random() < bombEfficiencyChance
     const bombSaved = excavatorPerkSaved || bombEfficiencySaved
     if (bombSaved) {
       inventoryStore.addItem(bombId, 1)
+      if (abyssMinerGuaranteedSaved) abyssMinerGuaranteedRefundsUsedOnFloor.value++
     }
 
     const indices = getBombIndices(centerIndex, bombId)
@@ -1292,6 +1315,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     let oreCollected = 0
     let monstersKilled = 0
+    let utilityTargetsRevealed = 0
     let inventoryBlocked = false
     const bombRewardEntries: InventoryRewardEntry[] = []
     const bombMiningExpEntries: InventoryRewardEntry[] = []
@@ -1321,7 +1345,7 @@ export const useMiningStore = defineStore('mining', () => {
           break
         }
         case 'monster': {
-          if (bombDef.clearsMonster && tile.data?.monster) {
+          if (bombDef.clearsMonster && tile.data?.monster && floor?.specialType !== 'infested') {
             // 炸弹击杀怪物：50% 经验
             const monster = tile.data.monster
             const wildernessXpBonus = useGameStore().farmMapType === 'wilderness' ? 1.5 : 1.0
@@ -1342,22 +1366,26 @@ export const useMiningStore = defineStore('mining', () => {
             useGuildStore().recordKill(monster.id)
             monstersKilled++
           } else {
-            // 爆竹只翻开，不杀怪物
+            // 爆竹和感染层怪物只翻开，不直接清除特殊层门槛
             tile.state = 'revealed'
+            utilityTargetsRevealed++
           }
           break
         }
         case 'boss':
           // 炸弹不杀 BOSS，只翻开
           tile.state = 'revealed'
+          utilityTargetsRevealed++
           break
         case 'trap':
           // 炸弹引爆陷阱，免伤
           tile.state = 'triggered'
+          utilityTargetsRevealed++
           break
         case 'stairs':
           tile.state = 'revealed'
           stairsFound.value = true
+          utilityTargetsRevealed++
           break
         case 'treasure': {
           const items = tile.data?.treasureItems ?? []
@@ -1411,6 +1439,7 @@ export const useMiningStore = defineStore('mining', () => {
       skillStore.getSkillMasteryEffectValue('stabilized_blasting') > 0 &&
       oreCollected === 0 &&
       monstersKilled === 0 &&
+      utilityTargetsRevealed === 0 &&
       rewards.length === 0
     if (stabilizedBlastingSaved) {
       inventoryStore.addItem(bombId, 1)
@@ -1422,7 +1451,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (oreCollected === 0 && monstersKilled === 0) msg += '翻开了一些区域'
     if (rewards.length > 0) msg += `，刚获得：${formatRewardLabels(rewards)}`
     msg += '！'
-    if (bombSaved) msg += `（${bombEfficiencySaved ? '爆破效率' : '挖掘者'}：炸弹未消耗！）`
+    if (bombSaved) msg += `（${bombEfficiencySaved ? '爆破效率' : excavatorRefundLabel}：炸弹未消耗！）`
     if (stabilizedBlastingSaved) msg += '（稳压爆破：空爆返还炸弹。）'
     if (inventoryBlocked) msg += '（部分奖励因背包空间不足未领取）'
     return { success: true, message: msg, rewards: rewards.length > 0 ? rewards : undefined }

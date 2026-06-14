@@ -373,7 +373,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
     const bomb = BOMBS.find(entry => entry.id === item.id)
     if (bomb) {
       pushDetail(details, '矿石倍率', `${bomb.oreMultiplier}倍`)
-      pushDetail(details, '清除怪物', bomb.clearsMonster ? '是' : '否')
+      pushDetail(details, '清除普通怪物', bomb.clearsMonster ? '是' : '否')
     }
   } else if (item.category === 'food') {
     const recipe = getRecipeForFoodItem(item.id)
