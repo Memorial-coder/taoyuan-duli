@@ -250,12 +250,17 @@
     <Transition name="panel-fade">
       <div
         v-if="miningStore.isExploring && !miningStore.inCombat"
-        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-start justify-center overflow-y-auto z-50 p-4"
+        class="game-modal-overlay mining-dialog-overlay fixed inset-0 bg-black/60 flex items-start justify-center overflow-y-auto z-50 p-4"
         data-testid="mining-explore-dialog"
       >
-        <div class="game-panel max-w-sm w-full">
+        <div class="game-panel mining-dialog-panel max-w-sm w-full" :style="getMiningDialogPanelStyle('explore')">
           <!-- 标题栏 -->
-          <div class="flex items-center justify-between mb-2">
+          <div
+            class="mining-dialog-titlebar flex items-center justify-between mb-2"
+            :class="{ 'is-dragging': miningDialogDragState?.kind === 'explore' }"
+            data-testid="mining-explore-drag-handle"
+            @pointerdown="handleMiningDialogPointerDown($event, 'explore')"
+          >
             <p class="text-sm text-accent">
               第{{ activeFloorNum }}层
               <span v-if="!miningStore.isInSkullCavern" class="text-muted">{{ zoneName }}</span>
@@ -407,12 +412,17 @@
     <Transition name="panel-fade">
       <div
         v-if="miningStore.inCombat"
-        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-start justify-center overflow-y-auto z-60 p-4"
+        class="game-modal-overlay mining-dialog-overlay fixed inset-0 bg-black/60 flex items-start justify-center overflow-y-auto z-60 p-4"
         data-testid="mining-combat-dialog"
       >
-        <div class="game-panel max-w-xs w-full">
+        <div class="game-panel mining-dialog-panel max-w-xs w-full" :style="getMiningDialogPanelStyle('combat')">
           <!-- 标题 -->
-          <div class="flex items-center justify-between mb-2">
+          <div
+            class="mining-dialog-titlebar flex items-center justify-between mb-2"
+            :class="{ 'is-dragging': miningDialogDragState?.kind === 'combat' }"
+            data-testid="mining-combat-drag-handle"
+            @pointerdown="handleMiningDialogPointerDown($event, 'combat')"
+          >
             <p class="text-sm" :class="miningStore.combatIsBoss ? 'text-danger' : 'text-accent'">
               {{ miningStore.combatIsBoss ? 'BOSS 战' : '遭遇怪物' }}
             </p>
@@ -822,7 +832,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onUnmounted, watch } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import {
     Mountain,
@@ -887,6 +897,197 @@
     if (achievementStore.stats.highestMineFloor === 0)
       return '矿洞是6x6的网格，点击格子探索。遇到矿石可以开采，遇到怪物需要战斗。找到楼梯可下一层。'
     return null
+  })
+
+  type MiningDialogKind = 'explore' | 'combat'
+  type MiningDialogOffset = { x: number; y: number }
+  type MiningDialogDragBounds = { baseLeft: number; baseTop: number; panelWidth: number; panelHeight: number }
+  type MiningDialogDragState = MiningDialogDragBounds & {
+    kind: MiningDialogKind
+    pointerId: number
+    startClientX: number
+    startClientY: number
+    originX: number
+    originY: number
+    dragTarget: HTMLElement | null
+  }
+
+  const MINING_DIALOG_DESKTOP_QUERY = '(min-width: 768px) and (pointer: fine)'
+  const MINING_DIALOG_DESKTOP_TOP_GAP = 76
+  const MINING_DIALOG_VIEWPORT_MARGIN = 16
+
+  const miningDialogOffsets = ref<Record<MiningDialogKind, MiningDialogOffset>>({
+    explore: { x: 0, y: 0 },
+    combat: { x: 0, y: 0 }
+  })
+  const miningDialogDragState = ref<MiningDialogDragState | null>(null)
+  const isMiningDialogDesktopDraggable = ref(false)
+  let miningDialogMediaQuery: MediaQueryList | null = null
+
+  const getMiningDialogPanelStyle = (kind: MiningDialogKind) => {
+    if (!isMiningDialogDesktopDraggable.value) return undefined
+    const offset = miningDialogOffsets.value[kind]
+    return {
+      '--mining-dialog-offset-x': `${offset.x}px`,
+      '--mining-dialog-offset-y': `${offset.y}px`
+    }
+  }
+
+  const getMiningDialogPanel = (kind: MiningDialogKind): HTMLElement | null => {
+    if (typeof document === 'undefined') return null
+    const testId = kind === 'explore' ? 'mining-explore-dialog' : 'mining-combat-dialog'
+    return document.querySelector(`[data-testid="${testId}"] .mining-dialog-panel`)
+  }
+
+  const clampMiningDialogOffset = (
+    offset: MiningDialogOffset,
+    bounds: MiningDialogDragBounds
+  ): MiningDialogOffset => {
+    if (typeof window === 'undefined') return offset
+
+    const minLeft = MINING_DIALOG_VIEWPORT_MARGIN
+    const minTop = isMiningDialogDesktopDraggable.value
+      ? MINING_DIALOG_DESKTOP_TOP_GAP
+      : MINING_DIALOG_VIEWPORT_MARGIN
+    const maxLeft = Math.max(minLeft, window.innerWidth - MINING_DIALOG_VIEWPORT_MARGIN - bounds.panelWidth)
+    const maxTop = Math.max(minTop, window.innerHeight - MINING_DIALOG_VIEWPORT_MARGIN - bounds.panelHeight)
+
+    return {
+      x: Math.min(maxLeft - bounds.baseLeft, Math.max(minLeft - bounds.baseLeft, offset.x)),
+      y: Math.min(maxTop - bounds.baseTop, Math.max(minTop - bounds.baseTop, offset.y))
+    }
+  }
+
+  const clampVisibleMiningDialog = (kind: MiningDialogKind) => {
+    if (!isMiningDialogDesktopDraggable.value) return
+    const panel = getMiningDialogPanel(kind)
+    if (!panel) return
+    const offset = miningDialogOffsets.value[kind]
+    const rect = panel.getBoundingClientRect()
+    miningDialogOffsets.value[kind] = clampMiningDialogOffset(offset, {
+      baseLeft: rect.left - offset.x,
+      baseTop: rect.top - offset.y,
+      panelWidth: rect.width,
+      panelHeight: rect.height
+    })
+  }
+
+  const clampVisibleMiningDialogs = () => {
+    clampVisibleMiningDialog('explore')
+    clampVisibleMiningDialog('combat')
+  }
+
+  const isInteractiveMiningDialogDragTarget = (target: EventTarget | null): boolean => {
+    if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false
+    return !!target.closest('button, a, input, select, textarea, [role="button"], [data-mining-dialog-no-drag="true"]')
+  }
+
+  const clearMiningDialogDrag = () => {
+    const state = miningDialogDragState.value
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pointermove', handleMiningDialogPointerMove)
+      window.removeEventListener('pointerup', handleMiningDialogPointerEnd)
+      window.removeEventListener('pointercancel', handleMiningDialogPointerEnd)
+    }
+    if (state?.dragTarget?.hasPointerCapture(state.pointerId)) {
+      try {
+        state.dragTarget.releasePointerCapture(state.pointerId)
+      } catch {
+        // Pointer capture can be released by the browser first.
+      }
+    }
+    miningDialogDragState.value = null
+  }
+
+  const handleMiningDialogPointerMove = (event: PointerEvent) => {
+    const state = miningDialogDragState.value
+    if (!state || event.pointerId !== state.pointerId || !isMiningDialogDesktopDraggable.value) return
+    event.preventDefault()
+    miningDialogOffsets.value[state.kind] = clampMiningDialogOffset(
+      {
+        x: state.originX + event.clientX - state.startClientX,
+        y: state.originY + event.clientY - state.startClientY
+      },
+      state
+    )
+  }
+
+  const handleMiningDialogPointerEnd = (event: PointerEvent) => {
+    const state = miningDialogDragState.value
+    if (state && event.pointerId !== state.pointerId) return
+    clearMiningDialogDrag()
+  }
+
+  const handleMiningDialogPointerDown = (event: PointerEvent, kind: MiningDialogKind) => {
+    if (!isMiningDialogDesktopDraggable.value || isInteractiveMiningDialogDragTarget(event.target)) return
+
+    const dragTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+    const panel = dragTarget?.closest('.mining-dialog-panel') as HTMLElement | null
+    if (!panel) return
+
+    clearMiningDialogDrag()
+    const offset = miningDialogOffsets.value[kind]
+    const rect = panel.getBoundingClientRect()
+    miningDialogDragState.value = {
+      kind,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      originX: offset.x,
+      originY: offset.y,
+      baseLeft: rect.left - offset.x,
+      baseTop: rect.top - offset.y,
+      panelWidth: rect.width,
+      panelHeight: rect.height,
+      dragTarget
+    }
+    event.preventDefault()
+    dragTarget?.setPointerCapture(event.pointerId)
+    window.addEventListener('pointermove', handleMiningDialogPointerMove)
+    window.addEventListener('pointerup', handleMiningDialogPointerEnd)
+    window.addEventListener('pointercancel', handleMiningDialogPointerEnd)
+  }
+
+  const scheduleMiningDialogClamp = () => {
+    if (typeof window === 'undefined') return
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(clampVisibleMiningDialogs)
+    } else {
+      window.setTimeout(clampVisibleMiningDialogs, 0)
+    }
+  }
+
+  const syncMiningDialogDraggableMode = () => {
+    isMiningDialogDesktopDraggable.value = !!miningDialogMediaQuery?.matches
+    if (!isMiningDialogDesktopDraggable.value) {
+      clearMiningDialogDrag()
+      return
+    }
+    scheduleMiningDialogClamp()
+  }
+
+  onMounted(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    miningDialogMediaQuery = window.matchMedia(MINING_DIALOG_DESKTOP_QUERY)
+    syncMiningDialogDraggableMode()
+    if (typeof miningDialogMediaQuery.addEventListener === 'function') {
+      miningDialogMediaQuery.addEventListener('change', syncMiningDialogDraggableMode)
+    } else {
+      miningDialogMediaQuery.addListener(syncMiningDialogDraggableMode)
+    }
+    window.addEventListener('resize', clampVisibleMiningDialogs)
+  })
+
+  onUnmounted(() => {
+    clearMiningDialogDrag()
+    if (miningDialogMediaQuery) {
+      if (typeof miningDialogMediaQuery.removeEventListener === 'function') {
+        miningDialogMediaQuery.removeEventListener('change', syncMiningDialogDraggableMode)
+      } else {
+        miningDialogMediaQuery.removeListener(syncMiningDialogDraggableMode)
+      }
+    }
+    if (typeof window !== 'undefined') window.removeEventListener('resize', clampVisibleMiningDialogs)
   })
 
   const MINING_EXPLORE_LOG_LIMIT = 120
@@ -1684,6 +1885,34 @@
 </script>
 
 <style scoped>
+  .mining-dialog-overlay {
+    padding-top: 16px;
+  }
+
+  .mining-dialog-panel {
+    transform: translate3d(var(--mining-dialog-offset-x, 0px), var(--mining-dialog-offset-y, 0px), 0);
+    will-change: transform;
+  }
+
+  .mining-dialog-titlebar {
+    user-select: none;
+  }
+
+  @media (min-width: 768px) and (pointer: fine) {
+    .mining-dialog-overlay {
+      padding-top: 76px;
+    }
+
+    .mining-dialog-titlebar {
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .mining-dialog-titlebar.is-dragging {
+      cursor: grabbing;
+    }
+  }
+
   /* === 战斗动画 === */
 
   @keyframes combat-shake {

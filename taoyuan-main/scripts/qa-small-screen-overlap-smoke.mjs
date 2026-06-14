@@ -1,4 +1,4 @@
-/* global process, setTimeout, window, document, HTMLElement */
+/* global console, process, setTimeout, window, document, HTMLElement */
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -22,6 +22,7 @@ const port = process.env.TAOYUAN_BASE_URL ? preferredPort : await findAvailableP
 const baseURL = process.env.TAOYUAN_BASE_URL?.trim() || `http://${host}:${port}`
 const shouldStartDevServer = process.env.TAOYUAN_SKIP_DEV_SERVER !== '1' && !process.env.TAOYUAN_BASE_URL
 const sampleId = 'endgame_showcase'
+const navigationTimeoutMs = 90_000
 
 const viewports = [
   { label: '360', width: 360, height: 780 },
@@ -68,6 +69,16 @@ const stopDevServer = () => {
   stopWindowsViteProcessesForPort(port)
 }
 
+const launchChromiumBrowser = async () => {
+  try {
+    return await chromium.launch({ headless: true })
+  } catch (error) {
+    if (!isPlaywrightEnvironmentError(error)) throw error
+    console.warn('qa-small-screen-overlap-smoke: bundled Chromium unavailable, falling back to system Chrome')
+    return await chromium.launch({ channel: 'chrome', headless: true })
+  }
+}
+
 const createPage = async (browser, viewport) => {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
@@ -93,7 +104,21 @@ const createPage = async (browser, viewport) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: false }),
+      body: JSON.stringify({ ok: true, config: { enabled: false } }),
+    })
+  })
+  await context.route('**/api/taoyuan/announcements/active**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, announcements: [] }),
+    })
+  })
+  await context.route('**/api/taoyuan/announcements/history**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, announcements: [] }),
     })
   })
   await context.route('**/api/taoyuan/item-icon-preferences', async route => {
@@ -132,8 +157,8 @@ const createPage = async (browser, viewport) => {
 }
 
 const openHome = async page => {
-  await page.goto(baseURL, { waitUntil: 'commit', timeout: 30_000 })
-  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: 30_000 })
+  await page.goto(baseURL, { waitUntil: 'commit', timeout: navigationTimeoutMs })
+  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: navigationTimeoutMs })
 }
 
 const loadSample = async page => {
@@ -147,7 +172,7 @@ const loadSample = async page => {
 const openSampleRoute = async (page, hash) => {
   await openHome(page)
   await loadSample(page)
-  await page.goto(`${baseURL}${hash}`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+  await page.goto(`${baseURL}${hash}`, { waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
   await expect(page.getByTestId('game-layout')).toBeVisible({ timeout: 15_000 })
 }
 
@@ -181,12 +206,95 @@ const seedMiningCombat = async page => {
   })
 }
 
+const seedMiningExplore = async page => {
+  await page.evaluate(async () => {
+    const { useMiningStore } = await import('/src/stores/useMiningStore.ts')
+    const mining = useMiningStore()
+    mining.enterMine()
+  })
+}
+
 const clearTransientOverlays = async page => {
   await page.evaluate(() => {
     document
-      .querySelectorAll('.qmsg, .qmsg-item-wrapper, .qmsg-content, [class*="qmsg-"]')
+      .querySelectorAll('.qmsg, .qmsg-item-wrapper, .qmsg-content, [class*="qmsg-"], [data-testid="announcement-dialog"]')
       .forEach(node => node.remove())
   })
+}
+
+const readMiningExploreDialogMetrics = async page => {
+  return await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="mining-explore-dialog"] .mining-dialog-panel')
+    const handle = document.querySelector('[data-testid="mining-explore-drag-handle"]')
+    const status = document.querySelector('[data-testid="status-bar"]')
+    const statusFirstRow = status instanceof HTMLElement ? status.children[0] : null
+    const panelRect = panel?.getBoundingClientRect()
+    const handleStyle = handle ? window.getComputedStyle(handle) : null
+    const timeAreaRect = statusFirstRow instanceof HTMLElement
+      ? statusFirstRow.getBoundingClientRect()
+      : status?.getBoundingClientRect()
+
+    return {
+      isDesktopDraggable: window.matchMedia('(min-width: 768px) and (pointer: fine)').matches,
+      panelStyle: panel instanceof HTMLElement ? panel.getAttribute('style') || '' : '',
+      handleCursor: handleStyle?.cursor || '',
+      timeAreaBottom: timeAreaRect ? Math.round(timeAreaRect.bottom) : 0,
+      panelBox: panelRect
+        ? {
+          x: Math.round(panelRect.x),
+          y: Math.round(panelRect.y),
+          width: Math.round(panelRect.width),
+          height: Math.round(panelRect.height),
+          right: Math.round(panelRect.right),
+          bottom: Math.round(panelRect.bottom),
+        }
+        : null,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    }
+  })
+}
+
+const assertMiningExploreDialogPlacement = async (page, viewport) => {
+  const before = await readMiningExploreDialogMetrics(page)
+  if (!before.panelBox) throw new Error(`${viewport.label}: mining explore dialog panel missing`)
+
+  if (viewport.width < 768) {
+    if (before.isDesktopDraggable) throw new Error(`${viewport.label}: mobile mining dialog should not enable desktop dragging`)
+    if (before.panelStyle.includes('--mining-dialog-offset')) {
+      throw new Error(`${viewport.label}: mobile mining dialog should not apply drag offsets`)
+    }
+    return
+  }
+
+  if (!before.isDesktopDraggable) throw new Error(`${viewport.label}: desktop mining dialog should enable fine-pointer dragging`)
+  if (!/grab/.test(before.handleCursor)) throw new Error(`${viewport.label}: mining dialog handle should show a grab cursor`)
+  if (before.panelBox.y < before.timeAreaBottom + 4) {
+    throw new Error(`${viewport.label}: mining explore dialog overlaps the status time row`)
+  }
+
+  const handle = page.getByTestId('mining-explore-drag-handle')
+  const box = await handle.boundingBox()
+  if (!box) throw new Error(`${viewport.label}: mining explore drag handle has no box`)
+  const startX = box.x + box.width / 2
+  const startY = box.y + Math.min(12, Math.max(4, box.height / 2))
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  await page.mouse.move(startX + 96, startY + 56, { steps: 4 })
+  await page.mouse.up()
+  await page.waitForTimeout(100)
+
+  const after = await readMiningExploreDialogMetrics(page)
+  if (!after.panelBox) throw new Error(`${viewport.label}: mining explore dialog panel missing after drag`)
+  if (after.panelBox.y <= before.panelBox.y + 8) throw new Error(`${viewport.label}: mining explore dialog did not move after drag`)
+  if (after.panelBox.y < after.timeAreaBottom + 4) throw new Error(`${viewport.label}: dragged mining dialog overlaps the status time row`)
+  if (
+    after.panelBox.x < -2 ||
+    after.panelBox.y < -2 ||
+    after.panelBox.right > after.viewport.width + 2 ||
+    after.panelBox.bottom > after.viewport.height + 2
+  ) {
+    throw new Error(`${viewport.label}: dragged mining explore dialog is outside the viewport`)
+  }
 }
 
 const captureAndAssert = async ({ page, label, viewport, targetSelector, targetTextNeedles = [] }) => {
@@ -300,9 +408,19 @@ const scenarios = [
     },
   },
   {
+    label: 'mining-explore-dialog',
+    hash: '/#/game/mining',
+    targetSelector: '[data-testid="mining-explore-dialog"] .mining-dialog-panel',
+    prepare: async (page, viewport) => {
+      await seedMiningExplore(page)
+      await expect(page.getByTestId('mining-explore-dialog')).toBeVisible({ timeout: 10_000 })
+      await assertMiningExploreDialogPlacement(page, viewport)
+    },
+  },
+  {
     label: 'mining-combat-dialog',
     hash: '/#/game/mining',
-    targetSelector: '.game-modal-overlay .game-panel',
+    targetSelector: '[data-testid="mining-combat-dialog"] .mining-dialog-panel',
     targetTextNeedles: ['遭遇怪物', '攻击', '防御', '逃跑'],
     prepare: async page => {
       await seedMiningCombat(page)
@@ -316,13 +434,14 @@ await startDevServer()
 
 let browser = null
 try {
-  browser = await chromium.launch({ headless: true })
+  browser = await launchChromiumBrowser()
   for (const viewport of viewports) {
     for (const scenario of scenarios) {
       const { context, page } = await createPage(browser, viewport)
       try {
         await openSampleRoute(page, scenario.hash)
-        await scenario.prepare(page)
+        await clearTransientOverlays(page)
+        await scenario.prepare(page, viewport)
         await captureAndAssert({
           page,
           label: scenario.label,
