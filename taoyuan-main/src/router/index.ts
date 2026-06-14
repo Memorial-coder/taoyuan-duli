@@ -71,6 +71,7 @@ const router = createRouter({
         { path: 'upgrade', name: 'upgrade', component: () => import('@/views/game/ToolUpgradeView.vue') },
         { path: 'inventory', name: 'inventory', component: () => import('@/views/game/InventoryView.vue') },
         { path: 'skills', name: 'skills', component: () => import('@/views/game/SkillView.vue') },
+        { path: 'potential', name: 'potential', component: () => import('@/views/game/PotentialView.vue') },
         { path: 'achievement', name: 'achievement', component: () => import('@/views/game/AchievementView.vue') },
         { path: 'glossary', name: 'glossary', component: () => import('@/views/game/GlossaryView.vue') },
         { path: 'wallet', name: 'wallet', component: () => import('@/views/game/WalletView.vue') },

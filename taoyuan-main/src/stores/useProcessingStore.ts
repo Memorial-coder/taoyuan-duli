@@ -19,6 +19,7 @@ import { getItemById } from '@/data/items'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useGameStore } from './useGameStore'
 import { useBreedingStore } from './useBreedingStore'
 import { useWarehouseStore } from './useWarehouseStore'
@@ -333,6 +334,10 @@ export const useProcessingStore = defineStore('processing', () => {
     const processingFlowBonus = skillStore.getSkillMasteryEffectValue('processing_flow')
     if (processingFlowBonus > 0) {
       totalDays = Math.max(1, Math.ceil(totalDays * (1 - processingFlowBonus)))
+    }
+    const potentialProcessingBonus = usePotentialStore().getPotentialEffectValue('potential_processing_speed')
+    if (potentialProcessingBonus > 0) {
+      totalDays = Math.max(1, Math.ceil(totalDays * (1 - potentialProcessingBonus)))
     }
     // 仙缘能力：织速（gui_nv_1）织布机加工时间-30%
     if (machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {

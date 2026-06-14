@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
 import type { EconomySinkCategory, EconomySystemKey, EconomyTelemetryState, Gender, InventoryItem, QaGovernanceRuntimeState, WealthTierAssessment } from '@/types'
@@ -11,6 +11,7 @@ import {
   SHORT_REST_DAILY_STAMINA_CAP
 } from '@/data/timeConstants'
 import { useSkillStore } from './useSkillStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useHomeStore } from './useHomeStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useAchievementStore } from './useAchievementStore'
@@ -278,7 +279,8 @@ export const usePlayerStore = defineStore('player', () => {
     // 公会加成：生命护符永久 + 等级被动
     const guildHpBonus = useMiningStore().guildBonusMaxHp
     const guildLevelHpBonus = useGuildStore().getGuildHpBonus()
-    return baseMaxHp.value + bonus + ringHpBonus + spiritHpBonus + guildHpBonus + guildLevelHpBonus
+    const potentialHpBonus = usePotentialStore().getPotentialEffectValue('potential_max_hp_flat')
+    return baseMaxHp.value + bonus + ringHpBonus + spiritHpBonus + guildHpBonus + guildLevelHpBonus + potentialHpBonus
   }
 
   const getHpPercent = (): number => {
@@ -294,9 +296,22 @@ export const usePlayerStore = defineStore('player', () => {
       (STAMINA_CAPS[staminaCapLevel.value] ?? 120) +
       bonusMaxStamina.value +
       temporaryFoodMaxStaminaBonus.value +
-      temporarySpiritMaxStaminaBonus.value
+      temporarySpiritMaxStaminaBonus.value +
+      usePotentialStore().getPotentialEffectValue('potential_max_stamina_flat')
     stamina.value = Math.min(Math.max(0, stamina.value), maxStamina.value)
   }
+
+  watch(
+    () => usePotentialStore().getPotentialEffectValue('potential_max_stamina_flat'),
+    () => recomputeMaxStamina()
+  )
+
+  watch(
+    () => usePotentialStore().getPotentialEffectValue('potential_max_hp_flat'),
+    () => {
+      hp.value = Math.min(hp.value, getMaxHp())
+    }
+  )
 
   /** 消耗体力（含仙缘灵护减免），返回是否成功 */
   const consumeStamina = (amount: number): boolean => {
@@ -305,7 +320,8 @@ export const usePlayerStore = defineStore('player', () => {
     // 仙缘结缘：灵护（spirit_shield）体力消耗减免
     const spiritShield2 = useHiddenNpcStore().getBondBonusByType('spirit_shield')
     const spiritSave = spiritShield2?.type === 'spirit_shield' ? spiritShield2.staminaSave / 100 : 0
-    const effectiveAmount = Math.max(1, Math.floor(normalizedAmount * (1 - spiritSave)))
+    const potentialToolSave = usePotentialStore().getPotentialEffectValue('potential_tool_stamina_save')
+    const effectiveAmount = Math.max(1, Math.floor(normalizedAmount * (1 - spiritSave) * (1 - potentialToolSave)))
     if (stamina.value < effectiveAmount) return false
     stamina.value -= effectiveAmount
     return true
@@ -377,7 +393,8 @@ export const usePlayerStore = defineStore('player', () => {
         recoveryPct = PASSOUT_STAMINA_RECOVERY + staminaBonus2 + villageBonus2
         appliedRecoveryPct = Math.min(recoveryPct, 1)
         stamina.value = Math.floor(maxStamina.value * appliedRecoveryPct)
-        moneyLost = Math.min(Math.floor(money.value * PASSOUT_MONEY_PENALTY_RATE), PASSOUT_MONEY_PENALTY_CAP)
+        const passoutReduction = usePotentialStore().getPotentialEffectValue('potential_passout_loss_reduction')
+        moneyLost = Math.min(Math.floor(money.value * Math.max(0, PASSOUT_MONEY_PENALTY_RATE * (1 - passoutReduction))), PASSOUT_MONEY_PENALTY_CAP)
         money.value -= moneyLost
         recordEconomyFlow('expense', moneyLost, 'system')
         break

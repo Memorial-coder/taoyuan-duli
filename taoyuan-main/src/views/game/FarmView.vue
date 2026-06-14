@@ -569,7 +569,7 @@
           @click.self="showShippingBox = false"
         >
           <div
-            class="game-panel flex max-h-[88dvh] min-h-[70dvh] w-full max-w-none flex-col rounded-t-xs md:max-h-[82dvh] md:min-h-[560px] md:max-w-4xl md:rounded-xs"
+            class="game-panel flex h-[88dvh] max-h-[88dvh] w-full max-w-none flex-col overflow-hidden rounded-t-xs md:h-[82dvh] md:max-h-[82dvh] md:max-w-4xl md:rounded-xs"
             data-testid="shipping-box-modal"
           >
             <div class="flex shrink-0 items-start justify-between gap-3 border-b border-accent/10 pb-2">

@@ -15,6 +15,7 @@ import { useInventoryStore } from './useInventoryStore'
 import { useMiningStore } from './useMiningStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
+import { usePotentialStore } from './usePotentialStore'
 
 type JourneyBuildTarget = {
   regionId: RegionId
@@ -170,6 +171,7 @@ export const buildJourneyBuildSnapshot = (
   const equipmentBonuses = buildEquipmentBonuses()
   const journeyScoutBonus = skillStore.getSkillMasteryEffectValue('journey_scout')
   const escortMarginBonus = skillStore.getSkillMasteryEffectValue('escort_margin')
+  const potentialHazardResist = usePotentialStore().getPotentialEffectValue('potential_journey_hazard_resist')
   const outcomeBase = createEmptyJourneyOutcomeModifiers()
   let outcome = mergeOutcome(outcomeBase, {})
 
@@ -217,6 +219,12 @@ export const buildJourneyBuildSnapshot = (
     outcome = addOutcome(outcome, {
       scoutBonus: journeyScoutBonus,
       hazardResist: escortMarginBonus
+    })
+  }
+
+  if (potentialHazardResist > 0) {
+    outcome = addOutcome(outcome, {
+      hazardResist: potentialHazardResist
     })
   }
 

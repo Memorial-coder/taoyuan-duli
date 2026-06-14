@@ -423,7 +423,7 @@
   const villageGroup = computed(() => pick(['village', 'shop', 'quest', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
-  const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'goals', 'mail', 'glossary']))
+  const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'potential', 'achievement', 'wallet', 'goals', 'mail', 'glossary']))
 
   const isActivePanel = (key: PanelKey) => {
     if (key === 'online') return props.current === 'online' || props.current.startsWith('online-')

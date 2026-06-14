@@ -29,6 +29,7 @@ import {
   Wrench,
   Package,
   Star,
+  Sparkles,
   BookOpen,
   Wallet,
   ScrollText,
@@ -65,6 +66,7 @@ export type PanelKey =
   | 'forage'
   | 'upgrade'
   | 'skills'
+  | 'potential'
   | 'workshop'
   | 'achievement'
   | 'glossary'
@@ -110,6 +112,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'charinfo', label: '角色', icon: User },
   { key: 'inventory', label: '背包', icon: Package },
   { key: 'skills', label: '技能', icon: Star },
+  { key: 'potential', label: '潜能', icon: Sparkles },
   { key: 'achievement', label: '图鉴', icon: BookOpen },
   { key: 'glossary', label: '百科', icon: BookMarked },
   { key: 'wallet', label: '钱包', icon: Wallet },

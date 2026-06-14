@@ -34,6 +34,7 @@ import { getShoeById, MONSTER_DROP_SHOES, BOSS_DROP_SHOES, TREASURE_DROP_SHOES }
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useGuildStore } from './useGuildStore'
 import { useQuestStore } from './useQuestStore'
@@ -335,7 +336,16 @@ export const useMiningStore = defineStore('mining', () => {
     return ` 矿脉标记：入口${getRelativeMineDirection(entryIndex.value, target.tile.index)}方约${target.distance}步有${getMineTileValueLabel(target.tile)}反应。`
   }
 
-  const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getVeinMarkerMessage()}`
+  const getPotentialMineEntryHint = (floor = getActiveFloorData()): string => {
+    if (usePotentialStore().getPotentialEffectValue('potential_mine_entry_hint') <= 0 || !floor) return ''
+    const hints = [
+      floor.isSafePoint ? '本层可作为落脚点。' : '先摸清楼梯或高威胁格再深推。',
+      floor.specialType === 'boss' ? '首领层建议确认血量和补给。' : floor.specialType === 'infested' ? '怪物密集层优先清场。' : ''
+    ].filter(Boolean)
+    return ` 潜能感应：${hints.join('')}`
+  }
+
+  const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getVeinMarkerMessage()}${getPotentialMineEntryHint(floor)}`
 
   const getBossDossierMessage = (monster: MonsterDef, isFirstKill: boolean): string => {
     if (skillStore.getSkillMasteryEffectValue('boss_dossier') <= 0) return ''
@@ -743,6 +753,10 @@ export const useMiningStore = defineStore('mining', () => {
       message += ` 获得${moneyReward}文！`
       if (bossPressureBonus > 0 && moneyReward > baseMoneyReward) message += '（首领压制）'
     }
+    const potentialReward = usePotentialStore().claimPotentialSourceReward('mine_boss_clear', `main:${floorNum}:${bossId ?? 'boss'}`, {
+      reason: `矿洞第${floorNum}层首领`
+    })
+    if (potentialReward.success) message += ' 潜能材料有所沉淀。'
 
     if (oreRewardMessage) {
       message += oreRewardMessage
@@ -1842,6 +1856,10 @@ export const useMiningStore = defineStore('mining', () => {
             combatRewardEntries.push({ itemId: oreId, quantity: 1 })
           }
         }
+        const potentialReward = usePotentialStore().claimPotentialSourceReward('mine_boss_clear', `skull:${scFloor}`, {
+          reason: `骷髅矿穴第${scFloor}层首领`
+        })
+        if (potentialReward.success) msg += ' 潜能材料有所沉淀。'
         msg += ` 获得了${bonusOreCount}个稀有矿石！`
       } else {
         // 主矿洞BOSS

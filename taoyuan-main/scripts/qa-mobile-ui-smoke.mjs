@@ -47,7 +47,9 @@ function assertShippingBoxSourceGuards() {
   const required = [
     ['data-testid="shipping-box-modal"', '出货箱弹窗必须有稳定测试选择器'],
     ['data-testid="shipping-box-entry"', '出货箱入口必须有稳定测试选择器'],
+    ['h-[88dvh]', '移动端出货箱弹窗高度必须固定，避免列表增减时跳动'],
     ['max-h-[88dvh]', '移动端出货箱必须接近全屏高度'],
+    ['md:h-[82dvh]', '桌面端出货箱弹窗高度必须固定，避免列表增减时跳动'],
     ['md:max-h-[82dvh]', '桌面端出货箱必须限制在视口内'],
     ['md:max-w-4xl', '桌面端出货箱必须使用宽弹窗'],
     ['data-testid="shipping-box-search"', '出货箱必须保留搜索入口'],
