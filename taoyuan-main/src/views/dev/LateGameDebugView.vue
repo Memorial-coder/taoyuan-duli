@@ -524,8 +524,8 @@
     exhibit: '展陈券',
     caravan: '商路票',
     research: '研究券',
-    guildLogistics: '公会后勤券',
-    familyFavor: '家业情谊券'
+    guildLogistics: '后勤票',
+    familyFavor: '家和券'
   }
   const routeNameLabels: Record<BuiltInSampleRouteName, string> = {
     'region-map': '行旅图',

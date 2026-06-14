@@ -19,7 +19,8 @@
         <span v-if="miningStore.skullCavernBestFloor > 0" class="text-xs text-muted">最深 第{{ miningStore.skullCavernBestFloor }}层</span>
         <span v-else class="text-xs text-muted/40">未探索</span>
       </div>
-      <p class="text-xs text-muted">无限层 · 每10层安全点 · 铱矿来源 · 怪物随深度增强</p>
+      <p class="text-xs text-muted">无限层 · 每10层安全点 · 50层一档富集 · 怪物随深度增强</p>
+      <p class="text-xs text-muted mt-0.5">深度档：{{ skullDepthLootSummary }}</p>
       <p v-if="miningStore.skullSafePointFloor > 0" class="text-xs text-muted mt-0.5">安全点：第{{ miningStore.skullSafePointFloor }}层</p>
     </div>
 
@@ -249,7 +250,8 @@
     <Transition name="panel-fade">
       <div
         v-if="miningStore.isExploring && !miningStore.inCombat"
-        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-start justify-center overflow-y-auto z-50 p-4"
+        data-testid="mining-explore-dialog"
       >
         <div class="game-panel max-w-sm w-full">
           <!-- 标题栏 -->
@@ -349,8 +351,8 @@
                 <BookMarked :size="12" class="inline" />
                 切换装备方案
               </span>
-              <span v-if="inventoryStore.activePresetId" class="text-[0.625rem] text-muted">
-                {{ inventoryStore.equipmentPresets.find(p => p.id === inventoryStore.activePresetId)?.name ?? '' }}
+              <span v-if="inventoryStore.activeEquipmentPresetName" class="text-[0.625rem] text-muted">
+                {{ inventoryStore.activeEquipmentPresetName }}
               </span>
             </div>
             <div
@@ -394,7 +396,7 @@
           </div>
 
           <!-- 探索日志 -->
-          <div class="text-xs text-muted space-y-0.5 max-h-24 overflow-y-auto">
+          <div class="h-24 text-xs text-muted space-y-0.5 overflow-y-auto">
             <p v-for="(msg, i) in recentLog" :key="i" :class="{ 'text-text': i === recentLog.length - 1 }">{{ msg }}</p>
           </div>
         </div>
@@ -403,7 +405,11 @@
 
     <!-- 战斗弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="miningStore.inCombat" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4">
+      <div
+        v-if="miningStore.inCombat"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-start justify-center overflow-y-auto z-60 p-4"
+        data-testid="mining-combat-dialog"
+      >
         <div class="game-panel max-w-xs w-full">
           <!-- 标题 -->
           <div class="flex items-center justify-between mb-2">
@@ -535,14 +541,14 @@
                 <BookMarked :size="12" class="inline" />
                 切换装备方案
               </span>
-              <span v-if="inventoryStore.activePresetId" class="text-[0.625rem] text-muted">
-                {{ inventoryStore.equipmentPresets.find(p => p.id === inventoryStore.activePresetId)?.name ?? '' }}
+              <span v-if="inventoryStore.activeEquipmentPresetName" class="text-[0.625rem] text-muted">
+                {{ inventoryStore.activeEquipmentPresetName }}
               </span>
             </div>
           </div>
 
           <!-- 战斗日志 -->
-          <div class="text-xs space-y-0.5 max-h-28 overflow-y-auto">
+          <div class="h-28 text-xs space-y-0.5 overflow-y-auto">
             <p
               v-for="(msg, i) in miningStore.combatLog"
               :key="i"
@@ -690,16 +696,16 @@
               v-for="preset in inventoryStore.equipmentPresets"
               :key="preset.id"
               class="flex min-h-[5.5rem] min-w-0 flex-col border rounded-xs p-2.5"
-              :class="inventoryStore.activePresetId === preset.id ? 'border-accent/40' : 'border-accent/10'"
+              :class="inventoryStore.isEquipmentPresetActive(preset.id) ? 'border-accent/40' : 'border-accent/10'"
             >
               <div class="mb-2 flex min-h-8 items-start justify-between gap-1.5">
                 <p class="min-w-0 truncate text-xs text-accent">{{ preset.name }}</p>
-                <span v-if="inventoryStore.activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
+                <span v-if="inventoryStore.isEquipmentPresetActive(preset.id)" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
               <div class="mt-auto grid grid-cols-2 gap-1.5">
                 <Button
                   class="min-h-8 min-w-0 justify-center px-1.5 py-1 text-xs whitespace-nowrap"
-                  :disabled="inventoryStore.activePresetId === preset.id"
+                  :disabled="inventoryStore.isEquipmentPresetActive(preset.id)"
                   @click="quickApplyPreset(preset.id)"
                 >
                   使用
@@ -845,7 +851,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
-  import { ZONE_NAMES, getFloor, BOSS_MONSTERS, MAX_MINE_FLOOR } from '@/data'
+  import { ZONE_NAMES, getFloor, BOSS_MONSTERS, MAX_MINE_FLOOR, getSkullCavernDepthLootProfile } from '@/data'
   import { getWeaponById, getEnchantmentById, getWeaponDisplayName, WEAPON_TYPE_NAMES } from '@/data/weapons'
   import { getRingById, getHatById, getShoeById } from '@/data'
   import type { EquipmentEffectType } from '@/types'
@@ -1164,6 +1170,18 @@
   const currentFloorSpecial = computed(() => {
     const floor = miningStore.getActiveFloorData()
     return floor?.specialType ?? null
+  })
+
+  const skullDepthLootSummary = computed(() => {
+    const floor = miningStore.isInSkullCavern ? miningStore.skullCavernFloor : Math.max(1, miningStore.skullSafePointFloor + 1)
+    const profile = getSkullCavernDepthLootProfile(floor)
+    const range = profile.tierEndFloor ? `${profile.tierStartFloor}-${profile.tierEndFloor}层` : `${profile.tierStartFloor}层+`
+    const parts = [range]
+    if (profile.extraOreCount > 0) parts.push(`矿脉+${profile.extraOreCount}`)
+    if (profile.iridiumWeightBonus > 0) parts.push('铱矿富集')
+    if (profile.oreQuantityBonusChance > 0) parts.push(`${Math.round(profile.oreQuantityBonusChance * 100)}%矿量+1`)
+    if (profile.prismaticShardWeightChance > 0) parts.push('五彩微光')
+    return parts.join(' · ')
   })
 
   /** 感染层剩余怪物 */

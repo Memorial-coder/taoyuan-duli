@@ -161,6 +161,7 @@ installBrowserShims()
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const inventoryStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useInventoryStore.ts'), 'utf8')
 const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
 const miningViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/MiningView.vue'), 'utf8')
 
@@ -180,6 +181,9 @@ assert(/<Transition name="dialog-pop">[\s\S]*data-testid="inventory-preset-actio
 assert(inventoryViewSource.includes('data-testid="inventory-preset-actions-name-input"') && inventoryViewSource.includes('handleSavePresetName'), 'Inventory preset action dialog should edit and save the preset name directly.')
 assert(/data-testid="inventory-preset-actions-dialog"[\s\S]*保存名称[\s\S]*保存装备[\s\S]*删除方案/.test(inventoryViewSource), 'Inventory preset save-name/save-equipment/delete actions should live in the action dialog.')
 assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test(miningViewSource), 'Mining equipment preset candidates should use a two-column grid.')
+assert(inventoryStoreSource.includes('doesCurrentEquipmentMatchPreset') && inventoryStoreSource.includes('isEquipmentPresetActive'), 'Equipment presets should expose a real current-equipment match guard.')
+assert(inventoryViewSource.includes('isPresetActive(preset.id)') && inventoryViewSource.includes('activeEquipmentPresetName'), 'Inventory preset UI should use real equipment matches instead of stale activePresetId flags.')
+assert(miningViewSource.includes('inventoryStore.isEquipmentPresetActive(preset.id)') && miningViewSource.includes('inventoryStore.activeEquipmentPresetName'), 'Mining preset UI should use real equipment matches instead of stale activePresetId flags.')
 
 {
   const inventoryStore = freshInventoryStore()
@@ -221,6 +225,33 @@ assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test
   assert(inventoryStore.equippedShoeIndex === -1, '方案目标鞋子缺失时应清空鞋子槽。')
   assert(inventoryStore.getEquipmentBonus('mining_stamina') === 0, '缺失方案不得保留旧矿工套属性。')
   assert(!inventoryStore.activeSets.some(set => set.id === 'miner_set'), '缺失方案不得保留旧矿工套装奖励。')
+  assert(inventoryStore.activePresetId === null, 'Missing-equipment preset application must not keep a stale active marker.')
+  assert(inventoryStore.isEquipmentPresetActive('qa-missing-preset') === false, 'Missing-equipment preset must not be treated as active.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedWeapons = [
+    { defId: 'wooden_stick', enchantmentId: null },
+    { defId: 'copper_sword', enchantmentId: null }
+  ]
+  inventoryStore.equippedWeaponIndex = 1
+  inventoryStore.createEquipmentPreset('qa-combat')
+  const preset = inventoryStore.equipmentPresets[inventoryStore.equipmentPresets.length - 1]
+  inventoryStore.saveCurrentToPreset(preset.id)
+
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === true, 'A preset saved from current equipment should be considered active.')
+  assert(inventoryStore.activeEquipmentPresetName === 'qa-combat', 'The active preset display name should come from the real current equipment match.')
+
+  assert(inventoryStore.equipWeapon(0), 'QA setup should switch away from the saved preset weapon.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === false, 'Changing equipment should make the saved preset inactive.')
+  assert(inventoryStore.activePresetId === null, 'Changing equipment should clear the stale active preset marker.')
+
+  const applyResult = inventoryStore.applyEquipmentPreset(preset.id)
+  assert(applyResult.success === true, 'Applying a complete preset should succeed.')
+  assert(inventoryStore.getEquippedWeapon().defId === 'copper_sword', 'Applying a complete preset should switch the current weapon.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === true, 'Applying a complete preset should mark only real matching equipment as active.')
+  assert(inventoryStore.activePresetId === preset.id, 'A fully applied preset may keep its active marker.')
 }
 
 {
@@ -312,6 +343,36 @@ assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test
 
 {
   const inventoryStore = freshInventoryStore()
+  const save = inventoryStore.serialize()
+  inventoryStore.deserialize({
+    ...save,
+    ownedWeapons: [
+      { defId: 'wooden_stick', enchantmentId: null },
+      { defId: 'copper_sword', enchantmentId: null }
+    ],
+    equippedWeaponIndex: 0,
+    equipmentPresets: [
+      {
+        id: 'stale-combat',
+        name: 'stale combat',
+        weaponDefId: 'copper_sword',
+        weaponEnchantmentId: null,
+        ringSlot1DefId: null,
+        ringSlot2DefId: null,
+        hatDefId: null,
+        shoeDefId: null,
+        trinketDefId: null
+      }
+    ],
+    activePresetId: 'stale-combat'
+  })
+
+  assert(inventoryStore.activePresetId === null, 'Deserializing a stale active preset marker should clear it when equipment does not match.')
+  assert(inventoryStore.isEquipmentPresetActive('stale-combat') === false, 'A deserialized stale preset marker must not make the preset active.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
   inventoryStore.ownedWeapons = [
     { defId: 'wooden_stick', enchantmentId: null },
     { defId: 'copper_sword', enchantmentId: null }
@@ -334,6 +395,8 @@ assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test
   assert(inventoryStore.ownedWeapons.length === 1, 'Applying a preset with a sold weapon must not create a replacement weapon.')
   assert(!inventoryStore.ownedWeapons.some(weapon => weapon.defId === 'wooden_stick'), 'Sold wooden stick must not reappear after applying the old preset.')
   assert(inventoryStore.getEquippedWeapon().defId === 'copper_sword', 'Missing preset weapon should fall back to an existing weapon.')
+  assert(inventoryStore.activePresetId === null, 'A partially applied preset with missing equipment must not keep a stale active marker.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === false, 'A partially applied preset with missing equipment must not be treated as active.')
 }
 
 {

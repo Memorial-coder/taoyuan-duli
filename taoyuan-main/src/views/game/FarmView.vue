@@ -1371,6 +1371,7 @@
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
+  import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
@@ -1423,11 +1424,13 @@
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
   const gameStore = useGameStore()
+  const hiddenNpcStore = useHiddenNpcStore()
   const homeStore = useHomeStore()
   const playerStore = usePlayerStore()
   const shopStore = useShopStore()
   const breedingStore = useBreedingStore()
   const settingsStore = useSettingsStore()
+  const walletStore = useWalletStore()
 
   onMounted(() => {
     farmStore.reconcileMatureCrops()
@@ -1676,12 +1679,17 @@
   const plotStateLabel = computed(() => (activePlot.value ? (STATE_LABELS[activePlot.value.state] ?? '?') : ''))
   const ghPlotStateLabel = computed(() => (activeGhPlot.value ? (STATE_LABELS[activeGhPlot.value.state] ?? '?') : ''))
 
+  const currentCropGrowthBonus = computed(() => {
+    const spiritGrowth = gameStore.season === 'spring' ? hiddenNpcStore.getAbilityValue('tao_yao_2') / 100 : 0
+    return walletStore.getCropGrowthBonus() + spiritGrowth
+  })
+
   const plotCropGrowthDays = computed(() => {
     if (!activePlot.value?.cropId) return '?'
     const baseDays = getCropById(activePlot.value.cropId)?.growthDays
     if (!baseDays) return '?'
     const fertDef = activePlot.value.fertilizer ? getFertilizerById(activePlot.value.fertilizer) : null
-    const speedup = (fertDef?.growthSpeedup ?? 0) + useWalletStore().getCropGrowthBonus()
+    const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
     return speedup > 0 ? Math.max(1, Math.floor(baseDays * (1 - speedup))) : baseDays
   })
 
@@ -1700,7 +1708,7 @@
     const baseDays = getCropById(activeGhPlot.value.cropId)?.growthDays
     if (!baseDays) return '?'
     const fertDef = activeGhPlot.value.fertilizer ? getFertilizerById(activeGhPlot.value.fertilizer) : null
-    const speedup = (fertDef?.growthSpeedup ?? 0) + useWalletStore().getCropGrowthBonus()
+    const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
     return speedup > 0 ? Math.max(1, Math.floor(baseDays * (1 - speedup))) : baseDays
   })
 
@@ -2054,7 +2062,7 @@
       case 'growing': {
         const crop = getCropById(plot.cropId!)
         const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
-        const speedup = (fertDef?.growthSpeedup ?? 0) + useWalletStore().getCropGrowthBonus()
+        const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
         const effectiveDays = crop ? (speedup > 0 ? Math.max(1, Math.floor(crop.growthDays * (1 - speedup))) : crop.growthDays) : 1
         const progress = crop ? Math.floor((plot.growthDays / effectiveDays) * 100) : 0
         return {
@@ -2080,7 +2088,7 @@
     } else if (plot.state === 'planted' || plot.state === 'growing') {
       const crop = getCropById(plot.cropId!)
       const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
-      const speedup = (fertDef?.growthSpeedup ?? 0) + useWalletStore().getCropGrowthBonus()
+      const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
       const effectiveDays = crop ? (speedup > 0 ? Math.max(1, Math.floor(crop.growthDays * (1 - speedup))) : crop.growthDays) : '?'
       tip = `${crop?.name ?? ''} ${plot.growthDays}/${effectiveDays}天 ${plot.watered ? '已浇水' : '需浇水'}`
     }
@@ -2751,7 +2759,10 @@
       sfxHarvest()
       showFloat(`温室收获 ×${harvested}`, 'success')
       addLog(`在温室一键收获了${harvested}株作物。`)
-      const tr = gameStore.advanceTime(ACTION_TIME_COSTS.harvest * harvested)
+      const batchSegments = Math.max(1, Math.ceil(harvested / 6))
+      const tr = gameStore.advanceTime(
+        ACTION_TIME_COSTS.batchHarvest * batchSegments * inventoryStore.getToolStaminaMultiplier('scythe')
+      )
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
         handleEndDay()

@@ -31,6 +31,25 @@ export interface GoalReward {
   unlockHint?: string
 }
 
+export interface GoalReputationTierDef {
+  id: string
+  label: string
+  minReputation: number
+  weeklyBudgetDiscountRate: number
+  weeklyBudgetDiscountCap: number
+  description: string
+}
+
+export interface GoalReputationBudgetDiscountPreview {
+  tierId: string
+  tierLabel: string
+  baseCostMoney: number
+  paidCostMoney: number
+  discountMoney: number
+  discountRate: number
+  discountCap: number
+}
+
 export interface GoalTemplate {
   id: string
   title: string

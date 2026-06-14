@@ -405,16 +405,16 @@
               v-for="preset in inventoryStore.equipmentPresets"
               :key="preset.id"
               class="relative flex min-w-0 flex-col border rounded-xs p-2.5"
-              :class="activePresetId === preset.id ? 'border-accent/40' : 'border-accent/10'"
+              :class="isPresetActive(preset.id) ? 'border-accent/40' : 'border-accent/10'"
             >
               <div class="mb-2 flex min-h-8 items-start justify-between gap-1.5">
                 <span class="min-w-0 truncate text-xs text-accent">{{ preset.name }}</span>
-                <span v-if="activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
+                <span v-if="isPresetActive(preset.id)" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
               <div class="mt-auto grid grid-cols-2 gap-1.5">
                 <Button
                   class="min-h-8 min-w-0 justify-center px-1.5 py-1 text-xs whitespace-nowrap"
-                  :disabled="activePresetId === preset.id"
+                  :disabled="isPresetActive(preset.id)"
                   @click="handleApplyPreset(preset.id)"
                 >
                   使用
@@ -473,7 +473,7 @@
                 <Button class="min-h-9 justify-center px-3 py-1.5 text-sm whitespace-nowrap" @click="handleSaveToPreset(actionPreset.id)">保存装备</Button>
                 <Button
                   class="min-h-9 justify-center px-3 py-1.5 text-sm whitespace-nowrap text-danger"
-                  :disabled="activePresetId === actionPreset.id"
+                  :disabled="isPresetActive(actionPreset.id)"
                   @click="handleDeletePreset(actionPreset.id)"
                 >
                   删除方案
@@ -1219,12 +1219,8 @@
   const openPresetActionId = ref<string | null>(null)
   const actionPresetNameDraft = ref('')
 
-  const activePresetId = computed(() => inventoryStore.activePresetId)
-
-  const activePresetName = computed(() => {
-    if (!activePresetId.value) return null
-    return inventoryStore.equipmentPresets.find(p => p.id === activePresetId.value)?.name ?? null
-  })
+  const activePresetName = computed(() => inventoryStore.activeEquipmentPresetName)
+  const isPresetActive = (id: string) => inventoryStore.isEquipmentPresetActive(id)
 
   const actionPreset = computed(() => {
     if (!openPresetActionId.value) return null

@@ -108,6 +108,10 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 最近一次读档装备迁移记录 */
   const equipmentMigrationLogs = ref<string[]>([])
 
+  const clearActivePreset = () => {
+    activePresetId.value = null
+  }
+
   /** 正在升级中的工具（2天等待期） */
   const pendingUpgrade = ref<{ toolType: ToolType; targetTier: ToolTier; daysRemaining: number } | null>(null)
   const TOOL_TIER_ORDER: ToolTier[] = ['basic', 'iron', 'steel', 'iridium']
@@ -274,6 +278,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 装备武器（按索引） */
   const equipWeapon = (index: number): boolean => {
     if (index < 0 || index >= ownedWeapons.value.length) return false
+    if (equippedWeaponIndex.value !== index) clearActivePreset()
     equippedWeaponIndex.value = index
     return true
   }
@@ -288,6 +293,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const price = getWeaponSellPrice(weapon.defId, weapon.enchantmentId)
     const playerStore = usePlayerStore()
     playerStore.earnMoney(price)
+    clearActivePreset()
     ownedWeapons.value.splice(index, 1)
     // 修正装备索引
     if (equippedWeaponIndex.value > index) {
@@ -302,6 +308,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const index = findLastMatchingIndex(ownedWeapons.value, w => w.defId === defId && w.enchantmentId === enchantmentId)
     if (index < 0) return false
     if (ownedWeapons.value.length <= 1) return false
+    clearActivePreset()
     ownedWeapons.value.splice(index, 1)
     if (equippedWeaponIndex.value === index) {
       equippedWeaponIndex.value = 0
@@ -892,6 +899,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (targetSlot.value === ringIndex) return true
     // 同一枚戒指在另一个槽位 → 交换
     if (otherSlot.value === ringIndex) {
+      clearActivePreset()
       otherSlot.value = targetSlot.value // 可能是 -1
       targetSlot.value = ringIndex
       return true
@@ -901,6 +909,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (otherSlot.value >= 0 && otherSlot.value < ownedRings.value.length && ownedRings.value[otherSlot.value]!.defId === targetDefId) {
       return false
     }
+    if (targetSlot.value !== ringIndex) clearActivePreset()
     targetSlot.value = ringIndex
     return true
   }
@@ -914,6 +923,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       if (equippedRingSlot2.value < 0) return false
       equippedRingSlot2.value = -1
     }
+    clearActivePreset()
     return true
   }
 
@@ -924,6 +934,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (ring.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const def = getRingById(ring.defId)
     const price = def?.sellPrice ?? 0
+    clearActivePreset()
     // 自动卸下
     if (equippedRingSlot1.value === index) equippedRingSlot1.value = -1
     if (equippedRingSlot2.value === index) equippedRingSlot2.value = -1
@@ -940,6 +951,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const removeRing = (defId: string): boolean => {
     const index = findLastMatchingIndex(ownedRings.value, r => r.defId === defId)
     if (index < 0) return false
+    clearActivePreset()
     if (equippedRingSlot1.value === index) equippedRingSlot1.value = -1
     if (equippedRingSlot2.value === index) equippedRingSlot2.value = -1
     ownedRings.value.splice(index, 1)
@@ -1120,6 +1132,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 装备帽子 */
   const equipHat = (index: number): boolean => {
     if (index < 0 || index >= ownedHats.value.length) return false
+    if (equippedHatIndex.value !== index) clearActivePreset()
     equippedHatIndex.value = index
     return true
   }
@@ -1128,6 +1141,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const unequipHat = (): boolean => {
     if (equippedHatIndex.value < 0) return false
     equippedHatIndex.value = -1
+    clearActivePreset()
     return true
   }
 
@@ -1138,6 +1152,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (hat.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const def = getHatById(hat.defId)
     const price = def?.sellPrice ?? 0
+    clearActivePreset()
     // 自动卸下
     if (equippedHatIndex.value === index) equippedHatIndex.value = -1
     const playerStore = usePlayerStore()
@@ -1152,6 +1167,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const removeHat = (defId: string): boolean => {
     const index = findLastMatchingIndex(ownedHats.value, h => h.defId === defId)
     if (index < 0) return false
+    clearActivePreset()
     if (equippedHatIndex.value === index) equippedHatIndex.value = -1
     ownedHats.value.splice(index, 1)
     if (equippedHatIndex.value > index) equippedHatIndex.value--
@@ -1204,6 +1220,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 装备鞋子 */
   const equipShoe = (index: number): boolean => {
     if (index < 0 || index >= ownedShoes.value.length) return false
+    if (equippedShoeIndex.value !== index) clearActivePreset()
     equippedShoeIndex.value = index
     return true
   }
@@ -1212,6 +1229,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const unequipShoe = (): boolean => {
     if (equippedShoeIndex.value < 0) return false
     equippedShoeIndex.value = -1
+    clearActivePreset()
     return true
   }
 
@@ -1222,6 +1240,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (shoe.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const def = getShoeById(shoe.defId)
     const price = def?.sellPrice ?? 0
+    clearActivePreset()
     // 自动卸下
     if (equippedShoeIndex.value === index) equippedShoeIndex.value = -1
     const playerStore = usePlayerStore()
@@ -1236,6 +1255,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const removeShoe = (defId: string): boolean => {
     const index = findLastMatchingIndex(ownedShoes.value, s => s.defId === defId)
     if (index < 0) return false
+    clearActivePreset()
     if (equippedShoeIndex.value === index) equippedShoeIndex.value = -1
     ownedShoes.value.splice(index, 1)
     if (equippedShoeIndex.value > index) equippedShoeIndex.value--
@@ -1341,6 +1361,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const equipTrinket = (defId: string): boolean => {
     if (!isTrinketSlotUnlocked.value) return false
     if (!unlockedTrinkets.value.some(def => def.id === defId)) return false
+    if (equippedTrinketId.value !== defId) clearActivePreset()
     equippedTrinketId.value = defId
     playerStore.markLifestyleUnlock(`trinket_equipped_${defId}`)
     return true
@@ -1349,6 +1370,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const unequipTrinket = (): boolean => {
     if (!equippedTrinketId.value) return false
     equippedTrinketId.value = null
+    clearActivePreset()
     return true
   }
 
@@ -1398,6 +1420,46 @@ export const useInventoryStore = defineStore('inventory', () => {
     preset.shoeDefId = equippedShoeIndex.value >= 0 ? (ownedShoes.value[equippedShoeIndex.value]?.defId ?? null) : null
     preset.trinketDefId = equippedTrinketId.value
   }
+
+  const doesWeaponMatchPreset = (preset: EquipmentPreset): boolean => {
+    if (!preset.weaponDefId) return false
+    const weapon = ownedWeapons.value[equippedWeaponIndex.value]
+    return !!weapon && weapon.defId === preset.weaponDefId && (preset.weaponEnchantmentId == null || weapon.enchantmentId === preset.weaponEnchantmentId)
+  }
+
+  const doesRingSlotMatchPreset = (slotIndex: number, defId: string | null): boolean => {
+    if (!defId) return slotIndex < 0
+    return slotIndex >= 0 && slotIndex < ownedRings.value.length && ownedRings.value[slotIndex]?.defId === defId
+  }
+
+  const doesSingleSlotMatchPreset = <T extends { defId: string }>(entries: T[], slotIndex: number, defId: string | null): boolean => {
+    if (!defId) return slotIndex < 0
+    return slotIndex >= 0 && slotIndex < entries.length && entries[slotIndex]?.defId === defId
+  }
+
+  const doesCurrentEquipmentMatchPreset = (preset: EquipmentPreset): boolean => {
+    return (
+      doesWeaponMatchPreset(preset) &&
+      doesRingSlotMatchPreset(equippedRingSlot1.value, preset.ringSlot1DefId) &&
+      doesRingSlotMatchPreset(equippedRingSlot2.value, preset.ringSlot2DefId) &&
+      doesSingleSlotMatchPreset(ownedHats.value, equippedHatIndex.value, preset.hatDefId) &&
+      doesSingleSlotMatchPreset(ownedShoes.value, equippedShoeIndex.value, preset.shoeDefId) &&
+      (equippedTrinketId.value ?? null) === (preset.trinketDefId ?? null)
+    )
+  }
+
+  const isEquipmentPresetActive = (id: string): boolean => {
+    const preset = equipmentPresets.value.find(p => p.id === id)
+    return !!preset && doesCurrentEquipmentMatchPreset(preset)
+  }
+
+  const activeEquipmentPreset = computed(() => {
+    const markedPreset = activePresetId.value ? equipmentPresets.value.find(p => p.id === activePresetId.value) : null
+    if (markedPreset && doesCurrentEquipmentMatchPreset(markedPreset)) return markedPreset
+    return equipmentPresets.value.find(preset => doesCurrentEquipmentMatchPreset(preset)) ?? null
+  })
+
+  const activeEquipmentPresetName = computed(() => activeEquipmentPreset.value?.name ?? null)
 
   /** 应用装备方案 */
   const applyEquipmentPreset = (id: string): { success: boolean; message: string } => {
@@ -1490,7 +1552,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       unequipTrinket()
     }
 
-    activePresetId.value = id
+    activePresetId.value = missing.length === 0 && doesCurrentEquipmentMatchPreset(preset) ? id : null
 
     if (missing.length > 0) {
       return { success: true, message: `已应用方案「${preset.name}」，但${missing.join('、')}已不在背包中。` }
@@ -1720,6 +1782,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       pushEquipmentMigrationLog(`当前装备方案 ${activePresetId.value} 不存在，已清空激活状态。`)
       activePresetId.value = null
     }
+    if (activePresetId.value && !isEquipmentPresetActive(activePresetId.value)) {
+      pushEquipmentMigrationLog(`当前装备方案 ${activePresetId.value} 与实际装备不一致，已清空激活状态。`)
+      activePresetId.value = null
+    }
   }
 
   return {
@@ -1815,6 +1881,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     unequipTrinket,
     equipmentPresets,
     activePresetId,
+    activeEquipmentPreset,
+    activeEquipmentPresetName,
+    isEquipmentPresetActive,
     createEquipmentPreset,
     deleteEquipmentPreset,
     renameEquipmentPreset,

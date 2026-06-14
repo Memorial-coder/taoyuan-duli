@@ -27,6 +27,7 @@ import { useWalletStore } from './useWalletStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useNpcStore } from './useNpcStore'
+import { getFishingCatchExperience } from '@/utils/fishingExperience'
 
 const STAMINA_COST = 4
 const BASE_CRAB_POTS_LIMIT = 10
@@ -676,13 +677,17 @@ export const useFishingStore = defineStore('fishing', () => {
         useSecretNoteStore().tryCollectNote('fishing')
       }
 
-      // 经验
-      const difficultyExpMult: Record<string, number> = { easy: 1, normal: 1.5, hard: 2, legendary: 3 }
-      const expGain = currentFish.value.sellPrice * (difficultyExpMult[currentFish.value.difficulty] ?? 1)
       const riverlandBonus = gameStore.farmMapType === 'riverland' ? 1.25 : 1.0
       const perfectMult = rating === 'perfect' ? 2 : 1
       const legendWeightBonus = currentFish.value.difficulty === 'legendary' ? skillStore.getSkillMasteryEffectValue('legend_weight') : 0
-      skillStore.addExp('fishing', Math.floor(expGain * riverlandBonus * perfectMult * (1 + legendWeightBonus)))
+      skillStore.addExp('fishing', getFishingCatchExperience({
+        fish: currentFish.value,
+        quantity: catchQty,
+        quality,
+        riverlandBonus,
+        perfectMult,
+        legendWeightBonus
+      }))
 
       message =
         catchQty > 1

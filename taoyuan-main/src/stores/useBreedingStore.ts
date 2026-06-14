@@ -23,6 +23,7 @@ import type {
   SeedSortKey,
   SeedFilterKey,
   HybridStatusFilter,
+  BreedingFailureProgressEntry,
   HybridAvailability
 } from '@/types/breeding'
 import {
@@ -72,6 +73,10 @@ type RefundMoneyFn = (amount: number) => void
 type RemoveMaterialsFn = (materials: BreedingMaterialRequirement[]) => boolean
 
 const SEED_MAKER_GENETIC_SEED_EXCLUDED_CROP_IDS = new Set(['ancient_fruit'])
+const FAILURE_BREAKTHROUGH_REQUIRED = 100
+const FAILURE_PROGRESS_MIN_GAIN = 8
+const FAILURE_PROGRESS_MAX_GAIN = 38
+const FAILURE_PROGRESS_CLOSE_GAP_WINDOW = 40
 
 export const useBreedingStore = defineStore('breeding', () => {
   const npcStore = useNpcStore()
@@ -95,6 +100,7 @@ export const useBreedingStore = defineStore('breeding', () => {
   const breedingContestState = ref<BreedingContestState>(createDefaultBreedingContestState())
   const lastBreedingContestSettlement = ref<BreedingContestSettlementSummary | null>(null)
   const lastFailureSalvage = ref<BreedingFailureSalvageSummary | null>(null)
+  const failureProgressByHybridId = ref<Record<string, BreedingFailureProgressEntry>>({})
 
   /** 种子箱等级：0/1/2，对应 30/45/60 */
   const seedBoxLevel = ref(0)
@@ -119,6 +125,29 @@ export const useBreedingStore = defineStore('breeding', () => {
   const getCurrentWeekInfo = () => {
     const gameStore = useGameStore()
     return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  }
+  const getCurrentDayTag = () => {
+    const gameStore = useGameStore()
+    return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  }
+  const getFailureProgressEntry = (hybridId: string): BreedingFailureProgressEntry | null => {
+    return failureProgressByHybridId.value[hybridId] ?? null
+  }
+  const getFailureProgressRequired = (entry?: BreedingFailureProgressEntry | null) => entry?.required ?? FAILURE_BREAKTHROUGH_REQUIRED
+  const isFailureBreakthroughReady = (entry?: BreedingFailureProgressEntry | null) => {
+    const required = getFailureProgressRequired(entry)
+    return Boolean(entry && entry.progress >= required)
+  }
+  const getFailureProgressPercent = (entry?: BreedingFailureProgressEntry | null) => {
+    const required = getFailureProgressRequired(entry)
+    if (!entry || required <= 0) return 0
+    return Math.min(100, Math.round((entry.progress / required) * 100))
+  }
+  const clearFailureProgress = (hybridId: string) => {
+    if (!failureProgressByHybridId.value[hybridId]) return
+    const next = { ...failureProgressByHybridId.value }
+    delete next[hybridId]
+    failureProgressByHybridId.value = next
   }
 
   // === 计算属性 ===
@@ -235,6 +264,11 @@ export const useBreedingStore = defineStore('breeding', () => {
       const parentA = bestSeedByCrop.value[hybrid.parentCropA]
       const parentB = bestSeedByCrop.value[hybrid.parentCropB]
       const hasParents = Boolean(parentA && parentB)
+      const progressEntry = getFailureProgressEntry(hybrid.id)
+      const breakthroughRequired = getFailureProgressRequired(progressEntry)
+      const breakthroughProgress = progressEntry?.progress ?? 0
+      const breakthroughReady = isFailureBreakthroughReady(progressEntry)
+      const breakthroughPercent = getFailureProgressPercent(progressEntry)
       if (!parentA || !parentB) {
         result[hybrid.id] = {
           hybridId: hybrid.id,
@@ -244,17 +278,25 @@ export const useBreedingStore = defineStore('breeding', () => {
           avgYield: 0,
           sweetGap: hybrid.minSweetness,
           yieldGap: hybrid.minYield,
+          breakthroughProgress,
+          breakthroughRequired,
+          breakthroughReady,
+          breakthroughPercent,
           status: 'missing_parents',
-          recommendation: '缺少对应亲本，请先收集或培育这两个作物的育种种子。'
+          recommendation: breakthroughProgress > 0
+            ? `缺少对应亲本，已积累突破进度 ${breakthroughProgress}/${breakthroughRequired}，请先补齐这两个亲本。`
+            : '缺少对应亲本，请先收集或培育这两个作物的育种种子。'
         }
         continue
       }
 
-      const avgSweetness = Math.round((parentA.sweetness + parentB.sweetness) / 2)
-      const avgYield = Math.round((parentA.yield + parentB.yield) / 2)
-      const sweetGap = Math.max(0, hybrid.minSweetness - avgSweetness)
-      const yieldGap = Math.max(0, hybrid.minYield - avgYield)
-      const canDiscover = sweetGap === 0 && yieldGap === 0
+      const avgSweetnessRaw = (parentA.sweetness + parentB.sweetness) / 2
+      const avgYieldRaw = (parentA.yield + parentB.yield) / 2
+      const avgSweetness = Math.round(avgSweetnessRaw)
+      const avgYield = Math.round(avgYieldRaw)
+      const sweetGap = Math.max(0, Math.ceil(hybrid.minSweetness - avgSweetnessRaw))
+      const yieldGap = Math.max(0, Math.ceil(hybrid.minYield - avgYieldRaw))
+      const canDiscover = (sweetGap === 0 && yieldGap === 0) || breakthroughReady
       const near = !canDiscover && sweetGap <= nearThreshold.value && yieldGap <= nearThreshold.value
       result[hybrid.id] = {
         hybridId: hybrid.id,
@@ -264,12 +306,22 @@ export const useBreedingStore = defineStore('breeding', () => {
         avgYield,
         sweetGap,
         yieldGap,
+        breakthroughProgress,
+        breakthroughRequired,
+        breakthroughReady,
+        breakthroughPercent,
         status: canDiscover ? 'discoverable' : near ? 'near' : 'unavailable',
         recommendation: canDiscover
-          ? '亲本已达标，可以直接尝试杂交。'
+          ? breakthroughReady && (sweetGap > 0 || yieldGap > 0)
+            ? `失败积累已满（${breakthroughProgress}/${breakthroughRequired}），下次同目标杂交可触发谱系突破。`
+            : '亲本已达标，可以直接尝试杂交。'
           : near
-            ? `距离成功不远了：甜度差${sweetGap}，产量差${yieldGap}。建议优先继续同种培育。`
-            : `亲本差距较大：甜度差${sweetGap}，产量差${yieldGap}。建议先集中培育高属性亲本。`
+            ? breakthroughProgress > 0
+              ? `距离成功不远了：甜度差${sweetGap}，产量差${yieldGap}；突破进度 ${breakthroughProgress}/${breakthroughRequired}。`
+              : `距离成功不远了：甜度差${sweetGap}，产量差${yieldGap}。建议优先继续同种培育。`
+            : breakthroughProgress > 0
+              ? `亲本差距较大：甜度差${sweetGap}，产量差${yieldGap}；突破进度 ${breakthroughProgress}/${breakthroughRequired}。`
+              : `亲本差距较大：甜度差${sweetGap}，产量差${yieldGap}。建议先集中培育高属性亲本。`
       }
     }
     return result
@@ -410,14 +462,60 @@ export const useBreedingStore = defineStore('breeding', () => {
 
   const getCertificationRecord = (hybridId: string) => certifiedLineages.value[hybridId] ?? null
 
+  type BreedingFailureProgressUpdate = BreedingFailureProgressEntry & {
+    gain: number
+    ready: boolean
+  }
+
+  const recordFailureProgress = (
+    hybrid: NonNullable<ReturnType<typeof findPossibleHybrid>>,
+    avgSweetness: number,
+    avgYield: number,
+    parentA: SeedGenetics,
+    parentB: SeedGenetics
+  ): BreedingFailureProgressUpdate => {
+    const sweetGap = Math.max(0, hybrid.minSweetness - avgSweetness)
+    const yieldGap = Math.max(0, hybrid.minYield - avgYield)
+    const totalGap = sweetGap + yieldGap
+    const closenessBonus = Math.max(0, FAILURE_PROGRESS_CLOSE_GAP_WINDOW - Math.ceil(totalGap))
+    const generationBonus = Math.min(8, Math.floor(Math.max(parentA.generation, parentB.generation) / 2))
+    const researchBonus = researchLevel.value * 4
+    const gain = Math.max(
+      FAILURE_PROGRESS_MIN_GAIN,
+      Math.min(FAILURE_PROGRESS_MAX_GAIN, 10 + closenessBonus + generationBonus + researchBonus)
+    )
+    const existing = getFailureProgressEntry(hybrid.id)
+    const required = getFailureProgressRequired(existing)
+    const progress = Math.min(required, (existing?.progress ?? 0) + gain)
+    const entry: BreedingFailureProgressEntry = {
+      hybridId: hybrid.id,
+      progress,
+      required,
+      attempts: (existing?.attempts ?? 0) + 1,
+      lastUpdatedDayTag: getCurrentDayTag(),
+      lastSweetGap: Math.max(0, Math.ceil(sweetGap)),
+      lastYieldGap: Math.max(0, Math.ceil(yieldGap))
+    }
+    failureProgressByHybridId.value = {
+      ...failureProgressByHybridId.value,
+      [hybrid.id]: entry
+    }
+    return {
+      ...entry,
+      gain,
+      ready: progress >= required
+    }
+  }
+
   const grantFailureSalvage = (
     returnedSeed: SeedGenetics,
     targetHybridId: string | null,
-    failedStatKey: 'sweetness' | 'yield' | 'resistance'
+    failedStatKey: 'sweetness' | 'yield' | 'resistance',
+    progressUpdate: BreedingFailureProgressUpdate | null = null
   ) => {
     const config = getBreedingFailureSalvageConfig()
     const inventoryStore = useInventoryStore()
-    const currentDayTag = `${useGameStore().year}-${useGameStore().season}-${useGameStore().day}`
+    const currentDayTag = getCurrentDayTag()
     const salvageItems: BreedingFailureSalvageSummary['salvageItems'] = []
     const maxGeneration = returnedSeed.generation
     const totalStats = getTotalStats(returnedSeed)
@@ -447,7 +545,7 @@ export const useBreedingStore = defineStore('breeding', () => {
       })
     }
 
-    if (salvageItems.length === 0) {
+    if (salvageItems.length === 0 && !progressUpdate) {
       lastFailureSalvage.value = null
       return
     }
@@ -455,22 +553,36 @@ export const useBreedingStore = defineStore('breeding', () => {
     const grantableItems = salvageItems
       .map(entry => ({ itemId: entry.itemId, quantity: entry.quantity, quality: 'normal' as const }))
       .filter(entry => entry.quantity > 0)
+    let grantedSalvageItems = salvageItems
 
-    if (!inventoryStore.canAddItems(grantableItems)) {
+    if (grantableItems.length > 0 && !inventoryStore.canAddItems(grantableItems)) {
       addLog('育种失败保底已触发，但背包空间不足，残留材料暂未入包。', {
         category: 'breeding',
         tags: ['breeding_completed'],
         meta: { returnedSeedId: returnedSeed.id, targetHybridId: targetHybridId ?? '' }
       })
+      grantedSalvageItems = []
+    } else if (grantableItems.length > 0) {
+      inventoryStore.addItemsExact(grantableItems)
+    }
+
+    const returnedSeedLabel = makeSeedLabel(returnedSeed)
+    const summaryParts: string[] = []
+    if (grantedSalvageItems.length > 0) {
+      summaryParts.push(`回收了${grantedSalvageItems
+        .map(entry => `${getItemById(entry.itemId)?.name ?? entry.itemId}×${entry.quantity}`)
+        .join('、')}`)
+    }
+    if (progressUpdate) {
+      summaryParts.push(
+        `谱系突破进度 +${progressUpdate.gain}，当前 ${progressUpdate.progress}/${progressUpdate.required}${progressUpdate.ready ? '，下次同目标可突破' : ''}`
+      )
+    }
+    if (summaryParts.length === 0) {
       lastFailureSalvage.value = null
       return
     }
-
-    inventoryStore.addItemsExact(grantableItems)
-    const returnedSeedLabel = makeSeedLabel(returnedSeed)
-    const summary = `杂交失败后回收了${salvageItems
-      .map(entry => `${getItemById(entry.itemId)?.name ?? entry.itemId}×${entry.quantity}`)
-      .join('、')}。`
+    const summary = `杂交失败后${summaryParts.join('；')}。`
     lastFailureSalvage.value = {
       generatedAtDayTag: currentDayTag,
       returnedSeedId: returnedSeed.id,
@@ -478,7 +590,11 @@ export const useBreedingStore = defineStore('breeding', () => {
       targetHybridId: targetHybridId ?? undefined,
       failedStatKey,
       failedPenalty: failedPenalty.value,
-      salvageItems,
+      salvageItems: grantedSalvageItems,
+      progressGain: progressUpdate?.gain,
+      progressValue: progressUpdate?.progress,
+      progressRequired: progressUpdate?.required,
+      breakthroughReady: progressUpdate?.ready,
       summary
     }
     addLog(summary, {
@@ -1013,8 +1129,13 @@ export const useBreedingStore = defineStore('breeding', () => {
     const hybrid = findPossibleHybrid(a.cropId, b.cropId)
     const avgSweetness = (a.sweetness + b.sweetness) / 2
     const avgYield = (a.yield + b.yield) / 2
+    const rawCanDiscover = Boolean(hybrid && avgSweetness >= hybrid.minSweetness && avgYield >= hybrid.minYield)
+    const breakthroughEntry = hybrid ? getFailureProgressEntry(hybrid.id) : null
+    const breakthroughApplied = Boolean(hybrid && !rawCanDiscover && isFailureBreakthroughReady(breakthroughEntry))
+    const effectiveAvgSweetness = hybrid && breakthroughApplied ? Math.max(avgSweetness, hybrid.minSweetness) : avgSweetness
+    const effectiveAvgYield = hybrid && breakthroughApplied ? Math.max(avgYield, hybrid.minYield) : avgYield
 
-    if (hybrid && avgSweetness >= hybrid.minSweetness && avgYield >= hybrid.minYield) {
+    if (hybrid && effectiveAvgSweetness >= hybrid.minSweetness && effectiveAvgYield >= hybrid.minYield) {
       // 匹配成功，产出杂交种
       const avgStability = (a.stability + b.stability) / 2
       const avgMutationRate = (a.mutationRate + b.mutationRate) / 2
@@ -1028,8 +1149,8 @@ export const useBreedingStore = defineStore('breeding', () => {
         id: generateGeneticsId(),
         cropId: hybrid.resultCropId,
         generation: Math.max(a.generation, b.generation) + 1,
-        sweetness: clampStat(Math.round(hybrid.baseGenetics.sweetness * 0.6 + avgSweetness * 0.4) + fluctuate()),
-        yield: clampStat(Math.round(hybrid.baseGenetics.yield * 0.6 + avgYield * 0.4) + fluctuate()),
+        sweetness: clampStat(Math.round(hybrid.baseGenetics.sweetness * 0.6 + effectiveAvgSweetness * 0.4) + fluctuate()),
+        yield: clampStat(Math.round(hybrid.baseGenetics.yield * 0.6 + effectiveAvgYield * 0.4) + fluctuate()),
         resistance: clampStat(Math.round(hybrid.baseGenetics.resistance * 0.6 + ((a.resistance + b.resistance) / 2) * 0.4) + fluctuate()),
         stability: Math.min(Math.round(avgStability) + GENERATIONAL_STABILITY_GAIN, MAX_STABILITY),
         mutationRate: clampMutationRate(Math.round(avgMutationRate)),
@@ -1050,6 +1171,14 @@ export const useBreedingStore = defineStore('breeding', () => {
       } else {
         syncCompendiumEntry(hybrid.id, result)
       }
+      clearFailureProgress(hybrid.id)
+      if (breakthroughApplied) {
+        addLog(`谱系突破生效：${hybrid.name} 消耗失败积累，补足亲本差距并完成杂交。`, {
+          category: 'breeding',
+          tags: ['breeding_completed', 'breeding_discovery'],
+          meta: { hybridId: hybrid.id, progressConsumed: breakthroughEntry?.progress ?? 0 }
+        })
+      }
 
       return result
     } else {
@@ -1066,14 +1195,15 @@ export const useBreedingStore = defineStore('breeding', () => {
       } as SeedGenetics
 
       if (hybrid) {
+        const progressUpdate = recordFailureProgress(hybrid, avgSweetness, avgYield, a, b)
         addLog(
-          `杂交失败：亲本平均甜度${Math.round(avgSweetness)}（需≥${hybrid.minSweetness}），平均产量${Math.round(avgYield)}（需≥${hybrid.minYield}）。请先通过同种培育提升属性。`
+          `杂交失败：亲本平均甜度${Math.round(avgSweetness)}（需≥${hybrid.minSweetness}），平均产量${Math.round(avgYield)}（需≥${hybrid.minYield}）。谱系突破进度 +${progressUpdate.gain}（${progressUpdate.progress}/${progressUpdate.required}）${progressUpdate.ready ? '，下次同目标可触发突破。' : '。'}`
         )
+        grantFailureSalvage(failed, hybrid.id, randomStat, progressUpdate)
       } else {
         addLog('这两个品种无法杂交，返回了一颗种子。')
+        grantFailureSalvage(failed, null, randomStat)
       }
-
-      grantFailureSalvage(failed, hybrid?.id ?? null, randomStat)
 
       return failed
     }
@@ -1154,6 +1284,29 @@ export const useBreedingStore = defineStore('breeding', () => {
     }
   }
 
+  const normalizeFailureProgressMap = (value: any): Record<string, BreedingFailureProgressEntry> => {
+    if (!value || typeof value !== 'object') return {}
+    const knownHybridIds = new Set(HYBRID_DEFS.map(hybrid => hybrid.id))
+    const result: Record<string, BreedingFailureProgressEntry> = {}
+    for (const [hybridId, rawEntry] of Object.entries(value)) {
+      if (!knownHybridIds.has(hybridId) || !rawEntry || typeof rawEntry !== 'object') continue
+      const entry = rawEntry as Partial<BreedingFailureProgressEntry>
+      const required = Math.max(1, Math.round(Number(entry.required) || FAILURE_BREAKTHROUGH_REQUIRED))
+      const progress = Math.max(0, Math.min(required, Math.round(Number(entry.progress) || 0)))
+      if (progress <= 0) continue
+      result[hybridId] = {
+        hybridId,
+        progress,
+        required,
+        attempts: Math.max(0, Math.round(Number(entry.attempts) || 0)),
+        lastUpdatedDayTag: typeof entry.lastUpdatedDayTag === 'string' ? entry.lastUpdatedDayTag : '',
+        lastSweetGap: Math.max(0, Math.round(Number(entry.lastSweetGap) || 0)),
+        lastYieldGap: Math.max(0, Math.round(Number(entry.lastYieldGap) || 0))
+      }
+    }
+    return result
+  }
+
   // === 序列化 ===
 
   const serialize = () => ({
@@ -1178,6 +1331,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     breedingContestState: breedingContestState.value,
     lastBreedingContestSettlement: lastBreedingContestSettlement.value,
     lastFailureSalvage: lastFailureSalvage.value,
+    failureProgressByHybridId: failureProgressByHybridId.value,
     unlocked: unlocked.value
   })
 
@@ -1210,6 +1364,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     breedingContestState.value = data.breedingContestState ?? createDefaultBreedingContestState()
     lastBreedingContestSettlement.value = data.lastBreedingContestSettlement ?? null
     lastFailureSalvage.value = data.lastFailureSalvage ?? null
+    failureProgressByHybridId.value = normalizeFailureProgressMap(data.failureProgressByHybridId)
     unlocked.value = data.unlocked ?? (breedingBox.value.length > 0 || stationCount.value > 0)
     if (unlocked.value) {
       syncContestStateToCurrentWeek()
@@ -1232,6 +1387,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     breedingContestState.value = createDefaultBreedingContestState()
     lastBreedingContestSettlement.value = null
     lastFailureSalvage.value = null
+    failureProgressByHybridId.value = {}
     unlocked.value = false
   }
 
@@ -1248,6 +1404,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     contestEligibleSeeds,
     lastBreedingContestSettlement,
     lastFailureSalvage,
+    failureProgressByHybridId,
     unlocked,
     researchLevel,
     favoriteSeedIds,

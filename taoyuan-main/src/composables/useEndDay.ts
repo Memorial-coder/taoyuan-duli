@@ -1308,7 +1308,7 @@ export const handleEndDay = () => {
 
   // 温室更新
   if (homeStore.greenhouseUnlocked) {
-    farmStore.greenhouseDailyUpdate()
+    farmStore.greenhouseDailyUpdate(ringGrowthBonus)
   }
 
   // 酒窖更新

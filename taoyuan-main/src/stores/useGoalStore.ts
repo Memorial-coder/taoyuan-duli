@@ -4,6 +4,7 @@ import { getItemById, getThemeWeekBySeason, getThemeWeekRewardPool, getWeeklyGoa
 import {
   DAILY_GOAL_DEFS,
   GOAL_BIAS_MAP,
+  GOAL_REPUTATION_TIER_DEFS,
   GOAL_SOURCE_LABELS,
   LONG_TERM_GOAL_DEFS,
   MAIN_QUEST_STAGE_DEFS,
@@ -24,6 +25,8 @@ import { WEEKLY_BUDGET_CHANNEL_MAP, WEEKLY_BUDGET_CHANNELS } from '@/data/weekly
 import { ECONOMY_SINK_CONTENT_DEFS, ECONOMY_TUNING_CONFIG } from '@/data/market'
 import type {
   EventOperationsState,
+  GoalReputationBudgetDiscountPreview,
+  GoalReputationTierDef,
   LateGameMetricSnapshot,
   ProgressBridgeDef,
   ProgressBridgeEntryCriteria,
@@ -283,6 +286,61 @@ const createEmptyWeeklyMetricArchive = (): WeeklyMetricArchive => ({
   snapshots: []
 })
 
+const normalizeGoalReputationValue = (value: number) => Math.max(0, Math.floor(Number(value) || 0))
+
+const resolveGoalReputationTierDef = (value: number): GoalReputationTierDef => {
+  const reputation = normalizeGoalReputationValue(value)
+  for (let index = GOAL_REPUTATION_TIER_DEFS.length - 1; index >= 0; index -= 1) {
+    const tier = GOAL_REPUTATION_TIER_DEFS[index]
+    if (tier && reputation >= tier.minReputation) return tier
+  }
+  return GOAL_REPUTATION_TIER_DEFS[0]!
+}
+
+const resolveNextGoalReputationTierDef = (value: number): GoalReputationTierDef | null => {
+  const reputation = normalizeGoalReputationValue(value)
+  return GOAL_REPUTATION_TIER_DEFS.find(tier => reputation < tier.minReputation) ?? null
+}
+
+const buildGoalReputationBudgetDiscount = (
+  costMoney: number,
+  reputation: number
+): GoalReputationBudgetDiscountPreview => {
+  const baseCostMoney = Math.max(0, Math.floor(Number(costMoney) || 0))
+  const tier = resolveGoalReputationTierDef(reputation)
+  const rawDiscount = Math.floor(baseCostMoney * tier.weeklyBudgetDiscountRate)
+  const discountMoney = Math.min(rawDiscount, tier.weeklyBudgetDiscountCap, baseCostMoney)
+
+  return {
+    tierId: tier.id,
+    tierLabel: tier.label,
+    baseCostMoney,
+    paidCostMoney: Math.max(0, baseCostMoney - discountMoney),
+    discountMoney,
+    discountRate: tier.weeklyBudgetDiscountRate,
+    discountCap: tier.weeklyBudgetDiscountCap
+  }
+}
+
+const buildGoalReputationStatus = (value: number) => {
+  const reputation = normalizeGoalReputationValue(value)
+  const current = resolveGoalReputationTierDef(reputation)
+  const next = resolveNextGoalReputationTierDef(reputation)
+  const nextGap = next ? Math.max(0, next.minReputation - reputation) : 0
+  const progressRatio = next
+    ? Math.min(1, Math.max(0, (reputation - current.minReputation) / Math.max(1, next.minReputation - current.minReputation)))
+    : 1
+
+  return {
+    value: reputation,
+    current,
+    next,
+    nextGap,
+    progressRatio,
+    discountPercent: Math.round(current.weeklyBudgetDiscountRate * 100)
+  }
+}
+
 const createEmptyWeeklyBudgetPlan = (weekId = '', activatedAtDayTag = ''): WeeklyBudgetPlan => ({
   weekId,
   activatedAtDayTag,
@@ -439,12 +497,24 @@ const normalizeWeeklyBudgetSelection = (value: unknown): WeeklyBudgetSelection |
     channelDef.tiers.find((tier: WeeklyBudgetTierDef) => tier.tier === Number(raw.tier))
   if (!tierDef) return null
 
+  const baseCostMoney = Math.max(0, Number(raw.baseCostMoney) || tierDef.costMoney)
+  const discountMoney = Math.min(Math.max(0, Number(raw.discountMoney) || 0), baseCostMoney)
+  const costMoney = Math.max(
+    0,
+    Number(raw.costMoney) || Math.max(0, baseCostMoney - discountMoney)
+  )
+
   return {
     channelId,
     tierId: tierDef.id,
     tier: tierDef.tier,
     tierLabel: tierDef.label,
-    costMoney: tierDef.costMoney,
+    costMoney,
+    baseCostMoney,
+    discountMoney,
+    discountRate: Math.max(0, Number(raw.discountRate) || 0),
+    discountSourceTierId: typeof raw.discountSourceTierId === 'string' ? raw.discountSourceTierId : undefined,
+    discountSourceLabel: typeof raw.discountSourceLabel === 'string' ? raw.discountSourceLabel : undefined,
     projectedValue: tierDef.projectedValue,
     effect: tierDef.effect,
     activatedWeekId: typeof raw.activatedWeekId === 'string' ? raw.activatedWeekId : '',
@@ -766,6 +836,9 @@ export const useGoalStore = defineStore('goal', () => {
   }
 
   const getWeeklyBudgetSelection = (channelId: WeeklyBudgetChannelId) => weeklyBudgetPlan.value.selections[channelId] ?? null
+  const goalReputationStatus = computed(() => buildGoalReputationStatus(goalReputation.value))
+  const getGoalReputationTier = (value = goalReputation.value) => resolveGoalReputationTierDef(value)
+  const getWeeklyBudgetReputationDiscount = (costMoney: number) => buildGoalReputationBudgetDiscount(costMoney, goalReputation.value)
 
   const getActiveWeeklyBudgetEffect = () => {
     const selections = Object.values(weeklyBudgetPlan.value.selections).filter((selection): selection is WeeklyBudgetSelection => Boolean(selection))
@@ -803,12 +876,13 @@ export const useGoalStore = defineStore('goal', () => {
     }
 
     const playerStore = usePlayerStore()
-    if (!playerStore.spendMoney(tierDef.costMoney, 'goal')) {
+    const costPreview = getWeeklyBudgetReputationDiscount(tierDef.costMoney)
+    if (!playerStore.spendMoney(costPreview.paidCostMoney, 'goal')) {
       showFloat('閾滈挶涓嶈冻锛屾棤娉曟姇鍏ュ懆棰勭畻', 'danger')
       return false
     }
 
-    playerStore.recordSinkSpend(tierDef.costMoney, channelId === 'museum' ? 'themeActivity' : channelId === 'trade' ? 'service' : 'construction')
+    playerStore.recordSinkSpend(costPreview.paidCostMoney, channelId === 'museum' ? 'themeActivity' : channelId === 'trade' ? 'service' : 'construction')
 
     weeklyBudgetPlan.value = {
       ...weeklyBudgetPlan.value,
@@ -821,7 +895,12 @@ export const useGoalStore = defineStore('goal', () => {
           tierId: tierDef.id,
           tier: tierDef.tier,
           tierLabel: tierDef.label,
-          costMoney: tierDef.costMoney,
+          costMoney: costPreview.paidCostMoney,
+          baseCostMoney: costPreview.baseCostMoney,
+          discountMoney: costPreview.discountMoney,
+          discountRate: costPreview.discountRate,
+          discountSourceTierId: costPreview.tierId,
+          discountSourceLabel: costPreview.tierLabel,
           projectedValue: tierDef.projectedValue,
           effect: tierDef.effect,
           activatedWeekId: getCurrentThemeWeekTag(),
@@ -830,12 +909,22 @@ export const useGoalStore = defineStore('goal', () => {
       }
     }
 
-    addLog(`【周预算】已投入${channelDef.label}·${tierDef.label}，花费${tierDef.costMoney}文。`, {
+    const discountText = costPreview.discountMoney > 0
+      ? `（目标声望「${costPreview.tierLabel}」减免${costPreview.discountMoney}文）`
+      : ''
+    addLog(`【周预算】已投入${channelDef.label}·${tierDef.label}，花费${costPreview.paidCostMoney}文${discountText}。`, {
       category: 'economy',
       tags: ['weekly_budget_activated'],
-      meta: { channelId, tierId: tierDef.id, costMoney: tierDef.costMoney }
+      meta: {
+        channelId,
+        tierId: tierDef.id,
+        baseCostMoney: costPreview.baseCostMoney,
+        paidCostMoney: costPreview.paidCostMoney,
+        discountMoney: costPreview.discountMoney,
+        discountSourceTierId: costPreview.tierId
+      }
     })
-    showFloat(`${channelDef.shortLabel}${tierDef.label}已生效`, 'accent')
+    showFloat(`${channelDef.shortLabel}${tierDef.label}已生效${costPreview.discountMoney > 0 ? `，声望减免${costPreview.discountMoney}文` : ''}`, 'accent')
     return true
   }
 
@@ -1388,10 +1477,12 @@ export const useGoalStore = defineStore('goal', () => {
       )
     }
     if (adjustedReputationReward > 0) rewardTexts.push('目标声望+' + adjustedReputationReward)
-    const combinedTicketRewards = Object.entries({ ...weeklyBudgetEffect.ticketRewards, ...grantedServiceContractTickets }).reduce(
-      (result, [ticketType, amount]) => {
-        result[ticketType as RewardTicketType] =
-          (result[ticketType as RewardTicketType] ?? 0) + Math.max(0, Number(amount) || 0)
+    const combinedTicketRewards = [weeklyBudgetEffect.ticketRewards, grantedServiceContractTickets].reduce(
+      (result, ticketRewards) => {
+        for (const [ticketType, amount] of Object.entries(ticketRewards)) {
+          result[ticketType as RewardTicketType] =
+            (result[ticketType as RewardTicketType] ?? 0) + Math.max(0, Number(amount) || 0)
+        }
         return result
       },
       {} as Partial<Record<RewardTicketType, number>>
@@ -2528,6 +2619,7 @@ export const useGoalStore = defineStore('goal', () => {
     weeklyGoals,
     longTermGoals,
     goalReputation,
+    goalReputationStatus,
     lastDailyGoalRefresh,
     lastSeasonGoalRefresh,
     lastWeeklyGoalRefresh,
@@ -2574,6 +2666,8 @@ export const useGoalStore = defineStore('goal', () => {
     getUiGuidanceDebugSnapshot,
     processEventOperationsTick,
     activateWeeklyBudget,
+    getGoalReputationTier,
+    getWeeklyBudgetReputationDiscount,
     getWeeklyBudgetSelection,
     resetWeeklyBudgetsForNewWeek,
     onDayChanged,

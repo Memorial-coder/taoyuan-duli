@@ -17,7 +17,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           moneyRewardMultiplier: 1.08,
           ticketRewards: { caravan: 1 },
-          summary: '目标现金奖励 +8%，每次目标结算额外获得 1 点商路票券。'
+          summary: '目标现金奖励 +8%，每次目标结算额外获得 1 张商路票。'
         }
       },
       {
@@ -29,7 +29,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           moneyRewardMultiplier: 1.14,
           ticketRewards: { caravan: 2 },
-          summary: '目标现金奖励 +14%，每次目标结算额外获得 2 点商路票券。'
+          summary: '目标现金奖励 +14%，每次目标结算额外获得 2 张商路票。'
         }
       },
       {
@@ -41,7 +41,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           moneyRewardMultiplier: 1.22,
           ticketRewards: { caravan: 3 },
-          summary: '目标现金奖励 +22%，每次目标结算额外获得 3 点商路票券。'
+          summary: '目标现金奖励 +22%，每次目标结算额外获得 3 张商路票。'
         }
       }
     ]
@@ -62,7 +62,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           reputationRewardMultiplier: 1.2,
           ticketRewards: { exhibit: 1 },
-          summary: '目标声望奖励 +20%，每次目标结算额外获得 1 点展馆票券。'
+          summary: '目标声望奖励 +20%，每次目标结算额外获得 1 张展陈券。'
         }
       },
       {
@@ -74,7 +74,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           reputationRewardMultiplier: 1.35,
           ticketRewards: { exhibit: 2 },
-          summary: '目标声望奖励 +35%，每次目标结算额外获得 2 点展馆票券。'
+          summary: '目标声望奖励 +35%，每次目标结算额外获得 2 张展陈券。'
         }
       },
       {
@@ -86,7 +86,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           reputationRewardMultiplier: 1.5,
           ticketRewards: { exhibit: 3 },
-          summary: '目标声望奖励 +50%，每次目标结算额外获得 3 点展馆票券。'
+          summary: '目标声望奖励 +50%，每次目标结算额外获得 3 张展陈券。'
         }
       }
     ]
@@ -107,7 +107,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           flatReputationBonus: 2,
           ticketRewards: { research: 1 },
-          summary: '每次目标结算额外 +2 声望，并获得 1 点学舍票券。'
+          summary: '每次目标结算额外 +2 声望，并获得 1 张研究券。'
         }
       },
       {
@@ -119,7 +119,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           flatReputationBonus: 4,
           ticketRewards: { research: 2 },
-          summary: '每次目标结算额外 +4 声望，并获得 2 点学舍票券。'
+          summary: '每次目标结算额外 +4 声望，并获得 2 张研究券。'
         }
       },
       {
@@ -131,7 +131,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
         effect: {
           flatReputationBonus: 7,
           ticketRewards: { research: 3 },
-          summary: '每次目标结算额外 +7 声望，并获得 3 点学舍票券。'
+          summary: '每次目标结算额外 +7 声望，并获得 3 张研究券。'
         }
       }
     ]

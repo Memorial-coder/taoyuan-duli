@@ -318,7 +318,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { itemId: 'stone', quantity: 15 }
     ],
     requiredClueId: 'zhao_mujiang_workbench',
-    requiredClueText: '需要先从赵木匠处获得工台线索。',
+    requiredClueText: '需要先在公告板接取并完成赵木匠的木工委托（交付竹子）来获得工台线索。',
     fundingPhase: 'bootstrap',
     linkedSystems: ['quest', 'goal'],
     auditTags: ['starter_sink', 'crafting_setup'],
@@ -362,7 +362,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
     ],
     requirements: [{ type: 'guildGoalCount', target: 1, label: '完成 1 个公会讨伐目标' }],
     requiredClueId: 'a_shi_support_clue',
-    requiredClueText: '需要先从阿石处获得矿料棚与支架线索。',
+    requiredClueText: '需要先与阿石达到挚友，或完成他的矿料支架委托后获得矿料棚与支架线索。',
     fundingPhase: 'bootstrap',
     linkedSystems: ['guild', 'quest'],
     auditTags: ['material_sink', 'guild_link'],
@@ -410,7 +410,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'completedBundles', target: 1, label: '完成 1 个社区目标' }
     ],
     requiredClueId: 'liu_niang_greenhouse_clue',
-    requiredClueText: '需要先从柳娘处获得暖房线索。',
+    requiredClueText: '需要先与柳娘达到好友，或在夏秋公告板完成她的节庆花材委托（交付桂花）来获得暖房线索。',
     fundingPhase: 'bootstrap',
     linkedSystems: ['goal', 'quest'],
     auditTags: ['event_prep', 'bundles_link'],
@@ -485,7 +485,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'hanhaiRelicClears', target: 2, label: '完成 2 次瀚海遗迹勘探' }
     ],
     requiredClueId: 'hong_dou_caravan_clue',
-    requiredClueText: '需要先从红豆处获得驿站扩建线索。',
+    requiredClueText: '需要先与红豆达到好友后获得驿站扩建线索。',
     fundingPhase: 'expansion',
     linkedSystems: ['quest', 'hanhai'],
     auditTags: ['high_value', 'order_pool'],
@@ -583,7 +583,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'completedBundles', target: 2, label: '完成 2 个社区目标' }
     ],
     requiredClueId: 'su_su_school_clue',
-    requiredClueText: '需要先从素素处获得学舍启用线索。',
+    requiredClueText: '需要先与素素达到挚友后获得学舍启用线索。',
     fundingPhase: 'expansion',
     linkedSystems: ['quest', 'museum', 'goal'],
     auditTags: ['high_value', 'social_unlock'],
@@ -700,7 +700,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'guildContribution', target: 120, label: '公会贡献达到 120 点' }
     ],
     requiredClueId: 'lin_lao_hot_spring_clue',
-    requiredClueText: '需要先从林老处获得温泉整修线索。',
+    requiredClueText: '需要先与林老达到挚友后获得温泉整修线索。',
     fundingPhase: 'expansion',
     linkedSystems: ['quest', 'guild', 'goal'],
     auditTags: ['high_value', 'recovery_bonus'],
@@ -781,7 +781,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'museumDonations', target: 8, label: '向博物馆捐赠 8 件展品' }
     ],
     requiredClueId: 'xue_qin_school_upgrade_clue',
-    requiredClueText: '需要先从雪芹处获得学舍扩建线索。',
+    requiredClueText: '需要先与雪芹达到挚友后获得学舍扩建线索。',
     requiredProjectId: 'village_school',
     requiredProjectText: '需要先完成「村塾学舍」，才能继续扩建。',
     fundingPhase: 'endgame',
@@ -895,7 +895,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'completedQuests', target: 18, label: '累计完成 18 个委托 / 订单' }
     ],
     requiredClueId: 'yun_fei_station_upgrade_clue',
-    requiredClueText: '需要先从云飞处获得驿站二期扩建线索。',
+    requiredClueText: '需要先与云飞达到挚友后获得驿站二期扩建线索。',
     requiredProjectId: 'caravan_station',
     requiredProjectText: '需要先完成「商队驿站」，才能继续扩建。',
     fundingPhase: 'endgame',

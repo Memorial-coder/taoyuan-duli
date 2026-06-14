@@ -16,6 +16,8 @@ const assert = (condition, message) => {
 
 const source = fs.readFileSync(path.join(projectRoot, 'src/stores/useInventoryStore.ts'), 'utf8')
 const farmViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/FarmView.vue'), 'utf8')
+const farmStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useFarmStore.ts'), 'utf8')
+const endDaySource = fs.readFileSync(path.join(projectRoot, 'src/composables/useEndDay.ts'), 'utf8')
 const toolUpgradeViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ToolUpgradeView.vue'), 'utf8')
 
 const getSourceBetween = (body, startMarker, endMarker) => {
@@ -130,6 +132,31 @@ for (const [label, block] of [
   assert(!block.includes("isToolAvailable('scythe')"), `${label}不应因镰刀升级阻止成熟作物收获。`)
   assert(!block.includes('consumeStamina(') && !block.includes('restoreStamina('), `${label}应与普通地块手动收获一致，不消耗体力。`)
 }
+assert(
+  greenhouseBatchHarvestSource.includes('ACTION_TIME_COSTS.batchHarvest') &&
+    /Math\.ceil\(harvested\s*\/\s*6\)/.test(greenhouseBatchHarvestSource),
+  'greenhouse batch harvest should use the same 6-crop batch timing model as outdoor batch harvest.'
+)
+assert(
+  !/ACTION_TIME_COSTS\.harvest\s*\*\s*harvested/.test(greenhouseBatchHarvestSource),
+  'greenhouse batch harvest should not charge per harvested crop.'
+)
+assert(
+  farmStoreSource.includes('const greenhouseDailyUpdate = (extraGrowthProgress: number = 0): void =>') &&
+    farmStoreSource.includes('const currentCropGrowth = getCurrentCropGrowthBonus()') &&
+    farmStoreSource.includes('plot.growthDays += 1 + progressBonus'),
+  'greenhouse crop daily growth should share global crop speedup and accept extra ring growth progress.'
+)
+assert(
+  endDaySource.includes('farmStore.greenhouseDailyUpdate(ringGrowthBonus)'),
+  'end-day flow should pass crop growth ring progress into greenhouse daily growth.'
+)
+assert(
+  farmViewSource.includes('const currentCropGrowthBonus = computed(() =>') &&
+    farmViewSource.includes('hiddenNpcStore.getAbilityValue') &&
+    farmViewSource.includes('walletStore.getCropGrowthBonus() + spiritGrowth'),
+  'farm growth displays should use the same wallet and spirit crop growth speedup as store growth logic.'
+)
 
 if (errors.length > 0) {
   console.error('工具升级守卫失败：')

@@ -267,6 +267,7 @@
                     <Star v-for="n in fishPondStore.getGeneticStarRating(fish.genetics)" :key="n" :size="10" />
                   </span>
                   <span class="text-[0.625rem] text-accent/80">总评 {{ getFishRating(fish)?.totalScore ?? 0 }}</span>
+                  <span class="text-[0.625rem] text-accent/80">{{ getFishGenerationLabel(fish) }}</span>
                   <span class="text-[0.625rem] text-muted">{{ fish.daysInPond }}天</span>
                 </div>
               </div>
@@ -332,12 +333,13 @@
               <Button @click="selectedBreedingFish = null">取消</Button>
             </div>
             <p class="text-[0.625rem] text-muted">请从鱼列表中点击同种成熟鱼进行配对</p>
+            <p class="text-[0.625rem] text-muted/70 mt-1">命中升代配方才会提高世代，未命中时只保代并重滚基因。</p>
           </div>
           <!-- 空状态 -->
           <div v-else class="border border-accent/10 rounded-xs py-6 flex flex-col items-center space-y-2">
             <Heart :size="32" class="text-muted/30" />
             <p class="text-xs text-muted">选择两条同种成熟鱼开始繁殖</p>
-            <p class="text-xs text-muted/60">需要鱼塘有空余容量</p>
+            <p class="text-xs text-muted/60">需要鱼塘有空余容量；升代取决于品系配方</p>
           </div>
         </div>
       </template>
@@ -511,6 +513,24 @@
             </div>
           </div>
 
+          <div
+            v-if="detailFishBreedingPreview"
+            class="border border-accent/10 rounded-xs p-2 mb-3 bg-bg/10"
+            data-testid="fishpond-breeding-preview"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">配对预览</p>
+              <span
+                class="text-[0.625rem]"
+                :class="detailFishBreedingPreview.status === 'upgrade' ? 'text-success' : detailFishBreedingPreview.status === 'sameGeneration' ? 'text-warning' : 'text-muted'"
+              >
+                {{ detailFishBreedingPreview.statusLabel }}
+              </span>
+            </div>
+            <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ detailFishBreedingPreview.summary }}</p>
+            <p class="text-[0.625rem] text-muted/70 leading-4 mt-1">{{ detailFishBreedingPreview.detail }}</p>
+          </div>
+
           <div v-if="pondPedigreeUnlocked && detailFishPedigreeLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-3 bg-accent/5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">鱼塘谱系</p>
@@ -651,7 +671,7 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { POND_BUILD_COST, POND_UPGRADE_COSTS, POND_CAPACITY, PONDABLE_FISH, getPondableFish, FISH_BREEDING_DAYS } from '@/data/fishPond'
-  import { getBreedById, getBreedsByGeneration, BREED_COUNTS } from '@/data/pondBreeds'
+  import { getBreedById, getBreedsByGeneration, findBreedByParents, BREED_COUNTS } from '@/data/pondBreeds'
   import { getItemById } from '@/data/items'
   import type { PondBreedDef, PondFish } from '@/types/fishPond'
 
@@ -834,6 +854,74 @@
   const pondEligibilityCards = computed(() => fishPondStore.pondEligibilitySnapshots.slice(0, 3))
   const detailFishRating = computed(() => (detailFish.value ? fishPondStore.getPondFishRatingSnapshot(detailFish.value.id) : null))
   const getFishRating = (fish: PondFish) => fishPondStore.getPondFishRatingSnapshot(fish.id)
+  type FishBreedingPreview = {
+    status: 'upgrade' | 'sameGeneration' | 'invalid'
+    statusLabel: string
+    summary: string
+    detail: string
+  }
+  const clampBreedGeneration = (value: number): 1 | 2 | 3 | 4 | 5 => Math.max(1, Math.min(5, Math.round(value))) as 1 | 2 | 3 | 4 | 5
+  const getFishGeneration = (fish: PondFish): 1 | 2 | 3 | 4 | 5 => {
+    const breed = fish.breedId ? getBreedById(fish.breedId) : null
+    return clampBreedGeneration(breed?.generation ?? 1)
+  }
+  const getFishGenerationLabel = (fish: PondFish): string => `${getFishGeneration(fish)}代`
+  const getFishBreedDisplayName = (fish: PondFish): string => {
+    return fish.breedId ? getBreedById(fish.breedId)?.name ?? fish.name : fish.name
+  }
+  const buildFishBreedingPreview = (parentA: PondFish, parentB: PondFish): FishBreedingPreview => {
+    if (parentA.fishId !== parentB.fishId) {
+      return {
+        status: 'invalid',
+        statusLabel: '不可配对',
+        summary: '这两条不是同一鱼种，不能开始鱼塘繁殖。',
+        detail: '先选择同鱼种、成熟且健康的两条鱼。'
+      }
+    }
+
+    const def = getPondableFish(parentA.fishId)
+    if (def?.allowBreeding === false) {
+      return {
+        status: 'invalid',
+        statusLabel: '不可繁殖',
+        summary: '这类鱼只能驻塘展示或产出稀有副产物，不能作为亲本。',
+        detail: '可继续用于展示池、周赛或鱼塘产物。'
+      }
+    }
+
+    if (!parentA.mature || !parentB.mature || parentA.sick || parentB.sick) {
+      return {
+        status: 'invalid',
+        statusLabel: '条件不足',
+        summary: '亲本需要成熟且健康，才能开始繁殖。',
+        detail: '先养到成熟，并处理生病状态。'
+      }
+    }
+
+    const recipe = parentA.breedId && parentB.breedId
+      ? findBreedByParents(parentA.breedId, parentB.breedId)
+      : null
+    if (recipe) {
+      return {
+        status: 'upgrade',
+        statusLabel: '可升代',
+        summary: `${getFishBreedDisplayName(parentA)} × ${getFishBreedDisplayName(parentB)} 会得到 ${recipe.name}（${recipe.generation}代）。`,
+        detail: '升代后会提高评分权重，并解锁更高代周赛、订单与展示样本。'
+      }
+    }
+
+    const inheritedGeneration = Math.min(getFishGeneration(parentA), getFishGeneration(parentB))
+    return {
+      status: 'sameGeneration',
+      statusLabel: '保代滚基因',
+      summary: `这组没有升代配方，后代会留在 ${inheritedGeneration}代。`,
+      detail: '仍可继承并波动体重、生长、抗病、品质等基因，用来补鱼群或筛更高评分样本。'
+    }
+  }
+  const detailFishBreedingPreview = computed(() => {
+    if (!selectedBreedingFish.value || !detailFish.value || selectedBreedingFish.value.id === detailFish.value.id) return null
+    return buildFishBreedingPreview(selectedBreedingFish.value, detailFish.value)
+  })
   const detailFishContestEligible = computed(() => (detailFish.value ? fishPondStore.contestEligibleFish.some(entry => entry.fishInstanceId === detailFish.value?.id) : false))
   const detailFishDisplayStatus = computed(() =>
     detailFish.value ? fishPondStore.getDisplayAssignmentStatus(detailFish.value.id) : 'missingFish'

@@ -17,6 +17,7 @@ import type {
   WalletPassiveEffect,
   WalletShopId
 } from '@/types'
+import type { ItemCategory } from '@/types/item'
 import { useAchievementStore } from './useAchievementStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
@@ -34,6 +35,55 @@ const SHOP_LABELS: Record<WalletShopId, string> = {
   jiuguan: '醉桃源酒馆',
   biaoju: '镖局'
 }
+
+const INVENTORY_CATEGORY_LABELS: Record<ItemCategory, string> = {
+  seed: '种子',
+  crop: '作物',
+  fish: '鱼类',
+  ore: '矿石',
+  gem: '宝石',
+  gift: '礼物',
+  food: '料理',
+  material: '材料',
+  misc: '杂货',
+  processed: '加工品',
+  elixir: '丹药',
+  machine: '机器',
+  sprinkler: '洒水器',
+  fertilizer: '肥料',
+  animal_product: '畜产',
+  sapling: '树苗',
+  fruit: '水果',
+  bait: '鱼饵',
+  tackle: '钓具',
+  bomb: '炸弹',
+  fossil: '化石',
+  artifact: '文物',
+  weapon: '武器',
+  ring: '戒指',
+  hat: '帽子',
+  shoe: '鞋子'
+}
+
+type MysteryBoxRewardItem = { itemId: string; quantity: number }
+
+const getMysteryBoxRewardItemSummary = (rewardItems: MysteryBoxRewardItem[]) =>
+  rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
+
+const getMysteryBoxRewardDestination = (rewardItems: MysteryBoxRewardItem[]) => {
+  const destinationLabels = rewardItems
+    .map(item => getItemById(item.itemId)?.category)
+    .filter((category): category is ItemCategory => !!category)
+    .map(category => INVENTORY_CATEGORY_LABELS[category] ?? category)
+  const uniqueDestinationLabels = [...new Set(destinationLabels)]
+  return uniqueDestinationLabels.length > 0 ? `背包-${uniqueDestinationLabels.join(' / ')}` : '背包'
+}
+
+const formatMysteryBoxRewardPreview = (reward: { label: string; rewardItems: MysteryBoxRewardItem[] }) =>
+  `${reward.label}：${getMysteryBoxRewardItemSummary(reward.rewardItems)}，入${getMysteryBoxRewardDestination(reward.rewardItems)}`
+
+const formatMysteryBoxRewardResult = (reward: { label: string; rewardItems: MysteryBoxRewardItem[] }) =>
+  `${reward.label}：${getMysteryBoxRewardItemSummary(reward.rewardItems)}，已放入${getMysteryBoxRewardDestination(reward.rewardItems)}`
 
 const GOAL_BIAS_LABELS: Record<WalletGoalBiasKey, string> = {
   cashflow: '现金流',
@@ -219,7 +269,7 @@ export const useWalletStore = defineStore('wallet', () => {
     MYSTERY_BOX_DEFS.map(def => ({
       ...def,
       count: Math.max(0, Number(mysteryBoxes.value[def.id]) || 0),
-      rewardPreview: def.rewardEntries.map(entry => `${entry.label}：${entry.summary}`).join(' / ')
+      rewardPreview: def.rewardEntries.map(formatMysteryBoxRewardPreview).join(' / ')
     }))
   )
   const ticketExchangeOffers = computed(() =>
@@ -582,7 +632,7 @@ export const useWalletStore = defineStore('wallet', () => {
     mysteryBoxes.value = nextBoxes
     inventoryStore.addItemsExact(rewardItems)
     usePlayerStore().markMysteryBoxCatalogued(boxId)
-    return { success: true, message: `你开启了${def.label}，获得${reward.label}。` }
+    return { success: true, message: `你开启了${def.label}，获得${formatMysteryBoxRewardResult(reward)}。` }
   }
 
   const redeemRewardTicketOffer = (offerId: string): { success: boolean; message: string; offer?: RewardTicketExchangeOffer } => {

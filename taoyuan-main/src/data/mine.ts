@@ -605,6 +605,44 @@ export interface SkullCavernFloorDef {
   isSafePoint: boolean
 }
 
+export interface SkullCavernDepthLootProfile {
+  tier: number
+  tierStartFloor: number
+  tierEndFloor: number | null
+  extraOreCount: number
+  oreQuantityBonusChance: number
+  iridiumWeightBonus: number
+  prismaticShardWeightChance: number
+}
+
+const SKULL_CAVERN_DEPTH_TIER_SIZE = 50
+const SKULL_CAVERN_DEPTH_LOOT_TIERS = [
+  { extraOreCount: 0, oreQuantityBonusChance: 0, iridiumWeightBonus: 0, prismaticShardWeightChance: 0.06 },
+  { extraOreCount: 1, oreQuantityBonusChance: 0.08, iridiumWeightBonus: 2, prismaticShardWeightChance: 0.08 },
+  { extraOreCount: 1, oreQuantityBonusChance: 0.14, iridiumWeightBonus: 3, prismaticShardWeightChance: 0.1 },
+  { extraOreCount: 2, oreQuantityBonusChance: 0.2, iridiumWeightBonus: 4, prismaticShardWeightChance: 0.12 },
+  { extraOreCount: 2, oreQuantityBonusChance: 0.25, iridiumWeightBonus: 5, prismaticShardWeightChance: 0.14 }
+] as const
+
+export const getSkullCavernDepthLootProfile = (floor: number): SkullCavernDepthLootProfile => {
+  const safeFloor = Math.max(1, Math.floor(floor))
+  const rawTier = Math.floor((safeFloor - 1) / SKULL_CAVERN_DEPTH_TIER_SIZE)
+  const tier = Math.min(rawTier, SKULL_CAVERN_DEPTH_LOOT_TIERS.length - 1)
+  const tierStartFloor = tier * SKULL_CAVERN_DEPTH_TIER_SIZE + 1
+  const tierEndFloor = tier === SKULL_CAVERN_DEPTH_LOOT_TIERS.length - 1 ? null : tierStartFloor + SKULL_CAVERN_DEPTH_TIER_SIZE - 1
+  const config = SKULL_CAVERN_DEPTH_LOOT_TIERS[tier]!
+
+  return {
+    tier,
+    tierStartFloor,
+    tierEndFloor,
+    extraOreCount: config.extraOreCount,
+    oreQuantityBonusChance: config.oreQuantityBonusChance,
+    iridiumWeightBonus: config.iridiumWeightBonus,
+    prismaticShardWeightChance: safeFloor >= 31 ? config.prismaticShardWeightChance : 0
+  }
+}
+
 /** 骷髅矿穴矿石池 */
 const SKULL_CAVERN_BASE_ORES = [
   'copper_ore',
@@ -625,12 +663,14 @@ const SKULL_CAVERN_BASE_ORES = [
 /** 生成骷髅矿穴楼层 */
 export const generateSkullCavernFloor = (floor: number): SkullCavernFloorDef => {
   const scaleFactor = 1 + (floor - 1) * 0.03
+  const depthLootProfile = getSkullCavernDepthLootProfile(floor)
 
-  // 矿石池：深层增加铱矿权重
+  // 矿石池：每 50 层提高深层富集权重，避免 120 层过早封顶。
   const ores = [...SKULL_CAVERN_BASE_ORES]
-  if (floor > 20) ores.push('iridium_ore')
-  if (floor > 50) ores.push('iridium_ore')
-  if (floor > 30 && Math.random() < 0.05 + floor * 0.001) {
+  for (let i = 0; i < depthLootProfile.iridiumWeightBonus; i++) {
+    ores.push('iridium_ore')
+  }
+  if (Math.random() < depthLootProfile.prismaticShardWeightChance) {
     ores.push('prismatic_shard')
   }
 
@@ -668,13 +708,29 @@ export const scaleMonster = (monster: MonsterDef, scaleFactor: number): MonsterD
   }
 }
 
+const SKULL_CAVERN_BOSS_PRESSURE_MULTIPLIERS: Partial<Record<number, number>> = {
+  20: 4.4,
+  40: 3.35,
+  60: 2.65,
+  80: 1.5,
+  100: 1.22,
+  120: 1
+}
+
+export const getSkullCavernBossPressureMultiplier = (sourceBossFloor: number, skullCavernFloor: number): number => {
+  const targetMultiplier = SKULL_CAVERN_BOSS_PRESSURE_MULTIPLIERS[sourceBossFloor] ?? 1
+  const safeFloor = Math.max(1, Math.floor(skullCavernFloor))
+  const depthRamp = Math.min(1, Math.max(0, (safeFloor - 25) / 75))
+  return 1 + (targetMultiplier - 1) * depthRamp
+}
+
 /** 获取骷髅矿穴小BOSS（每25层，随机BOSS×2倍缩放） */
 export const getSkullCavernBoss = (floor: number): MonsterDef | undefined => {
   if (floor % 25 !== 0) return undefined
   const bossFloors = Object.keys(BOSS_MONSTERS).map(Number)
   const randomFloor = bossFloors[Math.floor(Math.random() * bossFloors.length)]!
   const boss = BOSS_MONSTERS[randomFloor]!
-  const scaleFactor = 2 * (1 + (floor - 1) * 0.03)
+  const scaleFactor = 2 * (1 + (floor - 1) * 0.03) * getSkullCavernBossPressureMultiplier(randomFloor, floor)
   return scaleMonster(boss, scaleFactor)
 }
 
@@ -813,6 +869,7 @@ export const generateFloorGrid = (
   scaleFactor: number
 ): { tiles: MineTile[]; entryIndex: number; totalMonsters: number; stairsUsable: boolean } => {
   const dist = getFloorDistribution(floorData.specialType)
+  const depthLootProfile = isSkullCavern ? getSkullCavernDepthLootProfile(floorNum) : null
   const tiles: MineTile[] = []
 
   // 1. 创建 36 个 hidden/empty 格
@@ -882,12 +939,13 @@ export const generateFloorGrid = (
   }
 
   // 5. 放置矿石
-  const oreCount = randInt(dist.oreCount[0], dist.oreCount[1])
+  const oreCount = randInt(dist.oreCount[0], dist.oreCount[1]) + (depthLootProfile?.extraOreCount ?? 0)
   // 暗河层使用特殊矿石池
   const orePool = floorData.specialType === 'dark' ? getDarkFloorOres() : floorData.ores
   for (let i = 0; i < oreCount; i++) {
     const oreId = randPick(orePool)
-    placeRandom('ore', { oreId, oreQuantity: 1 })
+    const oreQuantity = 1 + (depthLootProfile && Math.random() < depthLootProfile.oreQuantityBonusChance ? 1 : 0)
+    placeRandom('ore', { oreId, oreQuantity })
   }
 
   // 6. 放置怪物

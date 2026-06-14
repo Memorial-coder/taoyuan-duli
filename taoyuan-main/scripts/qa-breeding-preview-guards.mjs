@@ -67,6 +67,8 @@ registerHooks({
 })
 
 const breedingViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'BreedingView.vue'), 'utf8')
+const breedingStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useBreedingStore.ts'), 'utf8')
+const breedingTypesSource = fs.readFileSync(path.join(srcRoot, 'types', 'breeding.ts'), 'utf8')
 const breedingData = await import(pathToFileURL(path.join(srcRoot, 'data', 'breeding.ts')).href)
 
 assert(
@@ -92,6 +94,30 @@ assert(
 assert(
   breedingViewSource.includes('失败时会随机返还一颗亲本副本'),
   'Known-recipe stat failures must also disclose the same failure outcome.'
+)
+assert(
+  breedingTypesSource.includes('export interface BreedingFailureProgressEntry') &&
+    breedingTypesSource.includes('breakthroughProgress') &&
+    breedingTypesSource.includes('breakthroughReady'),
+  'Breeding types must expose target-specific failure breakthrough progress.'
+)
+assert(
+  breedingStoreSource.includes('failureProgressByHybridId') &&
+    breedingStoreSource.includes('recordFailureProgress') &&
+    breedingStoreSource.includes('clearFailureProgress(hybrid.id)'),
+  'Breeding store must persist, accumulate, and consume failure breakthrough progress.'
+)
+assert(
+  breedingStoreSource.includes('breakthroughApplied') &&
+    breedingStoreSource.includes('effectiveAvgSweetness') &&
+    breedingStoreSource.includes('effectiveAvgYield'),
+  'Breakthrough-ready crosses must use accumulated progress to satisfy gate thresholds.'
+)
+assert(
+  breedingViewSource.includes('突破进度') &&
+    breedingViewSource.includes('本次可用失败积累补足门槛') &&
+    breedingViewSource.includes('breedingStore.hybridAvailabilityMap'),
+  'Breeding UI must make failure breakthrough progress visible in planning and cross preview.'
 )
 
 if (errors.length > 0) {

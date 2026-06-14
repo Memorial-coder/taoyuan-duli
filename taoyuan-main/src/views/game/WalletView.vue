@@ -48,7 +48,7 @@
         <span class="text-[0.625rem] text-muted">行旅图 -> 高阶准备</span>
       </div>
       <p class="text-xs text-muted mt-1 leading-5">
-        当前灵脉结晶库存 {{ cloudHighlandWalletPrep.leyQty }} 份，建设券 {{ cloudHighlandWalletPrep.constructionTickets }}，后勤券 {{ cloudHighlandWalletPrep.guildLogisticsTickets }}。
+        当前灵脉结晶库存 {{ cloudHighlandWalletPrep.leyQty }} 份，建设券 {{ cloudHighlandWalletPrep.constructionTickets }}，后勤票 {{ cloudHighlandWalletPrep.guildLogisticsTickets }}。
       </p>
       <p class="text-xs text-muted mt-1 leading-5">
         建议先确认高地巡路和首领前的预算、票券和背包余量，再继续冲下一轮高地战备。
@@ -220,24 +220,30 @@
           <div v-if="entry.selection" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-success">{{ entry.selection.tierLabel }}</p>
-              <span class="text-[0.625rem] text-success">{{ entry.selection.costMoney }}文</span>
+              <span class="text-[0.625rem] text-success">{{ formatWeeklyBudgetSelectionCost(entry.selection) }}</span>
             </div>
+            <p v-if="(entry.selection.discountMoney ?? 0) > 0" class="text-[0.625rem] text-success mt-1">
+              目标声望「{{ entry.selection.discountSourceLabel }}」减免 {{ entry.selection.discountMoney }} 文，原价 {{ entry.selection.baseCostMoney }} 文。
+            </p>
             <p class="text-[0.625rem] text-muted mt-1">{{ entry.selection.effect.summary }}</p>
           </div>
 
           <div v-else class="grid grid-cols-1 gap-2 mt-2">
             <button
-              v-for="tier in entry.channel.tiers"
-              :key="tier.id"
+              v-for="preview in entry.tierPreviews"
+              :key="preview.tier.id"
               class="border border-accent/10 rounded-xs px-2 py-2 text-left hover:bg-accent/5 transition-colors"
-              @click="handleActivateWeeklyBudget(entry.channel.channelId, tier.id)"
+              @click="handleActivateWeeklyBudget(entry.channel.channelId, preview.tier.id)"
             >
               <div class="flex items-center justify-between gap-2">
-                <p class="text-xs text-accent">{{ tier.label }}</p>
-                <span class="text-[0.625rem] text-accent">{{ tier.costMoney }}文</span>
+                <p class="text-xs text-accent">{{ preview.tier.label }}</p>
+                <span class="text-[0.625rem] text-accent">{{ formatWeeklyBudgetTierCost(preview.costPreview) }}</span>
               </div>
-              <p class="text-[0.625rem] text-muted mt-1">{{ tier.effect.summary }}</p>
-              <p class="text-[0.625rem] text-muted/70 mt-1">预计周回报参考：{{ tier.projectedValue }}文</p>
+              <p v-if="preview.costPreview.discountMoney > 0" class="text-[0.625rem] text-success mt-1">
+                目标声望「{{ preview.costPreview.tierLabel }}」减免 {{ preview.costPreview.discountMoney }} 文，原价 {{ preview.costPreview.baseCostMoney }} 文。
+              </p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ preview.tier.effect.summary }}</p>
+              <p class="text-[0.625rem] text-muted/70 mt-1">预计周回报参考：{{ preview.tier.projectedValue }}文</p>
             </button>
           </div>
         </div>
@@ -731,7 +737,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { WALLET_ITEMS } from '@/data/wallet'
-  import type { WalletArchetypeId, WalletItemDef, WeeklyBudgetChannelId } from '@/types'
+  import type { GoalReputationBudgetDiscountPreview, WalletArchetypeId, WalletItemDef, WeeklyBudgetChannelId, WeeklyBudgetSelection } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { exportTaoyuanToQuota, fetchTaoyuanExchangeContext, importQuotaToTaoyuan } from '@/utils/quotaExchangeApi'
 
@@ -923,13 +929,17 @@
   const weeklyBudgetChannelEntries = computed(() =>
     weeklyBudgetChannels.value.map(channel => ({
       channel,
-      selection: goalStore.getWeeklyBudgetSelection(channel.channelId)
+      selection: goalStore.getWeeklyBudgetSelection(channel.channelId),
+      tierPreviews: channel.tiers.map(tier => ({
+        tier,
+        costPreview: goalStore.getWeeklyBudgetReputationDiscount(tier.costMoney)
+      }))
     }))
   )
   const WEEKLY_BUDGET_TICKET_LABELS: Record<string, string> = {
-    caravan: '商路票券',
-    exhibit: '展馆票券',
-    research: '学舍票券'
+    caravan: '商路票',
+    exhibit: '展陈券',
+    research: '研究券'
   }
   const weeklyBudgetTicketSummary = computed(() => {
     const entries = Object.entries(weeklyBudgetPlan.value.ticketBalances)
@@ -1030,7 +1040,7 @@
         summary: '这批高地收益先和周预算、票券余量对上，再决定是继续补前置还是直接回高地推进。',
         detailLines: [
           `灵脉结晶 ${cloudHighlandWalletPrep.value.leyQty} 份`,
-          `建设券 ${cloudHighlandWalletPrep.value.constructionTickets} / 后勤券 ${cloudHighlandWalletPrep.value.guildLogisticsTickets}`
+          `建设券 ${cloudHighlandWalletPrep.value.constructionTickets} / 后勤票 ${cloudHighlandWalletPrep.value.guildLogisticsTickets}`
         ],
         statusLabel: '高地战备',
         statusToneClass: 'text-accent',
@@ -1206,6 +1216,20 @@
 
   const getArchetypeName = (archetypeId: WalletArchetypeId) => {
     return walletStore.archetypes.find(archetype => archetype.id === archetypeId)?.name ?? archetypeId
+  }
+
+  const formatWeeklyBudgetTierCost = (costPreview: GoalReputationBudgetDiscountPreview) => {
+    return costPreview.discountMoney > 0
+      ? `${costPreview.paidCostMoney}文`
+      : `${costPreview.baseCostMoney}文`
+  }
+
+  const formatWeeklyBudgetSelectionCost = (selection: WeeklyBudgetSelection) => {
+    const paidCostMoney = Math.max(0, Number(selection.costMoney) || 0)
+    const baseCostMoney = Math.max(0, Number(selection.baseCostMoney) || paidCostMoney)
+    return (selection.discountMoney ?? 0) > 0
+      ? `${paidCostMoney}文 / 原价${baseCostMoney}文`
+      : `${paidCostMoney}文`
   }
 
   const handleActivateWeeklyBudget = (channelId: WeeklyBudgetChannelId, tierId: string) => {

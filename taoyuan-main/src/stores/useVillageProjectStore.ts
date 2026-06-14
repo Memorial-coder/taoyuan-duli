@@ -54,7 +54,8 @@ import { useShopStore } from './useShopStore'
 import { useWarehouseStore } from './useWarehouseStore'
 
 const VILLAGE_PROJECT_CLUE_ALIASES: Record<string, string[]> = {
-  a_shi_support_clue: ['a_shi_clue']
+  a_shi_support_clue: ['a_shi_clue'],
+  liu_niang_greenhouse_clue: ['liu_niang_clue']
 }
 
 export const useVillageProjectStore = defineStore('villageProject', () => {

@@ -1116,6 +1116,47 @@
         <template v-else-if="shopStore.currentShopId === 'biaoju'">
           <ShopHeader name="镖局" npc="云飞" />
 
+          <!-- 镖局承接 -->
+          <div class="border border-accent/20 rounded-xs p-3 mb-4 bg-accent/5" data-testid="biaoju-escort-services">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-1.5 text-sm text-accent">
+                <Route :size="14" />
+                <span>镖局承接</span>
+              </div>
+              <span class="text-[0.625rem] text-muted">每日限办</span>
+            </div>
+            <p class="text-[0.625rem] text-muted leading-5 mb-3">
+              押运路签、前压补给和行旅回流在这里先做准备，后续再接任务板或行旅图。
+            </p>
+            <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <button
+                v-for="service in BIAOJU_ESCORT_SERVICES"
+                :key="service.id"
+                type="button"
+                class="border rounded-xs px-3 py-2 text-left transition-colors"
+                :class="
+                  isBiaojuEscortServiceUsed(service.id)
+                    ? 'border-accent/10 bg-bg/40 text-muted'
+                    : 'border-accent/20 bg-bg/40 hover:bg-accent/10'
+                "
+                :data-testid="`biaoju-escort-service-${service.id}`"
+                @click="openBiaojuEscortServiceModal(service)"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs" :class="isBiaojuEscortServiceUsed(service.id) ? 'text-muted' : 'text-accent'">{{ service.name }}</p>
+                  <span class="text-[0.625rem] text-muted">{{ getBiaojuEscortServiceStatusLabel(service.id) }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ service.summary }}</p>
+                <p class="text-[0.625rem] text-accent mt-1">{{ service.rewardSummary }} · {{ discounted(service.price) }}文</p>
+              </button>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" data-testid="biaoju-escort-route-quest" @click="navigateToPanel('quest')">接任务板</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" data-testid="biaoju-escort-route-region-map" @click="navigateToPanel('region-map')">看行旅图</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" data-testid="biaoju-escort-route-hanhai" @click="navigateToPanel('hanhai')">去瀚海</button>
+            </div>
+          </div>
+
           <!-- 武器 -->
           <h4 class="text-accent text-sm mb-2">
             <Sword :size="14" class="inline" />
@@ -1840,7 +1881,8 @@
     Filter,
     Droplets,
     UtensilsCrossed,
-    Wallet
+    Wallet,
+    Route
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { useFarmStore } from '@/stores/useFarmStore'
@@ -1861,7 +1903,7 @@
   import { SHOPS, isShopAvailable, getShopClosedReason } from '@/data/shops'
   import type { ShopDef } from '@/data/shops'
   import { SHOP_WEAPONS, WEAPON_TYPE_NAMES } from '@/data/weapons'
-  import type { SellPriceBreakdown, WeaponDef, RingDef, RingEffectType, Season, Quality, HatDef, ShoeDef, ItemCategory, ShopCatalogOfferDef } from '@/types'
+  import type { SellPriceBreakdown, WeaponDef, RingDef, RingEffectType, Season, Quality, HatDef, ShoeDef, ItemCategory, ShopCatalogOfferDef, RewardTicketLedger, RewardTicketType } from '@/types'
   import { FRUIT_TREE_DEFS } from '@/data/fruitTrees'
   import { CRAFTABLE_RINGS } from '@/data/rings'
   import { SHOP_HATS, CRAFTABLE_HATS } from '@/data/hats'
@@ -3528,6 +3570,126 @@
   }
 
   // === 镖局 ===
+
+  type BiaojuEscortServiceDef = {
+    id: string
+    name: string
+    summary: string
+    price: number
+    rewardSummary: string
+    itemRewards?: { itemId: string; quantity: number }[]
+    ticketRewards?: RewardTicketLedger
+  }
+
+  const BIAOJU_ESCORT_DAILY_LIMIT_COPY = '每日限办 1 次'
+  const BIAOJU_ESCORT_SERVICES: BiaojuEscortServiceDef[] = [
+    {
+      id: 'caravan_waybill',
+      name: '押镖路签代办',
+      summary: '把当天散单整理成一张可继续周转的商路凭据。',
+      price: 1600,
+      rewardSummary: `${REWARD_TICKET_LABELS.caravan ?? '商路票'}×1`,
+      ticketRewards: { caravan: 1 }
+    },
+    {
+      id: 'forward_supply_pack',
+      name: '护送前压包',
+      summary: '云飞配好的轻量补给，适合进矿洞或行旅图前先压风险。',
+      price: 780,
+      rewardSummary: '冒险口粮×1、战斗补剂×1',
+      itemRewards: [
+        { itemId: 'adventurer_ration', quantity: 1 },
+        { itemId: 'combat_tonic', quantity: 1 }
+      ]
+    },
+    {
+      id: 'road_receipt_sorting',
+      name: '驿路回执整理',
+      summary: '从旧镖单里整理出一份可交给任务板或馆务研究的关券。',
+      price: 900,
+      rewardSummary: '驿路关券×1',
+      itemRewards: [{ itemId: 'ancient_waybill', quantity: 1 }]
+    }
+  ]
+
+  const biaojuEscortServiceLedgerId = (serviceId: string): string => `biaoju_escort_service:${serviceId}:${currentDayTag.value}`
+
+  const isBiaojuEscortServiceUsed = (serviceId: string): boolean => {
+    return playerStore.hasLifestyleDiscovery('lifestyleUnlocks', biaojuEscortServiceLedgerId(serviceId))
+  }
+
+  const getBiaojuEscortServiceStatusLabel = (serviceId: string): string => {
+    return isBiaojuEscortServiceUsed(serviceId) ? '今日已承接' : '今日可承接'
+  }
+
+  const getBiaojuEscortRewardLines = (service: BiaojuEscortServiceDef): string[] => {
+    const lines = [BIAOJU_ESCORT_DAILY_LIMIT_COPY, `收益：${service.rewardSummary}`]
+    if (service.itemRewards?.length) {
+      lines.push(
+        '需要背包空间：' +
+          service.itemRewards.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
+      )
+    }
+    if (isBiaojuEscortServiceUsed(service.id)) lines.push('今日已经承接过这项镖局服务。')
+    return lines
+  }
+
+  const canBuyBiaojuEscortService = (service: BiaojuEscortServiceDef): boolean => {
+    if (isBiaojuEscortServiceUsed(service.id)) return false
+    if (playerStore.money < discounted(service.price)) return false
+    if (service.itemRewards?.length && !inventoryStore.canAddItems(service.itemRewards)) return false
+    return true
+  }
+
+  const openBiaojuEscortServiceModal = (service: BiaojuEscortServiceDef) => {
+    openBuyModal(
+      service.name,
+      service.summary,
+      () => discounted(service.price),
+      () => handleBuyBiaojuEscortService(service),
+      () => canBuyBiaojuEscortService(service),
+      getBiaojuEscortRewardLines(service),
+      '承接'
+    )
+  }
+
+  const handleBuyBiaojuEscortService = (service: BiaojuEscortServiceDef) => {
+    if (isBiaojuEscortServiceUsed(service.id)) {
+      addLog('今天已经承接过这项镖局服务了。')
+      return
+    }
+    if (service.itemRewards?.length && !inventoryStore.canAddItems(service.itemRewards)) {
+      addLog('背包空间不足，先整理背包再承接镖局补给。')
+      return
+    }
+
+    const actualPrice = discounted(service.price)
+    if (!playerStore.spendMoney(actualPrice)) {
+      addLog('铜钱不足。')
+      return
+    }
+
+    if (service.itemRewards?.length && !inventoryStore.addItemsExact(service.itemRewards)) {
+      playerStore.earnMoney(actualPrice, { countAsEarned: false })
+      addLog('背包空间不足，镖局已退回这笔费用。')
+      return
+    }
+
+    const grantedTickets = walletStore.addRewardTickets(service.ticketRewards, { applyMultiplier: false, source: 'biaoju_escort_service' })
+    playerStore.markLifestyleUnlock(biaojuEscortServiceLedgerId(service.id), currentDayTag.value)
+    const rewardParts = [...(service.itemRewards?.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`) ?? [])]
+    if (Object.keys(grantedTickets).length > 0) {
+      rewardParts.push(
+        Object.entries(grantedTickets)
+          .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${amount}`)
+          .join('、')
+      )
+    }
+    sfxBuy()
+    showFloat(`-${actualPrice}文`, 'danger')
+    addLog(`【镖局承接】${service.name}已办妥。${rewardParts.length > 0 ? `获得${rewardParts.join('、')}。` : ''}(-${actualPrice}文)`)
+    shopModal.value = null
+  }
 
   const hasWeaponMaterials = (w: WeaponDef): boolean => {
     for (const mat of w.shopMaterials) {

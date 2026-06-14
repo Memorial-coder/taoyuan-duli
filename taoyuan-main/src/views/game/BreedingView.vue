@@ -282,6 +282,7 @@
               </span>
             </div>
             <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ suggestion.currentGapSummary }}</p>
+            <p v-if="suggestion.breakthroughLine" class="text-[0.625rem] text-warning mt-1 leading-4">{{ suggestion.breakthroughLine }}</p>
             <p v-if="suggestion.reasonLines.length" class="text-[0.625rem] text-accent mt-1 leading-4">
               为什么做：{{ suggestion.reasonLines.join('；') }}
             </p>
@@ -403,6 +404,10 @@
               {{ getCropName(entry.hybrid.parentCropA) }} × {{ getCropName(entry.hybrid.parentCropB) }}
             </p>
             <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.availability.recommendation }}</p>
+            <p v-if="entry.availability.breakthroughProgress > 0" class="text-[0.625rem] text-warning mt-0.5">
+              突破进度 {{ entry.availability.breakthroughProgress }}/{{ entry.availability.breakthroughRequired }}
+              <template v-if="entry.availability.breakthroughReady"> · 已可突破</template>
+            </p>
           </button>
         </div>
       </div>
@@ -846,10 +851,16 @@
               </div>
               <p v-if="!crossBreedHint.canSucceed" class="text-xs text-danger mt-1">属性未达标，杂交将失败。</p>
               <p v-if="!crossBreedHint.canSucceed" class="text-xs text-muted mt-1">{{ crossBreedHint.recommendation }}</p>
+              <p v-if="crossBreedHint.breakthroughProgress > 0" class="text-xs text-warning mt-1">
+                谱系突破进度 {{ crossBreedHint.breakthroughProgress }}/{{ crossBreedHint.breakthroughRequired }}
+                <template v-if="crossBreedHint.breakthroughReady">，本次可用失败积累补足门槛。</template>
+              </p>
               <p v-if="!crossBreedHint.canSucceed" class="text-xs text-warning mt-1">
                 失败时会随机返还一颗亲本副本，并随机扣 {{ crossBreedHint.failedPenalty }} 点单项属性。
               </p>
-              <p v-else class="text-xs text-success mt-1">属性达标，可以杂交成功！</p>
+              <p v-else class="text-xs text-success mt-1">
+                {{ crossBreedHint.breakthroughReady && (!crossBreedHint.sweetOk || !crossBreedHint.yieldOk) ? '失败积累已满，本次可触发谱系突破。' : '属性达标，可以杂交成功！' }}
+              </p>
             </template>
           </div>
 
@@ -1130,6 +1141,9 @@
                 ? 'near'
                 : 'prep',
           currentGapSummary: availability?.recommendation ?? '当前更适合作为稳定量产或认证品系继续推进。',
+          breakthroughLine: availability && availability.breakthroughProgress > 0
+            ? `失败突破：${availability.breakthroughProgress}/${availability.breakthroughRequired}${availability.breakthroughReady ? '，下次同目标可突破' : ''}`
+            : undefined,
           reasonLines: [...meta.reasons].slice(0, 3),
           expectedUseLines: [...meta.uses].slice(0, 3),
           parentLines: hybrid ? [findBestSeedLine(hybrid.parentCropA), findBestSeedLine(hybrid.parentCropB)] : [],
@@ -1294,16 +1308,19 @@
     const avgYield = (a.yield + b.yield) / 2
     const avgRes = (a.resistance + b.resistance) / 2
     if (a.cropId !== b.cropId && !hybrid) return null
-    if (hybrid && (avgSweet < hybrid.minSweetness || avgYield < hybrid.minYield)) return null
+    const availability = hybrid ? breedingStore.hybridAvailabilityMap[hybrid.id] : null
+    if (hybrid && (avgSweet < hybrid.minSweetness || avgYield < hybrid.minYield) && !availability?.breakthroughReady) return null
     const avgStability = (a.stability + b.stability) / 2
     const avgMutationRate = (a.mutationRate + b.mutationRate) / 2
     const fluctuationScale = (avgMutationRate / 50) * (1 - avgStability / 100)
     const maxFluctuation = Math.round(8 * fluctuationScale)
+    const effectiveAvgSweet = hybrid && availability?.breakthroughReady ? Math.max(avgSweet, hybrid.minSweetness) : avgSweet
+    const effectiveAvgYield = hybrid && availability?.breakthroughReady ? Math.max(avgYield, hybrid.minYield) : avgYield
     const midSweet = hybrid
-      ? Math.round(hybrid.baseGenetics.sweetness * 0.6 + avgSweet * 0.4)
+      ? Math.round(hybrid.baseGenetics.sweetness * 0.6 + effectiveAvgSweet * 0.4)
       : Math.round(avgSweet)
     const midYield = hybrid
-      ? Math.round(hybrid.baseGenetics.yield * 0.6 + avgYield * 0.4)
+      ? Math.round(hybrid.baseGenetics.yield * 0.6 + effectiveAvgYield * 0.4)
       : Math.round(avgYield)
     const midRes = hybrid
       ? Math.round(hybrid.baseGenetics.resistance * 0.6 + avgRes * 0.4)
@@ -1382,13 +1399,21 @@
         failedPenalty
       }
     }
-    const avgSweet = Math.round((a.sweetness + b.sweetness) / 2)
-    const avgYield = Math.round((a.yield + b.yield) / 2)
-    const sweetOk = avgSweet >= hybrid.minSweetness
-    const yieldOk = avgYield >= hybrid.minYield
-    const sweetGap = Math.max(0, hybrid.minSweetness - avgSweet)
-    const yieldGap = Math.max(0, hybrid.minYield - avgYield)
-    const recommendation = sweetGap > 0 && yieldGap > 0
+    const avgSweetRaw = (a.sweetness + b.sweetness) / 2
+    const avgYieldRaw = (a.yield + b.yield) / 2
+    const avgSweet = Math.round(avgSweetRaw)
+    const avgYield = Math.round(avgYieldRaw)
+    const sweetOk = avgSweetRaw >= hybrid.minSweetness
+    const yieldOk = avgYieldRaw >= hybrid.minYield
+    const sweetGap = Math.max(0, Math.ceil(hybrid.minSweetness - avgSweetRaw))
+    const yieldGap = Math.max(0, Math.ceil(hybrid.minYield - avgYieldRaw))
+    const availability = breedingStore.hybridAvailabilityMap[hybrid.id]
+    const breakthroughProgress = availability?.breakthroughProgress ?? 0
+    const breakthroughRequired = availability?.breakthroughRequired ?? 100
+    const breakthroughReady = availability?.breakthroughReady ?? false
+    const recommendation = breakthroughReady && (!sweetOk || !yieldOk)
+      ? '失败积累已满，本次继续杂交会消耗突破进度补足门槛。'
+      : sweetGap > 0 && yieldGap > 0
       ? `甜度还差${sweetGap}点、产量还差${yieldGap}点。建议先继续同种培育 1~2 代后再尝试。`
       : sweetGap > 0
         ? `甜度还差${sweetGap}点。建议优先选择高甜度亲本，继续同种培育提升甜度。`
@@ -1406,7 +1431,10 @@
       yieldGap,
       sweetOk,
       yieldOk,
-      canSucceed: sweetOk && yieldOk,
+      canSucceed: (sweetOk && yieldOk) || breakthroughReady,
+      breakthroughProgress,
+      breakthroughRequired,
+      breakthroughReady,
       failedPenalty,
       recommendation
     }

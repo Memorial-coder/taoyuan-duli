@@ -2,11 +2,35 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { registerHooks } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import ts from 'typescript'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
+const srcRoot = path.join(projectRoot, 'src')
+
+registerHooks({
+  load(url, context, nextLoad) {
+    if (url.startsWith('file:') && /\.(ts|tsx)$/.test(url)) {
+      const filePath = fileURLToPath(url)
+      const source = fs.readFileSync(filePath, 'utf8')
+      const transpiled = ts.transpileModule(source, {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+          jsx: ts.JsxEmit.Preserve,
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true
+        },
+        fileName: filePath
+      })
+      return { format: 'module', source: transpiled.outputText, shortCircuit: true }
+    }
+    return nextLoad(url, context)
+  }
+})
 
 const errors = []
 const assert = (condition, message) => {
@@ -42,6 +66,11 @@ const questViewSource = readSource('src/views/game/QuestView.vue')
 const shopStoreSource = readSource('src/stores/useShopStore.ts')
 const inventoryStoreSource = readSource('src/stores/useInventoryStore.ts')
 const regionMapStoreSource = readSource('src/stores/useRegionMapStore.ts')
+const {
+  FISHING_DIFFICULTY_EXP_MULTIPLIER,
+  FISHING_QUALITY_EXP_MULTIPLIER,
+  getFishingCatchExperience
+} = await import(pathToFileURL(path.join(srcRoot, 'utils', 'fishingExperience.ts')).href)
 
 assert(skillMasterySource.includes('export const SKILL_MASTERY_EFFECT_VALUES'), '精研效果数值表必须显式导出。')
 assert(skillMasterySource.includes('batch_irrigation: 0.5'), '批量灌溉必须提供 50% 一键浇水体力减免。')
@@ -141,7 +170,13 @@ assert(fishingStoreSource.includes("fish.difficulty === 'legendary'"), '潮汐�
 assert(fishingStoreSource.includes('FISHING_LOCATION_NAME_BY_ID'), '潮汐标记必须显示传说鱼所在钓点。')
 assert(fishingViewSource.includes('fishingStore.tideMarkerHint'), '钓鱼页必须展示潮汐标记提示。')
 assert(fishingStoreSource.includes("skillStore.getSkillMasteryEffectValue('legend_weight')"), '钓鱼结算必须读取传奇称重效果。')
-assert(fishingStoreSource.includes('Math.floor(expGain * riverlandBonus * perfectMult * (1 + legendWeightBonus))'), '传说鱼经验公式必须乘入传奇称重。')
+assert(fishingStoreSource.includes("from '@/utils/fishingExperience'"), 'Fishing store must use the shared fishing XP formula utility.')
+assert(fishingStoreSource.includes('getFishingCatchExperience({'), 'Fishing success settlement must call getFishingCatchExperience.')
+assert(fishingStoreSource.includes('quantity: catchQty'), 'Fishing XP must include wild-bait double-catch quantity.')
+assert(fishingStoreSource.includes('quality,'), 'Fishing XP must include caught fish quality.')
+assert(fishingStoreSource.includes('riverlandBonus,'), 'Fishing XP must keep riverland farm multiplier.')
+assert(fishingStoreSource.includes('perfectMult,'), 'Fishing XP must keep perfect-catch multiplier.')
+assert(fishingStoreSource.includes('legendWeightBonus'), 'Fishing XP must keep legendary weight multiplier.')
 assert(fishingStoreSource.includes("message += '（传奇称重）'"), '传奇称重触发时必须在钓鱼结果中提示。')
 assert(fishingStoreSource.includes("skillStore.getSkillMasteryEffectValue('tide_notebook')"), '钓鱼流程必须读取鱼汛笔记效果。')
 assert(fishingStoreSource.includes('const recordTideNotebookCast = (): number =>'), '鱼汛笔记必须集中记录同水域连续抛竿。')
@@ -342,8 +377,33 @@ const tideMarkerFish = getTideMarkerModel(
 )
 assert(tideMarkerFish.length === 1, '模型用例：潮汐标记只应列出当前季节天气可遇到的传说鱼。')
 
-const applyLegendWeightExpModel = (baseExp, legendWeightBonus) => Math.floor(baseExp * (1 + legendWeightBonus))
-assert(applyLegendWeightExpModel(1500, 0.25) === 1875, '模型用例：传奇称重应把传说鱼经验提高 25%。')
+assert(FISHING_DIFFICULTY_EXP_MULTIPLIER.easy === 1, 'Fishing XP easy difficulty multiplier must be 1.')
+assert(FISHING_DIFFICULTY_EXP_MULTIPLIER.normal === 1.5, 'Fishing XP normal difficulty multiplier must be 1.5.')
+assert(FISHING_DIFFICULTY_EXP_MULTIPLIER.hard === 2, 'Fishing XP hard difficulty multiplier must be 2.')
+assert(FISHING_DIFFICULTY_EXP_MULTIPLIER.legendary === 3, 'Fishing XP legendary difficulty multiplier must be 3.')
+assert(FISHING_QUALITY_EXP_MULTIPLIER.normal === 1, 'Fishing XP normal quality multiplier must be 1.')
+assert(FISHING_QUALITY_EXP_MULTIPLIER.fine === 1.25, 'Fishing XP fine quality multiplier must be 1.25.')
+assert(FISHING_QUALITY_EXP_MULTIPLIER.excellent === 1.5, 'Fishing XP excellent quality multiplier must be 1.5.')
+assert(FISHING_QUALITY_EXP_MULTIPLIER.supreme === 2, 'Fishing XP supreme quality multiplier must be 2.')
+
+const normalFishExp = getFishingCatchExperience({
+  fish: { difficulty: 'normal', sellPrice: 100 },
+  quantity: 1,
+  quality: 'normal'
+})
+assert(normalFishExp === 150, `Fishing XP normal single catch should preserve old base: ${normalFishExp}`)
+assert(getFishingCatchExperience({ fish: { difficulty: 'normal', sellPrice: 100 }, quantity: 2, quality: 'normal' }) === 300, 'Fishing XP must double when wild bait catches two fish.')
+assert(getFishingCatchExperience({ fish: { difficulty: 'easy', sellPrice: 100 }, quality: 'fine' }) === 125, 'Fishing XP fine quality should use 1.25x.')
+assert(getFishingCatchExperience({ fish: { difficulty: 'easy', sellPrice: 100 }, quality: 'excellent' }) === 150, 'Fishing XP excellent quality should use 1.5x.')
+assert(getFishingCatchExperience({ fish: { difficulty: 'easy', sellPrice: 100 }, quality: 'supreme' }) === 200, 'Fishing XP supreme quality should use 2x.')
+assert(getFishingCatchExperience({
+  fish: { difficulty: 'legendary', sellPrice: 500 },
+  quantity: 2,
+  quality: 'supreme',
+  riverlandBonus: 1.25,
+  perfectMult: 2,
+  legendWeightBonus: 0.25
+}) === 18750, 'Fishing XP must stack quantity, quality, riverland, perfect catch, and legendary weight.')
 
 const getTideNotebookBonusModel = (streak, cap = 0.25) => Math.min(cap, Math.max(0, (streak - 1) * 0.05))
 assert(near(getTideNotebookBonusModel(1), 0), '模型用例：鱼汛笔记首次同水域抛竿不应加权。')

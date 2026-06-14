@@ -70,6 +70,11 @@ export interface WeeklyBudgetSelection {
   tier: number
   tierLabel: string
   costMoney: number
+  baseCostMoney?: number
+  discountMoney?: number
+  discountRate?: number
+  discountSourceTierId?: string
+  discountSourceLabel?: string
   projectedValue: number
   effect: BudgetChannelEffect
   activatedWeekId: string

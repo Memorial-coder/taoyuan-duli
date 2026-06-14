@@ -8,6 +8,7 @@ import type {
   GapCorrectionRule,
   GoalBiasRule,
   GoalMetricKey,
+  GoalReputationTierDef,
   GoalSource,
   GoalTemplate,
   GoalUiMeta,
@@ -29,6 +30,57 @@ import { WS09_RELATIONSHIP_AUDIT_POOLS } from './npcs'
 import { WS09_SPIRIT_BOND_AUDIT_POOLS } from './hiddenNpcHeartEvents'
 
 export const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
+
+export const GOAL_REPUTATION_TIER_DEFS: GoalReputationTierDef[] = [
+  {
+    id: 'newcomer',
+    label: '初闻其名',
+    minReputation: 0,
+    weeklyBudgetDiscountRate: 0,
+    weeklyBudgetDiscountCap: 0,
+    description: '目标声望刚开始积累，暂不影响周预算筹备成本。'
+  },
+  {
+    id: 'village_known',
+    label: '村中有名',
+    minReputation: 100,
+    weeklyBudgetDiscountRate: 0.02,
+    weeklyBudgetDiscountCap: 80,
+    description: '村里开始愿意帮忙牵线，本周预算投入可获得少量筹备减免。'
+  },
+  {
+    id: 'local_praised',
+    label: '乡里称许',
+    minReputation: 300,
+    weeklyBudgetDiscountRate: 0.04,
+    weeklyBudgetDiscountCap: 160,
+    description: '经营成果被周边认可，商路、展馆与学舍预算的筹备阻力降低。'
+  },
+  {
+    id: 'taoyuan_repute',
+    label: '桃源名望',
+    minReputation: 600,
+    weeklyBudgetDiscountRate: 0.06,
+    weeklyBudgetDiscountCap: 280,
+    description: '桃源名望已经成形，周预算投入能获得稳定人情与筹备支持。'
+  },
+  {
+    id: 'widely_known',
+    label: '远近传扬',
+    minReputation: 1000,
+    weeklyBudgetDiscountRate: 0.08,
+    weeklyBudgetDiscountCap: 420,
+    description: '名声传到更远的商户与学舍，较高档预算也能省下一笔启动成本。'
+  },
+  {
+    id: 'legendary_retreat',
+    label: '世外盛名',
+    minReputation: 1500,
+    weeklyBudgetDiscountRate: 0.1,
+    weeklyBudgetDiscountCap: 600,
+    description: '桃源已经成为口耳相传的理想之地，周预算筹备获得最高声望减免。'
+  }
+]
 
 export const MAIN_QUEST_STAGE_DEFS: MainQuestStageTemplate[] = [
   {
@@ -1084,7 +1136,7 @@ export const WS18_PROGRESS_BRIDGE_DEFS: ProgressBridgeDef[] = [
     weeklyObjective: '先完成瀚海开通和第一条商路投资，让资金线、供货线和后期路线真正接通。',
     settlementHook: '第一次商路开通或遗迹勘探后，把瀚海焦点、补给需求和推荐目录同步到周计划。',
     nextWeekPrepSummary: '下周提前准备补给包、藏宝图和高价值供货物资，方便继续推进商路。',
-    rewardSummary: '默认承接少量商路票券、补给资格和瀚海摘要增强。',
+    rewardSummary: '默认承接少量商路票、补给资格和瀚海摘要增强。',
     priority: 98
   },
   {
@@ -1097,7 +1149,7 @@ export const WS18_PROGRESS_BRIDGE_DEFS: ProgressBridgeDef[] = [
     weeklyObjective: '完成第一次首领、合同或遗迹收尾，让瀚海从单次高端商路变成周循环的一部分。',
     settlementHook: '首次合同或首领收尾后，把高光结果、轮换货架和下一周准备同步进周纪行与收尾展示。',
     nextWeekPrepSummary: '下周优先准备高规格样本、合同物资和补给包，确保能承接下一轮瀚海活动。',
-    rewardSummary: '默认承接少量商路票券、展示资格与收尾摘要增强。',
+    rewardSummary: '默认承接少量商路票、展示资格与收尾摘要增强。',
     priority: 86
   }
 ]

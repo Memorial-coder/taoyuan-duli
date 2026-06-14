@@ -52,7 +52,7 @@
           <span class="game-chip">里程碑 {{ currentMainQuestProgress }}</span>
           <span v-if="goalStore.currentThemeWeek" class="game-chip">{{ goalStore.currentThemeWeek.name }}</span>
           <template v-if="!collapsed">
-            <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
+            <span class="game-chip">{{ goalReputationChipText }}</span>
             <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
             <span class="game-chip">连周 {{ goalStore.weeklyStreakState.current }} / 最佳 {{ goalStore.weeklyStreakState.best }}</span>
             <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
@@ -218,6 +218,11 @@
   const primaryDailyGoal = computed(() => goalStore.dailyGoals.find(goal => !goal.completed) ?? goalStore.dailyGoals[0] ?? null)
   const weeklyPlanQuestActionNodes = computed(() => getWeeklyPlanQuestActionNodes(goalStore.weeklyPlanSnapshot))
   const currentPanelName = computed(() => (typeof route.name === 'string' ? route.name : ''))
+  const goalReputationChipText = computed(() => {
+    const status = goalStore.goalReputationStatus
+    const nextText = status.next ? ` · 下阶差 ${status.nextGap}` : ' · 已满阶'
+    return `目标声望 ${status.value} · ${status.current.label}${nextText}`
+  })
   const rawCompactCta = computed<TopGoalsCta | null>(() => {
     if (primaryDecisionAction.value) {
       return buildNavigationCta(primaryDecisionAction.value)

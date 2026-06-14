@@ -149,6 +149,10 @@ export interface HybridAvailability {
   avgYield: number
   sweetGap: number
   yieldGap: number
+  breakthroughProgress: number
+  breakthroughRequired: number
+  breakthroughReady: boolean
+  breakthroughPercent: number
   status: 'missing_parents' | 'unavailable' | 'near' | 'discoverable'
   recommendation: string
 }
@@ -245,7 +249,21 @@ export interface BreedingFailureSalvageSummary {
   failedStatKey: 'sweetness' | 'yield' | 'resistance'
   failedPenalty: number
   salvageItems: BreedingFailureSalvageItem[]
+  progressGain?: number
+  progressValue?: number
+  progressRequired?: number
+  breakthroughReady?: boolean
   summary: string
+}
+
+export interface BreedingFailureProgressEntry {
+  hybridId: string
+  progress: number
+  required: number
+  attempts: number
+  lastUpdatedDayTag: string
+  lastSweetGap: number
+  lastYieldGap: number
 }
 
 export interface BreedingPlanningNeed {
@@ -260,6 +278,7 @@ export interface BreedingPlanningSuggestion {
   targetLabel: string
   readiness: 'ready' | 'near' | 'prep'
   currentGapSummary: string
+  breakthroughLine?: string
   reasonLines: string[]
   expectedUseLines: string[]
   parentLines: string[]

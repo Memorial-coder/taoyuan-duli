@@ -338,7 +338,7 @@ export const useFarmStore = defineStore('farm', () => {
     return fertDef?.growthSpeedup ?? 0
   }
 
-  const getCurrentFieldGrowthBonus = (): number => {
+  const getCurrentCropGrowthBonus = (): number => {
     const gameStore = useGameStore()
     const spiritGrowth = gameStore.season === 'spring' ? useHiddenNpcStore().getAbilityValue('tao_yao_2') / 100 : 0
     return useWalletStore().getCropGrowthBonus() + spiritGrowth
@@ -350,7 +350,7 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentFieldGrowthBonus())
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
     return true
   }
 
@@ -360,7 +360,7 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (!plot.fertilizer || plot.fertilizer === fertilizerType) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentFieldGrowthBonus())
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
     return true
   }
 
@@ -371,7 +371,7 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + useWalletStore().getCropGrowthBonus())
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
     return true
   }
 
@@ -381,7 +381,7 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (!plot.fertilizer || plot.fertilizer === fertilizerType) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + useWalletStore().getCropGrowthBonus())
+    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
     return true
   }
 
@@ -1043,13 +1043,14 @@ export const useFarmStore = defineStore('farm', () => {
   }
 
   /** 温室每日更新（自动浇水，无天气影响） */
-  const greenhouseDailyUpdate = (): void => {
-    const walletGrowth = useWalletStore().getCropGrowthBonus()
+  const greenhouseDailyUpdate = (extraGrowthProgress: number = 0): void => {
+    const currentCropGrowth = getCurrentCropGrowthBonus()
+    const progressBonus = Math.max(0, extraGrowthProgress)
     for (const plot of greenhousePlots.value) {
       if (plot.state !== 'planted' && plot.state !== 'growing') continue
       plot.watered = true
-      const speedup = getFertilizerGrowthSpeedup(plot) + walletGrowth
-      plot.growthDays += 1
+      const speedup = getFertilizerGrowthSpeedup(plot) + currentCropGrowth
+      plot.growthDays += 1 + progressBonus
       if (!markPlotHarvestableIfReady(plot, speedup) && plot.state === 'planted') {
         plot.state = 'growing'
       }
@@ -1098,13 +1099,12 @@ export const useFarmStore = defineStore('farm', () => {
 
   const reconcileMatureCrops = (): number => {
     let changed = 0
-    const fieldBonus = getCurrentFieldGrowthBonus()
+    const cropGrowthBonus = getCurrentCropGrowthBonus()
     for (const plot of plots.value) {
-      if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + fieldBonus)) changed++
+      if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + cropGrowthBonus)) changed++
     }
-    const greenhouseBonus = useWalletStore().getCropGrowthBonus()
     for (const plot of greenhousePlots.value) {
-      if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + greenhouseBonus)) changed++
+      if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + cropGrowthBonus)) changed++
     }
     return changed
   }
