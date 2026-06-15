@@ -494,6 +494,12 @@
             </h4>
             <p class="text-muted text-xs mb-2">书生每季只来一次，今天能买的书这季只有今天能拿到。</p>
             <div class="flex flex-col space-y-2">
+              <p
+                v-if="shopStore.booksellerStock.length === 0"
+                class="border border-accent/10 rounded-xs px-3 py-2 text-xs text-muted leading-5"
+              >
+                {{ booksellerEmptyHint }}
+              </p>
               <div
                 v-for="book in shopStore.booksellerStock"
                 :key="book.id"
@@ -1565,8 +1571,9 @@
               </div>
             </div>
             <div class="flex items-center space-x-1">
-              <span class="text-xs text-accent whitespace-nowrap">{{ shopStore.calculateSellPrice(item.itemId, 1, item.quality) }}文</span>
-              <span v-if="getItemTrend(item.itemId) === 'rising' || getItemTrend(item.itemId) === 'boom'" class="text-[0.625rem] text-success">
+              <span class="text-xs text-accent whitespace-nowrap">{{ shopStore.calculateInventorySlotSellPrice(item.originalIndex, 1) }}文</span>
+              <span v-if="item.origin === 'shop'" class="text-[0.625rem] text-warning">回购</span>
+              <span v-else-if="getItemTrend(item.itemId) === 'rising' || getItemTrend(item.itemId) === 'boom'" class="text-[0.625rem] text-success">
                 ↑{{ Math.round((getItemMultiplier(item.itemId) - 1) * 100) }}%
               </span>
               <span
@@ -1766,19 +1773,19 @@
               <span class="text-xs" :class="qualityTextClass(sellModalItem.quality)">{{ QUALITY_NAMES[sellModalItem.quality] }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
-              <span class="text-xs text-muted">售价</span>
+              <span class="text-xs text-muted">{{ isSellModalShopBuyback ? '商圈回购' : '售价' }}</span>
               <span class="text-xs flex items-center space-x-1">
                 <span
-                  v-if="getItemTrend(sellModalData!.itemId) && getItemTrend(sellModalData!.itemId) !== 'stable'"
+                  v-if="!isSellModalShopBuyback && getItemTrend(sellModalData!.itemId) && getItemTrend(sellModalData!.itemId) !== 'stable'"
                   class="line-through text-muted/40"
                 >
                   {{ shopStore.calculateBaseSellPrice(sellModalData!.itemId, 1, sellModalData!.quality) }}文
                 </span>
-                <span class="text-accent">{{ shopStore.calculateSellPrice(sellModalData!.itemId, 1, sellModalData!.quality) }}文</span>
+                <span class="text-accent">{{ shopStore.calculateInventorySlotSellPrice(sellModalData!.inventoryIndex, 1) }}文</span>
               </span>
             </div>
             <div
-              v-if="getItemTrend(sellModalData!.itemId) && getItemTrend(sellModalData!.itemId) !== 'stable'"
+              v-if="!isSellModalShopBuyback && getItemTrend(sellModalData!.itemId) && getItemTrend(sellModalData!.itemId) !== 'stable'"
               class="flex items-center justify-between mt-0.5"
             >
               <span class="text-xs text-muted">行情</span>
@@ -1786,14 +1793,23 @@
                 {{ TREND_NAMES[getItemTrend(sellModalData!.itemId)!] }} ×{{ getItemMultiplier(sellModalData!.itemId) }}
               </span>
             </div>
-            <div v-if="hasSellBonus" class="flex items-center justify-between mt-0.5">
+            <div v-if="!isSellModalShopBuyback && hasSellBonus" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">装备加成</span>
               <span class="text-xs text-success">+{{ sellBonusPercent }}%</span>
             </div>
+            <div v-if="isSellModalShopBuyback" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">购入单价</span>
+              <span class="text-xs">{{ sellModalItem.purchaseUnitPrice ?? 0 }}文</span>
+            </div>
+            <div v-if="isSellModalShopBuyback" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">回购单价</span>
+              <span class="text-xs text-warning">{{ shopStore.getShopBuybackUnitPrice(sellModalItem) }}文</span>
+            </div>
+            <p v-if="isSellModalShopBuyback" class="text-[0.625rem] text-muted/70 mt-1">商圈购入品不受品质、技能、装备、祝福、仙缘、行情或节庆倍率影响。</p>
           </div>
 
           <div v-if="sellUnitBreakdown" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-[0.625rem] text-accent mb-1">售价明细</p>
+            <p class="text-[0.625rem] text-accent mb-1">{{ isSellModalShopBuyback ? '商圈回购明细' : '售价明细' }}</p>
             <div
               v-for="entry in sellUnitBreakdown.entries"
               :key="entry.stepId"
@@ -1896,7 +1912,7 @@
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { getItemById, getNpcById } from '@/data'
-  import { BOOK_TYPE_LABELS } from '@/data/books'
+  import { BOOKS, BOOK_TYPE_LABELS } from '@/data/books'
   import { BOOKSELLER_VISITOR_ID, getRareVisitorsForDay } from '@/data/bookseller'
   import { getCropBySeedId } from '@/data/crops'
   import { SHOP_NPC_RELATION_MAP } from '@/data/npcWorld'
@@ -1913,11 +1929,11 @@
   import type { CohabitationFundShopPurchaseCatalogItem } from '@/utils/cohabitationApi'
   import { HAY_PRICE } from '@/data/animals'
   import { addLog } from '@/composables/useGameLog'
-  import { sfxBuy } from '@/composables/useAudio'
+  import { sfxBuy, sfxCoin } from '@/composables/useAudio'
   import { showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
-  import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
+  import { handleBuySeed, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
   import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { getInventoryExpansionPrice, getNextInventoryCapacity } from '@/utils/inventoryCapacity'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
@@ -1989,6 +2005,11 @@
   const todayAmbientRareVisitors = computed(() =>
     getRareVisitorsForDay(gameStore.season, gameStore.day).filter(visitor => visitor.id !== BOOKSELLER_VISITOR_ID)
   )
+  const booksellerEmptyHint = computed(() => {
+    const ownedBookCount = BOOKS.filter(book => shopStore.hasOwnedBooksellerBook(book.id)).length
+    if (ownedBookCount >= BOOKS.length) return `本档 ${ownedBookCount} 本藏书已收齐，行脚书生今天没有新的书可卖。`
+    return '今日书单暂未整理出来，下次来访会重新摆出可买藏书。'
+  })
   const hasRecordedRareVisitor = (visitorId: string) => playerStore.hasLifestyleDiscovery('rareVisitors', visitorId)
   const handleRecordRareVisitor = (visitorId: string, visitorName: string) => {
     if (hasRecordedRareVisitor(visitorId)) return
@@ -2850,7 +2871,7 @@
     if (!data) return null
     const item = inventoryStore.items[data.inventoryIndex]
     if (item && item.itemId === data.itemId && item.quality === data.quality && !item.locked) return item
-    return inventoryStore.items.find(i => i.itemId === data.itemId && i.quality === data.quality && !i.locked) ?? null
+    return null
   })
 
   const sellModalDef = computed(() => {
@@ -3045,18 +3066,20 @@
   const sellUnitBreakdown = computed<SellPriceBreakdown | null>(() => {
     const data = sellModalData.value
     if (!data) return null
-    return shopStore.getSellPriceBreakdown(data.itemId, 1, data.quality)
+    return shopStore.getInventorySlotSellPriceBreakdown(data.inventoryIndex, 1)
   })
 
   const sellQuantityBreakdown = computed<SellPriceBreakdown | null>(() => {
     const data = sellModalData.value
     if (!data) return null
-    return shopStore.getSellPriceBreakdown(data.itemId, sellQuantity.value, data.quality)
+    return shopStore.getInventorySlotSellPriceBreakdown(data.inventoryIndex, sellQuantity.value)
   })
 
   const sellTotalPrice = computed(() => {
     return sellQuantityBreakdown.value?.finalTotal ?? 0
   })
+
+  const isSellModalShopBuyback = computed(() => sellModalItem.value?.origin === 'shop')
 
   const formatPriceMultiplier = (multiplier: number): string => {
     return Number.isInteger(multiplier) ? String(multiplier) : multiplier.toFixed(2)
@@ -3131,18 +3154,22 @@
   const handleModalSell = (count: number) => {
     const modal = shopModal.value
     if (!modal || modal.type !== 'sell') return
-    if (!sellModalItem.value || sellModalItem.value.locked) {
+    const item = sellModalItem.value
+    if (!item || item.locked) {
       shopModal.value = null
       return
     }
-    if (count === 1) {
-      handleSellItem(modal.itemId, modal.quality)
-    } else {
-      handleSellItemAll(modal.itemId, count, modal.quality)
+    const earned = shopStore.sellInventorySlot(modal.inventoryIndex, count)
+    if (earned > 0) {
+      sfxCoin()
+      showFloat(`+${earned}文`, 'accent')
+      const itemDef = getItemById(item.itemId)
+      const action = item.origin === 'shop' ? '回购了' : '卖出了'
+      addLog(`${action}${itemDef?.name ?? item.itemId}${count > 1 ? `×${count}` : ''}。(+${earned}文)`)
     }
     // 物品消耗完则关闭弹窗，否则修正出售数量
-    const remaining = inventoryStore.items.find(i => i.itemId === modal.itemId && i.quality === modal.quality)
-    if (!remaining) {
+    const remaining = inventoryStore.items[modal.inventoryIndex]
+    if (!remaining || remaining.itemId !== modal.itemId || remaining.quality !== modal.quality) {
       shopModal.value = null
     } else if (sellQuantity.value > remaining.quantity) {
       sellQuantity.value = remaining.quantity

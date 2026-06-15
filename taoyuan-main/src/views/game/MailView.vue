@@ -2,11 +2,32 @@
   <div ref="mailViewRoot">
     <GuidanceDigestPanel surface-id="mail" title="活动邮件引导" />
 
-    <div class="grid gap-3 md:grid-cols-[260px,minmax(0,1fr)]">
-      <section class="panel-box" :class="!isDesktop && activeMail ? 'hidden' : ''">
+    <div class="mail-layout grid gap-3 md:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(320px,400px)_minmax(0,1fr)]">
+      <section class="panel-box mail-list-panel" :class="!isDesktop && activeMail ? 'hidden' : ''">
         <div class="flex items-center justify-between mb-2">
           <Divider label="邮箱" />
           <span class="text-[0.625rem] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
+        </div>
+        <div class="mail-toolbar mb-3">
+          <div class="mail-toolbar__stats">
+            <span>全部 {{ mailboxStore.mails.length }}</span>
+            <span>未读 {{ mailboxStore.unreadCount }}</span>
+            <span>可领 {{ claimableMailCount }}</span>
+          </div>
+          <div class="mail-toolbar__actions">
+            <Button class="mail-toolbar__button justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
+              刷新
+            </Button>
+            <Button class="mail-toolbar__button justify-center" :icon="CheckCheck" :icon-size="12" :disabled="markAllReadPending || mailboxStore.unreadCount <= 0" @click="markAllAsRead">
+              一键已读
+            </Button>
+            <Button class="mail-toolbar__button justify-center" :icon="Inbox" :icon-size="12" :disabled="claimAllPending || claimableMailCount <= 0" @click="claimAllRewards">
+              一键领取
+            </Button>
+            <Button class="mail-toolbar__button justify-center" :icon="Trash2" :icon-size="12" :disabled="clearClaimedPending" @click="clearClaimed">
+              清空已领取
+            </Button>
+          </div>
         </div>
         <div v-if="mailArrivalNoticeText" class="detail-card mb-3 border border-warning/20 bg-warning/5">
           <div class="flex items-start justify-between gap-2">
@@ -92,18 +113,6 @@
             </p>
           </div>
         </div>
-        <div class="flex flex-col space-y-1.5 mb-3">
-          <Button class="w-full justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
-            刷新邮件
-          </Button>
-          <Button class="w-full justify-center" :icon="Inbox" :icon-size="12" :disabled="claimAllPending" @click="claimAllRewards">
-            一键领取
-          </Button>
-          <Button class="w-full justify-center" :icon="Trash2" :icon-size="12" :disabled="clearClaimedPending" @click="clearClaimed">
-            清空已领取
-          </Button>
-        </div>
-
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between gap-2 mb-2">
             <p class="text-xs text-accent">纪念册</p>
@@ -398,66 +407,72 @@
             </span>
           </div>
 
-          <div class="detail-card mb-3 whitespace-pre-wrap text-xs leading-relaxed">{{ activeMail.content || '暂无正文' }}</div>
+          <div class="mail-detail-layout">
+            <div class="mail-detail-main">
+              <div class="detail-card mb-3 whitespace-pre-wrap text-xs leading-relaxed">{{ activeMail.content || '暂无正文' }}</div>
 
-          <div v-if="activeMail.photo_url" class="detail-card mb-3">
-            <p class="text-xs text-accent mb-2">附图</p>
-            <img :src="activeMail.photo_url" :alt="activeMail.photo_alt || '书信附图'" class="letter-photo-preview" />
-            <p v-if="activeMail.photo_alt" class="text-[0.625rem] text-muted mt-2">{{ activeMail.photo_alt }}</p>
-          </div>
-
-          <div class="detail-card mb-3">
-            <div class="flex items-center justify-between mb-2">
-              <p class="text-xs text-accent">奖励内容</p>
-              <span v-if="activeMail.duplicate_compensation_money > 0" class="text-[0.625rem] text-muted">
-                重复装备补偿 {{ activeMail.duplicate_compensation_money }} 文
-              </span>
+              <div v-if="activeMail.photo_url" class="detail-card mb-3">
+                <p class="text-xs text-accent mb-2">附图</p>
+                <img :src="activeMail.photo_url" :alt="activeMail.photo_alt || '书信附图'" class="letter-photo-preview" />
+                <p v-if="activeMail.photo_alt" class="text-[0.625rem] text-muted mt-2">{{ activeMail.photo_alt }}</p>
+              </div>
             </div>
-              <div v-if="activeMail.rewards.length > 0" class="flex flex-col space-y-1">
-                <div v-for="(reward, index) in activeMail.rewards" :key="`${reward.type}-${reward.id}-${index}`" class="reward-row">
-                  <ItemIcon v-if="isItemReward(reward)" :item="getItemById(reward.id || '')" size="xs" :show-badge="false" />
-                  <span class="text-xs">{{ rewardLabel(reward) }}</span>
+
+            <aside class="mail-detail-side">
+              <div class="detail-card mb-3">
+                <div class="flex items-center justify-between mb-2">
+                  <p class="text-xs text-accent">奖励内容</p>
+                  <span v-if="activeMail.duplicate_compensation_money > 0" class="text-[0.625rem] text-muted">
+                    重复装备补偿 {{ activeMail.duplicate_compensation_money }} 文
+                  </span>
                 </div>
-            </div>
-            <p v-else class="text-xs text-muted">{{ activeMail.sender_display_name ? '这封玩家书信不附带奖励。' : '这是一封纯文字公告' }}</p>
-          </div>
+                <div v-if="activeMail.rewards.length > 0" class="flex flex-col space-y-1">
+                  <div v-for="(reward, index) in activeMail.rewards" :key="`${reward.type}-${reward.id}-${index}`" class="reward-row">
+                    <ItemIcon v-if="isItemReward(reward)" :item="getItemById(reward.id || '')" size="xs" :show-badge="false" />
+                    <span class="text-xs">{{ rewardLabel(reward) }}</span>
+                  </div>
+                </div>
+                <p v-else class="text-xs text-muted">{{ activeMail.sender_display_name ? '这封玩家书信不附带奖励。' : '这是一封纯文字公告' }}</p>
+              </div>
 
-          <div v-if="activeMail.claim_result" class="detail-card mb-3">
-            <p class="text-xs text-accent mb-2">领取记录</p>
-            <p class="text-[0.6875rem] text-muted mb-1">已入账 {{ activeMail.claim_result.money_added }} 文</p>
-            <p v-if="activeMail.claim_result.applied_rewards.length > 0" class="text-[0.6875rem] text-muted mb-1">
-              发放 {{ activeMail.claim_result.applied_rewards.length }} 条
-            </p>
-            <p v-if="activeMail.claim_result.skipped_rewards.length > 0" class="text-[0.6875rem] text-warning">
-              跳过 {{ activeMail.claim_result.skipped_rewards.length }} 条重复装备
-            </p>
-          </div>
+              <div v-if="activeMail.claim_result" class="detail-card mb-3">
+                <p class="text-xs text-accent mb-2">领取记录</p>
+                <p class="text-[0.6875rem] text-muted mb-1">已入账 {{ activeMail.claim_result.money_added }} 文</p>
+                <p v-if="activeMail.claim_result.applied_rewards.length > 0" class="text-[0.6875rem] text-muted mb-1">
+                  发放 {{ activeMail.claim_result.applied_rewards.length }} 条
+                </p>
+                <p v-if="activeMail.claim_result.skipped_rewards.length > 0" class="text-[0.6875rem] text-warning">
+                  跳过 {{ activeMail.claim_result.skipped_rewards.length }} 条重复装备
+                </p>
+              </div>
 
-          <div class="flex flex-wrap gap-2">
-            <Button class="justify-center" @click="togglePinned(activeMail.id, !activeMail.is_pinned)">
-              {{ activeMail.is_pinned ? '取消置顶' : '置顶这封信' }}
-            </Button>
-            <Button
-              v-if="activeMail.sender_username"
-              class="justify-center"
-              :disabled="isActiveMailMemorialized"
-              @click="saveMailToMemorial(activeMail.id)"
-            >
-              {{ isActiveMailMemorialized ? '已存入纪念册' : '存进纪念册' }}
-            </Button>
-            <Button
-              v-if="activeMail.can_claim"
-              class="justify-center"
-              :icon="Gift"
-              :icon-size="12"
-              :disabled="claimCurrentPending"
-              @click="claimCurrentMail"
-            >
-              领取奖励
-            </Button>
-            <Button v-else class="justify-center" disabled>
-              {{ activeMail.claim_status === 'claimed' ? '已领取' : activeMail.claim_status === 'expired' ? '已过期' : '无奖励' }}
-            </Button>
+              <div class="mail-detail-actions">
+                <Button class="justify-center" @click="togglePinned(activeMail.id, !activeMail.is_pinned)">
+                  {{ activeMail.is_pinned ? '取消置顶' : '置顶这封信' }}
+                </Button>
+                <Button
+                  v-if="activeMail.sender_username"
+                  class="justify-center"
+                  :disabled="isActiveMailMemorialized"
+                  @click="saveMailToMemorial(activeMail.id)"
+                >
+                  {{ isActiveMailMemorialized ? '已存入纪念册' : '存进纪念册' }}
+                </Button>
+                <Button
+                  v-if="activeMail.can_claim"
+                  class="justify-center"
+                  :icon="Gift"
+                  :icon-size="12"
+                  :disabled="claimCurrentPending"
+                  @click="claimCurrentMail"
+                >
+                  领取奖励
+                </Button>
+                <Button v-else class="justify-center" disabled>
+                  {{ activeMail.claim_status === 'claimed' ? '已领取' : activeMail.claim_status === 'expired' ? '已过期' : '无奖励' }}
+                </Button>
+              </div>
+            </aside>
           </div>
 
           <div v-if="mailboxStore.receipts.length > 0" class="detail-card mt-3">
@@ -514,7 +529,7 @@
   import { getShoeById } from '@/data/shoes'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
-  import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+  import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift, ChevronLeft, ChevronRight, CheckCheck } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
@@ -559,6 +574,7 @@
   const selectRequestId = ref(0)
   const claimCurrentPending = ref(false)
   const claimAllPending = ref(false)
+  const markAllReadPending = ref(false)
   const clearClaimedPending = ref(false)
   const uploadingLetterPhoto = ref(false)
   const mailViewRoot = ref<HTMLElement | null>(null)
@@ -1135,6 +1151,20 @@
     }
   }
 
+  const markAllAsRead = async () => {
+    if (markAllReadPending.value || mailboxStore.unreadCount <= 0) return
+    markAllReadPending.value = true
+    try {
+      const data = await mailboxStore.markAllRead()
+      await ensureSelection()
+      showFloat(`已标记 ${data.count || 0} 封邮件为已读`, 'success')
+    } catch (error: any) {
+      showFloat(error?.message || '一键已读失败', 'danger')
+    } finally {
+      markAllReadPending.value = false
+    }
+  }
+
   const clearClaimed = async () => {
     if (clearClaimedPending.value) return
     clearClaimedPending.value = true
@@ -1235,6 +1265,10 @@
 </script>
 
 <style scoped>
+  .mail-layout {
+    align-items: start;
+  }
+
   .panel-box {
     border: 1px solid rgba(200, 164, 92, 0.18);
     border-radius: 2px;
@@ -1242,8 +1276,61 @@
     background: rgba(15, 18, 30, 0.4);
   }
 
+  .mail-toolbar {
+    display: grid;
+    gap: 6px;
+  }
+
+  .mail-toolbar__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: rgb(var(--color-muted));
+    font-size: 0.625rem;
+  }
+
+  .mail-toolbar__stats span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 0 8px;
+    border: 1px solid rgba(200, 164, 92, 0.14);
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.035);
+    white-space: nowrap;
+  }
+
+  .mail-toolbar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .mail-toolbar__button {
+    flex: 0 0 auto;
+    min-height: 30px;
+    min-width: 0;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+
+  .mail-toolbar__button :deep(span) {
+    white-space: nowrap;
+  }
+
   .detail-box {
     min-height: 360px;
+  }
+
+  .mail-detail-layout {
+    display: grid;
+    gap: 10px;
+  }
+
+  .mail-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .mail-item {
@@ -1347,6 +1434,54 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+  }
+
+  @media (min-width: 768px) {
+    .mail-list-panel,
+    .detail-box {
+      max-height: calc(100vh - 150px);
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+    }
+
+    .detail-box {
+      min-height: min(680px, calc(100vh - 150px));
+    }
+
+    .mail-toolbar {
+      position: sticky;
+      top: -10px;
+      z-index: 1;
+      margin: -2px -2px 12px;
+      padding: 2px 2px 10px;
+      background: rgba(15, 18, 30, 0.96);
+      border-bottom: 1px solid rgba(200, 164, 92, 0.12);
+    }
+
+    .mail-toolbar__actions {
+      gap: 7px;
+    }
+
+    .mail-item {
+      min-height: 74px;
+      padding: 10px;
+    }
+
+    .mail-detail-layout {
+      grid-template-columns: minmax(0, 1fr) minmax(250px, 34%);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .mail-detail-side {
+      position: sticky;
+      top: 0;
+    }
+
+    .mail-detail-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 </style>
 

@@ -2,7 +2,13 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { InventoryItem, Quality, Chest, ChestTier, VoidChestRole } from '@/types'
 import { getItemById, CHEST_DEFS } from '@/data/items'
-import { useInventoryStore } from './useInventoryStore'
+import {
+  cloneInventoryItemSlot,
+  createInventoryItemSlot,
+  inventoryStacksMatch,
+  type InventoryItemStackMeta,
+  useInventoryStore
+} from './useInventoryStore'
 
 const INITIAL_MAX_CHESTS = 3
 const MAX_CHESTS_CAP = 10
@@ -15,6 +21,8 @@ type ChestConsumeEntry = {
   quantity: number
   quality?: Quality
 }
+
+const normalizeChestConsumeQuantity = (quantity: number): number => Math.max(0, Math.floor(Number(quantity) || 0))
 
 export const useWarehouseStore = defineStore('warehouse', () => {
   const unlocked = ref(false)
@@ -80,15 +88,22 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   // ---- 物品操作 ----
 
   /** 直接往箱子加物品（内部/自动路由用） */
-  const canAddItemToChest = (chestId: string, itemId: string, quantity: number = 1, quality: Quality = 'normal'): boolean => {
+  const canAddItemToChest = (
+    chestId: string,
+    itemId: string,
+    quantity: number = 1,
+    quality: Quality = 'normal',
+    meta?: InventoryItemStackMeta | null
+  ): boolean => {
     const chest = chests.value.find(c => c.id === chestId)
     if (!chest) return false
     const cap = CHEST_DEFS[chest.tier].capacity
+    const incoming = createInventoryItemSlot(itemId, quantity, quality, meta)
 
     let simulatedRemaining = quantity
     for (const slot of chest.items) {
       if (simulatedRemaining <= 0) break
-      if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
+      if (inventoryStacksMatch(slot, incoming) && slot.quantity < MAX_STACK) {
         const canAdd = Math.min(simulatedRemaining, MAX_STACK - slot.quantity)
         simulatedRemaining -= canAdd
       }
@@ -98,18 +113,25 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   }
 
   /** 直接往箱子加物品（内部/自动路由用） */
-  const addItemToChest = (chestId: string, itemId: string, quantity: number = 1, quality: Quality = 'normal'): boolean => {
+  const addItemToChest = (
+    chestId: string,
+    itemId: string,
+    quantity: number = 1,
+    quality: Quality = 'normal',
+    meta?: InventoryItemStackMeta | null
+  ): boolean => {
     const chest = chests.value.find(c => c.id === chestId)
     if (!chest) return false
     const cap = CHEST_DEFS[chest.tier].capacity
+    const incoming = createInventoryItemSlot(itemId, quantity, quality, meta)
 
-    if (!canAddItemToChest(chestId, itemId, quantity, quality)) return false
+    if (!canAddItemToChest(chestId, itemId, quantity, quality, meta)) return false
 
     let remaining = quantity
 
     for (const slot of chest.items) {
       if (remaining <= 0) break
-      if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
+      if (inventoryStacksMatch(slot, incoming) && slot.quantity < MAX_STACK) {
         const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
         slot.quantity += canAdd
         remaining -= canAdd
@@ -118,7 +140,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
 
     while (remaining > 0 && chest.items.length < cap) {
       const batch = Math.min(remaining, MAX_STACK)
-      chest.items.push({ itemId, quantity: batch, quality })
+      chest.items.push(createInventoryItemSlot(itemId, batch, quality, incoming))
       remaining -= batch
     }
 
@@ -151,6 +173,21 @@ export const useWarehouseStore = defineStore('warehouse', () => {
     return true
   }
 
+  const removeItemFromChestAtIndex = (chestId: string, index: number, quantity: number = 1): InventoryItem | null => {
+    const chest = chests.value.find(c => c.id === chestId)
+    const slot = chest?.items[index]
+    if (!chest || !slot) return null
+    const take = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (take <= 0 || slot.quantity < take) return null
+    const removed = cloneInventoryItemSlot(slot)
+    removed.quantity = take
+    slot.quantity -= take
+    if (slot.quantity <= 0) {
+      chest.items.splice(index, 1)
+    }
+    return removed
+  }
+
   /** 查询箱子内物品数量 */
   const getChestItemCount = (chestId: string, itemId: string, quality?: Quality): number => {
     const chest = chests.value.find(c => c.id === chestId)
@@ -171,10 +208,34 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   }
 
   /** 检查箱子是否能完整扣除一组物品 */
+  const canRemoveFromItemSnapshot = (items: InventoryItem[], entry: ChestConsumeEntry): boolean => {
+    const quantity = normalizeChestConsumeQuantity(entry.quantity)
+    if (!entry.itemId || quantity <= 0) return true
+
+    const total = items
+      .filter(item => item.itemId === entry.itemId && (entry.quality === undefined || item.quality === entry.quality))
+      .reduce((sum, item) => sum + item.quantity, 0)
+    if (total < quantity) return false
+
+    let remaining = quantity
+    for (const q of entry.quality !== undefined ? [entry.quality] : QUALITY_ORDER) {
+      for (let i = items.length - 1; i >= 0 && remaining > 0; i--) {
+        const slot = items[i]!
+        if (slot.itemId !== entry.itemId || slot.quality !== q) continue
+        const take = Math.min(remaining, slot.quantity)
+        slot.quantity -= take
+        remaining -= take
+        if (slot.quantity <= 0) items.splice(i, 1)
+      }
+    }
+    return remaining <= 0
+  }
+
   const canConsumeChestItems = (chestId: string, entries: ChestConsumeEntry[]): boolean => {
     const chest = chests.value.find(c => c.id === chestId)
     if (!chest) return false
-    return entries.every(entry => getChestItemCount(chest.id, entry.itemId, entry.quality) >= entry.quantity)
+    const simulatedItems = chest.items.map(item => ({ ...item }))
+    return entries.every(entry => canRemoveFromItemSnapshot(simulatedItems, entry))
   }
 
   /** 仅在整组物品都足够时才统一扣除，避免部分扣料 */
@@ -196,28 +257,48 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   // ---- 存取操作（背包 ↔ 箱子）----
 
   /** 从背包存入箱子，返回实际存入数量（0 = 失败） */
-  const depositToChest = (chestId: string, itemId: string, quantity: number, quality: Quality): number => {
+  const depositInventorySlotToChest = (chestId: string, inventoryIndex: number, quantity: number): number => {
     const inv = useInventoryStore()
     const chest = chests.value.find(c => c.id === chestId)
     if (!chest) return 0
+    const slot = inv.items[inventoryIndex]
+    if (!slot) return 0
 
-    // 计算箱子可容纳数量
-    const cap = CHEST_DEFS[chest.tier].capacity
     let canStore = 0
-    for (const slot of chest.items) {
-      if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
-        canStore += MAX_STACK - slot.quantity
+    for (const chestSlot of chest.items) {
+      if (inventoryStacksMatch(chestSlot, slot) && chestSlot.quantity < MAX_STACK) {
+        canStore += MAX_STACK - chestSlot.quantity
       }
     }
+    const cap = CHEST_DEFS[chest.tier].capacity
     const freeSlots = cap - chest.items.length
     canStore += freeSlots * MAX_STACK
 
-    const actual = Math.min(quantity, canStore)
+    const actual = Math.min(Math.max(0, Math.floor(Number(quantity) || 0)), slot.quantity, canStore)
     if (actual <= 0) return 0
 
-    if (!inv.removeItem(itemId, actual, quality)) return 0
-    addItemToChest(chestId, itemId, actual, quality)
+    const removed = inv.removeItemAtIndex(inventoryIndex, actual)
+    if (!removed) return 0
+    if (!addItemToChest(chestId, removed.itemId, removed.quantity, removed.quality, removed)) {
+      inv.addItemExact(removed.itemId, removed.quantity, removed.quality, true, removed)
+      return 0
+    }
     return actual
+  }
+
+  const depositToChest = (chestId: string, itemId: string, quantity: number, quality: Quality): number => {
+    const inv = useInventoryStore()
+    const requestedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    let remaining = requestedQuantity
+    let deposited = 0
+    for (let i = inv.items.length - 1; i >= 0 && remaining > 0; i--) {
+      const slot = inv.items[i]!
+      if (slot.itemId !== itemId || slot.quality !== quality) continue
+      const actual = depositInventorySlotToChest(chestId, i, remaining)
+      deposited += actual
+      remaining -= actual
+    }
+    return deposited
   }
 
   /** 从箱子取出到背包 */
@@ -226,14 +307,32 @@ export const useWarehouseStore = defineStore('warehouse', () => {
     const chest = chests.value.find(c => c.id === chestId)
     if (!chest) return false
 
-    const available = getChestItemCount(chestId, itemId, quality)
-    const actual = Math.min(quantity, available)
-    if (actual <= 0) return false
-    if (!inv.canAddItem(itemId, actual, quality)) return false
+    const requestedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (requestedQuantity <= 0) return false
+    let remaining = Math.min(requestedQuantity, getChestItemCount(chestId, itemId, quality))
+    if (remaining <= 0) return false
+    const withdrawalPlan: Array<{ index: number; quantity: number; slot: InventoryItem }> = []
+    for (let i = chest.items.length - 1; i >= 0 && remaining > 0; i--) {
+      const slot = chest.items[i]!
+      if (slot.itemId !== itemId || slot.quality !== quality) continue
+      const take = Math.min(remaining, slot.quantity)
+      withdrawalPlan.push({ index: i, quantity: take, slot: cloneInventoryItemSlot(slot) })
+      remaining -= take
+    }
+    if (withdrawalPlan.length <= 0) return false
+    if (!inv.canAddItems(withdrawalPlan.map(entry => ({ ...entry.slot, quantity: entry.quantity })))) return false
 
-    // 先从箱子移除，再完整加入背包
-    removeItemFromChest(chestId, itemId, actual, quality)
-    return inv.addItemExact(itemId, actual, quality)
+    const inventorySnapshot = inv.serialize()
+    const chestItemsSnapshot = chest.items.map(item => cloneInventoryItemSlot(item))
+    for (const entry of withdrawalPlan) {
+      const removed = removeItemFromChestAtIndex(chestId, entry.index, entry.quantity)
+      if (!removed || !inv.addItemExact(removed.itemId, removed.quantity, removed.quality, true, removed)) {
+        inv.deserialize(inventorySnapshot)
+        chest.items = chestItemsSnapshot
+        return false
+      }
+    }
+    return true
   }
 
   // ---- 仓库扩容 ----
@@ -286,7 +385,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
       unlocked: unlocked.value,
       chests: chests.value.map(chest => ({
         ...chest,
-        items: chest.items.map(item => ({ ...item }))
+        items: chest.items.map(item => cloneInventoryItemSlot(item))
       })),
       maxChests: maxChests.value
     }
@@ -301,9 +400,22 @@ export const useWarehouseStore = defineStore('warehouse', () => {
       return id
     }
 
+    const normalizeChestItem = (entry: unknown): InventoryItem | null => {
+      if (!entry || typeof entry !== 'object') return null
+      const raw = entry as Partial<InventoryItem>
+      const itemId = typeof raw.itemId === 'string' ? migrateRecipeId(raw.itemId) : ''
+      if (!getItemById(itemId)) return null
+      const quality = QUALITY_ORDER.includes(raw.quality as Quality) ? (raw.quality as Quality) : 'normal'
+      const quantity = Math.max(0, Math.floor(Number(raw.quantity) || 0))
+      if (quantity <= 0) return null
+      const slot = createInventoryItemSlot(itemId, quantity, quality, raw)
+      if (raw.locked === true) slot.locked = true
+      return slot
+    }
+
     // 旧存档迁移：有 items 无 chests
     if (data.items && !data.chests) {
-      const oldItems = (data.items as InventoryItem[]).map(i => ({ ...i, itemId: migrateRecipeId(i.itemId) })).filter(i => getItemById(i.itemId))
+      const oldItems = (Array.isArray(data.items) ? data.items : []).map(normalizeChestItem).filter((item): item is InventoryItem => !!item)
       if (oldItems.length > 0) {
         // 金箱容量36，超出时分多个箱子
         const goldCap = CHEST_DEFS.gold.capacity
@@ -328,7 +440,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
     } else {
       chests.value = ((data.chests as Chest[]) ?? []).map(chest => ({
         ...chest,
-        items: chest.items.map(i => ({ ...i, itemId: migrateRecipeId(i.itemId) })).filter(i => getItemById(i.itemId))
+        items: (Array.isArray(chest.items) ? chest.items : []).map(normalizeChestItem).filter((item): item is InventoryItem => !!item)
       }))
     }
 
@@ -356,6 +468,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
     findChestConsumableQuality,
     canConsumeChestItems,
     consumeChestItemsExact,
+    depositInventorySlotToChest,
     depositToChest,
     withdrawFromChest,
     expandMaxChests,

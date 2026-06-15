@@ -61,8 +61,51 @@ const MAX_CAPACITY = INVENTORY_REGULAR_MAX_CAPACITY
 const MAX_STACK = 999
 const TEMP_CAPACITY = INVENTORY_TEMP_CAPACITY
 export const MAX_EQUIPMENT_PRESETS = 10
+const INVENTORY_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
 type LockableEquipmentEntry = { locked?: boolean }
+export type InventoryItemStackMeta = Pick<InventoryItem, 'origin' | 'purchaseDay' | 'purchaseUnitPrice'>
+type InventoryAddEntry = { itemId: string; quantity: number; quality?: Quality } & InventoryItemStackMeta
+
+export const normalizeInventoryItemStackMeta = (source?: InventoryItemStackMeta | null): InventoryItemStackMeta => {
+  if (!source || source.origin !== 'shop') return {}
+  const purchaseDay = typeof source.purchaseDay === 'string' ? source.purchaseDay : ''
+  const purchaseUnitPrice = Math.max(0, Math.floor(Number(source.purchaseUnitPrice)))
+  if (!purchaseDay || !Number.isFinite(purchaseUnitPrice)) return {}
+  return { origin: 'shop', purchaseDay, purchaseUnitPrice }
+}
+
+export const createInventoryItemSlot = (
+  itemId: string,
+  quantity: number,
+  quality: Quality,
+  meta?: InventoryItemStackMeta | null
+): InventoryItem => {
+  const slot: InventoryItem = { itemId, quantity, quality }
+  Object.assign(slot, normalizeInventoryItemStackMeta(meta))
+  return slot
+}
+
+export const cloneInventoryItemSlot = (slot: InventoryItem): InventoryItem => {
+  const clone = createInventoryItemSlot(slot.itemId, slot.quantity, slot.quality, slot)
+  if (slot.locked) clone.locked = true
+  return clone
+}
+
+export const inventoryStacksMatch = (
+  left: Pick<InventoryItem, 'itemId' | 'quality'> & InventoryItemStackMeta,
+  right: Pick<InventoryItem, 'itemId' | 'quality'> & InventoryItemStackMeta
+): boolean => {
+  const leftMeta = normalizeInventoryItemStackMeta(left)
+  const rightMeta = normalizeInventoryItemStackMeta(right)
+  return (
+    left.itemId === right.itemId &&
+    left.quality === right.quality &&
+    (leftMeta.origin ?? '') === (rightMeta.origin ?? '') &&
+    (leftMeta.purchaseDay ?? '') === (rightMeta.purchaseDay ?? '') &&
+    (leftMeta.purchaseUnitPrice ?? -1) === (rightMeta.purchaseUnitPrice ?? -1)
+  )
+}
 
 export const useInventoryStore = defineStore('inventory', () => {
   const playerStore = usePlayerStore()
@@ -137,10 +180,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     return -1
   }
 
-  type InventorySnapshotSlot = Pick<InventoryItem, 'itemId' | 'quality' | 'quantity'>
+  type InventorySnapshotSlot = InventoryItem
 
   const cloneInventorySlots = (source: InventoryItem[]): InventorySnapshotSlot[] =>
-    source.map(slot => ({ itemId: slot.itemId, quality: slot.quality, quantity: slot.quantity }))
+    source.map(slot => cloneInventoryItemSlot(slot))
 
   const cloneTools = (source: Tool[]) => source.map(tool => ({ ...tool }))
   const cloneOwnedWeapons = (source: OwnedWeapon[]) => source.map(weapon => ({ ...weapon }))
@@ -195,13 +238,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     mainCapacity: number,
     tempSlots: InventorySnapshotSlot[],
     tempCapacity: number,
-    entries: { itemId: string; quantity: number; quality: Quality }[],
+    entries: (InventoryAddEntry & { quality: Quality })[],
     includeTemp: boolean
   ): boolean => {
-    const fillExistingStacks = (slots: InventorySnapshotSlot[], itemId: string, quality: Quality, remaining: number): number => {
+    const fillExistingStacks = (slots: InventorySnapshotSlot[], entry: InventoryAddEntry & { quality: Quality }, remaining: number): number => {
       for (const slot of slots) {
         if (remaining <= 0) break
-        if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
+        if (inventoryStacksMatch(slot, entry) && slot.quantity < MAX_STACK) {
           const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
           slot.quantity += canAdd
           remaining -= canAdd
@@ -210,10 +253,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       return remaining
     }
 
-    const createNewStacks = (slots: InventorySnapshotSlot[], slotCapacity: number, itemId: string, quality: Quality, remaining: number): number => {
+    const createNewStacks = (slots: InventorySnapshotSlot[], slotCapacity: number, entry: InventoryAddEntry & { quality: Quality }, remaining: number): number => {
       while (remaining > 0 && slots.length < slotCapacity) {
         const batch = Math.min(remaining, MAX_STACK)
-        slots.push({ itemId, quality, quantity: batch })
+        slots.push(createInventoryItemSlot(entry.itemId, batch, entry.quality, entry))
         remaining -= batch
       }
       return remaining
@@ -223,12 +266,12 @@ export const useInventoryStore = defineStore('inventory', () => {
       if (!getItemById(entry.itemId)) return false
 
       let remaining = entry.quantity
-      remaining = fillExistingStacks(mainSlots, entry.itemId, entry.quality, remaining)
-      remaining = createNewStacks(mainSlots, mainCapacity, entry.itemId, entry.quality, remaining)
+      remaining = fillExistingStacks(mainSlots, entry, remaining)
+      remaining = createNewStacks(mainSlots, mainCapacity, entry, remaining)
 
       if (includeTemp && remaining > 0) {
-        remaining = fillExistingStacks(tempSlots, entry.itemId, entry.quality, remaining)
-        remaining = createNewStacks(tempSlots, tempCapacity, entry.itemId, entry.quality, remaining)
+        remaining = fillExistingStacks(tempSlots, entry, remaining)
+        remaining = createNewStacks(tempSlots, tempCapacity, entry, remaining)
       }
 
       if (remaining > 0) return false
@@ -319,17 +362,18 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   /** 添加物品到背包 */
-  const addItem = (itemId: string, quantity: number = 1, quality: Quality = 'normal'): boolean => {
+  const addItem = (itemId: string, quantity: number = 1, quality: Quality = 'normal', meta?: InventoryItemStackMeta | null): boolean => {
     // 校验物品是否存在
     if (!getItemById(itemId)) return false
     // 自动注册到图鉴
     useAchievementStore().discoverItem(itemId)
+    const entry = createInventoryItemSlot(itemId, quantity, quality, meta)
     let remaining = quantity
 
     // 先填充已有的同类栈
     for (const slot of items.value) {
       if (remaining <= 0) break
-      if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
+      if (inventoryStacksMatch(slot, entry) && slot.quantity < MAX_STACK) {
         const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
         slot.quantity += canAdd
         remaining -= canAdd
@@ -339,7 +383,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 剩余部分创建新栈
     while (remaining > 0 && !isFull.value) {
       const batch = Math.min(remaining, MAX_STACK)
-      items.value.push({ itemId, quantity: batch, quality })
+      items.value.push(createInventoryItemSlot(itemId, batch, quality, entry))
       remaining -= batch
     }
 
@@ -347,7 +391,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (remaining > 0) {
       for (const slot of tempItems.value) {
         if (remaining <= 0) break
-        if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
+        if (inventoryStacksMatch(slot, entry) && slot.quantity < MAX_STACK) {
           const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
           slot.quantity += canAdd
           remaining -= canAdd
@@ -355,7 +399,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
       while (remaining > 0 && !isTempFull.value) {
         const batch = Math.min(remaining, MAX_STACK)
-        tempItems.value.push({ itemId, quantity: batch, quality })
+        tempItems.value.push(createInventoryItemSlot(itemId, batch, quality, entry))
         remaining -= batch
       }
     }
@@ -375,20 +419,26 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   /** 检查物品是否可以完整放入背包（默认允许进入临时背包） */
-  const canAddItem = (itemId: string, quantity: number = 1, quality: Quality = 'normal', includeTemp: boolean = true): boolean => {
+  const canAddItem = (
+    itemId: string,
+    quantity: number = 1,
+    quality: Quality = 'normal',
+    includeTemp: boolean = true,
+    meta?: InventoryItemStackMeta | null
+  ): boolean => {
     return simulateAddToSlots(
       cloneInventorySlots(items.value),
       capacity.value,
       cloneInventorySlots(tempItems.value),
       TEMP_CAPACITY,
-      [{ itemId, quantity, quality }],
+      [{ itemId, quantity, quality, ...normalizeInventoryItemStackMeta(meta) }],
       includeTemp
     )
   }
 
   /** 检查一组物品是否可以完整放入背包（默认允许进入临时背包） */
   const canAddItems = (
-    entries: { itemId: string; quantity: number; quality?: Quality }[],
+    entries: InventoryAddEntry[],
     includeTemp: boolean = true
   ): boolean => {
     return simulateAddToSlots(
@@ -399,26 +449,33 @@ export const useInventoryStore = defineStore('inventory', () => {
       entries.map(entry => ({
         itemId: entry.itemId,
         quantity: entry.quantity,
-        quality: entry.quality ?? 'normal'
+        quality: entry.quality ?? 'normal',
+        ...normalizeInventoryItemStackMeta(entry)
       })),
       includeTemp
     )
   }
 
   /** 仅在能够完整放入时才添加物品，避免部分入包 */
-  const addItemExact = (itemId: string, quantity: number = 1, quality: Quality = 'normal', includeTemp: boolean = true): boolean => {
-    if (!canAddItem(itemId, quantity, quality, includeTemp)) return false
-    return addItem(itemId, quantity, quality)
+  const addItemExact = (
+    itemId: string,
+    quantity: number = 1,
+    quality: Quality = 'normal',
+    includeTemp: boolean = true,
+    meta?: InventoryItemStackMeta | null
+  ): boolean => {
+    if (!canAddItem(itemId, quantity, quality, includeTemp, meta)) return false
+    return addItem(itemId, quantity, quality, meta)
   }
 
   /** 仅在整组物品都能完整放入时才统一添加，避免部分入包 */
   const addItemsExact = (
-    entries: { itemId: string; quantity: number; quality?: Quality }[],
+    entries: InventoryAddEntry[],
     includeTemp: boolean = true
   ): boolean => {
     if (!canAddItems(entries, includeTemp)) return false
     for (const entry of entries) {
-      if (!addItem(entry.itemId, entry.quantity, entry.quality ?? 'normal')) return false
+      if (!addItem(entry.itemId, entry.quantity, entry.quality ?? 'normal', entry)) return false
     }
     return true
   }
@@ -476,6 +533,26 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
     }
     return true
+  }
+
+  const removeItemAtIndex = (index: number, quantity: number = 1): InventoryItem | null => {
+    const slot = items.value[index]
+    if (!slot) return null
+    const take = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (take <= 0 || slot.quantity < take) return null
+    const removed = cloneInventoryItemSlot(slot)
+    removed.quantity = take
+    slot.quantity -= take
+    if (slot.quantity <= 0) {
+      items.value.splice(index, 1)
+    }
+    return removed
+  }
+
+  const removeUnlockedItemAtIndex = (index: number, quantity: number = 1): InventoryItem | null => {
+    const slot = items.value[index]
+    if (!slot || slot.locked) return null
+    return removeItemAtIndex(index, quantity)
   }
 
   const normalizeItemRequirements = (requirements: { itemId: string; quantity: number }[]) => {
@@ -632,7 +709,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 先合并同类栈（任一栈锁定则合并后保持锁定）
     const merged: InventoryItem[] = []
     for (const item of items.value) {
-      const existing = merged.find(m => m.itemId === item.itemId && m.quality === item.quality)
+      const existing = merged.find(m => inventoryStacksMatch(m, item))
       if (existing) {
         existing.quantity += item.quantity
         if (item.locked) existing.locked = true
@@ -646,7 +723,9 @@ export const useInventoryStore = defineStore('inventory', () => {
       let remaining = item.quantity
       while (remaining > 0) {
         const batch = Math.min(remaining, MAX_STACK)
-        split.push({ itemId: item.itemId, quantity: batch, quality: item.quality, locked: item.locked })
+        const splitSlot = createInventoryItemSlot(item.itemId, batch, item.quality, item)
+        if (item.locked) splitSlot.locked = true
+        split.push(splitSlot)
         remaining -= batch
       }
     }
@@ -659,7 +738,11 @@ export const useInventoryStore = defineStore('inventory', () => {
       const catB = CATEGORY_ORDER[defB?.category ?? 'misc'] ?? 20
       if (catA !== catB) return catA - catB
       if (a.itemId !== b.itemId) return a.itemId.localeCompare(b.itemId)
-      return (qualityOrder[a.quality] ?? 0) - (qualityOrder[b.quality] ?? 0)
+      const qualityDelta = (qualityOrder[a.quality] ?? 0) - (qualityOrder[b.quality] ?? 0)
+      if (qualityDelta !== 0) return qualityDelta
+      if ((a.origin ?? '') !== (b.origin ?? '')) return (a.origin ?? '').localeCompare(b.origin ?? '')
+      if ((a.purchaseDay ?? '') !== (b.purchaseDay ?? '')) return (a.purchaseDay ?? '').localeCompare(b.purchaseDay ?? '')
+      return (a.purchaseUnitPrice ?? -1) - (b.purchaseUnitPrice ?? -1)
     })
     items.value = split
   }
@@ -684,7 +767,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     for (const slot of mainSlots) {
       if (remaining <= 0) break
-      if (slot.itemId === source.itemId && slot.quality === source.quality && slot.quantity < MAX_STACK) {
+      if (inventoryStacksMatch(slot, source) && slot.quantity < MAX_STACK) {
         const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
         slot.quantity += canAdd
         remaining -= canAdd
@@ -693,7 +776,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     while (remaining > 0 && mainSlots.length < capacity.value) {
       const batch = Math.min(remaining, MAX_STACK)
-      mainSlots.push({ itemId: source.itemId, quantity: batch, quality: source.quality })
+      mainSlots.push(createInventoryItemSlot(source.itemId, batch, source.quality, source))
       remaining -= batch
     }
 
@@ -730,7 +813,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     for (const slot of items.value) {
       if (remaining <= 0) break
-      if (slot.itemId === itemId && slot.quality === quality && slot.quantity < MAX_STACK) {
+      if (inventoryStacksMatch(slot, tempSlot) && slot.quantity < MAX_STACK) {
         const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
         slot.quantity += canAdd
         remaining -= canAdd
@@ -738,7 +821,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
     while (remaining > 0 && !isFull.value) {
       const batch = Math.min(remaining, MAX_STACK)
-      items.value.push({ itemId, quantity: batch, quality })
+      items.value.push(createInventoryItemSlot(itemId, batch, quality, tempSlot))
       remaining -= batch
     }
 
@@ -1595,6 +1678,19 @@ export const useInventoryStore = defineStore('inventory', () => {
       return Number.isFinite(index) ? index : fallback
     }
 
+    const normalizeInventorySlot = (entry: unknown): InventoryItem | null => {
+      if (!entry || typeof entry !== 'object') return null
+      const raw = entry as Partial<InventoryItem>
+      const itemId = typeof raw.itemId === 'string' ? migrateRecipeId(raw.itemId) : ''
+      if (!getItemById(itemId)) return null
+      const quality = INVENTORY_QUALITY_ORDER.includes(raw.quality as Quality) ? (raw.quality as Quality) : 'normal'
+      const quantity = Math.max(0, Math.floor(Number(raw.quantity) || 0))
+      if (quantity <= 0) return null
+      const slot = createInventoryItemSlot(itemId, quantity, quality, raw)
+      if (raw.locked === true) slot.locked = true
+      return slot
+    }
+
     const normalizeOwnedWeaponEntries = (value: unknown, equippedIndexValue: unknown) => {
       const rawWeapons = Array.isArray(value) ? value : []
       const equippedRawIndex = normalizeSlotIndex(equippedIndexValue, 0)
@@ -1692,9 +1788,9 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
     }
 
-    items.value = (data.items ?? []).map(i => ({ ...i, itemId: migrateRecipeId(i.itemId) })).filter(i => getItemById(i.itemId))
+    items.value = ((data.items ?? []) as unknown[]).map(normalizeInventorySlot).filter((i): i is InventoryItem => !!i)
     capacity.value = data.capacity ?? INITIAL_CAPACITY
-    tempItems.value = ((data as any).tempItems ?? []).map((i: InventoryItem) => ({ ...i, itemId: migrateRecipeId(i.itemId) })).filter((i: InventoryItem) => getItemById(i.itemId))
+    tempItems.value = (((data as any).tempItems ?? []) as unknown[]).map(normalizeInventorySlot).filter((i): i is InventoryItem => !!i)
     tools.value = data.tools ?? [
       { type: 'wateringCan', tier: 'basic' },
       { type: 'hoe', tier: 'basic' },
@@ -1808,6 +1904,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     removeItem,
     getUnlockedItemCount,
     removeUnlockedItem,
+    removeItemAtIndex,
+    removeUnlockedItemAtIndex,
     removeItemFromTemp,
     removeItemAnywhere,
     getItemCount,

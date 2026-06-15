@@ -64,7 +64,7 @@
             />
             <div class="announcement-rich taoyuan-rich-markdown" v-html="renderBody(announcement.body)" />
             <div v-if="announcement.rewards.length" class="announcement-rewards" data-testid="announcement-popup-rewards">
-              <span>点击“知道并领取”后发放</span>
+              <span>{{ rewardHintLabel }}</span>
               <strong>{{ announcement.rewards.map(rewardLabel).join(' / ') }}</strong>
             </div>
             <Button
@@ -106,6 +106,7 @@
   const props = defineProps<{
     announcements: TaoyuanAnnouncement[]
     closing?: boolean
+    claimRewards?: boolean
   }>()
 
   defineEmits<{
@@ -117,9 +118,13 @@
   const expandedAnnouncementIds = ref<Set<string>>(new Set())
   const primaryAnnouncement = computed(() => props.announcements[0] || null)
   const hasAnnouncementRewards = computed(() => props.announcements.some(announcement => announcement.rewards.length > 0))
+  const shouldClaimRewards = computed(() => hasAnnouncementRewards.value && props.claimRewards !== false)
+  const rewardHintLabel = computed(() => (
+    shouldClaimRewards.value ? '点击“知道并领取”后发放' : '服务端存档登录后可领取'
+  ))
   const closeButtonLabel = computed(() => {
-    if (props.closing && hasAnnouncementRewards.value) return '领取中...'
-    return hasAnnouncementRewards.value ? '知道并领取' : (primaryAnnouncement.value?.button_texts.close || '知道了')
+    if (props.closing && hasAnnouncementRewards.value) return shouldClaimRewards.value ? '领取中...' : '关闭中...'
+    return shouldClaimRewards.value ? '知道并领取' : (primaryAnnouncement.value?.button_texts.close || '知道了')
   })
 
   const syncExpandedAnnouncements = () => {

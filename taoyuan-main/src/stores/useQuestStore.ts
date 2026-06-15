@@ -1417,6 +1417,9 @@ export const useQuestStore = defineStore('quest', () => {
     return Math.min(inventoryStore.getTotalItemCount(requirement.itemId), requirement.quantity)
   }
 
+  const getInventoryQuestProgress = (itemId: string, targetQuantity: number): number =>
+    Math.min(inventoryStore.getTotalItemCount(itemId), targetQuantity)
+
   const getUnsatisfiedComboRequirement = (quest: QuestInstance): SpecialOrderComboRequirement | null => {
     if (!hasComboRequirements(quest)) return null
     return quest.comboRequirements!.find(requirement => getComboRequirementEffectiveProgress(requirement) < requirement.quantity) ?? null
@@ -1451,11 +1454,7 @@ export const useQuestStore = defineStore('quest', () => {
       return Math.min(eligible, quest.targetQuantity)
     }
 
-    const carriedCount = inventoryStore.getTotalItemCount(quest.targetItemId)
-    if (quest.type === 'delivery') {
-      return Math.min(carriedCount, quest.targetQuantity)
-    }
-    return Math.min(Math.max(quest.collectedQuantity, carriedCount), quest.targetQuantity)
+    return getInventoryQuestProgress(quest.targetItemId, quest.targetQuantity)
   }
 
   const canSubmitQuest = (quest: QuestInstance): boolean => {

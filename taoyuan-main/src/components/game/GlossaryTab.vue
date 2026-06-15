@@ -149,7 +149,16 @@
         <template v-if="selectedEntry">
           <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
             <div class="flex items-start gap-2 min-w-0">
-              <ItemIcon v-if="selectedEntry.itemId" :item="getItemById(selectedEntry.itemId)" size="lg" :resolution="256" :show-badge="false" />
+              <button
+                v-if="selectedEntry.itemId && selectedItem"
+                type="button"
+                class="glossary-icon-cycle"
+                :aria-label="`切换 ${selectedEntry.name} 图标备选`"
+                :title="`切换 ${selectedEntry.name} 图标备选`"
+                @click="cycleSelectedItemIconVariant"
+              >
+                <ItemIcon :item="selectedItem" size="lg" :resolution="256" :show-badge="false" />
+              </button>
               <NpcPortrait
                 v-else-if="selectedEntry.npcPortrait"
                 :id="selectedEntry.npcPortrait.id"
@@ -167,6 +176,7 @@
                   <span class="text-[0.625rem] text-muted">{{ selectedEntry.categoryLabel }}</span>
                   <span v-if="selectedEntry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘词条</span>
                 </div>
+                <ItemIconVariantPicker v-if="selectedItem" class="mt-1" :item="selectedItem" />
               </div>
             </div>
             <div class="text-right">
@@ -248,10 +258,13 @@
   import { Search, X, BookOpen } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import NpcPortrait from '@/components/game/NpcPortrait.vue'
+  import { getItemIconVariant, setItemIconVariant } from '@/composables/useItemIconPreferences'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { GLOSSARY, GLOSSARY_CATEGORY_LABELS, GLOSSARY_INTENT_LABELS } from '@/data/glossary'
   import { getItemById } from '@/data/items'
+  import type { ItemIconVariant } from '@/composables/useItemIconManifest'
   import type { GlossaryCategory, GlossaryEntry, GlossaryIntentKey, GlossaryOpenPreset } from '@/data/glossary'
 
   const props = defineProps<{
@@ -387,6 +400,18 @@
     if (!selectedEntry.value) return [] as GlossaryEntry[]
     return selectedEntry.value.relatedEntryIds.map(id => glossaryMap.get(id)).filter((entry): entry is GlossaryEntry => Boolean(entry))
   })
+
+  const selectedItem = computed(() => selectedEntry.value?.itemId ? getItemById(selectedEntry.value.itemId) ?? null : null)
+  const ITEM_ICON_VARIANTS: ItemIconVariant[] = ['01', '02', '03']
+
+  const cycleSelectedItemIconVariant = () => {
+    const itemId = selectedItem.value?.id
+    if (!itemId) return
+    const currentVariant = getItemIconVariant(itemId)
+    const currentIndex = ITEM_ICON_VARIANTS.indexOf(currentVariant)
+    const nextVariant = ITEM_ICON_VARIANTS[(currentIndex + 1) % ITEM_ICON_VARIANTS.length] ?? '01'
+    setItemIconVariant(itemId, nextVariant)
+  }
 
   const hasActiveFilters = computed(() =>
     Boolean(search.value.trim()) || activeCategory.value !== 'all' || activeIntent.value !== 'all' || includeSpoilers.value
@@ -531,3 +556,27 @@
     emit('preset-applied')
   }, { immediate: true, deep: true })
 </script>
+
+<style scoped>
+  .glossary-icon-cycle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 4px;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: box-shadow 0.16s ease, transform 0.16s ease;
+  }
+
+  .glossary-icon-cycle:hover {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 28%, transparent);
+    transform: translateY(-1px);
+  }
+
+  .glossary-icon-cycle:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+    outline-offset: 2px;
+  }
+</style>

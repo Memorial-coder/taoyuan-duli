@@ -68,7 +68,11 @@
     const appRoot = document.getElementById('app')
     if (!appRoot) return
     const isAdminRoute = route.path.startsWith('/admin')
+    const isGameRoute = route.path.startsWith('/game')
     appRoot.classList.toggle('app-shell--admin', isAdminRoute)
+    appRoot.classList.toggle('app-shell--game', isGameRoute)
+    document.documentElement.classList.toggle('app-shell--game', isGameRoute)
+    document.body.classList.toggle('app-shell--game', isGameRoute)
   }
 
   watch(
@@ -93,5 +97,8 @@
     clearAiAssistantSchedule()
     if (typeof document === 'undefined') return
     document.getElementById('app')?.classList.remove('app-shell--admin')
+    document.getElementById('app')?.classList.remove('app-shell--game')
+    document.documentElement.classList.remove('app-shell--game')
+    document.body.classList.remove('app-shell--game')
   })
 </script>

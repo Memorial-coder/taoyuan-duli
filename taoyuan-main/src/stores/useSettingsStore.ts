@@ -19,7 +19,7 @@ export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 24
 export const MIN_PAGE_WIDTH_PERCENT = 60
 export const MAX_PAGE_WIDTH_PERCENT = 100
-export const PAGE_WIDTH_PERCENT_STEP = 5
+export const PAGE_WIDTH_PERCENT_STEP = 1
 export const CROP_USE_TAG_SAVE_VERSION = 1
 export const DEFAULT_NPC_PORTRAITS_ENABLED = false
 export const DEFAULT_FARM_PLOT_DISPLAY_MODE: FarmPlotDisplayMode = 'classic'
@@ -140,7 +140,10 @@ export const useSettingsStore = defineStore('settings', () => {
     } else if (root.dataset) {
       root.dataset.pageWidthMode = pageWidthMode.value
     }
-    root.style?.setProperty?.('--app-page-width', `${pageWidthPercent.value}vw`)
+    const activePageWidth = pageWidthMode.value === 'custom'
+      ? `${pageWidthPercent.value}vw`
+      : '100vw'
+    root.style?.setProperty?.('--app-page-width', activePageWidth)
   }
 
   const applyDesktopLayout = () => {

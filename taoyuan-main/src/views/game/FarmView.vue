@@ -24,9 +24,19 @@
         class="flex-1 justify-center"
         :class="{ '!bg-accent !text-bg': showGreenhouseModal }"
         :icon="Warehouse"
+        :title="greenhouseTabTitle"
         @click="showGreenhouseModal = true"
       >
-        温室
+        <span class="inline-flex min-w-0 items-center justify-center gap-1">
+          <span>温室</span>
+          <span
+            v-if="ghHarvestableCount > 0"
+            data-testid="farm-greenhouse-harvest-badge"
+            class="rounded-xs border border-current/30 px-1 text-[0.625rem] leading-4"
+          >
+            可收{{ ghHarvestableCount }}
+          </span>
+        </span>
       </Button>
     </div>
 
@@ -497,6 +507,46 @@
         </div>
       </Transition>
 
+      <!-- 季末种植确认弹窗 -->
+      <Transition name="panel-fade">
+        <div
+          v-if="plantSeasonRiskConfirm"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4"
+          @click.self="cancelPlantSeasonRiskConfirm"
+        >
+          <div class="game-panel max-w-xs w-full relative">
+            <button class="absolute top-2 right-2 text-muted hover:text-text" @click="cancelPlantSeasonRiskConfirm">
+              <X :size="14" />
+            </button>
+            <p class="text-danger text-sm mb-2">种植提醒</p>
+            <p class="text-xs text-muted leading-5">
+              目前季节剩余天数不足以成熟，是否确认种植？
+            </p>
+            <div class="mt-3 rounded-xs border border-danger/30 bg-danger/10 p-2 text-xs leading-5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-muted">作物</span>
+                <span class="text-text">{{ plantSeasonRiskConfirm.cropName }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-muted">成熟所需</span>
+                <span class="text-danger">{{ plantSeasonRiskConfirm.requiredDays }}天</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-muted">本季剩余</span>
+                <span class="text-danger">{{ plantSeasonRiskConfirm.daysLeft }}天</span>
+              </div>
+            </div>
+            <p v-if="plantSeasonRiskConfirm.riskyPlotCount > 1" class="mt-2 text-[0.625rem] text-muted leading-4">
+              本次预计有{{ plantSeasonRiskConfirm.riskyPlotCount }}块地无法在本季成熟。
+            </p>
+            <div class="mt-4 flex gap-2">
+              <Button class="flex-1 justify-center" @click="cancelPlantSeasonRiskConfirm">取消</Button>
+              <Button class="flex-1 justify-center !bg-danger !text-text" @click="confirmPlantSeasonRisk">确认种植</Button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
       <!-- 一键施肥弹窗 -->
       <Transition name="panel-fade">
         <div
@@ -626,13 +676,13 @@
                   <input
                     v-model="shippingBoxSearch"
                     data-testid="shipping-box-search"
-                    class="w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
+                    class="online-input w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
                     placeholder="搜索背包物品"
                   />
                   <select
                     v-model="shippingBoxCategory"
                     data-testid="shipping-box-category"
-                    class="w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
+                    class="online-select w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
                   >
                     <option value="all">全部分类</option>
                     <option v-for="cat in SHIPPING_FILTER_CATEGORIES" :key="cat" :value="cat">{{ SHIPPING_CATEGORY_NAMES[cat] }}</option>
@@ -640,7 +690,7 @@
                   <select
                     v-model="shippingBoxSort"
                     data-testid="shipping-box-sort"
-                    class="w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
+                    class="online-select w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
                   >
                     <option value="price-desc">售价高到低</option>
                     <option value="quantity-desc">数量多到少</option>
@@ -659,7 +709,7 @@
                       <div class="min-w-0">
                         <span class="block truncate text-xs" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
                         <span class="block text-[0.625rem] text-muted">
-                          {{ SHIPPING_CATEGORY_NAMES[item.def.category] ?? item.def.category }} · {{ QUALITY_NAMES[item.quality] }} · ×{{ item.quantity }} · ≈{{ shopStore.calculateSellPrice(item.itemId, item.quantity, item.quality) }}文
+                          {{ SHIPPING_CATEGORY_NAMES[item.def.category] ?? item.def.category }} · {{ QUALITY_NAMES[item.quality] }} · ×{{ item.quantity }} · ≈{{ item.totalPrice }}文
                         </span>
                       </div>
                     </div>
@@ -1367,6 +1417,7 @@
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -1420,6 +1471,7 @@
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
   const gameStore = useGameStore()
+  const goalStore = useGoalStore()
   const hiddenNpcStore = useHiddenNpcStore()
   const homeStore = useHomeStore()
   const playerStore = usePlayerStore()
@@ -1599,14 +1651,19 @@
     return 'normal'
   }
 
-  type ShippableInventoryItem = { itemId: string; quantity: number; quality: Quality; locked?: boolean; def: ItemDef }
+  type ShippableInventoryItem = { itemId: string; quantity: number; quality: Quality; locked?: boolean; origin?: 'shop'; def: ItemDef }
 
   const shippableItems = computed<ShippableInventoryItem[]>(() => {
     return inventoryStore.items
       .map(inv => ({ ...inv, def: getItemById(inv.itemId) }))
       .filter(
         (item): item is ShippableInventoryItem =>
-          !!item.def && !item.locked && item.def.category !== 'seed' && item.def.category !== 'machine' && item.def.category !== 'sprinkler'
+          !!item.def &&
+          !item.locked &&
+          item.origin !== 'shop' &&
+          item.def.category !== 'seed' &&
+          item.def.category !== 'machine' &&
+          item.def.category !== 'sprinkler'
       )
   })
 
@@ -1644,6 +1701,8 @@
     if (shopStore.addToShippingBox(itemId, quantity, quality)) {
       const name = getItemName(itemId)
       addLog(`将${name}×${quantity}放入了出货箱。`)
+    } else if (inventoryStore.items.some(item => item.itemId === itemId && item.quality === quality && !item.locked && item.origin === 'shop')) {
+      addLog('商圈购入品只能商店回购，不能放入出货箱。')
     }
   }
 
@@ -1881,6 +1940,93 @@
     return plot.state !== 'wasteland' && !plot.fertilizer
   }
 
+  type OutdoorPlot = (typeof farmStore.plots)[number]
+  type PlantSeasonRiskAction =
+    | { type: 'single'; plotId: number; cropId: string; quality?: Quality }
+    | { type: 'singleBreeding'; plotId: number; seedId: string }
+    | { type: 'batch'; cropId: string }
+    | { type: 'batchBreeding'; cropId: string }
+
+  type PlantSeasonRiskConfirm = {
+    cropId: string
+    cropName: string
+    requiredDays: number
+    daysLeft: number
+    riskyPlotCount: number
+    action: PlantSeasonRiskAction
+  }
+
+  const OUTDOOR_SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter'] as const
+  const DAYS_PER_SEASON = 28
+  const plantSeasonRiskConfirm = ref<PlantSeasonRiskConfirm | null>(null)
+  const bypassPlantSeasonRiskConfirm = ref(false)
+
+  const getNextOutdoorSeason = () => {
+    return OUTDOOR_SEASON_ORDER[(OUTDOOR_SEASON_ORDER.indexOf(gameStore.season) + 1) % OUTDOOR_SEASON_ORDER.length]!
+  }
+
+  const getOutdoorCropMaturityDays = (cropId: string, plot: OutdoorPlot): number | null => {
+    const crop = getCropById(cropId)
+    if (!crop) return null
+    const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
+    const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
+    return speedup > 0 ? Math.max(1, Math.floor(crop.growthDays * (1 - speedup))) : crop.growthDays
+  }
+
+  const requestPlantSeasonRiskConfirm = (
+    cropId: string,
+    plots: OutdoorPlot[],
+    action: PlantSeasonRiskAction
+  ): boolean => {
+    if (bypassPlantSeasonRiskConfirm.value || plots.length === 0) return false
+    const crop = getCropById(cropId)
+    if (!crop) return false
+    if (crop.season.includes(getNextOutdoorSeason())) return false
+
+    const daysLeft = Math.max(0, DAYS_PER_SEASON - gameStore.day)
+    const riskyDays = plots
+      .map(plot => getOutdoorCropMaturityDays(cropId, plot))
+      .filter((days): days is number => days !== null && days > daysLeft)
+
+    if (riskyDays.length === 0) return false
+
+    plantSeasonRiskConfirm.value = {
+      cropId,
+      cropName: crop.name,
+      requiredDays: Math.max(...riskyDays),
+      daysLeft,
+      riskyPlotCount: riskyDays.length,
+      action
+    }
+    return true
+  }
+
+  const cancelPlantSeasonRiskConfirm = () => {
+    plantSeasonRiskConfirm.value = null
+  }
+
+  const confirmPlantSeasonRisk = () => {
+    const pending = plantSeasonRiskConfirm.value
+    if (!pending) return
+    plantSeasonRiskConfirm.value = null
+    bypassPlantSeasonRiskConfirm.value = true
+    try {
+      if (pending.action.type === 'single') {
+        activePlotId.value = pending.action.plotId
+        doPlant(pending.action.cropId, pending.action.quality)
+      } else if (pending.action.type === 'singleBreeding') {
+        activePlotId.value = pending.action.plotId
+        doPlantGeneticSeed(pending.action.seedId)
+      } else if (pending.action.type === 'batch') {
+        doBatchPlant(pending.action.cropId)
+      } else {
+        doBatchPlantBreeding(pending.action.cropId)
+      }
+    } finally {
+      bypassPlantSeasonRiskConfirm.value = false
+    }
+  }
+
   /** 洒水器覆盖范围（含放置洒水器的地块自身） */
   const sprinklerCoverage = computed(() => farmStore.getAllWateredBySprinklers())
 
@@ -1947,6 +2093,11 @@
   })
 
   const doBatchPlant = (cropId: string) => {
+    const crop = getCropById(cropId)
+    const targets = farmStore.plots
+      .filter(isPlantableTilledPlot)
+      .slice(0, crop ? inventoryStore.getItemCount(crop.seedId) : 0)
+    if (requestPlantSeasonRiskConfirm(cropId, targets, { type: 'batch', cropId })) return
     handleBatchPlant(cropId)
     showBatchPlant.value = false
   }
@@ -1970,6 +2121,7 @@
       return
     }
     const seeds = plantableBreedingSeeds.value.filter(s => s.genetics.cropId === cropId)
+    if (requestPlantSeasonRiskConfirm(cropId, targets.slice(0, seeds.length), { type: 'batchBreeding', cropId })) return
     let planted = 0
     const plantRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const plantRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
@@ -2109,8 +2261,11 @@
 
   const doPlant = (cropId: string, quality?: Quality) => {
     if (activePlotId.value === null) return
+    const plotId = activePlotId.value
+    const plot = farmStore.plots.find(p => p.id === plotId)
+    if (plot && requestPlantSeasonRiskConfirm(cropId, [plot], { type: 'single', plotId, cropId, quality })) return
     selectedSeed.value = { cropId, quality }
-    handlePlotClick(activePlotId.value)
+    handlePlotClick(plotId)
     selectedSeed.value = null
     activePlotId.value = null
   }
@@ -2128,6 +2283,9 @@
     }
     const seed = breedingStore.breedingBox.find(s => s.genetics.id === seedId)
     if (!seed) return
+    const plotId = activePlotId.value
+    const plot = farmStore.plots.find(p => p.id === plotId)
+    if (plot && requestPlantSeasonRiskConfirm(seed.genetics.cropId, [plot], { type: 'singleBreeding', plotId, seedId })) return
     const skillStore = useSkillStore()
     const cookingStore = useCookingStore()
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
@@ -2217,6 +2375,7 @@
       ? farmStore.replaceFertilizer(activePlotId.value, type)
       : farmStore.applyFertilizer(activePlotId.value, type)
     if (succeeded) {
+      goalStore.recordWeeklyActivityCounter('farm_fertilizer_applied', 1)
       const nextFertDef = getFertilizerById(type)
       if (currentFertilizer) {
         const currentFertDef = getFertilizerById(currentFertilizer)
@@ -2483,6 +2642,10 @@
   const showGreenhouse = computed(() => homeStore.greenhouseUnlocked)
 
   const ghHarvestableCount = computed(() => farmStore.greenhousePlots.filter(p => p.state === 'harvestable').length)
+
+  const greenhouseTabTitle = computed(
+    () => `温室：${farmStore.greenhousePlots.length}块地 · ${ghHarvestableCount.value}块可收获 · 果树${ghFruitTreeCount.value}/${GREENHOUSE_FRUIT_TREE_SLOT_COUNT}`
+  )
 
   const ghTilledEmptyCount = computed(() => farmStore.greenhousePlots.filter(p => p.state === 'tilled').length)
 

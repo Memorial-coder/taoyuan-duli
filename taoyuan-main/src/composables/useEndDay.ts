@@ -40,7 +40,7 @@ import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
 import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
-import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone, Quality } from '@/types'
+import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone, Quality, WeeklyBudgetSelection } from '@/types'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import {
   MORNING_NARRATIONS,
@@ -1747,16 +1747,42 @@ export const handleEndDay = () => {
     })
     const expiredWeeklyBudget = goalStore.resetWeeklyBudgetsForNewWeek(currentWeekInfo.seasonWeekId, economyDayTag)
     if (expiredWeeklyBudget && Object.keys(expiredWeeklyBudget.selections).length > 0) {
-      const expiredSummary = Object.values(expiredWeeklyBudget.selections)
-        .filter((selection): selection is NonNullable<typeof expiredWeeklyBudget.selections[keyof typeof expiredWeeklyBudget.selections]> => Boolean(selection))
+      const expiredSelections = Object.values(expiredWeeklyBudget.selections)
+        .filter((selection): selection is WeeklyBudgetSelection => Boolean(selection))
+      const renewedSelections = Object.values(goalStore.weeklyBudgetSelections)
+        .filter((selection): selection is WeeklyBudgetSelection => Boolean(selection))
+      const expiredSummary = expiredSelections
         .map(selection => `${WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId].shortLabel}${selection.tierLabel}`)
         .join('、')
-      addLog(`【周预算】上周预算已失效：${expiredSummary}。请重新选择本周投入。`, {
+      const renewedSummary = renewedSelections
+        .map(selection => `${WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId].shortLabel}${selection.tierLabel}`)
+        .join('、')
+      const manualExpiredSummary = expiredSelections
+        .filter(selection => selection.autoRenew !== true)
+        .map(selection => `${WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId].shortLabel}${selection.tierLabel}`)
+        .join('、')
+      const failedRenewSummary = expiredSelections
+        .filter(selection => selection.autoRenew === true && !goalStore.weeklyBudgetSelections[selection.channelId])
+        .map(selection => `${WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId].shortLabel}${selection.tierLabel}`)
+        .join('、')
+      const followUpMessages = [
+        renewedSummary ? `已自动续投：${renewedSummary}` : '',
+        manualExpiredSummary ? `未开启自动续投：${manualExpiredSummary}，请重新选择` : '',
+        failedRenewSummary ? `自动续投未完成：${failedRenewSummary}，请重新选择` : ''
+      ].filter(Boolean)
+      addLog(`【周预算】上周预算已归档：${expiredSummary}。${followUpMessages.length > 0 ? followUpMessages.join('；') : '请重新选择本周投入'}。`, {
         category: 'economy',
         tags: ['weekly_budget_expired', 'late_game_cycle'],
         meta: { weekId: expiredWeeklyBudget.weekId, selectionCount: Object.keys(expiredWeeklyBudget.selections).length }
       })
-      showFloat('周预算已重置', 'accent')
+      showFloat(
+        renewedSelections.length === expiredSelections.length
+          ? '周预算已自动续投'
+          : renewedSelections.length > 0
+            ? '部分周预算已自动续投'
+            : '周预算已重置',
+        'accent'
+      )
     }
     const weeklyRiskReport = buildWeeklyEconomyRiskReport(playerStore)
     playerStore.setEconomyRiskReport(weeklyRiskReport)

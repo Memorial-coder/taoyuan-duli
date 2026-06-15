@@ -41,8 +41,8 @@ assert(
 )
 
 assert(
-  goalStoreSource.includes('const combinedTicketRewards = [weeklyBudgetEffect.ticketRewards, grantedServiceContractTickets].reduce'),
-  'goal reward ticket copy should combine weekly budget tickets and service contract tickets with an accumulator.'
+  goalStoreSource.includes('const combinedTicketRewards = [grantedRewardTickets, weeklyBudgetEffect.ticketRewards, grantedServiceContractTickets].reduce'),
+  'goal reward ticket copy should combine base goal tickets, weekly budget tickets, and service contract tickets with an accumulator.'
 )
 
 assert(

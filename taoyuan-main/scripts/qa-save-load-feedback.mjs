@@ -422,6 +422,7 @@ const freshStores = () => {
 const makeValidRaw = async (money = 1200) => {
   localStorage.clear()
   const { saveStore, gameStore, playerStore } = freshStores()
+  saveStore.setStorageMode('local')
   gameStore.startNewGame('standard')
   playerStore.setIdentity('验档', 'female')
   playerStore.setMoney(money)
@@ -462,6 +463,9 @@ assert(saveStoreSource.includes("'conflict'"), 'save store must expose a conflic
 assert(saveStoreSource.includes('export interface ServerSaveConflictState'), 'server save conflict state must be exported')
 assert(saveStoreSource.includes('const serverSaveConflict = ref<ServerSaveConflictState | null>(null)'), 'server save conflict ref is missing')
 assert(saveStoreSource.includes('resolveServerSaveConflict'), 'server save conflict resolver is missing')
+assert(saveStoreSource.includes("source: PendingServerSaveSource = 'runtime'"), 'pending server saves must record runtime/import source')
+assert(saveStoreSource.includes("const shouldRefreshRuntimeCopy = localEntry.source === 'runtime'"), 'runtime conflicts must refresh current stores before local resolution')
+assert(saveStoreSource.includes("setRawByMode(slot, normalizedFileContent, 'import')"), 'server imports must keep import source during conflict resolution')
 
 assert(mainMenuSource.includes('saveStore.lastLoadErrorMessage'), 'main menu must read the load error message')
 assert(mainMenuSource.includes("showFloat(message, 'danger')"), 'main menu must show load failure feedback')
@@ -486,6 +490,7 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
 {
   localStorage.clear()
   const { saveStore, gameStore, playerStore } = freshStores()
+  saveStore.setStorageMode('local')
   gameStore.startNewGame('standard')
   playerStore.setMoney(777)
   localStorage.setItem(LOCAL_SAVE_SLOT_0, 'not-a-save')
@@ -501,6 +506,7 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   envelope.data.__qaMigrationFault = true
   localStorage.clear()
   const { saveStore, gameStore, playerStore } = freshStores()
+  saveStore.setStorageMode('local')
   gameStore.startNewGame('standard')
   playerStore.setMoney(888)
   globalThis.__QA_SAVE_LOAD_MIGRATION_FAULT__ = true
@@ -553,12 +559,15 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   assert.equal(saveStore.serverSaveConflict?.localSummary.money, 3333, 'conflict must summarize current page copy')
   assert.equal(saveStore.serverSaveConflict?.remoteSummary.money, 4444, 'conflict must summarize remote copy')
   assert.deepEqual(saveStore.pendingServerSlots, [0], 'local copy must remain pending during conflict')
+  const pendingServerMap = JSON.parse(localStorage.getItem('taoyuanxiang_pending_server_saves_qa-save') || '{}')
+  assert.equal(pendingServerMap[0]?.source, 'runtime', 'current-page saves must mark pending copy as runtime')
 
+  playerStore.setMoney(3999)
   const resolvedLocal = await saveStore.resolveServerSaveConflict('local')
-  assert.equal(resolvedLocal, true, 'local conflict resolution should save current page')
+  assert.equal(resolvedLocal, true, 'local conflict resolution should save latest current page')
   assert.equal(saveStore.serverSaveConflict, null, 'local resolution should clear conflict')
   assert.deepEqual(saveStore.pendingServerSlots, [], 'local resolution should clear pending copy')
-  assert.equal(decryptJson(globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot[0]).data.player.money, 3333, 'local resolution must overwrite remote only after explicit choice')
+  assert.equal(decryptJson(globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot[0]).data.player.money, 3999, 'runtime local resolution must reserialize the latest current page')
 }
 
 {
@@ -585,6 +594,7 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   const validRaw = await makeValidRaw(7777)
   localStorage.clear()
   const { saveStore } = freshStores()
+  saveStore.setStorageMode('local')
   const imported = await saveStore.importSave(1, `\uFEFF${validRaw}\n`)
   assert.equal(imported, true, 'import should tolerate BOM and trailing whitespace around encrypted saves')
   assert.equal(typeof localStorage.getItem('taoyuanxiang_save_qa-save_1'), 'string', 'trimmed import should persist into target slot')
@@ -601,6 +611,7 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   legacyEnvelope.savedAt = '2026-05-23T05:22:14.405Z'
   localStorage.clear()
   const { saveStore, gameStore, playerStore } = freshStores()
+  saveStore.setStorageMode('local')
   const imported = await saveStore.importSave(1, encryptJson(legacyEnvelope))
   assert.equal(imported, true, 'v5 envelope saves should import without being reported as damaged')
   const loaded = await saveStore.loadFromSlot(1)
@@ -613,7 +624,9 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   const remoteRaw = await makeValidRaw(8888)
   const importRaw = await makeValidRaw(9999)
   localStorage.clear()
-  const { saveStore } = freshStores()
+  const { saveStore, gameStore, playerStore } = freshStores()
+  gameStore.startNewGame('standard')
+  playerStore.setMoney(1111)
   saveStore.setStorageMode('server')
   globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot = { 1: remoteRaw }
   globalThis.__QA_SERVER_SAVE_API_STATE__.revisionBySlot = { 1: 3 }
@@ -623,6 +636,12 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   assert(saveStore.lastSaveErrorMessage.includes('云存档'), 'server import conflict should explain the cloud-save conflict')
   assert.equal(saveStore.serverSaveConflict?.localSummary.money, 9999, 'server import conflict must summarize imported save')
   assert.equal(saveStore.serverSaveConflict?.remoteSummary.money, 8888, 'server import conflict must summarize remote save')
+  const pendingServerMap = JSON.parse(localStorage.getItem('taoyuanxiang_pending_server_saves_qa-save') || '{}')
+  assert.equal(pendingServerMap[1]?.source, 'import', 'imported saves must mark pending copy as import')
+  playerStore.setMoney(2222)
+  const resolvedImport = await saveStore.resolveServerSaveConflict('local')
+  assert.equal(resolvedImport, true, 'server import conflict should allow explicit local/import resolution')
+  assert.equal(decryptJson(globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot[1]).data.player.money, 9999, 'import local resolution must keep imported raw instead of current runtime')
 }
 
 stdout.write('qa-save-load-feedback passed\n')

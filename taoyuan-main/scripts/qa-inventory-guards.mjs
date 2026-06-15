@@ -167,6 +167,7 @@ const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, '
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
 const miningStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useMiningStore.ts')).href)
 const shopStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useShopStore.ts')).href)
+const warehouseStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useWarehouseStore.ts')).href)
 const itemDataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
 const inventoryUseRulesModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryUseRules.ts')).href)
 const inventoryCapacityModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryCapacity.ts')).href)
@@ -196,6 +197,14 @@ const freshInventoryPlayerAndShopStores = () => {
   }
 }
 
+const freshInventoryAndWarehouseStores = () => {
+  setActivePinia(createPinia())
+  return {
+    inventoryStore: inventoryStoreModule.useInventoryStore(),
+    warehouseStore: warehouseStoreModule.useWarehouseStore()
+  }
+}
+
 const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'normal' }) => {
   const def = itemDataModule.getItemById(itemId)
   return inventoryUseRulesModule.applyInventoryRecoveryItem({
@@ -211,6 +220,19 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
     restoreHealth: amount => playerStore.restoreHealth(amount)
   })
 }
+
+assert(
+  inventoryViewSource.includes('const canEatForFoodBuff = (itemId: string): boolean => !!getFoodBuff(itemId)'),
+  'Inventory food buff helper must keep buff dishes edible even when recovery is full.'
+)
+assert(
+  inventoryViewSource.includes('return plan.hasRecovery && !plan.canUse && !canEatForFoodBuff(itemId)'),
+  'Inventory eat button should not be disabled for buff food at full stamina/HP.'
+)
+assert(
+  inventoryViewSource.includes('if (!plan.canUse && !canEatForFoodBuff(itemId))'),
+  'Inventory eat handler should not block buff food before cookingStore.eat applies the buff.'
+)
 
 {
   const inventoryStore = freshInventoryStore()
@@ -278,12 +300,16 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
 
 {
   assert(
-    farmViewSource.includes("!!item.def && !item.locked && item.def.category !== 'seed'"),
-    'Farm shipping-box candidates must exclude locked inventory slots.'
+    farmViewSource.includes('!!item.def') &&
+      farmViewSource.includes('!item.locked') &&
+      farmViewSource.includes("item.origin !== 'shop'") &&
+      farmViewSource.includes("item.def.category !== 'seed'"),
+    'Farm shipping-box candidates must exclude locked and shop-origin inventory slots.'
   )
   assert(
-    shopViewSource.includes('i.itemId === data.itemId && i.quality === data.quality && !i.locked'),
-    'Shop sell modal must not resolve locked inventory slots.'
+    shopViewSource.includes('shopStore.getInventorySlotSellPriceBreakdown(data.inventoryIndex') &&
+      shopViewSource.includes('return null'),
+    'Shop sell modal must stay on the selected inventory slot instead of falling back to itemId + quality.'
   )
   assert(
     shopViewSource.includes("!item.locked && !item.itemId.startsWith('seed_')"),
@@ -318,6 +344,66 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
     shopStore.shippingBox.some(entry => entry.itemId === itemId && entry.quality === quality && entry.quantity === 2),
     'Shipping box should record accepted unlocked items.'
   )
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  const shopMetaA = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 }
+  const shopMetaB = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 450 }
+
+  assert(inventoryStore.addItemExact('silk_ribbon', 1, 'normal', true, shopMetaA) === true, 'Shop-origin item should be addable with metadata.')
+  assert(inventoryStore.addItemExact('silk_ribbon', 2, 'normal', true, shopMetaA) === true, 'Same shop-origin batch should merge.')
+  assert(inventoryStore.addItemExact('silk_ribbon', 1, 'normal') === true, 'Normal same item should be addable beside shop-origin item.')
+  assert(inventoryStore.addItemExact('silk_ribbon', 1, 'normal', true, shopMetaB) === true, 'Different shop purchase price should create a separate batch.')
+
+  const shopStacks = inventoryStore.items.filter(item => item.itemId === 'silk_ribbon' && item.origin === 'shop')
+  const normalStacks = inventoryStore.items.filter(item => item.itemId === 'silk_ribbon' && item.origin !== 'shop')
+  assert(shopStacks.some(item => item.purchaseUnitPrice === 500 && item.quantity === 3), 'Same shop metadata should merge into one stack.')
+  assert(shopStacks.some(item => item.purchaseUnitPrice === 450 && item.quantity === 1), 'Different shop metadata should stay separate.')
+  assert(normalStacks.length === 1 && normalStacks[0]?.quantity === 1, 'Normal same item should not merge with shop-origin stack.')
+
+  inventoryStore.sortItems()
+  assert(
+    inventoryStore.items.filter(item => item.itemId === 'silk_ribbon').length === 3,
+    'Sorting should preserve separate normal and shop-origin batches.'
+  )
+
+  const serialized = inventoryStore.serialize()
+  const reloaded = freshInventoryStore()
+  reloaded.deserialize(serialized)
+  assert(
+    reloaded.items.some(item => item.itemId === 'silk_ribbon' && item.origin === 'shop' && item.purchaseDay === '2_1_9' && item.purchaseUnitPrice === 500 && item.quantity === 3),
+    'Serialize/deserialize should preserve shop-origin metadata.'
+  )
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  const shopMeta = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 }
+  inventoryStore.capacity = 1
+  inventoryStore.items = [{ itemId: 'silk_ribbon', quantity: 997, quality: 'normal' }]
+  inventoryStore.tempItems = [{ itemId: 'silk_ribbon', quantity: 5, quality: 'normal', ...shopMeta }]
+  assert(inventoryStore.getMovableTempItemCount(0) === 0, 'Temp shop-origin stack must not merge into a normal same-item stack.')
+
+  inventoryStore.items = [{ itemId: 'silk_ribbon', quantity: 997, quality: 'normal', ...shopMeta }]
+  assert(inventoryStore.getMovableTempItemCount(0) === 2, 'Temp shop-origin stack should merge only with matching shop metadata.')
+  assert(inventoryStore.moveFromTemp(0) === false, 'Partial temp move should return false when leftovers remain.')
+  assert(inventoryStore.items[0]?.quantity === 999 && inventoryStore.items[0]?.origin === 'shop', 'Temp move should preserve shop-origin metadata on merge.')
+  assert(inventoryStore.tempItems[0]?.quantity === 3 && inventoryStore.tempItems[0]?.origin === 'shop', 'Temp leftovers should keep shop-origin metadata.')
+}
+
+{
+  const { inventoryStore, warehouseStore } = freshInventoryAndWarehouseStores()
+  const shopMeta = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 }
+  assert(warehouseStore.addChest('wood', 'QA') === true, 'Warehouse test chest should be created.')
+  const chestId = warehouseStore.chests[0]?.id
+  assert(typeof chestId === 'string', 'Warehouse test chest id should exist.')
+  assert(inventoryStore.addItemExact('silk_ribbon', 2, 'normal', true, shopMeta) === true, 'Shop-origin item should be prepared for warehouse test.')
+  assert(warehouseStore.depositInventorySlotToChest(chestId, 0, 2) === 2, 'Warehouse deposit should move the exact inventory slot.')
+  assert(warehouseStore.chests[0]?.items[0]?.origin === 'shop', 'Warehouse deposit should preserve shop origin.')
+  assert(warehouseStore.chests[0]?.items[0]?.purchaseUnitPrice === 500, 'Warehouse deposit should preserve purchase unit price.')
+  assert(warehouseStore.withdrawFromChest(chestId, 'silk_ribbon', 2, 'normal') === true, 'Warehouse withdraw should return the stored batch.')
+  assert(inventoryStore.items[0]?.origin === 'shop' && inventoryStore.items[0]?.purchaseUnitPrice === 500, 'Warehouse withdraw should preserve shop-origin metadata.')
 }
 
 {

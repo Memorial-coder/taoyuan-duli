@@ -177,7 +177,7 @@
               <p class="text-xs text-muted truncate">{{ item.description }}</p>
             </div>
             <div class="flex flex-col items-end ml-2 shrink-0">
-              <span class="text-xs text-accent">{{ item.price }}文</span>
+              <span class="text-xs text-accent">{{ formatShopCostLine(item) }}</span>
               <span
                 v-if="item.weeklyLimit"
                 class="text-[0.625rem]"
@@ -185,7 +185,8 @@
               >
                 限购 {{ hanhaiStore.getWeeklyRemaining(item.itemId) }}/{{ item.weeklyLimit }}
               </span>
-              <span v-if="!inventoryStore.canAddItem(item.itemId, 1)" class="text-[0.625rem] text-danger">背包不足</span>
+              <span v-if="!hasEnoughShopCostItems(item)" class="text-[0.625rem] text-danger">兑换材料不足</span>
+              <span v-if="!canFitShopItem(item)" class="text-[0.625rem] text-danger">背包不足</span>
             </div>
           </div>
         </div>
@@ -450,11 +451,24 @@
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">价格</span>
-              <span class="text-xs text-accent">{{ shopModalItem.price }}文</span>
+              <span class="text-xs text-accent">{{ formatShopCostLine(shopModalItem) }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
-              <span class="text-xs text-muted">持有</span>
-              <span class="text-xs">{{ playerStore.money }}文</span>
+              <span class="text-xs text-muted">铜钱</span>
+              <span class="text-xs" :class="playerStore.money >= shopModalItem.price ? '' : 'text-danger'">{{ playerStore.money }}文</span>
+            </div>
+            <div
+              v-for="cost in shopModalItem.costItems ?? []"
+              :key="cost.itemId"
+              class="flex items-center justify-between mt-0.5"
+            >
+              <span class="text-xs text-muted">{{ getShopCostItemName(cost.itemId) }}</span>
+              <span
+                class="text-xs"
+                :class="inventoryStore.getTotalItemCount(cost.itemId) >= cost.quantity ? '' : 'text-danger'"
+              >
+                {{ inventoryStore.getTotalItemCount(cost.itemId) }}/{{ cost.quantity }}
+              </span>
             </div>
             <div v-if="shopModalItem.weeklyLimit" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">本周限购</span>
@@ -819,6 +833,7 @@
     BUCKSHOT_BET_AMOUNT,
     BUCKSHOT_WIN_MULTIPLIER
   } from '@/data/hanhai'
+  import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
   import type { BuckshotPlayerAction, BuckshotSetup, CricketDef, HanhaiRelicSiteDef, HanhaiShopItemDef, TexasSessionReport, TexasSetup, TexasTierId } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { useAudio } from '@/composables/useAudio'
@@ -975,6 +990,22 @@
   const cardFlipIndex = ref(-1)
   const cardAnimResult = ref<{ treasures: number[]; won: boolean; winnings: number } | null>(null)
 
+  const getShopItemQuantity = (item: HanhaiShopItemDef): number => item.quantity ?? 1
+
+  const getShopCostItemName = (itemId: string): string => getItemById(itemId)?.name ?? itemId
+
+  const formatShopCostLine = (item: HanhaiShopItemDef): string => {
+    const parts = item.price > 0 ? [`${item.price}文`] : []
+    parts.push(...(item.costItems ?? []).map(cost => `${getShopCostItemName(cost.itemId)}×${cost.quantity}`))
+    return parts.join(' + ') || '免费'
+  }
+
+  const hasEnoughShopCostItems = (item: HanhaiShopItemDef): boolean =>
+    (item.costItems ?? []).every(cost => inventoryStore.getTotalItemCount(cost.itemId) >= cost.quantity)
+
+  const canFitShopItem = (item: HanhaiShopItemDef): boolean =>
+    inventoryStore.canAddItem(item.itemId, getShopItemQuantity(item))
+
   const handleBuyItem = (itemId: string) => {
     const result = hanhaiStore.buyShopItem(itemId)
     if (result.success) {
@@ -989,7 +1020,7 @@
   const canBuyShopItem = (itemId: string): boolean => {
     const item = HANHAI_SHOP_ITEMS.find(entry => entry.itemId === itemId)
     if (!item) return false
-    return playerStore.money >= item.price && hanhaiStore.getWeeklyRemaining(itemId) > 0 && inventoryStore.canAddItem(itemId, 1)
+    return playerStore.money >= item.price && hanhaiStore.getWeeklyRemaining(itemId) > 0 && hasEnoughShopCostItems(item) && canFitShopItem(item)
   }
 
   // === 藏宝图 ===
@@ -1022,6 +1053,12 @@
     if (site.rewards.money) rewards.push(`${site.rewards.money}文`)
     for (const item of site.rewards.items ?? []) {
       rewards.push(`${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+    }
+    for (const [ticketType, quantity] of Object.entries(site.rewards.ticketRewards ?? {})) {
+      const normalizedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+      if (normalizedQuantity > 0) {
+        rewards.push(`${REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType}×${normalizedQuantity}`)
+      }
     }
     return rewards.join('、')
   }

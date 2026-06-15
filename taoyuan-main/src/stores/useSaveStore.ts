@@ -124,6 +124,12 @@ const getPendingServerSaveKey = (): string => buildScopedSingleKey(PENDING_SERVE
 
 const isValidSlot = (slot: number): boolean => Number.isInteger(slot) && slot >= 0 && slot < MAX_SLOTS
 
+type PendingServerSaveSource = 'runtime' | 'import' | 'external'
+
+const normalizePendingServerSaveSource = (source: unknown): PendingServerSaveSource => (
+  source === 'runtime' || source === 'import' || source === 'external' ? source : 'external'
+)
+
 const loadPendingServerSaveMap = (): PendingServerSaveMap => {
   try {
     const raw = localStorage.getItem(getPendingServerSaveKey())
@@ -141,7 +147,8 @@ const loadPendingServerSaveMap = (): PendingServerSaveMap => {
         raw: entry.raw,
         savedAt: typeof entry.savedAt === 'string' && entry.savedAt ? entry.savedAt : new Date().toISOString(),
         updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now(),
-        baseRevision
+        baseRevision,
+        source: normalizePendingServerSaveSource((entry as any).source)
       }
     }
     return next
@@ -177,11 +184,16 @@ const getPendingServerSlotNumbers = (): number[] =>
     .map(item => item.slot)
     .sort((left, right) => left - right)
 
-const buildPendingServerSaveEntry = (raw: string, baseRevision: number): PendingServerSaveEntry => ({
+const buildPendingServerSaveEntry = (
+  raw: string,
+  baseRevision: number,
+  source: PendingServerSaveSource = 'external'
+): PendingServerSaveEntry => ({
   raw,
   savedAt: new Date().toISOString(),
   updatedAt: Date.now(),
-  baseRevision: Math.max(0, Math.floor(Number(baseRevision) || 0))
+  baseRevision: Math.max(0, Math.floor(Number(baseRevision) || 0)),
+  source
 })
 
 /** 加密 JSON 字符串 */
@@ -231,6 +243,7 @@ export interface ServerSaveConflictState {
   localSummary: SaveSlotInfo
   remoteSummary: SaveSlotInfo
   localBaseRevision: number
+  localSource?: PendingServerSaveSource
   remoteRevision: number
   occurredAt: string
 }
@@ -296,6 +309,7 @@ interface PendingServerSaveEntry {
   savedAt: string
   updatedAt: number
   baseRevision: number
+  source: PendingServerSaveSource
 }
 
 type PendingServerSaveMap = Partial<Record<number, PendingServerSaveEntry>>
@@ -923,10 +937,22 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  const queuePendingServerSave = (slot: number, raw: string) => {
+  const queuePendingServerSave = (
+    slot: number,
+    raw: string,
+    source: PendingServerSaveSource = 'runtime'
+  ) => {
     const map = loadPendingServerSaveMap()
     const baseRevision = map[slot]?.baseRevision ?? Math.max(0, Math.floor(Number(lastIssuedServerRevisionBySlot.value[slot]) || 0))
-    map[slot] = buildPendingServerSaveEntry(raw, baseRevision)
+    map[slot] = buildPendingServerSaveEntry(raw, baseRevision, source)
+    persistPendingServerSaveMap(map)
+    refreshPendingServerState()
+  }
+
+  const persistPendingServerSaveEntry = (slot: number, entry: PendingServerSaveEntry) => {
+    if (!isValidSlot(slot) || !entry.raw) return
+    const map = loadPendingServerSaveMap()
+    map[slot] = entry
     persistPendingServerSaveMap(map)
     refreshPendingServerState()
   }
@@ -948,7 +974,8 @@ export const useSaveStore = defineStore('save', () => {
     if (
       currentEntry.baseRevision !== expectedEntry.baseRevision ||
       currentEntry.updatedAt !== expectedEntry.updatedAt ||
-      currentEntry.raw !== expectedEntry.raw
+      currentEntry.raw !== expectedEntry.raw ||
+      currentEntry.source !== expectedEntry.source
     ) {
       refreshPendingServerState()
       return false
@@ -1313,6 +1340,7 @@ export const useSaveStore = defineStore('save', () => {
       localSummary: parseSlotInfo(slot, localEntry.raw, true, false),
       remoteSummary: parseSlotInfo(slot, remoteRaw, false, false),
       localBaseRevision: localEntry.baseRevision,
+      localSource: localEntry.source,
       remoteRevision: Math.max(0, Math.floor(Number(remoteRevision) || 0)),
       occurredAt: new Date().toISOString()
     }
@@ -1773,14 +1801,18 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  const persistServerRaw = async (slot: number, raw: string): Promise<boolean> => {
+  const persistServerRaw = async (
+    slot: number,
+    raw: string,
+    source: PendingServerSaveSource = 'runtime'
+  ): Promise<boolean> => {
     const account = await ensureCurrentAccount()
     if (!account || account === 'guest') {
       setLastSaveState('failed', '请先登录后再使用服务端存档', '')
       return false
     }
 
-    queuePendingServerSave(slot, raw)
+    queuePendingServerSave(slot, raw, source)
     applyActiveSlotSelection(slot, 'server')
 
     const syncResult = await syncPendingServerSaves({ slots: [slot] })
@@ -1832,7 +1864,8 @@ export const useSaveStore = defineStore('save', () => {
       raw: anomaly.localRaw,
       savedAt: anomaly.summary.savedAt ?? anomaly.occurredAt,
       updatedAt: Date.now(),
-      baseRevision: anomaly.baseRevision
+      baseRevision: anomaly.baseRevision,
+      source: 'runtime'
     }
     try {
       serverSyncStatus.value = 'syncing'
@@ -1922,9 +1955,13 @@ export const useSaveStore = defineStore('save', () => {
     return localStorage.getItem(getSaveKey(slot))
   }
 
-  const setRawByMode = async (slot: number, raw: string): Promise<boolean> => {
+  const setRawByMode = async (
+    slot: number,
+    raw: string,
+    source: PendingServerSaveSource = 'runtime'
+  ): Promise<boolean> => {
     if (storageMode.value === 'server') {
-      return persistServerRaw(slot, raw)
+      return persistServerRaw(slot, raw, source)
     }
     localStorage.setItem(getSaveKey(slot), raw)
     return true
@@ -2093,16 +2130,37 @@ export const useSaveStore = defineStore('save', () => {
           raw: conflict.localRaw,
           savedAt: conflict.localSummary.savedAt ?? conflict.occurredAt,
           updatedAt: Date.now(),
-          baseRevision: conflict.localBaseRevision
+          baseRevision: conflict.localBaseRevision,
+          source: conflict.localSource ?? 'external'
         }
 
     if (choice === 'local') {
+      const shouldRefreshRuntimeCopy = localEntry.source === 'runtime' && (
+        (activeSlot.value === slot && activeSlotMode.value === 'server') ||
+        (runtimeSessionSlot.value === slot && runtimeSessionMode.value === 'server')
+      )
+      const blockReason = shouldRefreshRuntimeCopy ? getSaveBlockReason() : ''
+      if (blockReason) {
+        setLastSaveState('failed', blockReason, lastServerSyncMessage.value)
+        return false
+      }
+      const uploadEntry = shouldRefreshRuntimeCopy
+        ? buildPendingServerSaveEntry(
+            encrypt(JSON.stringify(buildCurrentSaveData())),
+            conflict.remoteRevision,
+            'runtime'
+          )
+        : localEntry
+      if (uploadEntry !== localEntry) {
+        persistPendingServerSaveEntry(slot, uploadEntry)
+      }
+
       try {
         serverSyncStatus.value = 'syncing'
-        const saveResult = await saveServerSlotRaw(slot, localEntry.raw, conflict.remoteRevision)
+        const saveResult = await saveServerSlotRaw(slot, uploadEntry.raw, conflict.remoteRevision)
         rememberServerSlotState(slot, saveResult.raw, saveResult.currentRevision)
         if (saveResult.stale) {
-          setServerSaveConflict(slot, localEntry, saveResult.raw, saveResult.currentRevision)
+          setServerSaveConflict(slot, uploadEntry, saveResult.raw, saveResult.currentRevision)
           serverSyncStatus.value = 'error'
           setLastSaveState(
             'conflict',
@@ -2115,14 +2173,14 @@ export const useSaveStore = defineStore('save', () => {
         clearServerSaveConflict(slot)
         applyActiveSlotSelection(slot, 'server')
         setRuntimeSession(slot, 'server')
-        refreshRuntimeOnlineIdentityFromRaw(slot, 'server', saveResult.raw ?? localEntry.raw)
+        refreshRuntimeOnlineIdentityFromRaw(slot, 'server', saveResult.raw ?? uploadEntry.raw)
         serverSyncStatus.value = 'synced'
         setLastSaveState('saved', '', '已保存当前进度并覆盖服务端存档。')
         return true
       } catch (error) {
         const fieldAnomalyDetails = extractServerSaveFieldAnomalyDetails(error)
         if (fieldAnomalyDetails) {
-          setServerSaveFieldAnomaly(slot, localEntry, fieldAnomalyDetails, conflict.remoteRevision)
+          setServerSaveFieldAnomaly(slot, uploadEntry, fieldAnomalyDetails, conflict.remoteRevision)
           serverSyncStatus.value = 'error'
           setLastSaveState(
             'failed',
@@ -2267,7 +2325,7 @@ export const useSaveStore = defineStore('save', () => {
         setLastSaveState('failed', '导入校验后恢复当前页面失败，请刷新页面后再导入。', '')
         return false
       }
-      const persisted = await setRawByMode(slot, normalizedFileContent)
+      const persisted = await setRawByMode(slot, normalizedFileContent, 'import')
       if (!persisted && !lastSaveErrorMessage.value && lastSaveResultStatus.value !== 'conflict') {
         setLastSaveState('failed', '存档文件有效，但写入当前存储位置失败。', lastServerSyncMessage.value)
       }

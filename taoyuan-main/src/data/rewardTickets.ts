@@ -1,4 +1,4 @@
-import type { RewardTicketDefinition, RewardTicketExchangeOffer, RewardTicketType } from '@/types'
+import type { MayorTicketConversionTicketType, RewardTicketDefinition, RewardTicketExchangeOffer, RewardTicketType } from '@/types'
 
 export const REWARD_TICKET_DEFS: RewardTicketDefinition[] = [
   {
@@ -34,6 +34,17 @@ export const REWARD_TICKET_DEFS: RewardTicketDefinition[] = [
 ]
 
 export const REWARD_TICKET_LABELS = Object.fromEntries(REWARD_TICKET_DEFS.map(def => [def.id, def.label])) as Record<RewardTicketType, string>
+
+export const MAYOR_TICKET_CONVERSION_NPC_ID = 'liu_cunzhang'
+export const MAYOR_TICKET_CONVERSION_NPC_NAME = '柳村长'
+export const MAYOR_TICKET_CONVERSION_REQUIRED_RELATIONSHIP = 'friendly'
+export const MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP = 1000
+export const MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL = 2
+export const MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST = 3
+export const MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT = 1
+export const MAYOR_TICKET_CONVERSION_MONEY_COST = 1200
+export const MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT = 6
+export const MAYOR_TICKET_CONVERTIBLE_TYPES: MayorTicketConversionTicketType[] = ['construction', 'exhibit', 'caravan', 'research']
 
 export const REWARD_TICKET_EXCHANGE_OFFERS: RewardTicketExchangeOffer[] = [
   {

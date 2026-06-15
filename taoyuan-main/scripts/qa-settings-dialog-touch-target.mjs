@@ -7,6 +7,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const readSource = relativePath => fs.readFileSync(path.join(projectRoot, relativePath), 'utf8')
 
 const settingsDialogSource = readSource('src/components/game/SettingsDialog.vue')
+const settingsStoreSource = readSource('src/stores/useSettingsStore.ts')
 const desktopLayoutSmokeSource = readSource('scripts/qa-desktop-layout-smoke.mjs')
 const packageJson = JSON.parse(readSource('package.json'))
 
@@ -20,6 +21,10 @@ const block = (selector, message) => {
 assert.match(settingsDialogSource, /data-testid="settings-dialog-close"/, 'settings close button should expose a stable test id')
 assert.match(settingsDialogSource, /class="settings-dialog-close"/, 'settings close button should use the touch-target class')
 assert.match(settingsDialogSource, /@click\.stop="\$emit\('close'\)"/, 'settings close button should stop click bubbling before close')
+assert.match(settingsStoreSource, /export const PAGE_WIDTH_PERCENT_STEP = 1\b/, 'page width custom control should support 1% steps')
+assert.match(settingsDialogSource, /@click="settingsStore\.changePageWidthPercent\(-PAGE_WIDTH_PERCENT_STEP\)"/, 'page width decrease button should use the shared step')
+assert.match(settingsDialogSource, /@click="settingsStore\.changePageWidthPercent\(PAGE_WIDTH_PERCENT_STEP\)"/, 'page width increase button should use the shared step')
+assert.match(settingsDialogSource, /:step="PAGE_WIDTH_PERCENT_STEP"/, 'page width range should use the shared step')
 
 const closeButtonBlock = block('.settings-dialog-close', 'settings close button CSS should exist')
 assert.match(closeButtonBlock, /width:\s*44px/, 'settings close button should be at least 44px wide')

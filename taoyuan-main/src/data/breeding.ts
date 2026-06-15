@@ -4624,11 +4624,33 @@ export const HYBRID_DEFS: HybridDef[] = [
     resultCropId: 'myriad_form_peach_t',
     baseGenetics: { sweetness: 100, yield: 100, resistance: 100 },
     discoveryText: '鸿蒙瓜与虎啸桃永恒不灭之光，照耀天地。'
+  },
+  {
+    id: 'sandglass_cactus',
+    name: '沙晶仙掌',
+    parentCropA: 'hanhai_cactus',
+    parentCropB: 'supreme_origin_melon',
+    minSweetness: 94,
+    minYield: 94,
+    resultCropId: 'sandglass_cactus',
+    baseGenetics: { sweetness: 98, yield: 98, resistance: 100 },
+    discoveryText: '瀚海仙人掌与太初瓜在沙晶中定形，耐旱灵息凝成顶级奇株。'
+  },
+  {
+    id: 'oasis_star_date',
+    name: '绿洲星枣',
+    parentCropA: 'hanhai_date',
+    parentCropB: 'vast_meng_melon',
+    minSweetness: 96,
+    minYield: 96,
+    resultCropId: 'oasis_star_date',
+    baseGenetics: { sweetness: 100, yield: 99, resistance: 96 },
+    discoveryText: '瀚海椰枣与鸿蒙瓜引出绿洲星辉，甜香灵气可承接终局供奉。'
   }
 ]
 
 /** 杂交品种阶层 (tier) 划分：基于 HYBRID_DEFS 数组顺序 */
-const TIER_COUNTS = [100, 50, 50, 50, 25, 25, 25, 25, 25, 25] // T1..T10
+const TIER_COUNTS = [100, 50, 50, 50, 25, 25, 25, 25, 25, 27] // T1..T10
 const _tierMap = new Map<string, number>()
 let _offset = 0
 for (let t = 0; t < TIER_COUNTS.length; t++) {

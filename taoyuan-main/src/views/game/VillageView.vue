@@ -425,6 +425,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useShopStore } from '@/stores/useShopStore'
+  import { useWalletStore } from '@/stores/useWalletStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import type { ProsperityScoreBreakdown } from '@/types'
 
@@ -441,7 +442,12 @@
   const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
   const shopStore = useShopStore()
+  const walletStore = useWalletStore()
   const villageProjectStore = useVillageProjectStore()
+
+  watchEffect(() => {
+    walletStore.syncMayorTicketConversionVillageProjectLevel(villageProjectStore.villageProjectLevel)
+  })
 
   const cloudHighlandVillageHandoff = computed(() => {
     const leyQty = regionMapStore.getFamilyResourceQuantity('ley_crystal')
@@ -697,10 +703,25 @@
     return summary.blockedReason ?? '材料、铜钱与跨系统门槛均已满足，可直接推进。'
   }
 
+  const notifyMayorTicketConversionVillageProgress = (previousCompletedProjects: number) => {
+    walletStore.syncMayorTicketConversionVillageProjectLevel(villageProjectStore.villageProjectLevel)
+    const status = walletStore.mayorTicketConversionStatus
+    if (previousCompletedProjects >= status.requiredVillageProjectLevel || !status.villageProjectReady) return
+    const message = status.unlocked
+      ? '柳村长已开放村务票据转换。'
+      : `村务票据转换已具备建设条件，还需要柳村长好感达到${status.requiredFriendship}。`
+    showFloat(message, status.unlocked ? 'success' : 'accent')
+    addLog(`【村务票据】${message}`)
+  }
+
   const completeProject = (projectId: string) => {
+    const completedProjectsBefore = villageProjectStore.villageProjectLevel
     const result = villageProjectStore.completeProject(projectId)
     showFloat(result.message, result.success ? 'success' : 'danger')
     if (!result.success) addLog(result.message)
+    if (result.success) {
+      notifyMayorTicketConversionVillageProgress(completedProjectsBefore)
+    }
   }
 
   const payMaintenance = (projectId: string) => {

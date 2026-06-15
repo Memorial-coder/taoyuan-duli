@@ -49,6 +49,18 @@ export const markMailboxRead = async (id: string) => {
   })
 }
 
+export const markAllMailboxRead = async () => {
+  return request('/api/taoyuan/mail/read-all', async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': csrfToken
+      }
+    }
+  })
+}
+
 export const claimMailboxMail = async (id: string) => {
   return request(`/api/taoyuan/mail/${encodeURIComponent(id)}/claim`, async () => {
     const csrfToken = await ensureCurrentCsrfToken()

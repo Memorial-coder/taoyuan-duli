@@ -1710,13 +1710,18 @@
     return matchedTags.length > 0 ? buildCropUseRecommendationText(matchedTags) : ''
   })
 
-  /** 烹饪品的buff描述 */
-  const activeItemBuff = computed(() => {
-    if (!activeItem.value) return null
-    const itemId = activeItem.value.itemId
+  const getFoodBuff = (itemId: string) => {
     if (!itemId.startsWith('food_')) return null
     const recipe = getRecipeById(itemId.slice(5))
     return recipe?.effect.buff ?? null
+  }
+
+  const canEatForFoodBuff = (itemId: string): boolean => !!getFoodBuff(itemId)
+
+  /** 烹饪品的buff描述 */
+  const activeItemBuff = computed(() => {
+    if (!activeItem.value) return null
+    return getFoodBuff(activeItem.value.itemId)
   })
 
   const activeItemElixirRecipe = computed(() => {
@@ -1752,14 +1757,14 @@
 
   const isEatBlocked = (itemId: string): boolean => {
     const plan = getEatRecoveryPlan(itemId)
-    return plan.hasRecovery && !plan.canUse
+    return plan.hasRecovery && !plan.canUse && !canEatForFoodBuff(itemId)
   }
 
   const handleEat = (itemId: string, quality: Quality) => {
     const def = getItemById(itemId)
     if (!def || !hasItemRecovery(def)) return
     const plan = getEatRecoveryPlan(itemId)
-    if (!plan.canUse) {
+    if (!plan.canUse && !canEatForFoodBuff(itemId)) {
       addLog(plan.blockedMessage)
       return
     }

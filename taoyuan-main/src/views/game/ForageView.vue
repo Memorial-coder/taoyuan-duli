@@ -157,6 +157,7 @@
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useQuestStore } from '@/stores/useQuestStore'
@@ -190,6 +191,7 @@
   const achievementStore = useAchievementStore()
   const cookingStore = useCookingStore()
   const walletStore = useWalletStore()
+  const goalStore = useGoalStore()
 
   interface ForageResult {
     label: string
@@ -494,6 +496,14 @@
 
     if (gathered.length === 0) {
       gathered.push({ label: '什么也没找到……', quantity: 0 })
+    }
+
+    const weeklyGatheredQuantity = gathered
+      .filter(result => result.itemId && !result.failed)
+      .reduce((sum, result) => sum + Math.max(0, result.quantity), 0)
+    goalStore.recordWeeklyActivityCounter('forage_actions', 1)
+    if (weeklyGatheredQuantity > 0) {
+      goalStore.recordWeeklyActivityCounter('forage_items_found', weeklyGatheredQuantity)
     }
 
     lastResults.value = gathered

@@ -4942,6 +4942,28 @@ export const CROPS: CropDef[] = [
     regrowthDays: 4,
     maxHarvests: 4
   },
+  {
+    id: 'sandglass_cactus',
+    name: '沙晶仙掌',
+    seedId: 'seed_sandglass_cactus',
+    season: ['summer', 'autumn'],
+    growthDays: 14,
+    sellPrice: 3600,
+    seedPrice: 0,
+    deepWatering: true,
+    description: '仙人掌与太初瓜凝出的顶级瀚海灵株，沙晶脉络能锁住暑气与灵息。'
+  },
+  {
+    id: 'oasis_star_date',
+    name: '绿洲星枣',
+    seedId: 'seed_oasis_star_date',
+    season: ['summer', 'autumn'],
+    growthDays: 14,
+    sellPrice: 3800,
+    seedPrice: 0,
+    deepWatering: true,
+    description: '椰枣与鸿蒙瓜结出的星辉灵果，适合终局供奉、赠礼与高阶订单。'
+  },
   // === 新增基础作物 ===
   // 夏季
   {

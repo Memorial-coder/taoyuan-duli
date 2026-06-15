@@ -38,6 +38,53 @@ export interface RewardTicketExchangeOffer {
   poolTags?: string[]
 }
 
+export type MayorTicketConversionTicketType = Extract<RewardTicketType, 'construction' | 'exhibit' | 'caravan' | 'research'>
+
+export interface RewardTicketConversionUsage {
+  weekId: string
+  used: number
+}
+
+export interface MayorTicketConversionStatus {
+  unlocked: boolean
+  npcId: string
+  npcName: string
+  requiredFriendship: number
+  currentFriendship: number
+  friendshipReady: boolean
+  requiredVillageProjectLevel: number
+  currentVillageProjectLevel: number
+  villageProjectReady: boolean
+  sourceTicketCost: number
+  moneyCost: number
+  weeklyLimit: number
+  weeklyUsed: number
+  weeklyRemaining: number
+  weekId: string
+  hint: string
+}
+
+export interface MayorTicketConversionOffer {
+  sourceType: MayorTicketConversionTicketType
+  targetType: MayorTicketConversionTicketType
+  sourceLabel: string
+  targetLabel: string
+  sourceBalance: number
+  targetBalance: number
+  sourceTicketCost: number
+  targetTicketAmount: number
+  moneyCost: number
+  weeklyRemaining: number
+  affordable: boolean
+  disabledReason?: string
+}
+
+export interface MayorTicketConversionResult {
+  success: boolean
+  message: string
+  offer?: MayorTicketConversionOffer
+}
+
 export interface BudgetChannelEffect {
   moneyRewardMultiplier?: number
   reputationRewardMultiplier?: number
@@ -79,6 +126,7 @@ export interface WeeklyBudgetSelection {
   effect: BudgetChannelEffect
   activatedWeekId: string
   activatedDayTag: string
+  autoRenew?: boolean
 }
 
 export interface WeeklyBudgetPlan {

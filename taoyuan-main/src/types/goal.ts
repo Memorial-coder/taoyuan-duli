@@ -1,3 +1,5 @@
+import type { RewardTicketLedger, RewardTicketType } from './economy'
+
 export type GoalMetricKey =
   | 'totalMoneyEarned'
   | 'totalCropsHarvested'
@@ -28,6 +30,7 @@ export interface GoalReward {
   money?: number
   reputation?: number
   items?: GoalRewardItem[]
+  ticketRewards?: RewardTicketLedger
   unlockHint?: string
 }
 
@@ -169,6 +172,111 @@ export interface WeeklyGoalState extends GoalState {
   weekOfSeason: 1 | 2 | 3 | 4
   weekId: string
   linkedThemeWeekId?: string
+}
+
+export type WeeklyActivityThemeId = 'fishpond' | 'breeding' | 'gathering' | 'mining' | 'planting' | 'region_map'
+
+export type WeeklyActivityTaskKind = 'counter' | 'metric' | 'itemSubmission' | 'fishSubmission' | 'seedSubmission'
+
+export type WeeklyActivityCounterKey =
+  | 'fishpond_feed'
+  | 'fishpond_breeding_started'
+  | 'fishpond_breeding_completed'
+  | 'fishpond_products_collected'
+  | 'breeding_started'
+  | 'forage_actions'
+  | 'forage_items_found'
+  | 'mining_stamina_spent'
+  | 'mine_floors_descended'
+  | 'farm_seeds_planted'
+  | 'farm_watered'
+  | 'farm_fertilizer_applied'
+
+export type WeeklyActivityMetricKey =
+  | 'totalCropsHarvested'
+  | 'totalBreedingsDone'
+  | 'totalHybridsDiscovered'
+  | 'highestHybridTier'
+  | 'bestBreedingSeedGeneration'
+  | 'bestBreedingSeedScore'
+  | 'totalMonstersKilled'
+  | 'highestMineFloor'
+  | 'regionRouteCompletions'
+  | 'expeditionBossClears'
+  | 'regionalResourceTurnIns'
+  | 'discoveredCount'
+
+export interface WeeklyActivityItemSubmission {
+  itemId: string
+  quantity: number
+}
+
+export interface WeeklyActivityFishSubmission {
+  fishId?: string
+  breedId?: string
+  generationMin?: number
+  scoreMin?: number
+  quantity: number
+  requireMature?: boolean
+  requireHealthy?: boolean
+}
+
+export interface WeeklyActivitySeedSubmission {
+  cropId?: string
+  hybridOnly?: boolean
+  generationMin?: number
+  scoreMin?: number
+  quantity: number
+}
+
+export interface WeeklyActivityTaskDef {
+  id: string
+  themeId: WeeklyActivityThemeId
+  title: string
+  description: string
+  kind: WeeklyActivityTaskKind
+  targetValue: number
+  progressUnit?: string
+  counterKey?: WeeklyActivityCounterKey
+  metricKey?: WeeklyActivityMetricKey
+  itemSubmission?: WeeklyActivityItemSubmission
+  fishSubmission?: WeeklyActivityFishSubmission
+  seedSubmission?: WeeklyActivitySeedSubmission
+  routeId?: WeeklyPlanRouteId
+}
+
+export interface WeeklyActivityTaskState extends WeeklyActivityTaskDef {
+  baselineValue?: number
+  progressValue: number
+  completed: boolean
+}
+
+export interface WeeklyActivityRewardTier {
+  threshold: 5 | 7 | 10
+  label: string
+  description: string
+  reward: GoalReward
+}
+
+export interface WeeklyActivityThemeDef {
+  id: WeeklyActivityThemeId
+  label: string
+  description: string
+  primaryTicketType: RewardTicketType
+  secondaryTicketType: RewardTicketType
+  bonusTicketType: RewardTicketType
+  preferredRouteId: WeeklyPlanRouteId
+}
+
+export interface WeeklyActivityState {
+  version: number
+  weekId: string
+  themeId: WeeklyActivityThemeId
+  themeLabel: string
+  generatedAtDayTag: string
+  tasks: WeeklyActivityTaskState[]
+  claimedThresholds: number[]
+  counters: Record<string, number>
 }
 
 export interface ThemeWeekRewardPoolEntry {

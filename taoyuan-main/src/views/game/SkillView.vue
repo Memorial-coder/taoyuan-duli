@@ -40,25 +40,41 @@
 
         <!-- 天赋 -->
         <div v-if="skill.perk5 || skill.perk10 || skill.perk15 || skill.perk20" class="flex flex-col space-y-1">
-          <div v-if="skill.perk5" class="flex items-center space-x-1.5 border border-water rounded-xs px-2 py-1">
+          <div v-if="skill.perk5" class="flex items-center gap-1.5 border border-water rounded-xs px-2 py-1">
             <span class="text-[0.625rem] text-water shrink-0">Lv5</span>
             <span class="text-xs text-water shrink-0">{{ PERK_NAMES[skill.perk5] }}</span>
-            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk5] }}</span>
+            <span class="text-[0.625rem] text-muted min-w-0 flex-1">{{ PERK_DESCS[skill.perk5] }}</span>
+            <button type="button" class="inline-flex shrink-0 items-center gap-1 rounded-xs border border-warning/30 px-1.5 py-0.5 text-[0.625rem] text-warning hover:bg-warning/10" @click="openPerkRespec(skill.type, 5)">
+              <RotateCcw :size="10" />
+              <span>重修</span>
+            </button>
           </div>
-          <div v-if="skill.perk10" class="flex items-center space-x-1.5 border border-water rounded-xs px-2 py-1">
+          <div v-if="skill.perk10" class="flex items-center gap-1.5 border border-water rounded-xs px-2 py-1">
             <span class="text-[0.625rem] text-water shrink-0">Lv10</span>
             <span class="text-xs text-water shrink-0">{{ PERK_NAMES[skill.perk10] }}</span>
-            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk10] }}</span>
+            <span class="text-[0.625rem] text-muted min-w-0 flex-1">{{ PERK_DESCS[skill.perk10] }}</span>
+            <button type="button" class="inline-flex shrink-0 items-center gap-1 rounded-xs border border-warning/30 px-1.5 py-0.5 text-[0.625rem] text-warning hover:bg-warning/10" @click="openPerkRespec(skill.type, 10)">
+              <RotateCcw :size="10" />
+              <span>重修</span>
+            </button>
           </div>
-          <div v-if="skill.perk15" class="flex items-center space-x-1.5 border border-accent rounded-xs px-2 py-1">
+          <div v-if="skill.perk15" class="flex items-center gap-1.5 border border-accent rounded-xs px-2 py-1">
             <span class="text-[0.625rem] text-accent shrink-0">Lv15</span>
             <span class="text-xs text-accent shrink-0">{{ PERK_NAMES[skill.perk15] }}</span>
-            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk15] }}</span>
+            <span class="text-[0.625rem] text-muted min-w-0 flex-1">{{ PERK_DESCS[skill.perk15] }}</span>
+            <button type="button" class="inline-flex shrink-0 items-center gap-1 rounded-xs border border-warning/30 px-1.5 py-0.5 text-[0.625rem] text-warning hover:bg-warning/10" @click="openPerkRespec(skill.type, 15)">
+              <RotateCcw :size="10" />
+              <span>重修</span>
+            </button>
           </div>
-          <div v-if="skill.perk20" class="flex items-center space-x-1.5 border border-accent rounded-xs px-2 py-1">
+          <div v-if="skill.perk20" class="flex items-center gap-1.5 border border-accent rounded-xs px-2 py-1">
             <span class="text-[0.625rem] text-accent shrink-0">Lv20</span>
             <span class="text-xs text-accent shrink-0">{{ PERK_NAMES[skill.perk20] }}</span>
-            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk20] }}</span>
+            <span class="text-[0.625rem] text-muted min-w-0 flex-1">{{ PERK_DESCS[skill.perk20] }}</span>
+            <button type="button" class="inline-flex shrink-0 items-center gap-1 rounded-xs border border-warning/30 px-1.5 py-0.5 text-[0.625rem] text-warning hover:bg-warning/10" @click="openPerkRespec(skill.type, 20)">
+              <RotateCcw :size="10" />
+              <span>重修</span>
+            </button>
           </div>
         </div>
         <p v-else-if="skill.level < 5" class="text-[0.625rem] text-muted">Lv5 / Lv10 / Lv15 / Lv20 时可选择专精天赋</p>
@@ -70,7 +86,7 @@
               <Sparkles :size="12" class="text-accent" />
               <span class="text-xs text-accent">后20级精研</span>
             </div>
-            <span class="text-[0.625rem] text-accent">精研点 {{ skill.masteryPoints }}</span>
+            <span class="text-[0.625rem] text-accent">通用精通点 {{ skillStore.masteryPool.points }}</span>
           </div>
           <div class="bg-bg rounded-xs h-1.5 border border-accent/10">
             <div class="h-full bg-accent rounded-xs transition-all" :style="{ width: masteryPercent(skill.type) + '%' }" />
@@ -85,7 +101,7 @@
                 <div class="min-w-0">
                   <p class="text-xs" :class="skillStore.hasSkillMasteryNode(node.id) ? 'text-success' : 'text-text'">{{ node.label }}</p>
                   <p class="text-[0.625rem] text-muted mt-0.5 leading-relaxed">{{ node.summary }}</p>
-                  <p class="text-[0.625rem] text-muted/80 mt-0.5">费用 {{ node.cost }} · 已接入：{{ SKILL_MASTERY_NODE_SURFACES[node.id] }}</p>
+                  <p class="text-[0.625rem] text-muted/80 mt-0.5">费用 {{ node.cost }} 通用点 · 已接入：{{ SKILL_MASTERY_NODE_SURFACES[node.id] }}</p>
                 </div>
                 <span v-if="skillStore.hasSkillMasteryNode(node.id)" class="inline-flex shrink-0 items-center gap-1 text-[0.625rem] text-success">
                   <CheckCircle2 :size="12" />
@@ -113,11 +129,21 @@
             <p class="text-sm text-accent">终局精通</p>
             <p class="text-[0.625rem] text-muted mt-0.5">把五系技能练满后，开始解锁真正跨系统的长期成长。</p>
           </div>
-          <span class="text-xs text-accent">精通点 {{ skillStore.masteryPoints }}</span>
+          <span class="text-xs text-accent">通用精通点 {{ skillStore.masteryPool.points }}</span>
         </div>
 
         <div class="border border-accent/20 rounded-xs px-2 py-2 mb-2">
-          <p class="text-[0.625rem] text-muted mb-1">主技能精通</p>
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span class="text-[0.625rem] text-muted">通用精通池</span>
+            <span class="text-[0.625rem] text-accent">{{ skillStore.masteryPool.exp }}/{{ skillStore.masteryPool.expPerPoint }}</span>
+          </div>
+          <div class="bg-bg rounded-xs h-1.5 border border-accent/10">
+            <div class="h-full bg-accent rounded-xs transition-all" :style="{ width: masteryPoolPercent + '%' }" />
+          </div>
+        </div>
+
+        <div class="border border-accent/20 rounded-xs px-2 py-2 mb-2">
+          <p class="text-[0.625rem] text-muted mb-1">主技能精通 · 里程碑 {{ skillStore.masteryPoints }}</p>
           <div class="space-y-1">
             <div v-for="entry in skillStore.primaryMasteries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
               <div class="flex items-center justify-between gap-2">
@@ -168,17 +194,70 @@
         </div>
       </div>
     </div>
+
+    <Transition name="panel-fade">
+      <div v-if="pendingRespec && respecPreview" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="closePerkRespec">
+        <div class="game-panel max-w-sm w-full relative">
+          <button type="button" class="absolute right-2 top-2 text-muted hover:text-text" aria-label="关闭" @click="closePerkRespec">
+            <X :size="14" />
+          </button>
+          <div class="pr-6">
+            <p class="text-sm text-warning">重修专精</p>
+            <p class="text-xs text-muted mt-1">{{ respecSkillLabel }} Lv{{ pendingRespec.level }} 起的专精将重新选择。</p>
+          </div>
+
+          <div class="border border-warning/20 rounded-xs bg-warning/5 px-2 py-2 mt-3 space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[0.625rem] text-muted">清空层级</span>
+              <span class="text-xs text-warning">{{ respecAffectedLevelLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[0.625rem] text-muted">花费</span>
+              <span class="text-xs text-warning">{{ respecPreview.costMoney }} 文</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[0.625rem] text-muted">本季限制</span>
+              <span class="text-xs" :class="respecPreview.usedThisSeason ? 'text-danger' : 'text-success'">
+                {{ respecPreview.usedThisSeason ? '已重修过' : '可重修' }}
+              </span>
+            </div>
+          </div>
+
+          <p class="text-[0.625rem] text-muted leading-5 mt-2">
+            重修会清空所选层级及其下游分支，不返还已获得收益；确认后会立刻打开天赋选择。
+          </p>
+          <p v-if="respecPreview.reason" class="text-[0.625rem] text-danger leading-5 mt-2">{{ respecPreview.reason }}</p>
+
+          <div class="flex justify-end gap-2 mt-3">
+            <button type="button" class="rounded-xs border border-accent/20 px-2 py-1 text-xs text-muted hover:bg-accent/5" @click="closePerkRespec">取消</button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 rounded-xs border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              :class="respecPreview.canRespec ? 'border-warning/40 text-warning hover:bg-warning/10' : 'border-accent/10 text-muted'"
+              :disabled="!respecPreview.canRespec"
+              @click="confirmPerkRespec"
+            >
+              <RotateCcw :size="12" />
+              <span>确认重修</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { type Component } from 'vue'
-  import { Star, Wheat, TreePine, Fish, Pickaxe, Sword, Sparkles, Unlock, CheckCircle2 } from 'lucide-vue-next'
+  import { computed, ref, type Component } from 'vue'
+  import { Star, Wheat, TreePine, Fish, Pickaxe, Sword, Sparkles, Unlock, CheckCircle2, RotateCcw, X } from 'lucide-vue-next'
   import { navigateToPanel } from '@/composables/useNavigation'
+  import { addLog } from '@/composables/useGameLog'
+  import { requestPerkSelection } from '@/composables/useDialogs'
   import { useSkillStore } from '@/stores/useSkillStore'
-  import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, SkillMasteryNodeId } from '@/types'
+  import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, SkillPerkLevel, SkillMasteryNodeId } from '@/types'
 
   const skillStore = useSkillStore()
+  const pendingRespec = ref<{ skillType: SkillType; level: SkillPerkLevel } | null>(null)
 
   const SKILL_ICONS: Record<SkillType, Component> = {
     farming: Wheat,
@@ -410,5 +489,45 @@
     const info = skillStore.getSkillMasteryProgress(type)
     if (!info) return 0
     return Math.min(100, Math.round((info.current / info.required) * 100))
+  }
+
+  const masteryPoolPercent = computed(() =>
+    Math.min(100, Math.round((skillStore.masteryPool.exp / skillStore.masteryPool.expPerPoint) * 100))
+  )
+
+  const respecPreview = computed(() =>
+    pendingRespec.value
+      ? skillStore.getSkillPerkRespecPreview(pendingRespec.value.skillType, pendingRespec.value.level)
+      : null
+  )
+
+  const respecSkillLabel = computed(() =>
+    pendingRespec.value ? SKILL_NAMES[pendingRespec.value.skillType] : ''
+  )
+
+  const respecAffectedLevelLabel = computed(() =>
+    respecPreview.value?.affectedLevels.length
+      ? respecPreview.value.affectedLevels.map(level => `Lv${level}`).join(' / ')
+      : '无'
+  )
+
+  const openPerkRespec = (skillType: SkillType, level: SkillPerkLevel) => {
+    pendingRespec.value = { skillType, level }
+  }
+
+  const closePerkRespec = () => {
+    pendingRespec.value = null
+  }
+
+  const confirmPerkRespec = () => {
+    const request = pendingRespec.value
+    if (!request) return
+    const skillLabel = SKILL_NAMES[request.skillType]
+    const result = skillStore.respecPerks(request.skillType, request.level)
+    closePerkRespec()
+    addLog(`【技能】${skillLabel}${result.message}`)
+    if (result.success && result.nextPendingLevel) {
+      requestPerkSelection(request.skillType, result.nextPendingLevel)
+    }
   }
 </script>

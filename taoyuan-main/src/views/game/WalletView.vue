@@ -188,7 +188,7 @@
         <span class="text-sm text-accent">周预算系统</span>
         <span class="text-xs text-muted">{{ weeklyBudgetActiveCount }}/{{ weeklyBudgetChannels.length }} 槽</span>
       </div>
-      <p class="text-xs text-muted mb-2">每周可分别为商路、展馆、学舍投入预算；当周目标收益立即生效，下周开始自动失效并重新选择。</p>
+      <p class="text-xs text-muted mb-2">每周可分别为商路、展馆、学舍投入预算；当周目标收益立即生效，可为已投入槽位开启下周自动续投。</p>
 
       <div class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
         <div class="flex items-center justify-between gap-2">
@@ -226,6 +226,20 @@
               目标声望「{{ entry.selection.discountSourceLabel }}」减免 {{ entry.selection.discountMoney }} 文，原价 {{ entry.selection.baseCostMoney }} 文。
             </p>
             <p class="text-[0.625rem] text-muted mt-1">{{ entry.selection.effect.summary }}</p>
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-success/10 mt-2 pt-2">
+              <label class="inline-flex items-center gap-2 text-[0.625rem] text-muted">
+                <input
+                  type="checkbox"
+                  class="h-3 w-3 accent-current"
+                  :checked="entry.selection.autoRenew === true"
+                  @change="handleSetWeeklyBudgetAutoRenew(entry.channel.channelId, getCheckboxChecked($event))"
+                />
+                <span>自动续投</span>
+              </label>
+              <span class="text-[0.625rem]" :class="entry.selection.autoRenew ? 'text-success' : 'text-muted/80'">
+                {{ entry.selection.autoRenew ? '下周按同档位扣费' : '下周手动重选' }}
+              </span>
+            </div>
           </div>
 
           <div v-else class="grid grid-cols-1 gap-2 mt-2">
@@ -1234,6 +1248,12 @@
 
   const handleActivateWeeklyBudget = (channelId: WeeklyBudgetChannelId, tierId: string) => {
     goalStore.activateWeeklyBudget(channelId, tierId)
+  }
+
+  const getCheckboxChecked = (event: Event) => event.target instanceof HTMLInputElement && event.target.checked
+
+  const handleSetWeeklyBudgetAutoRenew = (channelId: WeeklyBudgetChannelId, autoRenew: boolean) => {
+    goalStore.setWeeklyBudgetAutoRenew(channelId, autoRenew)
   }
 
   const handleRedeemRewardTicketOffer = (offerId: string) => {

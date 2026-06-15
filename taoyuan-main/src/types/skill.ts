@@ -1,6 +1,8 @@
 /** 技能类型 */
 export type SkillType = 'farming' | 'foraging' | 'fishing' | 'mining' | 'combat'
 
+export type SkillPerkLevel = 5 | 10 | 15 | 20
+
 /** 技能专精（等级5选择） */
 export type SkillPerk5 =
   | 'harvester'
@@ -166,6 +168,12 @@ export interface SkillMasteryNodeDef {
   effectKey: SkillMasteryEffectKey
 }
 
+export interface SkillMasteryPoolState {
+  exp: number
+  points: number
+  expPerPoint: number
+}
+
 /** 技能状态 */
 export interface SkillState {
   type: SkillType
@@ -175,6 +183,8 @@ export interface SkillState {
   perk10: SkillPerk10 | null
   perk15: SkillPerk15 | null
   perk20: SkillPerk20 | null
+  perkRespecUsedSeasonKeys: string[]
+  masteryExpPerPoint: number
   masteryExp: number
   masteryPoints: number
   unlockedMasteryNodeIds: SkillMasteryNodeId[]

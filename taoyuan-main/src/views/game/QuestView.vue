@@ -42,92 +42,7 @@
     </div>
 
     <template v-if="!isCompactMobile || questPreludeExpanded || questPreludeForceOpen">
-    <GuidanceDigestPanel surface-id="quest" title="任务路线引导" />
-
     <QaGovernancePanel page-id="quest" title="结算治理总览" />
-
-    <div
-      class="border border-accent/20 rounded-xs p-3 mb-3"
-      :class="promptSectionClass('prompt-hints')"
-      :data-prompt-focus="buildPromptFocusAttr('prompt-hints')"
-    >
-      <p class="text-xs text-muted mb-2">经营提示</p>
-      <div class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-accent">本周主路线</p>
-          <span class="text-[0.625rem] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
-        </div>
-        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
-        <p class="text-[0.625rem] text-muted mt-1">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
-        <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[0.625rem] text-success mt-1">
-          辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
-        </p>
-      </div>
-      <div v-if="goalStore.currentEventCampaign" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-accent">活动编排</p>
-          <span class="text-[0.625rem] text-muted">{{ goalStore.currentEventCampaign.cadence }}</span>
-        </div>
-        <p class="text-[0.625rem] text-muted mt-1">{{ goalStore.currentEventCampaign.description }}</p>
-        <p class="text-[0.625rem] text-accent mt-1">结算模板：{{ goalStore.eventMailTemplateRefs.filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id)).map(template => template.title).join('、') }}</p>
-      </div>
-      <div v-if="questStore.currentLimitedTimeQuestCampaign" class="border border-warning/20 rounded-xs px-3 py-2 mb-2 bg-warning/5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-warning">任务收尾 / 限时窗口</p>
-          <span class="text-[0.625rem] text-muted">剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天</span>
-        </div>
-        <p class="text-[0.625rem] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
-        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanQuestActionNodeLabels.join('、') || '当前没有额外任务收尾节点。' }}</p>
-        <p class="text-[0.625rem] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>
-      </div>
-      <div v-if="goalStore.currentThemeWeek" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-accent">下周准备 / 主题预告</p>
-          <span class="text-[0.625rem] text-muted">{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日</span>
-        </div>
-        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
-        <p class="text-[0.625rem] text-muted mt-1">{{ goalStore.currentThemeWeek.description }}</p>
-      </div>
-      <div v-if="questStore.specialOrder" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-accent">特殊订单风向</p>
-          <span class="text-[0.625rem] text-muted">剩余 {{ questStore.specialOrder.daysRemaining }} 天</span>
-        </div>
-        <p class="text-[0.625rem] text-muted mt-1">{{ questStore.specialOrder.demandHint || '本期特殊订单会优先消耗高价值经营产出。' }}</p>
-        <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[0.625rem] text-success mt-1">
-          推荐关注：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
-        </p>
-      </div>
-      <div v-if="questStore.marketQuestBiasProfile.relationshipFocusLabels?.length" class="border border-accent/10 rounded-xs px-3 py-2 mb-2">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-accent">家庭 / 仙缘风向</p>
-          <span class="text-[0.625rem] text-muted">关系联动</span>
-        </div>
-        <p class="text-[0.625rem] text-muted mt-1">{{ questStore.marketQuestBiasProfile.boardHint }}</p>
-        <p v-if="questStore.marketQuestBiasProfile.specialOrderHint" class="text-[0.625rem] text-accent mt-1">
-          {{ questStore.marketQuestBiasProfile.specialOrderHint }}
-        </p>
-      </div>
-      <div v-if="goalStore.dailyGoals.length === 0" class="text-xs text-muted">今日暂无经营提示。</div>
-      <div v-else class="quest-card-grid desktop-adaptive-grid--cards" data-testid="quest-daily-goal-grid">
-        <div v-for="goal in goalStore.dailyGoals" :key="goal.id" class="quest-card-grid__item border border-accent/10 rounded-xs px-3 py-2">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-xs">{{ goal.title }}</p>
-            <span class="text-[0.625rem]" :class="goal.completed ? 'text-success' : 'text-accent'">{{ goalStore.getGoalSourceText(goal) }}</span>
-          </div>
-          <p class="text-[0.625rem] text-muted mt-1">{{ goal.description }}</p>
-        </div>
-      </div>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('main-quest', '看主线')">看主线</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('board-quests', '看委托')">看委托</button>
-        <button v-if="questStore.specialOrder" class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('special-order', '看特殊订单')">
-          看特殊订单
-        </button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('active-quests', '看进行中任务')">看进行中任务</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('village-route', '看村庄路线')">看村庄路线</button>
-      </div>
-    </div>
 
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
@@ -172,6 +87,8 @@
     </template>
 
     <!-- 主线任务 -->
+    <WeeklyActivityBoard class="mb-3" />
+
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
       :class="promptSectionClass('main-quest')"
@@ -773,8 +690,8 @@
   import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import WeeklyActivityBoard from '@/components/game/WeeklyActivityBoard.vue'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
-  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import type { QuestInstance, RelationshipStage, RewardTicketType, VillagerQuestCategory } from '@/types'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -789,7 +706,6 @@
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
   import { getCropById } from '@/data/crops'
   import { addLog } from '@/composables/useGameLog'
-  import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
 
   const route = useRoute()
   const questStore = useQuestStore()
@@ -797,8 +713,6 @@
   const goalStore = useGoalStore()
   const isCompactMobile = ref(false)
   const questPreludeExpanded = ref(false)
-  const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
-  const weeklyPlanQuestActionNodeLabels = computed(() => getWeeklyPlanQuestActionNodes(weeklyPlanSnapshot.value).map(node => node.label))
   const npcStore = useNpcStore()
   const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()

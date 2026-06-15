@@ -181,16 +181,25 @@ const fieldHarvest = farmStore.harvestPlot(0)
 assert(fieldHarvest.cropId === 'cabbage', 'field harvest should return the crop id')
 assert(farmStore.plots[0].state === 'tilled', 'field harvest should return the plot to tilled')
 assert(farmStore.plots[0].cropId === null, 'field harvest should clear the crop')
-assert(farmStore.plots[0].fertilizer === 'quality_fertilizer', 'field harvest should retain fertilizer in tilled soil')
+assert(farmStore.plots[0].fertilizer === null, 'field harvest should consume fertilizer before the next crop')
 
 farmStore = createFarmStore()
-assert(farmStore.tillPlot(1), 'field regrowth plot should be tillable')
-assert(farmStore.plantCrop(1, 'tea'), 'field regrowth plot should accept tea')
-assert(farmStore.applyFertilizer(1, 'speed_gro'), 'field regrowth plot should accept speed gro')
+assert(farmStore.tillPlot(1), 'field active regrowth plot should be tillable')
+assert(farmStore.plantCrop(1, 'tea'), 'field active regrowth plot should accept tea')
+assert(farmStore.applyFertilizer(1, 'speed_gro'), 'field active regrowth plot should accept speed gro')
+forceHarvestable(farmStore.plots[1], 'tea')
+farmStore.harvestPlot(1)
+assert(farmStore.plots[1].state === 'growing', 'field active regrowth harvest should keep the crop growing')
+assert(farmStore.plots[1].fertilizer === null, 'field active regrowth harvest should consume fertilizer before the next cycle')
+
+farmStore = createFarmStore()
+assert(farmStore.tillPlot(1), 'field final regrowth plot should be tillable')
+assert(farmStore.plantCrop(1, 'tea'), 'field final regrowth plot should accept tea')
+assert(farmStore.applyFertilizer(1, 'speed_gro'), 'field final regrowth plot should accept speed gro')
 forceHarvestable(farmStore.plots[1], 'tea', 2)
 farmStore.harvestPlot(1)
 assert(farmStore.plots[1].state === 'tilled', 'field final regrowth harvest should return the plot to tilled')
-assert(farmStore.plots[1].fertilizer === 'speed_gro', 'field final regrowth harvest should retain fertilizer')
+assert(farmStore.plots[1].fertilizer === null, 'field final regrowth harvest should consume fertilizer')
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(2), 'pest-loss plot should be tillable')
@@ -200,7 +209,7 @@ farmStore.plots[2].infested = true
 farmStore.plots[2].infestedDays = 2
 farmStore.dailyUpdate(false)
 assert(farmStore.plots[2].state === 'tilled', 'pest death should return the plot to tilled')
-assert(farmStore.plots[2].fertilizer === 'quality_fertilizer', 'pest death should retain fertilizer')
+assert(farmStore.plots[2].fertilizer === null, 'pest death should consume fertilizer')
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(3), 'unwatered-loss plot should be tillable')
@@ -209,7 +218,7 @@ assert(farmStore.applyFertilizer(3, 'retaining_soil'), 'unwatered-loss plot shou
 farmStore.plots[3].unwateredDays = 1.5
 farmStore.dailyUpdate(false)
 assert(farmStore.plots[3].state === 'tilled', 'unwatered death should return the plot to tilled')
-assert(farmStore.plots[3].fertilizer === 'retaining_soil', 'unwatered death should retain fertilizer')
+assert(farmStore.plots[3].fertilizer === null, 'unwatered death should consume fertilizer')
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(4), 'lightning-loss plot should be tillable')
@@ -217,7 +226,7 @@ assert(farmStore.plantCrop(4, 'cabbage'), 'lightning-loss plot should accept a c
 assert(farmStore.applyFertilizer(4, 'speed_gro'), 'lightning-loss plot should accept fertilizer')
 withRandomSequence([0, 0], () => farmStore.lightningStrike())
 assert(farmStore.plots[4].state === 'tilled', 'lightning strike should return the plot to tilled')
-assert(farmStore.plots[4].fertilizer === 'speed_gro', 'lightning strike should retain fertilizer')
+assert(farmStore.plots[4].fertilizer === null, 'lightning strike should consume fertilizer')
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(5), 'crow-loss plot should be tillable')
@@ -225,14 +234,14 @@ assert(farmStore.plantCrop(5, 'cabbage'), 'crow-loss plot should accept a crop')
 assert(farmStore.applyFertilizer(5, 'quality_fertilizer'), 'crow-loss plot should accept fertilizer')
 withRandomSequence([0, 0], () => farmStore.crowAttack())
 assert(farmStore.plots[5].state === 'tilled', 'crow attack should return the plot to tilled')
-assert(farmStore.plots[5].fertilizer === 'quality_fertilizer', 'crow attack should retain fertilizer')
+assert(farmStore.plots[5].fertilizer === null, 'crow attack should consume fertilizer')
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(6), 'season reclamation plot should be tillable')
 assert(farmStore.applyFertilizer(6, 'quality_fertilizer'), 'season reclamation plot should accept fertilizer')
 withRandomSequence([0], () => farmStore.onSeasonChange('spring'))
 assert(farmStore.plots[6].state === 'wasteland', 'season reclamation should return old empty tilled plots to wasteland')
-assert(farmStore.plots[6].fertilizer === null, 'season reclamation should clear fertilizer only when soil returns to wasteland')
+assert(farmStore.plots[6].fertilizer === null, 'season reclamation should keep empty wasteland fertilizer-free')
 
 farmStore = createFarmStore()
 const giantPlotIds = [0, 1, 2, 4, 5, 6, 8, 9, 10]
@@ -247,8 +256,8 @@ for (const plotId of giantPlotIds) {
 const giantHarvest = farmStore.harvestGiantCrop(0)
 assert(giantHarvest?.cropId === 'cabbage', 'giant crop harvest should return the crop id')
 assert(
-  giantPlotIds.every(plotId => farmStore.plots[plotId].state === 'tilled' && farmStore.plots[plotId].fertilizer === 'basic_fertilizer'),
-  'giant crop harvest should retain fertilizer on every returned tilled plot'
+  giantPlotIds.every(plotId => farmStore.plots[plotId].state === 'tilled' && farmStore.plots[plotId].fertilizer === null),
+  'giant crop harvest should consume fertilizer on every returned tilled plot'
 )
 
 farmStore = createFarmStore()
@@ -259,16 +268,25 @@ forceHarvestable(farmStore.greenhousePlots[0], 'cabbage')
 const greenhouseHarvest = farmStore.greenhouseHarvestPlot(0)
 assert(greenhouseHarvest === 'cabbage', 'greenhouse harvest should return the crop id')
 assert(farmStore.greenhousePlots[0].state === 'tilled', 'greenhouse harvest should return the plot to tilled')
-assert(farmStore.greenhousePlots[0].fertilizer === 'quality_retaining_soil', 'greenhouse harvest should retain fertilizer')
+assert(farmStore.greenhousePlots[0].fertilizer === null, 'greenhouse harvest should consume fertilizer')
 
 farmStore = createFarmStore()
 farmStore.initGreenhouse()
-assert(farmStore.greenhousePlantCrop(1, 'tea'), 'greenhouse regrowth plot should accept tea')
-assert(farmStore.applyGreenhouseFertilizer(1, 'speed_gro'), 'greenhouse regrowth plot should accept speed gro')
+assert(farmStore.greenhousePlantCrop(1, 'tea'), 'greenhouse active regrowth plot should accept tea')
+assert(farmStore.applyGreenhouseFertilizer(1, 'speed_gro'), 'greenhouse active regrowth plot should accept speed gro')
+forceHarvestable(farmStore.greenhousePlots[1], 'tea')
+farmStore.greenhouseHarvestPlot(1)
+assert(farmStore.greenhousePlots[1].state === 'growing', 'greenhouse active regrowth harvest should keep the crop growing')
+assert(farmStore.greenhousePlots[1].fertilizer === null, 'greenhouse active regrowth harvest should consume fertilizer before the next cycle')
+
+farmStore = createFarmStore()
+farmStore.initGreenhouse()
+assert(farmStore.greenhousePlantCrop(1, 'tea'), 'greenhouse final regrowth plot should accept tea')
+assert(farmStore.applyGreenhouseFertilizer(1, 'speed_gro'), 'greenhouse final regrowth plot should accept speed gro')
 forceHarvestable(farmStore.greenhousePlots[1], 'tea', 2)
 farmStore.greenhouseHarvestPlot(1)
 assert(farmStore.greenhousePlots[1].state === 'tilled', 'greenhouse final regrowth harvest should return the plot to tilled')
-assert(farmStore.greenhousePlots[1].fertilizer === 'speed_gro', 'greenhouse final regrowth harvest should retain fertilizer')
+assert(farmStore.greenhousePlots[1].fertilizer === null, 'greenhouse final regrowth harvest should consume fertilizer')
 
 if (errors.length > 0) {
   console.error('qa:fertilizer-retention failed:')

@@ -6,7 +6,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
     label: '商路预算',
     shortLabel: '商路',
     description: '给驿站、货栈与告示栏留出周度投放，提升本周经营目标的现金回报。',
-    resetRule: '每周开始后手动投入，当周有效，跨周自动失效。',
+    resetRule: '每周开始后投入，当周有效；已开启自动续投的槽位会在跨周时尝试同档位续投。',
     tiers: [
       {
         id: 'trade_tier_1',
@@ -51,7 +51,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
     label: '展馆预算',
     shortLabel: '展馆',
     description: '用于布展、宣传与专题活动筹备，强化本周目标的声望转化。',
-    resetRule: '每周开始后手动投入，当周有效，跨周自动失效。',
+    resetRule: '每周开始后投入，当周有效；已开启自动续投的槽位会在跨周时尝试同档位续投。',
     tiers: [
       {
         id: 'museum_tier_1',
@@ -96,7 +96,7 @@ export const WEEKLY_BUDGET_CHANNELS: WeeklyBudgetChannelDef[] = [
     label: '学舍预算',
     shortLabel: '学舍',
     description: '资助讲学与研习，稳定抬高本周目标的学识回报与研究积累。',
-    resetRule: '每周开始后手动投入，当周有效，跨周自动失效。',
+    resetRule: '每周开始后投入，当周有效；已开启自动续投的槽位会在跨周时尝试同档位续投。',
     tiers: [
       {
         id: 'academy_tier_1',

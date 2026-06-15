@@ -24,10 +24,20 @@ import type {
   ReleaseChecklistItem,
   ThemeWeekDef,
   ThemeWeekRewardPoolEntry,
+  RewardTicketType,
+  WeeklyActivityRewardTier,
+  WeeklyActivityTaskDef,
+  WeeklyActivityThemeDef,
+  WeeklyActivityThemeId,
   WeeklyGoalDef
 } from '@/types'
 import { WS09_RELATIONSHIP_AUDIT_POOLS } from './npcs'
 import { WS09_SPIRIT_BOND_AUDIT_POOLS } from './hiddenNpcHeartEvents'
+import { REWARD_TICKET_LABELS } from './rewardTickets'
+import { PONDABLE_FISH } from './fishPond'
+import { POND_BREEDS } from './pondBreeds'
+import { CROPS } from './crops'
+import { getItemById } from './items'
 
 export const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
 
@@ -2569,3 +2579,619 @@ export const getWeeklyGoalsBySeasonWeek = (
   season: 'spring' | 'summer' | 'autumn' | 'winter',
   weekOfSeason: 1 | 2 | 3 | 4
 ) => WEEKLY_GOAL_DEFS.filter(goal => goal.season === season && goal.weekOfSeason === weekOfSeason)
+
+export const WEEKLY_ACTIVITY_TASK_COUNT = 10
+export const WEEKLY_ACTIVITY_REWARD_THRESHOLDS = [5, 7, 10] as const
+
+const WEEKLY_ACTIVITY_THEME_ORDER: WeeklyActivityThemeId[] = [
+  'fishpond',
+  'breeding',
+  'gathering',
+  'mining',
+  'planting',
+  'region_map'
+]
+
+export const WEEKLY_ACTIVITY_THEME_DEFS: WeeklyActivityThemeDef[] = [
+  {
+    id: 'fishpond',
+    label: '鱼塘周',
+    description: '围绕鱼塘养护、配种、成熟样本和观赏品系推进本周活动。',
+    primaryTicketType: 'research',
+    secondaryTicketType: 'exhibit',
+    bonusTicketType: 'familyFavor',
+    preferredRouteId: 'fishpond'
+  },
+  {
+    id: 'breeding',
+    label: '育种周',
+    description: '围绕种子育种、高世代样本、杂交发现与稳定品系推进本周活动。',
+    primaryTicketType: 'research',
+    secondaryTicketType: 'exhibit',
+    bonusTicketType: 'familyFavor',
+    preferredRouteId: 'breeding'
+  },
+  {
+    id: 'gathering',
+    label: '采集周',
+    description: '围绕竹林采集、药材菌类、稀有采集物与基础材料推进本周活动。',
+    primaryTicketType: 'caravan',
+    secondaryTicketType: 'guildLogistics',
+    bonusTicketType: 'construction',
+    preferredRouteId: 'quest'
+  },
+  {
+    id: 'mining',
+    label: '挖矿周',
+    description: '围绕矿洞体力、下层、怪物与矿石金属锭推进本周活动。',
+    primaryTicketType: 'construction',
+    secondaryTicketType: 'research',
+    bonusTicketType: 'guildLogistics',
+    preferredRouteId: 'village'
+  },
+  {
+    id: 'planting',
+    label: '种植周',
+    description: '围绕播种、浇水、施肥、收获和季节作物交付推进本周活动。',
+    primaryTicketType: 'caravan',
+    secondaryTicketType: 'guildLogistics',
+    bonusTicketType: 'construction',
+    preferredRouteId: 'top_goals'
+  },
+  {
+    id: 'region_map',
+    label: '行旅图探索周',
+    description: '围绕区域路线、行旅资源、首领远征与路线进度推进本周活动。',
+    primaryTicketType: 'caravan',
+    secondaryTicketType: 'guildLogistics',
+    bonusTicketType: 'research',
+    preferredRouteId: 'region-map'
+  }
+]
+
+const WEEKLY_ACTIVITY_THEME_MAP = Object.fromEntries(
+  WEEKLY_ACTIVITY_THEME_DEFS.map(theme => [theme.id, theme])
+) as Record<WeeklyActivityThemeId, WeeklyActivityThemeDef>
+
+export interface WeeklyActivityWeekSeed {
+  season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
+  seasonWeekId: string
+  absoluteWeek: number
+}
+
+export interface WeeklyActivityTaskContext {
+  season?: 'spring' | 'summer' | 'autumn' | 'winter'
+  pondLevel?: number
+}
+
+const hashWeeklyActivitySeed = (value: string): number => {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+const seededActivityRandom = (seed: string) => {
+  let state = hashWeeklyActivitySeed(seed)
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 4294967296
+  }
+}
+
+const sampleWeeklyActivityEntries = <T>(source: T[], count: number, rng: () => number): T[] => {
+  const working = [...source]
+  const picked: T[] = []
+  while (working.length > 0 && picked.length < count) {
+    const index = Math.floor(rng() * working.length)
+    picked.push(working.splice(index, 1)[0]!)
+  }
+  return picked
+}
+
+const createWeeklyActivityTask = (
+  themeId: WeeklyActivityThemeId,
+  suffix: string,
+  task: Omit<WeeklyActivityTaskDef, 'id' | 'themeId'>
+): WeeklyActivityTaskDef => ({
+  id: `weekly_activity_${themeId}_${suffix}`,
+  themeId,
+  ...task
+})
+
+const itemLabel = (itemId: string) => getItemById(itemId)?.name ?? itemId
+
+const createTicketReward = (entries: Array<[RewardTicketType, number]>) => {
+  const ticketRewards: NonNullable<WeeklyActivityRewardTier['reward']['ticketRewards']> = {}
+  for (const [ticketType, amount] of entries) {
+    ticketRewards[ticketType] = (ticketRewards[ticketType] ?? 0) + amount
+  }
+  return ticketRewards
+}
+
+export const getWeeklyActivityThemeDef = (themeId: WeeklyActivityThemeId): WeeklyActivityThemeDef =>
+  WEEKLY_ACTIVITY_THEME_MAP[themeId]
+
+export const getWeeklyActivityThemeForWeek = (
+  weekInfo: WeeklyActivityWeekSeed,
+  unlockedThemes: Partial<Record<WeeklyActivityThemeId, boolean>> = {}
+): WeeklyActivityThemeDef => {
+  const startIndex = Math.abs(weekInfo.absoluteWeek) % WEEKLY_ACTIVITY_THEME_ORDER.length
+  for (let offset = 0; offset < WEEKLY_ACTIVITY_THEME_ORDER.length; offset++) {
+    const themeId = WEEKLY_ACTIVITY_THEME_ORDER[(startIndex + offset) % WEEKLY_ACTIVITY_THEME_ORDER.length]!
+    if (unlockedThemes[themeId] !== false) return WEEKLY_ACTIVITY_THEME_MAP[themeId]
+  }
+  return WEEKLY_ACTIVITY_THEME_MAP.planting
+}
+
+export const getWeeklyActivityRewardTiers = (themeId: WeeklyActivityThemeId): WeeklyActivityRewardTier[] => {
+  const theme = WEEKLY_ACTIVITY_THEME_MAP[themeId]
+  const label = (ticketType: RewardTicketType) => REWARD_TICKET_LABELS[ticketType] ?? ticketType
+  return [
+    {
+      threshold: 5,
+      label: '完成 5 项',
+      description: `${label(theme.primaryTicketType)} +2`,
+      reward: { ticketRewards: createTicketReward([[theme.primaryTicketType, 2]]) }
+    },
+    {
+      threshold: 7,
+      label: '完成 7 项',
+      description: `${label(theme.primaryTicketType)} +3，${label(theme.secondaryTicketType)} +1`,
+      reward: { ticketRewards: createTicketReward([[theme.primaryTicketType, 3], [theme.secondaryTicketType, 1]]) }
+    },
+    {
+      threshold: 10,
+      label: '完成 10 项',
+      description: `${label(theme.primaryTicketType)} +5，${label(theme.secondaryTicketType)} +2，${label(theme.bonusTicketType)} +1`,
+      reward: { ticketRewards: createTicketReward([[theme.primaryTicketType, 5], [theme.secondaryTicketType, 2], [theme.bonusTicketType, 1]]) }
+    }
+  ]
+}
+
+const buildFishpondActivityPool = (rng: () => number, context: WeeklyActivityTaskContext): WeeklyActivityTaskDef[] => {
+  const pondLevel = Math.max(1, Number(context.pondLevel) || 1)
+  const availableFish = PONDABLE_FISH.filter(fish => (fish.minPondLevel ?? 1) <= pondLevel)
+  const availableFishIds = new Set(availableFish.map(fish => fish.fishId))
+  const breedableFishIds = new Set(
+    POND_BREEDS
+      .filter(breed => availableFishIds.has(breed.baseFishId))
+      .map(breed => breed.baseFishId)
+  )
+  const breedSamples = sampleWeeklyActivityEntries(
+    POND_BREEDS.filter(breed => availableFishIds.has(breed.baseFishId)),
+    10,
+    rng
+  )
+
+  return [
+    createWeeklyActivityTask('fishpond', 'feed_3', {
+      title: '喂养鱼塘',
+      description: '本周完成 3 次鱼塘喂食。',
+      kind: 'counter',
+      counterKey: 'fishpond_feed',
+      targetValue: 3,
+      progressUnit: '次',
+      routeId: 'fishpond'
+    }),
+    createWeeklyActivityTask('fishpond', 'breed_start_2', {
+      title: '尝试鱼塘配种',
+      description: '本周开始 2 次鱼塘配种。',
+      kind: 'counter',
+      counterKey: 'fishpond_breeding_started',
+      targetValue: 2,
+      progressUnit: '次',
+      routeId: 'fishpond'
+    }),
+    createWeeklyActivityTask('fishpond', 'breed_complete_1', {
+      title: '完成鱼塘配种',
+      description: '本周完成 1 次鱼塘配种并获得后代。',
+      kind: 'counter',
+      counterKey: 'fishpond_breeding_completed',
+      targetValue: 1,
+      progressUnit: '次',
+      routeId: 'fishpond'
+    }),
+    createWeeklyActivityTask('fishpond', 'products_5', {
+      title: '收取鱼塘产物',
+      description: '本周收取 5 份鱼塘产物。',
+      kind: 'counter',
+      counterKey: 'fishpond_products_collected',
+      targetValue: 5,
+      progressUnit: '份',
+      routeId: 'fishpond'
+    }),
+    ...availableFish.slice(0, 8).map(fish => createWeeklyActivityTask('fishpond', `submit_${fish.fishId}`, {
+      title: `提交成熟${fish.name}`,
+      description: `提交 1 条成熟且健康的${fish.name}。`,
+      kind: 'fishSubmission',
+      targetValue: 1,
+      progressUnit: '条',
+      fishSubmission: { fishId: fish.fishId, quantity: 1, requireMature: true, requireHealthy: true },
+      routeId: 'fishpond'
+    })),
+    ...availableFish
+      .filter(fish => fish.allowBreeding !== false && breedableFishIds.has(fish.fishId))
+      .slice(0, 8)
+      .map(fish => createWeeklyActivityTask('fishpond', `submit_gen2_${fish.fishId}`, {
+        title: `提交二代${fish.name}`,
+        description: `提交 1 条二代或更高世代的${fish.name}。`,
+        kind: 'fishSubmission',
+        targetValue: 1,
+        progressUnit: '条',
+        fishSubmission: { fishId: fish.fishId, generationMin: 2, quantity: 1, requireMature: true, requireHealthy: true },
+        routeId: 'fishpond'
+      })),
+    ...breedSamples.map(breed => createWeeklyActivityTask('fishpond', `breed_${breed.breedId}`, {
+      title: `提交${breed.name}`,
+      description: `从完整鱼塘品系池中抽取：提交 1 条${breed.name}。`,
+      kind: 'fishSubmission',
+      targetValue: 1,
+      progressUnit: '条',
+      fishSubmission: { fishId: breed.baseFishId, breedId: breed.breedId, generationMin: breed.generation, quantity: 1, requireHealthy: true },
+      routeId: 'fishpond'
+    })),
+    createWeeklyActivityTask('fishpond', 'score_60', {
+      title: '提交高评分鱼',
+      description: '提交 1 条综合评分达到 60 的鱼塘鱼。',
+      kind: 'fishSubmission',
+      targetValue: 1,
+      progressUnit: '条',
+      fishSubmission: { scoreMin: 60, quantity: 1, requireHealthy: true },
+      routeId: 'fishpond'
+    }),
+    createWeeklyActivityTask('fishpond', 'score_72', {
+      title: '提交精品观赏鱼',
+      description: '提交 1 条综合评分达到 72 的鱼塘鱼。',
+      kind: 'fishSubmission',
+      targetValue: 1,
+      progressUnit: '条',
+      fishSubmission: { scoreMin: 72, quantity: 1, requireMature: true, requireHealthy: true },
+      routeId: 'fishpond'
+    })
+  ]
+}
+
+const buildBreedingActivityPool = (rng: () => number): WeeklyActivityTaskDef[] => {
+  const cropSamples = sampleWeeklyActivityEntries(CROPS.slice(0, 48), 8, rng)
+  return [
+    createWeeklyActivityTask('breeding', 'start_2', {
+      title: '启动育种台',
+      description: '本周开始 2 次种子育种。',
+      kind: 'counter',
+      counterKey: 'breeding_started',
+      targetValue: 2,
+      progressUnit: '次',
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'complete_2', {
+      title: '完成育种',
+      description: '本周完成 2 次种子育种。',
+      kind: 'metric',
+      metricKey: 'totalBreedingsDone',
+      targetValue: 2,
+      progressUnit: '次',
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'discover_hybrid_1', {
+      title: '发现杂交结果',
+      description: '本周发现 1 个新的杂交结果。',
+      kind: 'metric',
+      metricKey: 'totalHybridsDiscovered',
+      targetValue: 1,
+      progressUnit: '种',
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'best_generation_plus_1', {
+      title: '推进种子世代',
+      description: '本周把最佳育种种子的世代推进 1 代。',
+      kind: 'metric',
+      metricKey: 'bestBreedingSeedGeneration',
+      targetValue: 1,
+      progressUnit: '代',
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'best_score_plus_30', {
+      title: '提升种子评分',
+      description: '本周把最佳育种种子总属性提高 30 点。',
+      kind: 'metric',
+      metricKey: 'bestBreedingSeedScore',
+      targetValue: 30,
+      progressUnit: '点',
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'submit_gen2_seed', {
+      title: '提交高世代种子',
+      description: '提交 1 份二代或更高世代的育种种子。',
+      kind: 'seedSubmission',
+      targetValue: 1,
+      progressUnit: '份',
+      seedSubmission: { generationMin: 2, quantity: 1 },
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'submit_score_180_seed', {
+      title: '提交评分种子',
+      description: '提交 1 份总属性达到 180 的育种种子。',
+      kind: 'seedSubmission',
+      targetValue: 1,
+      progressUnit: '份',
+      seedSubmission: { scoreMin: 180, quantity: 1 },
+      routeId: 'breeding'
+    }),
+    createWeeklyActivityTask('breeding', 'submit_hybrid_seed', {
+      title: '提交杂交种子',
+      description: '提交 1 份杂交育种种子。',
+      kind: 'seedSubmission',
+      targetValue: 1,
+      progressUnit: '份',
+      seedSubmission: { hybridOnly: true, quantity: 1 },
+      routeId: 'breeding'
+    }),
+    ...cropSamples.map(crop => createWeeklyActivityTask('breeding', `submit_seed_${crop.id}`, {
+      title: `提交${crop.name}育种种子`,
+      description: `提交 1 份${crop.name}的育种种子样本。`,
+      kind: 'seedSubmission',
+      targetValue: 1,
+      progressUnit: '份',
+      seedSubmission: { cropId: crop.id, quantity: 1 },
+      routeId: 'breeding'
+    }))
+  ]
+}
+
+const buildGatheringActivityPool = (): WeeklyActivityTaskDef[] => [
+  createWeeklyActivityTask('gathering', 'forage_actions_5', {
+    title: '外出采集',
+    description: '本周完成 5 次竹林或野外采集。',
+    kind: 'counter',
+    counterKey: 'forage_actions',
+    targetValue: 5,
+    progressUnit: '次',
+    routeId: 'quest'
+  }),
+  createWeeklyActivityTask('gathering', 'forage_items_10', {
+    title: '带回采集物',
+    description: '本周通过采集带回 10 份物品。',
+    kind: 'counter',
+    counterKey: 'forage_items_found',
+    targetValue: 10,
+    progressUnit: '份',
+    routeId: 'quest'
+  }),
+  ...[
+    ['herb', 6],
+    ['bamboo', 8],
+    ['wild_mushroom', 4],
+    ['winter_bamboo_shoot', 3],
+    ['wood', 12],
+    ['pine_resin', 2],
+    ['moon_herb', 1],
+    ['ginseng', 1],
+    ['bamboo_scroll', 1],
+    ['wild_meat', 2],
+    ['firewood', 10],
+    ['pine_cone', 4]
+  ].map(([itemId, quantity]) => createWeeklyActivityTask('gathering', `submit_${itemId}`, {
+    title: `提交${itemLabel(String(itemId))}`,
+    description: `提交 ${itemLabel(String(itemId))} ×${quantity}。`,
+    kind: 'itemSubmission',
+    targetValue: Number(quantity),
+    progressUnit: '份',
+    itemSubmission: { itemId: String(itemId), quantity: Number(quantity) },
+    routeId: 'quest'
+  }))
+]
+
+const buildMiningActivityPool = (): WeeklyActivityTaskDef[] => [
+  createWeeklyActivityTask('mining', 'stamina_20', {
+    title: '矿洞消耗体力',
+    description: '本周在矿洞探索中消耗 20 点体力。',
+    kind: 'counter',
+    counterKey: 'mining_stamina_spent',
+    targetValue: 20,
+    progressUnit: '体力',
+    routeId: 'village'
+  }),
+  createWeeklyActivityTask('mining', 'floors_5', {
+    title: '累计下层',
+    description: '本周在矿洞累计下行 5 层。',
+    kind: 'counter',
+    counterKey: 'mine_floors_descended',
+    targetValue: 5,
+    progressUnit: '层',
+    routeId: 'village'
+  }),
+  createWeeklyActivityTask('mining', 'monster_5', {
+    title: '击败矿洞怪物',
+    description: '本周击败 5 只怪物。',
+    kind: 'metric',
+    metricKey: 'totalMonstersKilled',
+    targetValue: 5,
+    progressUnit: '只',
+    routeId: 'village'
+  }),
+  createWeeklyActivityTask('mining', 'floor_progress_5', {
+    title: '推进矿洞深度',
+    description: '本周把矿洞最高层数推进 5 层。',
+    kind: 'metric',
+    metricKey: 'highestMineFloor',
+    targetValue: 5,
+    progressUnit: '层',
+    routeId: 'village'
+  }),
+  ...[
+    ['copper_ore', 10],
+    ['iron_ore', 8],
+    ['gold_ore', 5],
+    ['crystal_ore', 3],
+    ['stone', 30],
+    ['copper_bar', 2],
+    ['iron_bar', 2],
+    ['gold_bar', 1],
+    ['charcoal', 6],
+    ['refined_quartz', 2],
+    ['iridium_ore', 2],
+    ['shadow_ore', 2]
+  ].map(([itemId, quantity]) => createWeeklyActivityTask('mining', `submit_${itemId}`, {
+    title: `提交${itemLabel(String(itemId))}`,
+    description: `提交 ${itemLabel(String(itemId))} ×${quantity}。`,
+    kind: 'itemSubmission',
+    targetValue: Number(quantity),
+    progressUnit: '份',
+    itemSubmission: { itemId: String(itemId), quantity: Number(quantity) },
+    routeId: 'village'
+  }))
+]
+
+const buildPlantingActivityPool = (rng: () => number, context: WeeklyActivityTaskContext): WeeklyActivityTaskDef[] => {
+  const season = context.season ?? 'spring'
+  const seasonalCrops = CROPS.filter(crop => crop.season.includes(season))
+  const cropSamples = sampleWeeklyActivityEntries(seasonalCrops.length > 0 ? seasonalCrops : CROPS.slice(0, 24), 12, rng)
+  return [
+    createWeeklyActivityTask('planting', 'plant_12', {
+      title: '播种作物',
+      description: '本周播种 12 株作物。',
+      kind: 'counter',
+      counterKey: 'farm_seeds_planted',
+      targetValue: 12,
+      progressUnit: '株',
+      routeId: 'top_goals'
+    }),
+    createWeeklyActivityTask('planting', 'water_20', {
+      title: '完成浇水',
+      description: '本周浇水 20 次。',
+      kind: 'counter',
+      counterKey: 'farm_watered',
+      targetValue: 20,
+      progressUnit: '次',
+      routeId: 'top_goals'
+    }),
+    createWeeklyActivityTask('planting', 'fertilizer_5', {
+      title: '使用肥料',
+      description: '本周施肥 5 次。',
+      kind: 'counter',
+      counterKey: 'farm_fertilizer_applied',
+      targetValue: 5,
+      progressUnit: '次',
+      routeId: 'top_goals'
+    }),
+    createWeeklyActivityTask('planting', 'harvest_15', {
+      title: '收获作物',
+      description: '本周收获 15 株作物。',
+      kind: 'metric',
+      metricKey: 'totalCropsHarvested',
+      targetValue: 15,
+      progressUnit: '株',
+      routeId: 'top_goals'
+    }),
+    ...cropSamples.map(crop => createWeeklyActivityTask('planting', `submit_${crop.id}`, {
+      title: `提交${crop.name}`,
+      description: `提交 ${crop.name} ×5。`,
+      kind: 'itemSubmission',
+      targetValue: 5,
+      progressUnit: '份',
+      itemSubmission: { itemId: crop.id, quantity: 5 },
+      routeId: 'top_goals'
+    }))
+  ]
+}
+
+const buildRegionMapActivityPool = (): WeeklyActivityTaskDef[] => [
+  createWeeklyActivityTask('region_map', 'routes_1', {
+    title: '完成行旅路线',
+    description: '本周完成 1 条行旅图路线。',
+    kind: 'metric',
+    metricKey: 'regionRouteCompletions',
+    targetValue: 1,
+    progressUnit: '条',
+    routeId: 'region-map'
+  }),
+  createWeeklyActivityTask('region_map', 'boss_1', {
+    title: '击败路线首领',
+    description: '本周击败 1 次区域首领。',
+    kind: 'metric',
+    metricKey: 'expeditionBossClears',
+    targetValue: 1,
+    progressUnit: '次',
+    routeId: 'region-map'
+  }),
+  createWeeklyActivityTask('region_map', 'turn_in_2', {
+    title: '交付行旅资源',
+    description: '本周交付 2 次区域资源。',
+    kind: 'metric',
+    metricKey: 'regionalResourceTurnIns',
+    targetValue: 2,
+    progressUnit: '次',
+    routeId: 'region-map'
+  }),
+  createWeeklyActivityTask('region_map', 'discover_3', {
+    title: '记录行旅见闻',
+    description: '本周新增 3 项图鉴或区域见闻。',
+    kind: 'metric',
+    metricKey: 'discoveredCount',
+    targetValue: 3,
+    progressUnit: '项',
+    routeId: 'region-map'
+  }),
+  ...[
+    ['marsh_spore_sample', 2],
+    ['luminous_algae', 2],
+    ['ley_crystal_shard', 1],
+    ['wind_etched_core', 1],
+    ['rare_elixir_crystal', 1],
+    ['moon_herb', 1],
+    ['gold_nugget', 2],
+    ['petrified_wood', 1],
+    ['jade', 1],
+    ['moonstone', 1],
+    ['battery', 1],
+    ['food_rice_ball', 3]
+  ].map(([itemId, quantity]) => createWeeklyActivityTask('region_map', `submit_${itemId}`, {
+    title: `提交${itemLabel(String(itemId))}`,
+    description: `提交 ${itemLabel(String(itemId))} ×${quantity}，用于行旅图回收与路线承接。`,
+    kind: 'itemSubmission',
+    targetValue: Number(quantity),
+    progressUnit: '份',
+    itemSubmission: { itemId: String(itemId), quantity: Number(quantity) },
+    routeId: 'region-map'
+  }))
+]
+
+const buildWeeklyActivityPool = (
+  themeId: WeeklyActivityThemeId,
+  rng: () => number,
+  context: WeeklyActivityTaskContext
+): WeeklyActivityTaskDef[] => {
+  switch (themeId) {
+    case 'fishpond':
+      return buildFishpondActivityPool(rng, context)
+    case 'breeding':
+      return buildBreedingActivityPool(rng)
+    case 'gathering':
+      return buildGatheringActivityPool()
+    case 'mining':
+      return buildMiningActivityPool()
+    case 'planting':
+      return buildPlantingActivityPool(rng, context)
+    case 'region_map':
+      return buildRegionMapActivityPool()
+    default:
+      return buildPlantingActivityPool(rng, context)
+  }
+}
+
+export const getWeeklyActivityTasksForWeek = (
+  themeId: WeeklyActivityThemeId,
+  weekId: string,
+  context: WeeklyActivityTaskContext = {}
+): WeeklyActivityTaskDef[] => {
+  const rng = seededActivityRandom(`${weekId}:${themeId}`)
+  const pool = buildWeeklyActivityPool(themeId, rng, context)
+  const picked = sampleWeeklyActivityEntries(pool, WEEKLY_ACTIVITY_TASK_COUNT, rng)
+  return picked.length >= WEEKLY_ACTIVITY_TASK_COUNT
+    ? picked
+    : [...picked, ...sampleWeeklyActivityEntries(buildPlantingActivityPool(rng, context), WEEKLY_ACTIVITY_TASK_COUNT - picked.length, rng)]
+}

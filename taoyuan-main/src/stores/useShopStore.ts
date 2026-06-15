@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { SEASON_NAMES, WEATHER_NAMES, useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
-import { useInventoryStore } from './useInventoryStore'
+import { useInventoryStore, type InventoryItemStackMeta } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useWalletStore } from './useWalletStore'
@@ -12,6 +12,7 @@ import { useWarehouseStore } from './useWarehouseStore'
 import { useNpcStore } from './useNpcStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useGoalStore } from './useGoalStore'
+import { useHanhaiStore } from './useHanhaiStore'
 import { usePotentialStore } from './usePotentialStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { getCropsBySeason, getItemById, getNpcById } from '@/data'
@@ -64,6 +65,7 @@ import type { TravelingMerchantStock } from '@/data/travelingMerchant'
 import type { BooksellerStockEntry } from '@/data/bookseller'
 import type {
   PriceBreakdownEntry,
+  InventoryItem,
   PriceModifierStep,
   Quality,
   RelationshipStage,
@@ -109,6 +111,7 @@ const CATALOG_BUCKET_BY_CATEGORY: Record<ShopCatalogLuxuryCategory, ShopCatalogE
 }
 
 const getAbsoluteDay = (year: number, seasonIndex: number, day: number) => (year - 1) * 112 + seasonIndex * 28 + day
+const SHOP_BUYBACK_RATE = 0.8
 const QUALITY_PRICE_MULTIPLIERS: Record<Quality, number> = {
   normal: 1.0,
   fine: 1.25,
@@ -124,6 +127,12 @@ const QUALITY_PRICE_LABELS: Record<Quality, string> = {
 const MARKET_CATEGORY_IDS: MarketCategory[] = ['crop', 'fish', 'animal_product', 'processed', 'fruit', 'ore', 'gem']
 const isMarketCategory = (category: string): category is MarketCategory =>
   MARKET_CATEGORY_IDS.includes(category as MarketCategory)
+const DEFAULT_MARKET_PRESSURE_RELIEF = {
+  activeRouteIds: [] as string[],
+  activeRouteCount: 0,
+  reliefRate: 0,
+  volumeMultiplier: 1
+}
 const BLACKSMITH_QUARTZ_ITEM_ID = 'quartz'
 const BLACKSMITH_QUARTZ_PRICE = 220
 const BLACKSMITH_QUARTZ_WEEKLY_LIMIT = 4
@@ -729,7 +738,7 @@ export const useShopStore = defineStore('shop', () => {
       case 'grant_chest':
         return canGrantCatalogChest(offer) ? '' : '仓库箱位已达上限，无法完整获得该商品附带的永久箱位。'
       case 'add_items':
-        return canReceiveItemBundle(offer.effect.items) ? '' : '背包空间不足，无法领取整包物资。'
+        return canReceiveItemBundle(offer.effect.items, applyDiscount(offer.price)) ? '' : '背包空间不足，无法领取整包物资。'
       default:
         return ''
     }
@@ -1096,7 +1105,7 @@ export const useShopStore = defineStore('shop', () => {
   const activeMarketRegionalProcurements = computed(() => marketDynamics.value.regionalProcurements)
   const activeMarketSubstituteRewards = computed(() => marketDynamics.value.substituteRewards)
   const activeMarketThemeEncouragement = computed(() => marketDynamics.value.themeEncouragement)
-  const currentMarketPriceInfos = computed(() => getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, getRecentShipping()))
+  const currentMarketPriceInfos = computed(() => getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, getMarketPressureAdjustedShipping(getRecentShipping())))
   const villageResidentShelfNotes = computed(() => {
     const lifestyleSnapshot = playerStore.getLifestyleDiscoverySnapshot()
     const unlockContext = {
@@ -1229,7 +1238,8 @@ export const useShopStore = defineStore('shop', () => {
     const logs: string[] = []
     const nextState = deserializeMarketDynamics(marketDynamics.value)
     const currentAbsoluteDay = parseDayKeyToAbsoluteDay(payload.currentDayTag) ?? getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
-    const recentShipping = getRecentShipping()
+    const rawRecentShipping = getRecentShipping()
+    const recentShipping = getMarketPressureAdjustedShipping(rawRecentShipping)
     const priceInfos = getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, recentShipping)
     const currentThemeWeek = goalStore.currentThemeWeek
 
@@ -1842,8 +1852,43 @@ export const useShopStore = defineStore('shop', () => {
     }
   }
 
-  const canReceiveItemBundle = (items: { itemId: string; quantity: number }[]): boolean => {
-    return inventoryStore.canAddItems(items.map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' })))
+  const getShopPurchaseDayKey = (): string => `${gameStore.year}_${gameStore.seasonIndex}_${gameStore.day}`
+
+  const createShopPurchaseMeta = (unitPrice: number): InventoryItemStackMeta => ({
+    origin: 'shop',
+    purchaseDay: getShopPurchaseDayKey(),
+    purchaseUnitPrice: Math.max(0, Math.floor(Number(unitPrice) || 0))
+  })
+
+  const buildShopPurchaseBundleEntries = (
+    items: { itemId: string; quantity: number }[],
+    totalCost: number
+  ): Array<{ itemId: string; quantity: number; quality: Quality } & InventoryItemStackMeta> => {
+    const normalizedItems = items
+      .map(item => ({ itemId: item.itemId, quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)) }))
+      .filter(item => item.itemId && item.quantity > 0 && !!getItemById(item.itemId))
+    const normalizedTotalCost = Math.max(0, Math.floor(Number(totalCost) || 0))
+    const totalWeight = normalizedItems.reduce((sum, item) => {
+      const sellPrice = getItemById(item.itemId)?.sellPrice ?? 0
+      return sum + Math.max(1, sellPrice) * item.quantity
+    }, 0)
+
+    return normalizedItems.map(item => {
+      const sellPrice = getItemById(item.itemId)?.sellPrice ?? 0
+      const weight = Math.max(1, sellPrice) * item.quantity
+      const allocatedTotal = totalWeight > 0 ? Math.floor((normalizedTotalCost * weight) / totalWeight) : 0
+      const unitPrice = item.quantity > 0 ? Math.floor(allocatedTotal / item.quantity) : 0
+      return {
+        itemId: item.itemId,
+        quantity: item.quantity,
+        quality: 'normal',
+        ...createShopPurchaseMeta(unitPrice)
+      }
+    })
+  }
+
+  const canReceiveItemBundle = (items: { itemId: string; quantity: number }[], totalCost: number = 0): boolean => {
+    return inventoryStore.canAddItems(buildShopPurchaseBundleEntries(items, totalCost))
   }
 
   const canPurchaseCatalogOffer = (offerId: string): boolean => {
@@ -1870,7 +1915,7 @@ export const useShopStore = defineStore('shop', () => {
       case 'grant_chest':
         return canGrantCatalogChest(offer)
       case 'add_items':
-        return canReceiveItemBundle(offer.effect.items)
+        return canReceiveItemBundle(offer.effect.items, applyDiscount(offer.price))
       case 'activate_service_contract':
         return !!offer.serviceContractConfig
       default:
@@ -1979,15 +2024,18 @@ export const useShopStore = defineStore('shop', () => {
           if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
           break
         case 'add_items':
-          success = canReceiveItemBundle(offer.effect.items)
-          if (success) {
-            for (const reward of offer.effect.items) {
-              if (!inventoryStore.addItemExact(reward.itemId, reward.quantity)) {
-                success = false
-                break
+          {
+            const bundleEntries = buildShopPurchaseBundleEntries(offer.effect.items, totalCost)
+            success = inventoryStore.canAddItems(bundleEntries)
+            if (success) {
+              for (const reward of bundleEntries) {
+                if (!inventoryStore.addItemExact(reward.itemId, reward.quantity, reward.quality, true, reward)) {
+                  success = false
+                  break
+                }
               }
+              if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
             }
-            if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
           }
           break
         case 'activate_service_contract':
@@ -2062,10 +2110,12 @@ export const useShopStore = defineStore('shop', () => {
   const buySeed = (seedId: string, quantity: number = 1): boolean => {
     const seed = availableSeeds.value.find(s => s.seedId === seedId)
     if (!seed) return false
-    if (!inventoryStore.canAddItem(seedId, quantity)) return false
-    const totalCost = applyDiscount(seed.price) * quantity
+    const unitPrice = applyDiscount(seed.price)
+    const meta = createShopPurchaseMeta(unitPrice)
+    if (!inventoryStore.canAddItem(seedId, quantity, 'normal', true, meta)) return false
+    const totalCost = unitPrice * quantity
     if (!playerStore.spendMoney(totalCost)) return false
-    if (!inventoryStore.addItemExact(seedId, quantity)) {
+    if (!inventoryStore.addItemExact(seedId, quantity, 'normal', true, meta)) {
       playerStore.earnMoney(totalCost, { countAsEarned: false })
       return false
     }
@@ -2150,12 +2200,14 @@ export const useShopStore = defineStore('shop', () => {
     const requestedQuantity = Math.max(1, Math.floor(quantity))
     const limitHint = getBlacksmithItemLimitHint(itemId, requestedQuantity)
     if (limitHint) return { success: false, message: limitHint }
-    if (!inventoryStore.canAddItem(itemId, requestedQuantity)) return { success: false, message: '背包已满，无法购买。' }
+    const unitPrice = applyDiscount(price)
+    const meta = createShopPurchaseMeta(unitPrice)
+    if (!inventoryStore.canAddItem(itemId, requestedQuantity, 'normal', true, meta)) return { success: false, message: '背包已满，无法购买。' }
 
-    const totalCost = applyDiscount(price) * requestedQuantity
+    const totalCost = unitPrice * requestedQuantity
     if (!playerStore.spendMoney(totalCost)) return { success: false, message: '铜钱不足。' }
 
-    if (!inventoryStore.addItemExact(itemId, requestedQuantity)) {
+    if (!inventoryStore.addItemExact(itemId, requestedQuantity, 'normal', true, meta)) {
       playerStore.earnMoney(totalCost, { countAsEarned: false })
       return { success: false, message: '背包已满，无法购买。' }
     }
@@ -2247,10 +2299,12 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 购买通用物品 */
   const buyItem = (itemId: string, price: number, quantity: number = 1): boolean => {
-    if (!inventoryStore.canAddItem(itemId, quantity)) return false
-    const totalCost = applyDiscount(price) * quantity
+    const unitPrice = applyDiscount(price)
+    const meta = createShopPurchaseMeta(unitPrice)
+    if (!inventoryStore.canAddItem(itemId, quantity, 'normal', true, meta)) return false
+    const totalCost = unitPrice * quantity
     if (!playerStore.spendMoney(totalCost)) return false
-    if (!inventoryStore.addItemExact(itemId, quantity)) {
+    if (!inventoryStore.addItemExact(itemId, quantity, 'normal', true, meta)) {
       playerStore.earnMoney(totalCost, { countAsEarned: false })
       return false
     }
@@ -2402,13 +2456,14 @@ export const useShopStore = defineStore('shop', () => {
 
     if (isMarketCategory(itemDef.category)) {
       const recentVolume = getRecentShipping()[itemDef.category] ?? 0
-      const marketMultiplier = getMarketMultiplier(itemDef.category, gameStore.year, gameStore.seasonIndex, gameStore.day, recentVolume)
+      const pressureAdjustment = getMarketPressureAdjustedVolume(itemDef.category, recentVolume)
+      const marketMultiplier = getMarketMultiplier(itemDef.category, gameStore.year, gameStore.seasonIndex, gameStore.day, pressureAdjustment.effectiveVolume)
       pushStep({
         id: 'market_multiplier',
         label: `市场：${MARKET_CATEGORY_NAMES[itemDef.category]}`,
         category: 'market',
         multiplier: marketMultiplier,
-        description: `近7天同品类出货 ${recentVolume}，当前行情倍率 ×${marketMultiplier.toFixed(2)}`
+        description: formatMarketPressureDescription(pressureAdjustment, marketMultiplier)
       })
     }
 
@@ -2495,6 +2550,61 @@ export const useShopStore = defineStore('shop', () => {
     }
   }
 
+  const isShopOriginInventoryItem = (item: Pick<InventoryItem, 'origin'> | null | undefined): boolean => item?.origin === 'shop'
+
+  const getShopBuybackUnitPrice = (item: Pick<InventoryItem, 'origin' | 'purchaseUnitPrice'> | null | undefined): number => {
+    if (!item || item.origin !== 'shop') return 0
+    const purchaseUnitPrice = Math.max(0, Math.floor(Number(item.purchaseUnitPrice) || 0))
+    return Math.floor(purchaseUnitPrice * SHOP_BUYBACK_RATE)
+  }
+
+  const getShopBuybackBreakdown = (item: InventoryItem, quantity: number): SellPriceBreakdown => {
+    const normalizedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    const purchaseUnitPrice = Math.max(0, Math.floor(Number(item.purchaseUnitPrice) || 0))
+    const buybackUnitPrice = getShopBuybackUnitPrice(item)
+    const finalTotal = buybackUnitPrice * normalizedQuantity
+    return {
+      itemId: item.itemId,
+      quantity: normalizedQuantity,
+      quality: item.quality,
+      baseUnitPrice: buybackUnitPrice,
+      baseTotal: finalTotal,
+      preMarketTotal: finalTotal,
+      finalTotal,
+      marketMultiplier: 1,
+      steps: [],
+      entries: [
+        {
+          stepId: 'shop_purchase_unit_price',
+          label: '商圈购入价',
+          category: 'base',
+          subtotal: purchaseUnitPrice * normalizedQuantity,
+          description: `${purchaseUnitPrice}文 × ${normalizedQuantity}`
+        },
+        {
+          stepId: 'shop_buyback_unit_price',
+          label: '商圈回购价',
+          category: 'summary',
+          multiplier: SHOP_BUYBACK_RATE,
+          subtotal: finalTotal,
+          description: `回购单价 floor(${purchaseUnitPrice}文 × 80%)，不受品质、技能、装备、祝福、仙缘、行情或节庆倍率影响`
+        }
+      ]
+    }
+  }
+
+  const getInventorySlotSellPriceBreakdown = (inventoryIndex: number, quantity: number): SellPriceBreakdown | null => {
+    const item = inventoryStore.items[inventoryIndex]
+    if (!item || quantity <= 0) return null
+    return isShopOriginInventoryItem(item)
+      ? getShopBuybackBreakdown(item, quantity)
+      : getSellPriceBreakdown(item.itemId, quantity, item.quality)
+  }
+
+  const calculateInventorySlotSellPrice = (inventoryIndex: number, quantity: number = 1): number => {
+    return getInventorySlotSellPriceBreakdown(inventoryIndex, quantity)?.finalTotal ?? 0
+  }
+
   /** 计算物品售价（不执行出售，用于估价） */
   const calculateSellPrice = (itemId: string, quantity: number, quality: Quality): number => {
     return getSellPriceBreakdown(itemId, quantity, quality).finalTotal
@@ -2570,10 +2680,44 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 出售物品，返回实际售价（0表示失败） */
   const sellItem = (itemId: string, quantity: number = 1, quality: Quality = 'normal'): number => {
-    if (!inventoryStore.removeUnlockedItem(itemId, quantity, quality)) return 0
-    const totalPrice = calculateSellPrice(itemId, quantity, quality)
-    playerStore.earnMoney(totalPrice)
-    recordCompletedSale(itemId, quantity, 'direct_shop')
+    const requestedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (requestedQuantity <= 0) return 0
+    const available = inventoryStore.items
+      .filter(item => !item.locked && !isShopOriginInventoryItem(item) && item.itemId === itemId && item.quality === quality)
+      .reduce((sum, item) => sum + item.quantity, 0)
+    if (available < requestedQuantity) return 0
+
+    let remaining = requestedQuantity
+    let totalPrice = 0
+    for (let i = inventoryStore.items.length - 1; i >= 0 && remaining > 0; i--) {
+      const item = inventoryStore.items[i]!
+      if (item.locked || isShopOriginInventoryItem(item) || item.itemId !== itemId || item.quality !== quality) continue
+      const take = Math.min(remaining, item.quantity)
+      const earned = sellInventorySlot(i, take)
+      if (earned <= 0) return 0
+      totalPrice += earned
+      remaining -= take
+    }
+    return remaining <= 0 ? totalPrice : 0
+  }
+
+  const sellInventorySlot = (inventoryIndex: number, quantity: number = 1): number => {
+    const item = inventoryStore.items[inventoryIndex]
+    const requestedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (!item || item.locked || requestedQuantity <= 0 || item.quantity < requestedQuantity) return 0
+
+    const breakdown = getInventorySlotSellPriceBreakdown(inventoryIndex, requestedQuantity)
+    if (!breakdown) return 0
+    const removed = inventoryStore.removeUnlockedItemAtIndex(inventoryIndex, requestedQuantity)
+    if (!removed) return 0
+
+    const totalPrice = breakdown.finalTotal
+    if (isShopOriginInventoryItem(removed)) {
+      playerStore.earnMoney(totalPrice, { countAsEarned: false, system: 'shop' })
+    } else {
+      playerStore.earnMoney(totalPrice)
+      recordCompletedSale(removed.itemId, requestedQuantity, 'direct_shop')
+    }
     return totalPrice
   }
 
@@ -2637,10 +2781,11 @@ export const useShopStore = defineStore('shop', () => {
   const buyFromTraveler = (itemId: string): boolean => {
     const item = travelingStock.value.find(s => s.itemId === itemId)
     if (!item || item.quantity <= 0) return false
-    if (!inventoryStore.canAddItem(itemId, 1)) return false
     const finalPrice = applyDiscount(item.price)
+    const meta = createShopPurchaseMeta(finalPrice)
+    if (!inventoryStore.canAddItem(itemId, 1, 'normal', true, meta)) return false
     if (!playerStore.spendMoney(finalPrice)) return false
-    if (!inventoryStore.addItemExact(itemId)) {
+    if (!inventoryStore.addItemExact(itemId, 1, 'normal', true, meta)) {
       playerStore.earnMoney(finalPrice, { countAsEarned: false })
       return false
     }
@@ -2686,12 +2831,27 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 添加物品到出货箱 */
   const addToShippingBox = (itemId: string, quantity: number, quality: Quality): boolean => {
-    if (!inventoryStore.removeUnlockedItem(itemId, quantity, quality)) return false
+    const requestedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (requestedQuantity <= 0) return false
+    const available = inventoryStore.items
+      .filter(item => !item.locked && !isShopOriginInventoryItem(item) && item.itemId === itemId && item.quality === quality)
+      .reduce((sum, item) => sum + item.quantity, 0)
+    if (available < requestedQuantity) return false
+
+    let remaining = requestedQuantity
+    for (let i = inventoryStore.items.length - 1; i >= 0 && remaining > 0; i--) {
+      const item = inventoryStore.items[i]!
+      if (item.locked || isShopOriginInventoryItem(item) || item.itemId !== itemId || item.quality !== quality) continue
+      const take = Math.min(remaining, item.quantity)
+      if (!inventoryStore.removeUnlockedItemAtIndex(i, take)) return false
+      remaining -= take
+    }
+    if (remaining > 0) return false
     const existing = shippingBox.value.find(s => s.itemId === itemId && s.quality === quality)
     if (existing) {
-      existing.quantity += quantity
+      existing.quantity += requestedQuantity
     } else {
-      shippingBox.value.push({ itemId, quantity, quality })
+      shippingBox.value.push({ itemId, quantity: requestedQuantity, quality })
     }
     return true
   }
@@ -2749,11 +2909,15 @@ export const useShopStore = defineStore('shop', () => {
       for (const entry of shippingBox.value) {
         const itemDef = getItemById(entry.itemId)
         if (itemDef) {
-          const baseRecentVolume = recentShippingBase[itemDef.category as MarketCategory] ?? 0
-          const currentDayBaseVolume = currentDayRecord[itemDef.category as MarketCategory] ?? 0
-          const effectiveRecentVolume = Math.max(0, baseRecentVolume - currentDayBaseVolume + (dayRecord[itemDef.category as MarketCategory] ?? 0))
+          const category = itemDef.category
+          const baseRecentVolume = recentShippingBase[category as MarketCategory] ?? 0
+          const currentDayBaseVolume = currentDayRecord[category as MarketCategory] ?? 0
+          const projectedRecentVolume = Math.max(0, baseRecentVolume - currentDayBaseVolume + (dayRecord[category as MarketCategory] ?? 0))
+          const effectiveRecentVolume = isMarketCategory(category)
+            ? getMarketPressureAdjustedVolume(category, projectedRecentVolume).effectiveVolume
+            : projectedRecentVolume
           const marketMultiplier = getMarketMultiplier(
-            itemDef.category as MarketCategory,
+            category,
             gameStore.year,
             gameStore.seasonIndex,
             gameStore.day,
@@ -2866,6 +3030,53 @@ export const useShopStore = defineStore('shop', () => {
       }
     }
     return result
+  }
+
+  const getCommerceMarketPressureRelief = (category: MarketCategory) => {
+    try {
+      const relief = useHanhaiStore().getMarketPressureRelief(category)
+      return {
+        ...DEFAULT_MARKET_PRESSURE_RELIEF,
+        ...relief,
+        activeRouteIds: [...(relief.activeRouteIds ?? [])]
+      }
+    } catch {
+      return { ...DEFAULT_MARKET_PRESSURE_RELIEF }
+    }
+  }
+
+  const getMarketPressureAdjustedVolume = (category: MarketCategory, rawVolume: number) => {
+    const safeRawVolume = Math.max(0, Number(rawVolume) || 0)
+    const relief = getCommerceMarketPressureRelief(category)
+    const effectiveVolume = safeRawVolume > 0
+      ? Math.min(safeRawVolume, Math.max(0, Math.round(safeRawVolume * relief.volumeMultiplier)))
+      : 0
+    return {
+      category,
+      rawVolume: safeRawVolume,
+      effectiveVolume,
+      relief
+    }
+  }
+
+  const getMarketPressureAdjustedShipping = (shipping: Partial<Record<MarketCategory, number>>): Partial<Record<MarketCategory, number>> => {
+    const result: Partial<Record<MarketCategory, number>> = {}
+    for (const category of MARKET_CATEGORY_IDS) {
+      const rawVolume = shipping[category] ?? 0
+      if (rawVolume <= 0) continue
+      result[category] = getMarketPressureAdjustedVolume(category, rawVolume).effectiveVolume
+    }
+    return result
+  }
+
+  const formatMarketPressureDescription = (
+    adjustment: ReturnType<typeof getMarketPressureAdjustedVolume>,
+    marketMultiplier: number
+  ): string => {
+    if (adjustment.relief.activeRouteCount > 0 && adjustment.effectiveVolume !== adjustment.rawVolume) {
+      return `近7天同品类有效出货 ${adjustment.effectiveVolume}（商路缓冲前 ${adjustment.rawVolume}，已投入商路 ${adjustment.relief.activeRouteCount} 条，压力 -${Math.round(adjustment.relief.reliefRate * 100)}%），当前行情倍率 ×${marketMultiplier.toFixed(2)}`
+    }
+    return `近7天同品类出货 ${adjustment.rawVolume}，当前行情倍率 ×${marketMultiplier.toFixed(2)}`
   }
 
   /** 获取近7天最容易被村民提起的具体出货物品。 */
@@ -3361,9 +3572,13 @@ export const useShopStore = defineStore('shop', () => {
     // 通用
     buyItem,
     sellItem,
+    sellInventorySlot,
     calculateSellPrice,
+    calculateInventorySlotSellPrice,
     calculateBaseSellPrice,
     getSellPriceBreakdown,
+    getInventorySlotSellPriceBreakdown,
+    getShopBuybackUnitPrice,
     // 旅行商人
     travelingStock,
     isMerchantHere,
@@ -3386,6 +3601,8 @@ export const useShopStore = defineStore('shop', () => {
     shippedItems,
     // 行情供需
     getRecentShipping,
+    getMarketPressureAdjustedVolume,
+    getMarketPressureAdjustedShipping,
     getRecentShippingItemSummaries,
     // 序列化
     serialize,

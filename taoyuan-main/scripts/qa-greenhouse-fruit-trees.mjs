@@ -126,6 +126,8 @@ const chopFruitTreeModalIndex = farmViewSource.indexOf('<!-- 砍伐果树确认�
 const scriptSetupIndex = farmViewSource.indexOf('<script setup')
 
 assert(farmTabNavSource.includes('data-testid="farm-greenhouse-tab"'), '温室入口应放在农场页顶部页签栏，与林木相邻。')
+assert(farmTabNavSource.includes('data-testid="farm-greenhouse-harvest-badge"'), '温室顶部入口应保留成熟作物可收获数量提示。')
+assert(farmTabNavSource.includes('greenhouseTabTitle'), '温室顶部入口应提供悬停摘要，显示地块、可收获作物和果树数量。')
 assert(!farmEntryGridSource.includes('showGreenhouseModal'), '田庄内容区不应再保留单独温室入口卡片，避免和顶部页签重复。')
 assert(greenhouseModalIndex >= 0, '农场页应保留温室弹窗。')
 assert(chopFruitTreeModalIndex > greenhouseModalIndex, '砍伐果树确认弹窗应挂在温室弹窗之后，避免温室内点击果树后被页签或弹窗层级挡住。')

@@ -18,7 +18,12 @@ import {
   WS20_EVENT_MAIL_TEMPLATE_REFS,
   WS10_EVENT_OPERATION_TUNING_CONFIG,
   WS10_EVENT_OPERATIONS_BASELINE_AUDIT,
-  WEEKLY_GOAL_FAILURE_COMPENSATION_RULE
+  WEEKLY_GOAL_FAILURE_COMPENSATION_RULE,
+  WEEKLY_ACTIVITY_TASK_COUNT,
+  getWeeklyActivityThemeDef,
+  getWeeklyActivityRewardTiers,
+  getWeeklyActivityTasksForWeek,
+  getWeeklyActivityThemeForWeek
 } from '@/data/goals'
 import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
 import { WEEKLY_BUDGET_CHANNEL_MAP, WEEKLY_BUDGET_CHANNELS } from '@/data/weeklyBudgets'
@@ -32,9 +37,16 @@ import type {
   ProgressBridgeEntryCriteria,
   ProgressBridgeStageId,
   ProgressBridgeState,
+  RewardTicketLedger,
   RewardTicketType,
   ThemeWeekState,
   ThemeWeekRewardPoolEntry,
+  WeeklyActivityCounterKey,
+  WeeklyActivityMetricKey,
+  WeeklyActivityRewardTier,
+  WeeklyActivityState,
+  WeeklyActivityTaskState,
+  WeeklyActivityThemeId,
   WeeklyChronicleEntry,
   WeeklyChronicleHighlightType,
   WeeklyBudgetArchive,
@@ -102,6 +114,7 @@ interface GoalReward {
   money?: number
   reputation?: number
   items?: GoalRewardItem[]
+  ticketRewards?: RewardTicketLedger
   unlockHint?: string
 }
 
@@ -142,11 +155,15 @@ export interface MainQuestStageState {
 }
 
 const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
-const GOAL_SAVE_VERSION = 6
+const GOAL_SAVE_VERSION = 7
+const WEEKLY_ACTIVITY_STATE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_LIMIT = 4
 const WEEKLY_BUDGET_ARCHIVE_LIMIT = 8
 const WEEKLY_CHRONICLE_LIMIT = 8
+const WEEKLY_ACTIVITY_THEME_IDS = new Set<WeeklyActivityThemeId>(['fishpond', 'breeding', 'gathering', 'mining', 'planting', 'region_map'])
+const WEEKLY_ACTIVITY_TASK_KINDS = new Set(['counter', 'metric', 'itemSubmission', 'fishSubmission', 'seedSubmission'])
+const WEEKLY_ACTIVITY_REWARD_THRESHOLDS_SET = new Set([5, 7, 10])
 
 const WEEKLY_PLAN_ROUTE_LABELS: Record<WeeklyPlanRouteId, string> = {
   top_goals: 'TopGoals',
@@ -350,6 +367,34 @@ const createEmptyWeeklyBudgetPlan = (weekId = '', activatedAtDayTag = ''): Weekl
   ticketBalances: {}
 })
 
+const getWeeklyBudgetSinkCategory = (channelId: WeeklyBudgetChannelId) =>
+  channelId === 'museum' ? 'themeActivity' : channelId === 'trade' ? 'service' : 'construction'
+
+const createWeeklyBudgetSelection = (
+  channelId: WeeklyBudgetChannelId,
+  tierDef: WeeklyBudgetTierDef,
+  costPreview: GoalReputationBudgetDiscountPreview,
+  activatedWeekId: string,
+  activatedDayTag: string,
+  autoRenew = false
+): WeeklyBudgetSelection => ({
+  channelId,
+  tierId: tierDef.id,
+  tier: tierDef.tier,
+  tierLabel: tierDef.label,
+  costMoney: costPreview.paidCostMoney,
+  baseCostMoney: costPreview.baseCostMoney,
+  discountMoney: costPreview.discountMoney,
+  discountRate: costPreview.discountRate,
+  discountSourceTierId: costPreview.tierId,
+  discountSourceLabel: costPreview.tierLabel,
+  projectedValue: tierDef.projectedValue,
+  effect: tierDef.effect,
+  activatedWeekId,
+  activatedDayTag,
+  autoRenew
+})
+
 const normalizeWeeklyPlanRouteId = (value: unknown): WeeklyPlanRouteId | null => {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toLowerCase()
@@ -519,7 +564,8 @@ const normalizeWeeklyBudgetSelection = (value: unknown): WeeklyBudgetSelection |
     projectedValue: tierDef.projectedValue,
     effect: tierDef.effect,
     activatedWeekId: typeof raw.activatedWeekId === 'string' ? raw.activatedWeekId : '',
-    activatedDayTag: typeof raw.activatedDayTag === 'string' ? raw.activatedDayTag : ''
+    activatedDayTag: typeof raw.activatedDayTag === 'string' ? raw.activatedDayTag : '',
+    autoRenew: raw.autoRenew === true
   }
 }
 
@@ -639,6 +685,7 @@ export const useGoalStore = defineStore('goal', () => {
   const weeklyMetricArchive = ref<WeeklyMetricArchive>(createEmptyWeeklyMetricArchive())
   const weeklyBudgetPlan = ref<WeeklyBudgetPlan>(createEmptyWeeklyBudgetPlan())
   const weeklyBudgetHistory = ref<WeeklyBudgetArchive[]>([])
+  const weeklyActivityState = ref<WeeklyActivityState | null>(null)
   const progressBridgeStates = ref<ProgressBridgeState[]>([])
   const weeklyChronicleEntries = ref<WeeklyChronicleEntry[]>([])
   const eventOperationsBaselineAudit = WS10_EVENT_OPERATIONS_BASELINE_AUDIT
@@ -883,7 +930,14 @@ export const useGoalStore = defineStore('goal', () => {
       return false
     }
 
-    playerStore.recordSinkSpend(costPreview.paidCostMoney, channelId === 'museum' ? 'themeActivity' : channelId === 'trade' ? 'service' : 'construction')
+    playerStore.recordSinkSpend(costPreview.paidCostMoney, getWeeklyBudgetSinkCategory(channelId))
+    const selection = createWeeklyBudgetSelection(
+      channelId,
+      tierDef,
+      costPreview,
+      getCurrentThemeWeekTag(),
+      getCurrentDayTag()
+    )
 
     weeklyBudgetPlan.value = {
       ...weeklyBudgetPlan.value,
@@ -891,22 +945,7 @@ export const useGoalStore = defineStore('goal', () => {
       activatedAtDayTag: weeklyBudgetPlan.value.activatedAtDayTag || getCurrentDayTag(),
       selections: {
         ...weeklyBudgetPlan.value.selections,
-        [channelId]: {
-          channelId,
-          tierId: tierDef.id,
-          tier: tierDef.tier,
-          tierLabel: tierDef.label,
-          costMoney: costPreview.paidCostMoney,
-          baseCostMoney: costPreview.baseCostMoney,
-          discountMoney: costPreview.discountMoney,
-          discountRate: costPreview.discountRate,
-          discountSourceTierId: costPreview.tierId,
-          discountSourceLabel: costPreview.tierLabel,
-          projectedValue: tierDef.projectedValue,
-          effect: tierDef.effect,
-          activatedWeekId: getCurrentThemeWeekTag(),
-          activatedDayTag: getCurrentDayTag()
-        }
+        [channelId]: selection
       }
     }
 
@@ -929,8 +968,43 @@ export const useGoalStore = defineStore('goal', () => {
     return true
   }
 
+  const setWeeklyBudgetAutoRenew = (channelId: WeeklyBudgetChannelId, autoRenew: boolean) => {
+    ensureWeeklyBudgetPlan()
+    const selection = weeklyBudgetPlan.value.selections[channelId]
+    const channelDef = WEEKLY_BUDGET_CHANNEL_MAP[channelId]
+    if (!selection || !channelDef) {
+      showFloat('请先投入本周预算。', 'danger')
+      return false
+    }
+
+    weeklyBudgetPlan.value = {
+      ...weeklyBudgetPlan.value,
+      selections: {
+        ...weeklyBudgetPlan.value.selections,
+        [channelId]: {
+          ...selection,
+          autoRenew
+        }
+      }
+    }
+
+    addLog(`【周预算】${channelDef.shortLabel}${selection.tierLabel}${autoRenew ? '已开启' : '已关闭'}自动续投。`, {
+      category: 'economy',
+      tags: ['weekly_budget_auto_renew_toggle'],
+      meta: {
+        channelId,
+        tierId: selection.tierId,
+        autoRenew: autoRenew ? 1 : 0
+      }
+    })
+    showFloat(autoRenew ? '已开启自动续投' : '已关闭自动续投', 'success')
+    return true
+  }
+
   const resetWeeklyBudgetsForNewWeek = (nextWeekId: string, dayTag: string) => {
-    const hadSelections = Object.keys(weeklyBudgetPlan.value.selections).length > 0
+    const activeSelections = Object.values(weeklyBudgetPlan.value.selections)
+      .filter((selection): selection is WeeklyBudgetSelection => Boolean(selection))
+    const hadSelections = activeSelections.length > 0
     const expiredPlan = hadSelections && weeklyBudgetPlan.value.weekId
       ? {
           ...weeklyBudgetPlan.value,
@@ -943,6 +1017,75 @@ export const useGoalStore = defineStore('goal', () => {
     }
 
     weeklyBudgetPlan.value = createEmptyWeeklyBudgetPlan(nextWeekId, dayTag)
+
+    const autoRenewSelections = activeSelections.filter(selection => selection.autoRenew === true)
+    if (autoRenewSelections.length > 0) {
+      const playerStore = usePlayerStore()
+      const renewedSelections: WeeklyBudgetSelection[] = []
+      const failedRenewals: string[] = []
+      const nextSelections: WeeklyBudgetPlan['selections'] = {}
+
+      for (const selection of autoRenewSelections) {
+        const channelDef = WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId]
+        const tierDef = channelDef?.tiers.find((tier: WeeklyBudgetTierDef) => tier.id === selection.tierId)
+        const label = `${channelDef?.shortLabel ?? selection.channelId}${selection.tierLabel}`
+        if (!channelDef || !tierDef) {
+          failedRenewals.push(`${label}（档位已不可用）`)
+          continue
+        }
+
+        const costPreview = getWeeklyBudgetReputationDiscount(tierDef.costMoney)
+        if (!playerStore.spendMoney(costPreview.paidCostMoney, 'goal')) {
+          failedRenewals.push(`${label}（需${costPreview.paidCostMoney}文）`)
+          continue
+        }
+
+        playerStore.recordSinkSpend(costPreview.paidCostMoney, getWeeklyBudgetSinkCategory(selection.channelId))
+        const renewedSelection = createWeeklyBudgetSelection(
+          selection.channelId,
+          tierDef,
+          costPreview,
+          nextWeekId,
+          dayTag,
+          true
+        )
+        nextSelections[selection.channelId] = renewedSelection
+        renewedSelections.push(renewedSelection)
+      }
+
+      if (renewedSelections.length > 0) {
+        weeklyBudgetPlan.value = {
+          ...weeklyBudgetPlan.value,
+          selections: {
+            ...weeklyBudgetPlan.value.selections,
+            ...nextSelections
+          }
+        }
+        addLog(`【周预算】已自动续投：${renewedSelections.map(selection => {
+          const channelDef = WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId]
+          return `${channelDef.shortLabel}${selection.tierLabel}（-${selection.costMoney}文）`
+        }).join('、')}。`, {
+          category: 'economy',
+          tags: ['weekly_budget_auto_renewed', 'late_game_cycle'],
+          meta: {
+            weekId: nextWeekId,
+            selectionCount: renewedSelections.length
+          }
+        })
+      }
+
+      if (failedRenewals.length > 0) {
+        addLog(`【周预算】自动续投未完成：${failedRenewals.join('、')}，请手动重新选择。`, {
+          category: 'economy',
+          tags: ['weekly_budget_auto_renew_failed', 'late_game_cycle'],
+          meta: {
+            weekId: nextWeekId,
+            failedCount: failedRenewals.length
+          }
+        })
+      }
+    }
+
     return expiredPlan
   }
 
@@ -1210,6 +1353,11 @@ export const useGoalStore = defineStore('goal', () => {
           .join('、')
       )
     }
+    const ticketSummary = Object.entries(reward.ticketRewards ?? {})
+      .filter(([, amount]) => (Number(amount) || 0) > 0)
+      .map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as RewardTicketType] ?? ticketType}+${amount}`)
+      .join('、')
+    if (ticketSummary) summaryParts.push(ticketSummary)
     return summaryParts.join('、')
   }
 
@@ -1217,6 +1365,7 @@ export const useGoalStore = defineStore('goal', () => {
     money: reward.money,
     reputation: reward.reputation,
     items: reward.items?.map(item => ({ ...item })),
+    ticketRewards: reward.ticketRewards ? { ...reward.ticketRewards } : undefined,
     unlockHint: reward.unlockHint
   })
 
@@ -1386,6 +1535,350 @@ export const useGoalStore = defineStore('goal', () => {
     }
   }
 
+  const getWeeklyActivityUnlocks = (): Partial<Record<WeeklyActivityThemeId, boolean>> => {
+    const fishPondStore = useFishPondStore()
+    const breedingStore = useBreedingStore()
+    const homeStore = useHomeStore()
+    const regionMapStore = useRegionMapStore()
+    return {
+      fishpond: fishPondStore.pond.built,
+      breeding: breedingStore.unlocked,
+      gathering: true,
+      mining: homeStore.caveUnlocked,
+      planting: true,
+      region_map: regionMapStore.regionIntegrationEnabled
+    }
+  }
+
+  const getWeeklyActivityTaskContext = () => {
+    const weekInfo = getCurrentWeekInfo()
+    const fishPondStore = useFishPondStore()
+    return {
+      season: weekInfo.season,
+      pondLevel: fishPondStore.pond.level
+    }
+  }
+
+  const getSeedTotalStats = (genetics: { sweetness?: number; yield?: number; resistance?: number; stability?: number }) =>
+    Math.max(0, Number(genetics.sweetness) || 0) +
+    Math.max(0, Number(genetics.yield) || 0) +
+    Math.max(0, Number(genetics.resistance) || 0) +
+    Math.max(0, Number(genetics.stability) || 0)
+
+  const getWeeklyActivityMetricValue = (metricKey: WeeklyActivityMetricKey): number => {
+    const achievementStore = useAchievementStore()
+    const breedingStore = useBreedingStore()
+    const regionMapStore = useRegionMapStore()
+    switch (metricKey) {
+      case 'totalCropsHarvested':
+        return achievementStore.stats.totalCropsHarvested
+      case 'totalBreedingsDone':
+        return achievementStore.stats.totalBreedingsDone
+      case 'totalHybridsDiscovered':
+        return achievementStore.stats.totalHybridsDiscovered
+      case 'highestHybridTier':
+        return achievementStore.stats.highestHybridTier
+      case 'bestBreedingSeedGeneration':
+        return breedingStore.breedingBox.reduce((best, seed) => Math.max(best, seed.genetics.generation), 0)
+      case 'bestBreedingSeedScore':
+        return breedingStore.breedingBox.reduce((best, seed) => Math.max(best, getSeedTotalStats(seed.genetics)), 0)
+      case 'totalMonstersKilled':
+        return achievementStore.stats.totalMonstersKilled
+      case 'highestMineFloor':
+        return achievementStore.stats.highestMineFloor
+      case 'regionRouteCompletions':
+        return regionMapStore.regionIntegrationEnabled ? regionMapStore.saveData.telemetry.totalRouteCompletions : 0
+      case 'expeditionBossClears':
+        return regionMapStore.expeditionFeatureEnabled ? regionMapStore.saveData.telemetry.bossClears : 0
+      case 'regionalResourceTurnIns':
+        return regionMapStore.resourceFeatureEnabled ? regionMapStore.saveData.telemetry.resourceTurnIns : 0
+      case 'discoveredCount':
+        return achievementStore.discoveredCount
+      default:
+        return 0
+    }
+  }
+
+  const createWeeklyActivityTaskState = (task: Omit<WeeklyActivityTaskState, 'progressValue' | 'completed'>): WeeklyActivityTaskState => ({
+    ...task,
+    baselineValue: task.kind === 'metric' && task.metricKey ? getWeeklyActivityMetricValue(task.metricKey) : task.baselineValue,
+    progressValue: 0,
+    completed: false
+  })
+
+  const normalizeWeeklyActivityTaskState = (value: unknown): WeeklyActivityTaskState | null => {
+    if (!value || typeof value !== 'object') return null
+    const raw = value as Partial<WeeklyActivityTaskState>
+    if (typeof raw.id !== 'string' || typeof raw.title !== 'string' || typeof raw.description !== 'string') return null
+    if (!raw.themeId || !WEEKLY_ACTIVITY_THEME_IDS.has(raw.themeId)) return null
+    if (!raw.kind || !WEEKLY_ACTIVITY_TASK_KINDS.has(raw.kind)) return null
+    return {
+      id: raw.id,
+      themeId: raw.themeId,
+      title: raw.title,
+      description: raw.description,
+      kind: raw.kind,
+      targetValue: Math.max(1, Number(raw.targetValue) || 1),
+      progressUnit: typeof raw.progressUnit === 'string' ? raw.progressUnit : undefined,
+      counterKey: raw.counterKey,
+      metricKey: raw.metricKey,
+      itemSubmission: raw.itemSubmission,
+      fishSubmission: raw.fishSubmission,
+      seedSubmission: raw.seedSubmission,
+      routeId: raw.routeId,
+      baselineValue: Number.isFinite(Number(raw.baselineValue)) ? Number(raw.baselineValue) : undefined,
+      progressValue: Math.max(0, Number(raw.progressValue) || 0),
+      completed: raw.completed === true
+    }
+  }
+
+  const normalizeWeeklyActivityState = (value: unknown): WeeklyActivityState | null => {
+    if (!value || typeof value !== 'object') return null
+    const raw = value as Partial<WeeklyActivityState>
+    if (typeof raw.weekId !== 'string' || !raw.themeId || !WEEKLY_ACTIVITY_THEME_IDS.has(raw.themeId)) return null
+    const themeLabel = typeof raw.themeLabel === 'string' ? raw.themeLabel : getWeeklyActivityThemeForWeek(getCurrentWeekInfo(), getWeeklyActivityUnlocks()).label
+    const tasks = Array.isArray(raw.tasks)
+      ? raw.tasks.map(normalizeWeeklyActivityTaskState).filter((task: WeeklyActivityTaskState | null): task is WeeklyActivityTaskState => task !== null)
+      : []
+    const counters = raw.counters && typeof raw.counters === 'object'
+      ? Object.fromEntries(
+          Object.entries(raw.counters).map(([key, amount]) => [key, Math.max(0, Number(amount) || 0)])
+        )
+      : {}
+    return {
+      version: Math.max(1, Number(raw.version) || WEEKLY_ACTIVITY_STATE_VERSION),
+      weekId: raw.weekId,
+      themeId: raw.themeId,
+      themeLabel,
+      generatedAtDayTag: typeof raw.generatedAtDayTag === 'string' ? raw.generatedAtDayTag : getCurrentDayTag(),
+      tasks,
+      claimedThresholds: Array.isArray(raw.claimedThresholds)
+        ? raw.claimedThresholds.map(Number).filter(threshold => WEEKLY_ACTIVITY_REWARD_THRESHOLDS_SET.has(threshold as 5 | 7 | 10))
+        : [],
+      counters
+    }
+  }
+
+  const syncWeeklyActivityProgress = () => {
+    const state = weeklyActivityState.value
+    if (!state) return
+    for (const task of state.tasks) {
+      if (task.kind === 'counter' && task.counterKey) {
+        task.progressValue = Math.max(0, Number(state.counters[task.counterKey]) || 0)
+      } else if (task.kind === 'metric' && task.metricKey) {
+        if (task.baselineValue === undefined) task.baselineValue = getWeeklyActivityMetricValue(task.metricKey)
+        task.progressValue = Math.max(0, getWeeklyActivityMetricValue(task.metricKey) - (task.baselineValue ?? 0))
+      }
+      task.completed = task.progressValue >= task.targetValue
+    }
+  }
+
+  const refreshWeeklyActivity = (announce = false) => {
+    const weekInfo = getCurrentWeekInfo()
+    const theme = getWeeklyActivityThemeForWeek(weekInfo, getWeeklyActivityUnlocks())
+    const tasks = getWeeklyActivityTasksForWeek(theme.id, weekInfo.seasonWeekId, getWeeklyActivityTaskContext())
+      .slice(0, WEEKLY_ACTIVITY_TASK_COUNT)
+      .map(task => createWeeklyActivityTaskState(task))
+    weeklyActivityState.value = {
+      version: WEEKLY_ACTIVITY_STATE_VERSION,
+      weekId: weekInfo.seasonWeekId,
+      themeId: theme.id,
+      themeLabel: theme.label,
+      generatedAtDayTag: getCurrentDayTag(),
+      tasks,
+      claimedThresholds: [],
+      counters: {}
+    }
+    syncWeeklyActivityProgress()
+    if (announce) {
+      addLog(`【本周活动】${theme.label}已刷新：完成 5 / 7 / 10 项可领取档位奖励。`, {
+        category: 'goal',
+        tags: ['weekly_activity_refreshed', 'late_game_cycle'],
+        meta: { weekId: weekInfo.seasonWeekId, themeId: theme.id }
+      })
+      showFloat(`${theme.label}已刷新`, 'accent')
+    }
+  }
+
+  const ensureWeeklyActivityCurrent = (announce = false) => {
+    const weekInfo = getCurrentWeekInfo()
+    if (!weeklyActivityState.value || weeklyActivityState.value.weekId !== weekInfo.seasonWeekId || weeklyActivityState.value.tasks.length === 0) {
+      refreshWeeklyActivity(announce)
+    } else {
+      syncWeeklyActivityProgress()
+    }
+  }
+
+  const getWeeklyActivityCompletedCount = (state = weeklyActivityState.value) =>
+    state?.tasks.filter(task => task.completed).length ?? 0
+
+  const getWeeklyActivitySeedMatches = (task: WeeklyActivityTaskState) => {
+    const submission = task.seedSubmission
+    if (!submission) return []
+    const breedingStore = useBreedingStore()
+    return breedingStore.breedingBox
+      .filter(seed => {
+        if (submission.cropId && seed.genetics.cropId !== submission.cropId) return false
+        if (submission.hybridOnly && !seed.genetics.isHybrid) return false
+        if (submission.generationMin && seed.genetics.generation < submission.generationMin) return false
+        if (submission.scoreMin && getSeedTotalStats(seed.genetics) < submission.scoreMin) return false
+        return true
+      })
+      .sort((a, b) => getSeedTotalStats(b.genetics) - getSeedTotalStats(a.genetics))
+  }
+
+  const getWeeklyActivityTaskSubmitStatus = (taskOrId: WeeklyActivityTaskState | string) => {
+    const task = typeof taskOrId === 'string'
+      ? weeklyActivityState.value?.tasks.find(entry => entry.id === taskOrId)
+      : taskOrId
+    if (!task || task.completed) return { canSubmit: false, label: task?.completed ? '已完成' : '不可提交' }
+
+    if (task.kind === 'itemSubmission' && task.itemSubmission) {
+      const inventoryStore = useInventoryStore()
+      const owned = inventoryStore.getTotalItemCount(task.itemSubmission.itemId)
+      return {
+        canSubmit: owned >= task.itemSubmission.quantity,
+        label: owned >= task.itemSubmission.quantity ? '提交' : `${owned}/${task.itemSubmission.quantity}`
+      }
+    }
+
+    if (task.kind === 'fishSubmission' && task.fishSubmission) {
+      const fishPondStore = useFishPondStore()
+      const eligible = fishPondStore.countEligibleFishForOrder(task.fishSubmission)
+      return {
+        canSubmit: eligible >= task.fishSubmission.quantity,
+        label: eligible >= task.fishSubmission.quantity ? '提交' : `${eligible}/${task.fishSubmission.quantity}`
+      }
+    }
+
+    if (task.kind === 'seedSubmission' && task.seedSubmission) {
+      const eligible = getWeeklyActivitySeedMatches(task).length
+      return {
+        canSubmit: eligible >= task.seedSubmission.quantity,
+        label: eligible >= task.seedSubmission.quantity ? '提交' : `${eligible}/${task.seedSubmission.quantity}`
+      }
+    }
+
+    return { canSubmit: false, label: '自动记录' }
+  }
+
+  const recordWeeklyActivityCounter = (counterKey: WeeklyActivityCounterKey, amount = 1) => {
+    ensureWeeklyActivityCurrent(false)
+    const state = weeklyActivityState.value
+    if (!state) return
+    const normalizedAmount = Math.max(0, Number(amount) || 0)
+    if (normalizedAmount <= 0) return
+    state.counters[counterKey] = (state.counters[counterKey] ?? 0) + normalizedAmount
+    syncWeeklyActivityProgress()
+  }
+
+  const markWeeklyActivitySubmissionComplete = (task: WeeklyActivityTaskState) => {
+    task.progressValue = Math.max(task.progressValue, task.targetValue)
+    task.completed = true
+    addLog(`【本周活动】完成：${task.title}`, {
+      category: 'goal',
+      tags: ['weekly_activity_task_completed'],
+      meta: { taskId: task.id, themeId: task.themeId }
+    })
+    showFloat(`本周活动：${task.title}`, 'success')
+  }
+
+  const submitWeeklyActivityTask = (taskId: string) => {
+    ensureWeeklyActivityCurrent(false)
+    const state = weeklyActivityState.value
+    const task = state?.tasks.find(entry => entry.id === taskId)
+    if (!task || task.completed) return false
+
+    if (task.kind === 'itemSubmission' && task.itemSubmission) {
+      const inventoryStore = useInventoryStore()
+      if (inventoryStore.getTotalItemCount(task.itemSubmission.itemId) < task.itemSubmission.quantity) {
+        showFloat('提交物品不足', 'danger')
+        return false
+      }
+      if (!inventoryStore.removeItemAnywhere(task.itemSubmission.itemId, task.itemSubmission.quantity)) {
+        showFloat('提交失败', 'danger')
+        return false
+      }
+      markWeeklyActivitySubmissionComplete(task)
+      return true
+    }
+
+    if (task.kind === 'fishSubmission' && task.fishSubmission) {
+      const fishPondStore = useFishPondStore()
+      const result = fishPondStore.submitEligibleFishForOrder(task.fishSubmission)
+      if (!result) {
+        showFloat('没有符合条件的鱼', 'danger')
+        return false
+      }
+      markWeeklyActivitySubmissionComplete(task)
+      return true
+    }
+
+    if (task.kind === 'seedSubmission' && task.seedSubmission) {
+      const breedingStore = useBreedingStore()
+      const matches = getWeeklyActivitySeedMatches(task)
+      if (matches.length < task.seedSubmission.quantity) {
+        showFloat('没有符合条件的育种种子', 'danger')
+        return false
+      }
+      for (const seed of matches.slice(0, task.seedSubmission.quantity)) {
+        breedingStore.removeFromBox(seed.genetics.id)
+      }
+      markWeeklyActivitySubmissionComplete(task)
+      return true
+    }
+
+    return false
+  }
+
+  const grantWeeklyActivityTierReward = (
+    state: WeeklyActivityState,
+    tier: WeeklyActivityRewardTier
+  ) => {
+    state.claimedThresholds = [...new Set([...state.claimedThresholds, tier.threshold])].sort((a, b) => a - b)
+    grantReward(`本周活动「${state.themeLabel}·${tier.label}」`, tier.reward)
+  }
+
+  const claimWeeklyActivityReward = (threshold: 5 | 7 | 10) => {
+    ensureWeeklyActivityCurrent(false)
+    const state = weeklyActivityState.value
+    if (!state) return false
+    if (state.claimedThresholds.includes(threshold)) return false
+    syncWeeklyActivityProgress()
+    const completedCount = getWeeklyActivityCompletedCount(state)
+    if (completedCount < threshold) {
+      showFloat(`还需完成 ${threshold - completedCount} 项`, 'danger')
+      return false
+    }
+    const tier = getWeeklyActivityRewardTiers(state.themeId).find(entry => entry.threshold === threshold)
+    if (!tier) return false
+    grantWeeklyActivityTierReward(state, tier)
+    return true
+  }
+
+  const settleWeeklyActivity = (weekInfo: WeekCycleInfo, settledAtDayTag = getCurrentDayTag()) => {
+    const state = weeklyActivityState.value
+    if (!state || state.weekId !== weekInfo.seasonWeekId) return null
+    syncWeeklyActivityProgress()
+    const completedCount = getWeeklyActivityCompletedCount(state)
+    const rewardHighlights: string[] = []
+    for (const tier of getWeeklyActivityRewardTiers(state.themeId)) {
+      if (completedCount >= tier.threshold && !state.claimedThresholds.includes(tier.threshold)) {
+        grantWeeklyActivityTierReward(state, tier)
+        rewardHighlights.push(`${state.themeLabel} ${tier.label}：${formatGoalRewardSummary(tier.reward)}`)
+      }
+    }
+    return {
+      weekId: state.weekId,
+      themeId: state.themeId,
+      themeLabel: state.themeLabel,
+      completedCount,
+      totalCount: state.tasks.length,
+      rewardHighlights,
+      settledAtDayTag
+    }
+  }
+
   const ensureInitialized = () => {
     initializeMainQuestStages()
     initializeLongTermGoals()
@@ -1413,6 +1906,7 @@ export const useGoalStore = defineStore('goal', () => {
       refreshThemeWeek(false)
     }
     ensureWeeklyBudgetPlan()
+    ensureWeeklyActivityCurrent(false)
     syncProgressBridgeStates(weekInfo.seasonWeekId)
     syncMainQuestStage()
   }
@@ -1440,6 +1934,7 @@ export const useGoalStore = defineStore('goal', () => {
     const adjustedReputationReward = reward.reputation
       ? Math.max(0, Math.round(reward.reputation * combinedReputationRewardMultiplier) + combinedFlatReputationBonus)
       : combinedFlatReputationBonus
+    const grantedRewardTickets = walletStore.addRewardTickets(reward.ticketRewards, { source: 'goal' })
     const grantedServiceContractTickets = walletStore.addRewardTickets(serviceContractEffect.ticketRewards, { source: 'goal' })
 
     let fallbackMoney = 0
@@ -1478,7 +1973,7 @@ export const useGoalStore = defineStore('goal', () => {
       )
     }
     if (adjustedReputationReward > 0) rewardTexts.push('目标声望+' + adjustedReputationReward)
-    const combinedTicketRewards = [weeklyBudgetEffect.ticketRewards, grantedServiceContractTickets].reduce(
+    const combinedTicketRewards = [grantedRewardTickets, weeklyBudgetEffect.ticketRewards, grantedServiceContractTickets].reduce(
       (result, ticketRewards) => {
         for (const [ticketType, amount] of Object.entries(ticketRewards)) {
           result[ticketType as RewardTicketType] =
@@ -1607,6 +2102,7 @@ export const useGoalStore = defineStore('goal', () => {
     enableCompensation?: boolean
     weeklyGoalsSnapshot?: WeeklyGoalState[]
   }) => {
+    const activitySettlement = settleWeeklyActivity(payload.weekInfo, payload.settledAtDayTag ?? getCurrentDayTag())
     const weeklyGoalsSnapshot = (payload.weeklyGoalsSnapshot ?? weeklyGoals.value).map(goal => cloneWeeklyGoalState(goal))
     if (!weeklyGoalsSnapshot.length) return null
     if (lastSettledWeeklyGoalWeekId.value === payload.weekInfo.seasonWeekId) {
@@ -1640,6 +2136,9 @@ export const useGoalStore = defineStore('goal', () => {
       weeklyGoalsSnapshot
     })
     if (!summary) return null
+    if (activitySettlement?.rewardHighlights.length) {
+      summary.rewardHighlights.push(...activitySettlement.rewardHighlights)
+    }
 
     weeklyStreakState.value = (() => {
       const nextState = { ...weeklyStreakState.value }
@@ -1749,6 +2248,8 @@ export const useGoalStore = defineStore('goal', () => {
       goal.completed = getGoalProgressValue(goal, snapshot) >= goal.targetValue
     }
 
+    syncWeeklyActivityProgress()
+
     for (const goal of longTermGoals.value) {
       goal.completed = getGoalProgressValue(goal, snapshot) >= goal.targetValue
     }
@@ -1798,6 +2299,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
     }
+    ensureWeeklyActivityCurrent(true)
   }
 
   const onDayChanged = () => {
@@ -1808,6 +2310,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
     }
+    ensureWeeklyActivityCurrent(true)
   }
 
   const onCalendarAdvanced = (seasonChanged = false) => {
@@ -1821,6 +2324,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
     }
+    ensureWeeklyActivityCurrent(true)
     syncProgressBridgeStates(getCurrentWeekInfo().seasonWeekId)
   }
 
@@ -1845,6 +2349,7 @@ export const useGoalStore = defineStore('goal', () => {
     weeklyMetricArchive: weeklyMetricArchive.value,
     weeklyBudgetPlan: weeklyBudgetPlan.value,
     weeklyBudgetHistory: weeklyBudgetHistory.value,
+    weeklyActivityState: weeklyActivityState.value,
     progressBridgeStates: progressBridgeStates.value,
     weeklyChronicleEntries: weeklyChronicleEntries.value,
     eventOperationsState: eventOperationsState.value
@@ -1920,6 +2425,7 @@ export const useGoalStore = defineStore('goal', () => {
     weeklyMetricArchive.value = normalizeWeeklyMetricArchive(data?.weeklyMetricArchive)
     weeklyBudgetPlan.value = normalizeWeeklyBudgetPlan(data?.weeklyBudgetPlan)
     weeklyBudgetHistory.value = normalizeWeeklyBudgetArchive(data?.weeklyBudgetHistory)
+    weeklyActivityState.value = normalizeWeeklyActivityState((data as any)?.weeklyActivityState)
     progressBridgeStates.value = Array.isArray((data as any)?.progressBridgeStates)
       ? (data as any).progressBridgeStates
           .map((state: unknown) => {
@@ -2011,6 +2517,25 @@ export const useGoalStore = defineStore('goal', () => {
         return a.targetValue - b.targetValue
       })
       .slice(0, 4)
+  })
+  const weeklyActivityOverview = computed(() => {
+    const state = weeklyActivityState.value
+    if (!state) return null
+    const weekInfo = getCurrentWeekInfo()
+    const completedCount = getWeeklyActivityCompletedCount(state)
+    const rewardTiers = getWeeklyActivityRewardTiers(state.themeId).map((tier: WeeklyActivityRewardTier) => ({
+      ...tier,
+      claimed: state.claimedThresholds.includes(tier.threshold),
+      claimable: completedCount >= tier.threshold && !state.claimedThresholds.includes(tier.threshold)
+    }))
+    return {
+      state,
+      theme: getWeeklyActivityThemeDef(state.themeId),
+      completedCount,
+      totalCount: state.tasks.length,
+      remainingDays: Math.max(0, weekInfo.weekEndDay - weekInfo.day + 1),
+      rewardTiers
+    }
   })
 
   const recommendedEconomySinks = computed(() => {
@@ -2656,6 +3181,8 @@ export const useGoalStore = defineStore('goal', () => {
     weeklyBudgetSelections,
     weeklyBudgetHistory,
     weeklyMetricArchive,
+    weeklyActivityState,
+    weeklyActivityOverview,
     latestWeeklyMetricSnapshot,
     completedMainQuestCount,
     ensureInitialized,
@@ -2663,6 +3190,7 @@ export const useGoalStore = defineStore('goal', () => {
     refreshSeasonGoals,
     refreshWeeklyGoals,
     refreshThemeWeek,
+    refreshWeeklyActivity,
     getWeeklyGoalRewardPool,
     getEventCampaignById,
     getEventMailTemplateRefById,
@@ -2674,10 +3202,15 @@ export const useGoalStore = defineStore('goal', () => {
     getUiGuidanceDebugSnapshot,
     processEventOperationsTick,
     activateWeeklyBudget,
+    setWeeklyBudgetAutoRenew,
     getGoalReputationTier,
     getWeeklyBudgetReputationDiscount,
     getWeeklyBudgetSelection,
     resetWeeklyBudgetsForNewWeek,
+    recordWeeklyActivityCounter,
+    submitWeeklyActivityTask,
+    claimWeeklyActivityReward,
+    getWeeklyActivityTaskSubmitStatus,
     onDayChanged,
     onSeasonChanged,
     onCalendarAdvanced,

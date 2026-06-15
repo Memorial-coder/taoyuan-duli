@@ -153,7 +153,7 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     maxRequests: 18,
   },
   {
-    matcher: /^\/api\/taoyuan\/mail\/(?:[^/]+\/claim|claim-all|player-letter|player-gift-package|system-campaign|[^/]+\/memorial|[^/]+\/pin|clear-claimed)$/i,
+    matcher: /^\/api\/taoyuan\/mail\/(?:[^/]+\/claim|claim-all|read-all|player-letter|player-gift-package|system-campaign|[^/]+\/memorial|[^/]+\/pin|clear-claimed)$/i,
     routeKey: 'mail_write',
     scope: 'mail',
     maxRequests: 24,
@@ -8643,6 +8643,16 @@ router.post('/taoyuan/mail/:id/read', loginRequired, signRequired, async (req, r
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '标记已读失败' });
+  }
+});
+
+router.post('/taoyuan/mail/read-all', loginRequired, signRequired, async (req, res) => {
+  try {
+    await processPendingMailCampaignsAndEmitNotifications();
+    const result = await taoyuanMailbox.markAllUserMailsRead(req.session.username);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '一键已读失败' });
   }
 });
 

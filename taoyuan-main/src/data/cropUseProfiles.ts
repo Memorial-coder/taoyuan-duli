@@ -403,6 +403,26 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '瀚海甜果作物，适合枣糕、旅粮甜点、商队赠礼、节会甜品、公共仓干粮包和商队订单。'
   },
   {
+    cropId: 'sandglass_cactus',
+    tags: ['food', 'alchemy', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '鲜'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['沙晶清暑丹', '瀚海高阶供奉', '沙漠行商赠礼', '终局育种订单', '公共仓清暑包', '绿松石商路样本'],
+    summary: '仙人掌接入太初瓜后的顶级瀚海灵株，适合清暑炼丹、终局供奉、行商赠礼、高阶育种订单、公共仓清暑备料和绿松石商路样本。'
+  },
+  {
+    cropId: 'oasis_star_date',
+    tags: ['food', 'alchemy', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['绿洲星枣糕', '星辉续行丹', '瀚海终局供奉', '商队贵客赠礼', '公共仓星枣干粮', '鸿蒙育种订单'],
+    summary: '椰枣接入鸿蒙瓜后的顶级瀚海灵果，适合星枣糕、续行炼丹、终局供奉、贵客赠礼、公共仓干粮包和鸿蒙育种订单。'
+  },
+  {
     cropId: 'lychee',
     tags: ['food', 'gift', 'festival', 'order'],
     flavor: ['甜', '鲜'],

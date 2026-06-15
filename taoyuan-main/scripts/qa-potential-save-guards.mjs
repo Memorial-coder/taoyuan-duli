@@ -16,7 +16,9 @@ const tryResolveFile = candidate => {
   for (const item of variants) {
     try {
       if (fs.statSync(item).isFile()) return item
-    } catch {}
+    } catch {
+      // Try the next import shape.
+    }
   }
   return null
 }
@@ -179,14 +181,17 @@ const assert = (condition, message) => {
 const { createPinia, setActivePinia } = await import('pinia')
 setActivePinia(createPinia())
 
-const { POTENTIAL_NODE_DEFS, POTENTIAL_RESOURCE_DEFS } = await import(pathToFileURL(path.join(srcRoot, 'data/potential.ts')).href)
+const { POTENTIAL_NODE_DEFS, POTENTIAL_NODE_MAX_RANK, POTENTIAL_RESOURCE_DEFS } = await import(pathToFileURL(path.join(srcRoot, 'data/potential.ts')).href)
 const { usePotentialStore } = await import(pathToFileURL(path.join(srcRoot, 'stores/usePotentialStore.ts')).href)
 
 const store = usePotentialStore()
 
-assert(POTENTIAL_RESOURCE_DEFS.length === 4, '潜能首版必须保留 4 类资源。')
-assert(POTENTIAL_NODE_DEFS.length === 20, '潜能首版必须保留 20 个节点。')
+assert(POTENTIAL_RESOURCE_DEFS.length === 4, '潜能正式版必须保留 4 类资源。')
+assert(POTENTIAL_NODE_DEFS.length === 20, '潜能正式版必须保留 20 个节点。')
 assert(new Set(POTENTIAL_NODE_DEFS.map(node => node.id)).size === POTENTIAL_NODE_DEFS.length, '潜能节点 ID 不得重复。')
+assert(POTENTIAL_NODE_MAX_RANK === 30, '潜能正式版节点上限必须是 30 阶。')
+assert(POTENTIAL_NODE_DEFS.every(node => node.maxRank === POTENTIAL_NODE_MAX_RANK), '每个潜能节点都必须开放 30 阶。')
+assert(POTENTIAL_NODE_DEFS.every(node => node.firstVersionConnected), '每个潜能节点都必须正式开放。')
 assert(POTENTIAL_NODE_DEFS.every(node => node.costsByRank.length === node.maxRank), '每个潜能节点必须为每一阶配置成本。')
 
 store.deserialize({
@@ -196,8 +201,8 @@ store.deserialize({
     artisan_notes: 2.8
   },
   nodeRanks: {
-    body_vital_root: 9,
-    body_low_hp_sense: 3,
+    body_vital_root: 99,
+    body_low_hp_sense: 99,
     trail_mine_entry_hint: 1,
     invalid_node: 2
   },
@@ -240,8 +245,8 @@ store.deserialize({
 assert(store.getPotentialResource('potential_insight') === 0, '负数潜能资源必须归零。')
 assert(store.getPotentialResource('spirit_breath') === 9999, '潜能资源必须封顶到 9999。')
 assert(store.getPotentialResource('artisan_notes') === 2, '潜能资源必须按整数归一化。')
-assert(store.getNodeRank('body_vital_root') === 3, '潜能节点阶数不得超过 maxRank。')
-assert(store.getNodeRank('body_low_hp_sense') === 1, '一阶潜能节点不得被旧档抬到多阶。')
+assert(store.getNodeRank('body_vital_root') === POTENTIAL_NODE_MAX_RANK, '潜能节点阶数不得超过正式版 maxRank。')
+assert(store.getNodeRank('body_low_hp_sense') === POTENTIAL_NODE_MAX_RANK, '旧档高阶潜能节点必须封顶到正式版 maxRank。')
 assert(store.potentialMigrationLogs.length >= 3, '异常潜能旧档必须留下迁移修正记录。')
 assert((store.branchRespecUsedSeasonKeys.body ?? []).length === 1, '重修季节记录必须去重并过滤非法值。')
 assert(store.branchRespecRecords.length === 1, '重修记录必须过滤非法分线。')

@@ -661,24 +661,30 @@ export const useFishPondStore = defineStore('fishPond', () => {
   }
 
   const getEligibleFishForOrder = (options: {
-    fishId: string
+    fishId?: string
+    breedId?: string
     generationMin?: number
+    scoreMin?: number
     requireMature?: boolean
     requireHealthy?: boolean
   }): PondFish[] => {
     const scoreMap = new Map(pondFishRatings.value.map(entry => [entry.fishInstanceId, entry.totalScore]))
     return pond.value.fish.filter(fish => {
-      if (fish.fishId !== options.fishId) return false
+      if (options.fishId && fish.fishId !== options.fishId) return false
+      if (options.breedId && fish.breedId !== options.breedId) return false
       if (options.requireMature && !fish.mature) return false
       if (options.requireHealthy && fish.sick) return false
       if (options.generationMin && getFishBreedGeneration(fish) < options.generationMin) return false
+      if (options.scoreMin && (scoreMap.get(fish.id) ?? 0) < options.scoreMin) return false
       return true
     }).sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0))
   }
 
   const countEligibleFishForOrder = (options: {
-    fishId: string
+    fishId?: string
+    breedId?: string
     generationMin?: number
+    scoreMin?: number
     requireMature?: boolean
     requireHealthy?: boolean
   }): number => {
@@ -686,9 +692,11 @@ export const useFishPondStore = defineStore('fishPond', () => {
   }
 
   const submitEligibleFishForOrder = (options: {
-    fishId: string
+    fishId?: string
+    breedId?: string
     quantity: number
     generationMin?: number
+    scoreMin?: number
     requireMature?: boolean
     requireHealthy?: boolean
   }): PondFishRatingSnapshot[] | null => {
@@ -722,6 +730,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
     if (!inventoryStore.removeItem('fish_feed', 1)) return false
     pond.value.fedToday = true
     pond.value.waterQuality = clamp(pond.value.waterQuality + FEED_WATER_RESTORE, 0, 100)
+    useGoalStore().recordWeeklyActivityCounter('fishpond_feed', 1)
     return true
   }
 
@@ -768,6 +777,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
       daysLeft: FISH_BREEDING_DAYS,
       fishId: fishA.fishId
     }
+    useGoalStore().recordWeeklyActivityCounter('fishpond_breeding_started', 1)
     return true
   }
 
@@ -822,6 +832,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
     const collected = pendingProducts.value.slice(0, count)
     pendingProducts.value = pendingProducts.value.slice(count)
     pond.value.collectedToday = pendingProducts.value.length === 0
+    useGoalStore().recordWeeklyActivityCounter('fishpond_products_collected', collected.length)
     return collected
   }
 
@@ -1005,6 +1016,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
             }
             pond.value.fish.push(child)
             result.bred = childName
+            useGoalStore().recordWeeklyActivityCounter('fishpond_breeding_completed', 1)
           }
         }
         pond.value.breeding = null

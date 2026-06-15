@@ -43,6 +43,7 @@ import { useGameStore } from './useGameStore'
 import { useWalletStore } from './useWalletStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
+import { useGoalStore } from './useGoalStore'
 import type { SkullCavernFloorDef } from '@/data/mine'
 import {
   buildPlayerCombatRuntime,
@@ -1028,6 +1029,9 @@ export const useMiningStore = defineStore('mining', () => {
       return { success: false, message: '体力不足，无法探索。', startsCombat: false }
     }
     miningStaminaDiscountCredit.value = resolvedStaminaCost.discountCredit
+    if (staminaCost > 0) {
+      useGoalStore().recordWeeklyActivityCounter('mining_stamina_spent', staminaCost)
+    }
 
     // 3% 概率获得秘密笔记
     if (Math.random() < 0.03) {
@@ -2031,6 +2035,7 @@ export const useMiningStore = defineStore('mining', () => {
       currentFloor.value++
       useAchievementStore().recordMineFloor(currentFloor.value)
     }
+    useGoalStore().recordWeeklyActivityCounter('mine_floors_descended', 1)
 
     // 生成新层格子
     _generateGrid()

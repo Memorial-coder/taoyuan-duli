@@ -112,6 +112,8 @@ const HANHAI_ROUTE_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketC
   oasis_exchange_route: ['processed', 'fish', 'gem'],
   starfall_patron_route: ['processed', 'gem', 'fish']
 }
+const HANHAI_MARKET_PRESSURE_RELIEF_PER_ROUTE = 0.25
+const HANHAI_MARKET_PRESSURE_RELIEF_MAX = 0.5
 
 const HANHAI_RELIC_SITE_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
   sunset_ruins: ['processed'],
@@ -564,6 +566,21 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   }
   const getRelicSiteSummary = (siteId: string) => relicSiteSummaries.value.find(site => site.siteId === siteId)
   const getShopItemSummary = (itemId: string) => shopItemSummaries.value.find(item => item.itemId === itemId)
+  const getMarketPressureRelief = (category: string) => {
+    const activeRouteIds = unlocked.value
+      ? Object.keys(cycleState.value.routeInvestments).filter(routeId =>
+          (HANHAI_ROUTE_TO_QUEST_MARKET_CATEGORIES[routeId] ?? []).includes(category as HanhaiQuestMarketCategory)
+        )
+      : []
+    const reliefRate = Math.min(HANHAI_MARKET_PRESSURE_RELIEF_MAX, activeRouteIds.length * HANHAI_MARKET_PRESSURE_RELIEF_PER_ROUTE)
+    return {
+      category,
+      activeRouteIds,
+      activeRouteCount: activeRouteIds.length,
+      reliefRate,
+      volumeMultiplier: Number((1 - reliefRate).toFixed(2))
+    }
+  }
   const updateCycleState = (patch: Partial<HanhaiCycleState>) => {
     cycleState.value = {
       ...cycleState.value,
@@ -1360,12 +1377,10 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         return { success: false, message: '背包空间不足，暂时无法探索。' }
       }
 
-      if (site.rewards.money) {
-        playerStore.earnMoney(Math.floor(site.rewards.money * hanhaiRewardConfig.relicExploreMoneyMultiplier), { countAsEarned: false })
-      }
-      if (rewardItems.length > 0) {
-        inventoryStore.addItemsExact(rewardItems)
-      }
+      const rewardSummary = grantRewardBundle({
+        ...site.rewards,
+        money: Math.floor((site.rewards.money ?? 0) * hanhaiRewardConfig.relicExploreMoneyMultiplier)
+      }, { ticketSource: 'hanhai_relic' })
 
       relicRecords.value[siteId] = {
         ...getRelicRecord(siteId),
@@ -1397,12 +1412,15 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       const explorationSummary = completedSetLabel
         ? `你探索了${site.name}，带回了${site.relicTag}与一批异域收获，并完成了套组「${completedSetLabel}」。`
         : `你探索了${site.name}，带回了${site.relicTag}与一批异域收获。`
+      const ticketRewardMeta = rewardSummary.tickets.map(ticket => `${ticket.ticketType}:${ticket.quantity}`).join(',')
       addLog(explorationSummary, {
         category: 'hanhai',
         tags: ['hanhai_relic_exploration'],
         meta: {
           siteId,
           clears: relicRecords.value[siteId]?.clears ?? 0,
+          moneyReward: rewardSummary.money,
+          ticketRewards: ticketRewardMeta || undefined,
           completedSetLabel: completedSetLabel || undefined
         }
       })
@@ -2104,6 +2122,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     getWeeklyRemaining,
     getRelicSiteSummary,
     getShopItemSummary,
+    getMarketPressureRelief,
     updateCycleState,
     getDebugSnapshot,
     buyShopItem,

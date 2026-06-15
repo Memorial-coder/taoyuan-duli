@@ -15,10 +15,16 @@ const SUPPRESSED_PREFIX = 'taoyuan_announcement_suppressed_'
 const getAnnouncementSuppressionScope = (): string => {
   try {
     const saveStore = useSaveStore()
-    if (saveStore.runtimeSessionMode !== 'server') return ''
-
-    const slot = Number(saveStore.runtimeSessionSlot)
+    const mode = saveStore.runtimeSessionMode ?? saveStore.activeSlotMode ?? saveStore.storageMode
+    const slot = Number(
+      saveStore.runtimeSessionSlot >= 0
+        ? saveStore.runtimeSessionSlot
+        : saveStore.activeSlot
+    )
     if (!Number.isInteger(slot) || slot < 0) return ''
+
+    if (mode === 'local') return `local_slot_${slot}`
+    if (mode !== 'server') return ''
 
     const saveId = Number(saveStore.currentOnlineIdentity?.save_id)
     if (Number.isInteger(saveId) && saveId > 0) return `save_${saveId}`
@@ -56,6 +62,15 @@ const writeLocalSuppressed = (announcementId: string): boolean => {
   }
 }
 
+const canClaimAnnouncementRewards = (): boolean => {
+  try {
+    const saveStore = useSaveStore()
+    return saveStore.runtimeSessionMode === 'server'
+  } catch {
+    return false
+  }
+}
+
 export const useAnnouncementStore = defineStore('announcement', () => {
   const activeAnnouncements = ref<TaoyuanAnnouncement[]>([])
   const popupQueue = ref<TaoyuanAnnouncement[]>([])
@@ -67,6 +82,7 @@ export const useAnnouncementStore = defineStore('announcement', () => {
   const impressionIds = ref<Set<string>>(new Set())
 
   const currentAnnouncement = computed(() => popupQueue.value[0] || null)
+  const canClaimRewardsInCurrentSession = computed(() => canClaimAnnouncementRewards())
 
   const markImpressionSeen = (announcementId: string) => {
     impressionIds.value = new Set([...impressionIds.value, announcementId])
@@ -115,9 +131,10 @@ export const useAnnouncementStore = defineStore('announcement', () => {
 
   const closeCurrent = async () => {
     const closing = [...popupQueue.value]
-    if (!closing.length) return { claimedCount: 0 }
+    if (!closing.length) return { claimedCount: 0, skippedRewardCount: 0 }
     const rewardAnnouncements = closing.filter(announcement => announcement.rewards.length > 0)
-    for (const announcement of rewardAnnouncements) {
+    const claimableRewardAnnouncements = canClaimAnnouncementRewards() ? rewardAnnouncements : []
+    for (const announcement of claimableRewardAnnouncements) {
       await claimAnnouncementReward(announcement.id)
     }
     for (const announcement of closing) {
@@ -127,7 +144,10 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     for (const announcement of closing) {
       void recordAnnouncementEvent(announcement.id, 'close').catch(() => {})
     }
-    return { claimedCount: rewardAnnouncements.length }
+    return {
+      claimedCount: claimableRewardAnnouncements.length,
+      skippedRewardCount: rewardAnnouncements.length - claimableRewardAnnouncements.length,
+    }
   }
 
   const suppressCurrent = async () => {
@@ -163,6 +183,7 @@ export const useAnnouncementStore = defineStore('announcement', () => {
     activeError,
     historyError,
     currentAnnouncement,
+    canClaimRewardsInCurrentSession,
     fetchActive,
     fetchHistory,
     closeCurrent,

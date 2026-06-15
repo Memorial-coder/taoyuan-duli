@@ -72,6 +72,15 @@ assert.match(combinedInventorySource, /export const removeCombinedItems/, 'combi
 assert.match(combinedInventorySource, /const inventorySnapshot = inv\.serialize\(\)/, 'grouped removal should snapshot inventory')
 assert.match(combinedInventorySource, /const warehouseSnapshot = wh\.serialize\(\)/, 'grouped removal should snapshot warehouse')
 
+const warehouseSource = readSource('stores', 'useWarehouseStore.ts')
+assert.match(warehouseSource, /const canRemoveFromItemSnapshot = /, 'void chest grouped consumption should simulate removal against one snapshot')
+assert.match(warehouseSource, /const simulatedItems = chest\.items\.map\(item => \(\{ \.\.\.item \}\)\)/, 'void chest grouped consumption should not inspect each requirement against the original stack')
+assert.doesNotMatch(
+  warehouseSource,
+  /return entries\.every\(entry => getChestItemCount\(chest\.id, entry\.itemId, entry\.quality\) >= entry\.quantity\)/,
+  'void chest grouped consumption must not over-approve duplicate or overlapping requirements'
+)
+
 const processingSource = readSource('stores', 'useProcessingStore.ts')
 assert.match(processingSource, /return hasCombinedItems\(craftCost\)/, 'processing craft checks should aggregate material costs')
 assert.match(processingSource, /removeCombinedItems\(craftCost\)/, 'processing craft should consume grouped material costs')

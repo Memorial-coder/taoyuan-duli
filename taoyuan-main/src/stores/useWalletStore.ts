@@ -3,11 +3,30 @@ import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
 import { getMysteryBoxDef, MYSTERY_BOX_DEFS, MYSTERY_BOX_NAMING_LAYERS, MYSTERY_BOX_SOURCE_HINTS } from '@/data/mysteryBoxes'
 import { getActiveRewardTicketPrizeStage, PRIZE_TICKET_NAMING_LAYERS, REWARD_TICKET_PRIZE_STAGES, REWARD_TICKET_SOURCE_HINTS } from '@/data/prizeTickets'
-import { REWARD_TICKET_DEFS, REWARD_TICKET_EXCHANGE_OFFERS, REWARD_TICKET_LABELS } from '@/data/rewardTickets'
+import {
+  MAYOR_TICKET_CONVERSION_MONEY_COST,
+  MAYOR_TICKET_CONVERSION_NPC_ID,
+  MAYOR_TICKET_CONVERSION_NPC_NAME,
+  MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP,
+  MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL,
+  MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST,
+  MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT,
+  MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT,
+  MAYOR_TICKET_CONVERTIBLE_TYPES,
+  REWARD_TICKET_DEFS,
+  REWARD_TICKET_EXCHANGE_OFFERS,
+  REWARD_TICKET_LABELS
+} from '@/data/rewardTickets'
 import { WALLET_ARCHETYPES, WALLET_ITEMS, getWalletArchetypeById, getWalletNodeById } from '@/data/wallet'
 import { FISH } from '@/data/fish'
+import { getWeekCycleInfo } from '@/utils/weekCycle'
 import type {
+  MayorTicketConversionOffer,
+  MayorTicketConversionResult,
+  MayorTicketConversionStatus,
+  MayorTicketConversionTicketType,
   RewardTicketExchangeOffer,
+  RewardTicketConversionUsage,
   RewardTicketLedger,
   RewardTicketType,
   WalletArchetypeId,
@@ -25,6 +44,7 @@ import { useSkillStore } from './useSkillStore'
 import { useMiningStore } from './useMiningStore'
 import { useNpcStore } from './useNpcStore'
 import { useSettingsStore } from './useSettingsStore'
+import { useGameStore } from './useGameStore'
 
 const SHOP_LABELS: Record<WalletShopId, string> = {
   wanwupu: '万物铺',
@@ -163,6 +183,24 @@ const normalizeRewardTicketLedger = (value: unknown): RewardTicketLedger => {
   ) as RewardTicketLedger
 }
 
+const normalizeRewardTicketConversionUsage = (value: unknown, currentWeekId?: string): RewardTicketConversionUsage => {
+  if (!value || typeof value !== 'object') {
+    return { weekId: currentWeekId ?? '', used: 0 }
+  }
+  const raw = value as Partial<RewardTicketConversionUsage>
+  const weekId = typeof raw.weekId === 'string' ? raw.weekId : currentWeekId ?? ''
+  if (currentWeekId && weekId !== currentWeekId) {
+    return { weekId: currentWeekId, used: 0 }
+  }
+  return {
+    weekId,
+    used: Math.min(MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT, Math.max(0, Math.floor(Number(raw.used) || 0)))
+  }
+}
+
+const isMayorTicketConversionTicketType = (ticketType: unknown): ticketType is MayorTicketConversionTicketType =>
+  typeof ticketType === 'string' && MAYOR_TICKET_CONVERTIBLE_TYPES.includes(ticketType as MayorTicketConversionTicketType)
+
 const summarizePassiveEffect = (effect: WalletPassiveEffect): string[] => {
   const summaries: string[] = []
 
@@ -196,6 +234,9 @@ const summarizePassiveEffect = (effect: WalletPassiveEffect): string[] => {
 
 export const useWalletStore = defineStore('wallet', () => {
   const inventoryStore = useInventoryStore()
+  const gameStore = useGameStore()
+  const npcStore = useNpcStore()
+  const playerStore = usePlayerStore()
   /** 已解锁的钱袋物品ID */
   const unlockedItems = ref<string[]>([])
   /** 当前选择的钱包流派 */
@@ -207,6 +248,8 @@ export const useWalletStore = defineStore('wallet', () => {
   const rewardTickets = ref<RewardTicketLedger>({})
   /** 统一资源券 / 凭证累计入账，用于驱动阶段奖池，不因当前已消费余额而回退 */
   const rewardTicketLifetimeEarned = ref<RewardTicketLedger>({})
+  const rewardTicketConversionUsage = ref<RewardTicketConversionUsage>({ weekId: '', used: 0 })
+  const mayorTicketConversionVillageProjectLevel = ref(0)
   const mysteryBoxes = ref<Record<string, number>>({})
   const archetypes = computed(() => WALLET_ARCHETYPES)
 
@@ -287,7 +330,6 @@ export const useWalletStore = defineStore('wallet', () => {
   )
 
   const getFriendlyNpcCount = () => {
-    const npcStore = useNpcStore()
     return npcStore.npcStates.filter(state => {
       const level = npcStore.getFriendshipLevel(state.npcId)
       return level === 'friendly' || level === 'bestFriend'
@@ -554,6 +596,112 @@ export const useWalletStore = defineStore('wallet', () => {
     return getRewardTicketBalance(ticketType) >= Math.max(0, Math.floor(Number(amount) || 0))
   }
 
+  const getCurrentRewardTicketConversionWeekId = (): string =>
+    getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
+
+  const ensureRewardTicketConversionUsageCurrent = (): RewardTicketConversionUsage => {
+    const currentWeekId = getCurrentRewardTicketConversionWeekId()
+    const nextUsage = normalizeRewardTicketConversionUsage(rewardTicketConversionUsage.value, currentWeekId)
+    if (
+      rewardTicketConversionUsage.value.weekId !== nextUsage.weekId ||
+      rewardTicketConversionUsage.value.used !== nextUsage.used
+    ) {
+      rewardTicketConversionUsage.value = nextUsage
+    }
+    return rewardTicketConversionUsage.value
+  }
+
+  const syncMayorTicketConversionVillageProjectLevel = (completedProjects: number): void => {
+    mayorTicketConversionVillageProjectLevel.value = Math.max(0, Math.floor(Number(completedProjects) || 0))
+  }
+
+  const mayorTicketConversionStatus = computed<MayorTicketConversionStatus>(() => {
+    const usage = ensureRewardTicketConversionUsageCurrent()
+    const currentFriendship = npcStore.getNpcState(MAYOR_TICKET_CONVERSION_NPC_ID)?.friendship ?? 0
+    const currentVillageProjectLevel = mayorTicketConversionVillageProjectLevel.value
+    const friendshipReady = currentFriendship >= MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP
+    const villageProjectReady = currentVillageProjectLevel >= MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL
+    const unlocked = friendshipReady && villageProjectReady
+    const weeklyUsed = Math.min(MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT, usage.used)
+    const weeklyRemaining = Math.max(0, MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT - weeklyUsed)
+    const hint = unlocked
+      ? `${MAYOR_TICKET_CONVERSION_NPC_NAME}已开放村务票据转换，本周还可转换${weeklyRemaining}次。`
+      : friendshipReady
+        ? `村长愿意为你担保票据转换，还需要完成${MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL}项村庄建设。`
+        : villageProjectReady
+          ? `村务票据转换已具备建设条件，还需要${MAYOR_TICKET_CONVERSION_NPC_NAME}好感达到${MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP}。`
+          : `需要${MAYOR_TICKET_CONVERSION_NPC_NAME}好感达到${MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP}，并完成${MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL}项村庄建设。`
+
+    return {
+      unlocked,
+      npcId: MAYOR_TICKET_CONVERSION_NPC_ID,
+      npcName: MAYOR_TICKET_CONVERSION_NPC_NAME,
+      requiredFriendship: MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP,
+      currentFriendship,
+      friendshipReady,
+      requiredVillageProjectLevel: MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL,
+      currentVillageProjectLevel,
+      villageProjectReady,
+      sourceTicketCost: MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST,
+      moneyCost: MAYOR_TICKET_CONVERSION_MONEY_COST,
+      weeklyLimit: MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT,
+      weeklyUsed,
+      weeklyRemaining,
+      weekId: usage.weekId,
+      hint
+    }
+  })
+
+  const ticketConversionOffers = computed<MayorTicketConversionOffer[]>(() => {
+    const status = mayorTicketConversionStatus.value
+    return MAYOR_TICKET_CONVERTIBLE_TYPES.flatMap(sourceType =>
+      MAYOR_TICKET_CONVERTIBLE_TYPES
+        .filter(targetType => targetType !== sourceType)
+        .map(targetType => {
+          const sourceBalance = getRewardTicketBalance(sourceType)
+          const targetBalance = getRewardTicketBalance(targetType)
+          const disabledReason = !status.unlocked
+            ? status.hint
+            : status.weeklyRemaining <= 0
+              ? '本周村务票据转换次数已用完。'
+              : sourceBalance < MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST
+                ? `${getTicketLabel(sourceType)}不足（需要${MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST}）。`
+                : playerStore.money < MAYOR_TICKET_CONVERSION_MONEY_COST
+                  ? `铜钱不足（需要${MAYOR_TICKET_CONVERSION_MONEY_COST}文）。`
+                  : undefined
+
+          return {
+            sourceType,
+            targetType,
+            sourceLabel: getTicketLabel(sourceType),
+            targetLabel: getTicketLabel(targetType),
+            sourceBalance,
+            targetBalance,
+            sourceTicketCost: MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST,
+            targetTicketAmount: MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT,
+            moneyCost: MAYOR_TICKET_CONVERSION_MONEY_COST,
+            weeklyRemaining: status.weeklyRemaining,
+            affordable: !disabledReason,
+            disabledReason
+          }
+        })
+    )
+  })
+
+  const addRewardTicketsToBalanceOnly = (ticketChanges: RewardTicketLedger | undefined): RewardTicketLedger => {
+    const normalizedInput = normalizeRewardTicketLedger(ticketChanges)
+    const entries = Object.entries(normalizedInput)
+    if (entries.length === 0) return {}
+
+    const nextLedger: RewardTicketLedger = { ...rewardTickets.value }
+    for (const [ticketType, amount] of entries) {
+      nextLedger[ticketType as RewardTicketType] = (nextLedger[ticketType as RewardTicketType] ?? 0) + amount
+    }
+    rewardTickets.value = nextLedger
+
+    return normalizedInput
+  }
+
   const addRewardTickets = (
     ticketChanges: RewardTicketLedger | undefined,
     options?: { applyMultiplier?: boolean; source?: string }
@@ -598,6 +746,49 @@ export const useWalletStore = defineStore('wallet', () => {
     }
     rewardTickets.value = nextLedger
     return true
+  }
+
+  const redeemRewardTicketConversion = (
+    sourceType: MayorTicketConversionTicketType,
+    targetType: MayorTicketConversionTicketType
+  ): MayorTicketConversionResult => {
+    if (!isMayorTicketConversionTicketType(sourceType) || !isMayorTicketConversionTicketType(targetType)) {
+      return { success: false, message: '村务票据转换暂只开放建设券、展陈券、商路票和研究券。' }
+    }
+    if (sourceType === targetType) {
+      return { success: false, message: '来源券和目标券不能相同。' }
+    }
+
+    const offer = ticketConversionOffers.value.find(entry => entry.sourceType === sourceType && entry.targetType === targetType)
+    if (!offer) return { success: false, message: '村务票据转换项目不存在。' }
+    if (!offer.affordable) {
+      return { success: false, message: offer.disabledReason ?? '当前无法进行村务票据转换。', offer }
+    }
+
+    if (!spendRewardTickets(sourceType, MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST)) {
+      return {
+        success: false,
+        message: `${getTicketLabel(sourceType)}不足（需要${MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST}）。`,
+        offer
+      }
+    }
+    if (!playerStore.spendMoney(MAYOR_TICKET_CONVERSION_MONEY_COST, 'wallet')) {
+      addRewardTicketsToBalanceOnly({ [sourceType]: MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST })
+      return { success: false, message: `铜钱不足（需要${MAYOR_TICKET_CONVERSION_MONEY_COST}文）。`, offer }
+    }
+
+    addRewardTicketsToBalanceOnly({ [targetType]: MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT })
+    const usage = ensureRewardTicketConversionUsageCurrent()
+    rewardTicketConversionUsage.value = {
+      weekId: usage.weekId,
+      used: Math.min(MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT, usage.used + 1)
+    }
+
+    return {
+      success: true,
+      message: `消耗${getTicketLabel(sourceType)}×${MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST}与${MAYOR_TICKET_CONVERSION_MONEY_COST}文，转换为${getTicketLabel(targetType)}×${MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT}。`,
+      offer: ticketConversionOffers.value.find(entry => entry.sourceType === sourceType && entry.targetType === targetType) ?? offer
+    }
   }
 
   const addMysteryBoxes = (boxId: string, amount: number): boolean => {
@@ -706,6 +897,7 @@ export const useWalletStore = defineStore('wallet', () => {
   }
 
   const serialize = () => {
+    const currentConversionUsage = ensureRewardTicketConversionUsageCurrent()
     return {
       unlockedItems: unlockedItems.value,
       currentArchetypeId: currentArchetypeId.value,
@@ -713,6 +905,7 @@ export const useWalletStore = defineStore('wallet', () => {
       unlockedNodeIdsByArchetype: unlockedNodeIdsByArchetype.value,
       rewardTickets: rewardTickets.value,
       rewardTicketLifetimeEarned: rewardTicketLifetimeEarned.value,
+      rewardTicketConversionUsage: currentConversionUsage,
       mysteryBoxes: mysteryBoxes.value
     }
   }
@@ -735,6 +928,7 @@ export const useWalletStore = defineStore('wallet', () => {
         ? data.rewardTicketLifetimeEarned
         : data?.rewardTickets
     )
+    rewardTicketConversionUsage.value = normalizeRewardTicketConversionUsage(data?.rewardTicketConversionUsage)
     mysteryBoxes.value = data?.mysteryBoxes && typeof data.mysteryBoxes === 'object'
       ? Object.fromEntries(
           Object.entries(data.mysteryBoxes)
@@ -771,6 +965,7 @@ export const useWalletStore = defineStore('wallet', () => {
     unlockedNodeIds.value = []
     rewardTickets.value = {}
     rewardTicketLifetimeEarned.value = {}
+    rewardTicketConversionUsage.value = { weekId: '', used: 0 }
     mysteryBoxes.value = {}
   }
 
@@ -780,6 +975,7 @@ export const useWalletStore = defineStore('wallet', () => {
     unlockedNodeIds,
     rewardTickets,
     rewardTicketLifetimeEarned,
+    rewardTicketConversionUsage,
     mysteryBoxes,
     archetypes,
     unlockedDefs,
@@ -795,6 +991,8 @@ export const useWalletStore = defineStore('wallet', () => {
     activeRewardTicketPrizeStage,
     rewardTicketPrizeStageEntries,
     rewardTicketSourceHints,
+    mayorTicketConversionStatus,
+    ticketConversionOffers,
     mysteryBoxNaming,
     mysteryBoxEntries,
     ticketExchangeOffers,
@@ -820,11 +1018,13 @@ export const useWalletStore = defineStore('wallet', () => {
     getTicketLabel,
     getRewardTicketBalance,
     canAffordRewardTickets,
+    syncMayorTicketConversionVillageProjectLevel,
     addRewardTickets,
     spendRewardTickets,
     addMysteryBoxes,
     openMysteryBox,
     redeemRewardTicketOffer,
+    redeemRewardTicketConversion,
     getShopDiscount,
     getForageQualityBoost,
     getMiningStaminaReduction,

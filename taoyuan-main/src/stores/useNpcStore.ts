@@ -60,7 +60,9 @@ import type {
   RegionId,
   RegionRumorSupplyEntry,
   Season,
-  Weather
+  Weather,
+  PotentialRandomNpcMilestoneKey,
+  PotentialRandomNpcMilestoneProgress
 } from '@/types'
 import { FEED_DEFS, HAY_ITEM_ID, NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent, getCropById } from '@/data'
 import { RANDOM_NPC_LONG_STAY_STORY_EVENTS, RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS, RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
@@ -140,6 +142,41 @@ const RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID = 'paper'
 const RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY = 1
 const RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID = 'silk_ribbon'
 const RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY = 1
+
+const RANDOM_NPC_POTENTIAL_MILESTONE_META: Record<PotentialRandomNpcMilestoneKey, { label: string; hint: string }> = {
+  random_acquaintance: {
+    label: '随机来访熟人',
+    hint: '去桃源村把随机来客加入熟人册'
+  },
+  random_small_order: {
+    label: '随机来客小委托',
+    hint: '去桃源村完成随机来客的小委托'
+  },
+  random_long_stay: {
+    label: '随机 NPC 长住',
+    hint: '邀请熟人册中的随机 NPC 长住'
+  },
+  random_long_stay_story: {
+    label: '长住故事',
+    hint: '推进随机长住 NPC 的故事事件'
+  },
+  random_family_tie: {
+    label: '家人线见面',
+    hint: '在随机长住 NPC 的家人线里见到一位家人'
+  },
+  random_family_commission: {
+    label: '家人线委托',
+    hint: '完成一项随机 NPC 家人线委托'
+  },
+  random_relationship_line: {
+    label: '随机 NPC 关系线',
+    hint: '为一位随机长住 NPC 开启正式关系线'
+  },
+  random_family_business: {
+    label: '婚后家业',
+    hint: '推进随机 NPC 婚后家业'
+  }
+}
 
 type RandomNpcArchiveRecallTrigger = 'manual' | 'weekly_reunion' | 'old_letter' | 'old_keepsake' | 'festival_reunion'
 
@@ -2813,6 +2850,82 @@ export const useNpcStore = defineStore('npc', () => {
   const getRandomNpcBoard = () => {
     ensureRandomVisitorsForCurrentWeek()
     return randomNpcBoard.value
+  }
+
+  const countRandomNpcRelationshipMilestoneAuditTargets = (...actions: RandomNpcRelationshipMilestoneAuditAction[]): number => {
+    const actionSet = new Set(actions)
+    const targetRefs = new Set<string>()
+    for (const entry of randomNpcBoard.value.relationshipMilestoneAudit) {
+      if (!actionSet.has(entry.action)) continue
+      targetRefs.add(entry.residentId || entry.visitorId || entry.targetRef || entry.id)
+    }
+    return targetRefs.size
+  }
+
+  const countRandomNpcSmallOrderCompletions = (): number => {
+    const completedIds = new Set<string>()
+    const record = (id: string | undefined, completed?: boolean) => {
+      if (id && completed) completedIds.add(id)
+    }
+    for (const visitor of randomNpcBoard.value.activeVisitors) record(visitor.id, visitor.smallOrderCompleted)
+    for (const acquaintance of randomNpcBoard.value.acquaintances) record(acquaintance.visitorId, acquaintance.smallOrderCompleted)
+    for (const resident of randomNpcBoard.value.longStayResidents) {
+      record(resident.sourceVisitorId || resident.residentId, resident.smallOrderCompleted)
+    }
+    for (const summary of randomNpcBoard.value.recentSummaries) record(summary.visitorId, summary.smallOrderCompleted)
+    return completedIds.size
+  }
+
+  const getRandomNpcPotentialMilestoneCurrent = (milestone: PotentialRandomNpcMilestoneKey): number => {
+    const residents = randomNpcBoard.value.longStayResidents
+    if (milestone === 'random_acquaintance') {
+      const knownNpcIds = new Set<string>()
+      for (const acquaintance of randomNpcBoard.value.acquaintances) knownNpcIds.add(acquaintance.visitorId)
+      for (const resident of residents) knownNpcIds.add(resident.sourceVisitorId || resident.residentId)
+      return Math.max(
+        knownNpcIds.size,
+        countRandomNpcRelationshipMilestoneAuditTargets('acquaintance_added', 'long_stay_promoted')
+      )
+    }
+    if (milestone === 'random_small_order') return countRandomNpcSmallOrderCompletions()
+    if (milestone === 'random_long_stay') {
+      return Math.max(residents.length, countRandomNpcRelationshipMilestoneAuditTargets('long_stay_promoted'))
+    }
+    if (milestone === 'random_long_stay_story') {
+      const completedStories = residents.reduce((sum, resident) => sum + resident.completedStoryEventIds.length, 0)
+      return Math.max(completedStories, countRandomNpcRelationshipMilestoneAuditTargets('long_stay_story_progressed'))
+    }
+    if (milestone === 'random_family_tie') {
+      const metTies = residents.reduce((sum, resident) => sum + resident.familyLine.metTieIds.length, 0)
+      return Math.max(metTies, countRandomNpcRelationshipMilestoneAuditTargets('family_tie_met'))
+    }
+    if (milestone === 'random_family_commission') {
+      const fulfilledCommissions = residents.reduce((sum, resident) => sum + resident.familyLine.completedCommissionIds.length, 0)
+      return Math.max(fulfilledCommissions, countRandomNpcRelationshipMilestoneAuditTargets('family_commission_fulfilled'))
+    }
+    if (milestone === 'random_relationship_line') {
+      const activeLines = residents.filter(resident => resident.relationshipLine.stage > 0 || resident.relationshipLine.kind !== 'friend').length
+      return Math.max(activeLines, countRandomNpcRelationshipMilestoneAuditTargets('relation_line_started', 'relation_line_engaged', 'relation_line_married'))
+    }
+    const familyBusinessStageTotal = residents.reduce((sum, resident) => sum + resident.familyLine.familyBusinessStage, 0)
+    return Math.max(familyBusinessStageTotal, countRandomNpcRelationshipMilestoneAuditTargets('family_business_progressed'))
+  }
+
+  const getRandomNpcPotentialMilestoneProgress = (
+    milestone: PotentialRandomNpcMilestoneKey,
+    target = 1
+  ): PotentialRandomNpcMilestoneProgress => {
+    const meta = RANDOM_NPC_POTENTIAL_MILESTONE_META[milestone]
+    const normalizedTarget = Math.max(1, Math.floor(Number(target)) || 1)
+    const current = Math.max(0, getRandomNpcPotentialMilestoneCurrent(milestone))
+    return {
+      milestone,
+      label: meta.label,
+      hint: meta.hint,
+      current,
+      target: normalizedTarget,
+      ready: current >= normalizedTarget
+    }
   }
 
   const getRandomNpcLockedArchiveIds = () => {
@@ -7819,6 +7932,7 @@ export const useNpcStore = defineStore('npc', () => {
     getRelationshipCompanionshipAuditOverview,
     getRelationshipDebugSnapshot,
     getRandomNpcBoard,
+    getRandomNpcPotentialMilestoneProgress,
     talkToRandomVisitor,
     setRandomNpcLock,
     recallRandomNpcArchive,

@@ -90,6 +90,10 @@ export const handlePerkSelect = (perk: SkillPerk5 | SkillPerk10 | SkillPerk15 | 
 }
 
 /** 判断是否为隐藏NPC */
+export const requestPerkSelection = (skillType: SkillType, level: 5 | 10 | 15 | 20) => {
+  pendingPerk.value = { skillType, level }
+}
+
 const isHiddenNpcId = (npcId: string): boolean => HIDDEN_NPCS.some(n => n.id === npcId)
 
 /** 触发心事件（由 NpcView / HiddenNpcModal 调用） */
@@ -276,6 +280,7 @@ export const useDialogs = () => {
     childProposalVisible,
     checkAllPerks,
     handlePerkSelect,
+    requestPerkSelection,
     triggerHeartEvent,
     triggerWeddingEvent,
     closeHeartEvent,

@@ -1270,6 +1270,39 @@ async function markUserMailRead(username, deliveryId) {
   });
 }
 
+async function markAllUserMailsRead(username) {
+  return withMailboxLock(async () => {
+    const data = loadMailboxData();
+    const actor = String(username);
+    const now = Math.floor(Date.now() / 1000);
+    let count = 0;
+
+    for (const delivery of data.deliveries) {
+      if (
+        delivery.username === actor &&
+        !delivery.deleted_at &&
+        !delivery.read_at &&
+        !isChatSurfaceDelivery(delivery)
+      ) {
+        delivery.read_at = now;
+        count += 1;
+      }
+    }
+
+    if (count > 0) saveMailboxData(data);
+
+    const unread_count = data.deliveries.filter(
+      item => item.username === actor && !item.deleted_at && !item.read_at && !isChatSurfaceDelivery(item)
+    ).length;
+
+    return {
+      count,
+      read_at: count > 0 ? now : null,
+      unread_count,
+    };
+  });
+}
+
 function ensureInventoryState(saveData) {
   if (!saveData.inventory || typeof saveData.inventory !== 'object') saveData.inventory = {};
   if (!Array.isArray(saveData.inventory.items)) saveData.inventory.items = [];
@@ -1846,6 +1879,7 @@ module.exports = {
   listUserMemorialEntries,
   getUserMail,
   markUserMailRead,
+  markAllUserMailsRead,
   setUserMailPinned,
   saveMailToMemorial,
   claimUserMail,

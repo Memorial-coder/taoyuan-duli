@@ -11,6 +11,8 @@ const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
 const srcRoot = path.join(projectRoot, 'src')
 const questViewSource = fs.readFileSync(path.join(srcRoot, 'views/game/QuestView.vue'), 'utf8')
+const goalsViewSource = fs.readFileSync(path.join(srcRoot, 'views/game/GoalsView.vue'), 'utf8')
+const questOperationHintsSource = fs.readFileSync(path.join(srcRoot, 'components/game/QuestBoardOperationHints.vue'), 'utf8')
 
 const errors = []
 
@@ -241,6 +243,14 @@ assert(questDetailModalLine.includes('max-h-[calc(100dvh-2rem)]'), 'Quest detail
 assert(questDetailModalLine.includes('md:max-h-[calc(100dvh-3rem)]'), 'Quest detail modal must fit inside the desktop overlay padding.')
 assert(questDetailModalLine.includes('overflow-y-auto'), 'Quest detail modal must expose vertical scrolling.')
 assert(questDetailModalLine.includes('overscroll-contain'), 'Quest detail modal scroll should stay contained in the overlay.')
+assert(!questViewSource.includes('QuestBoardOperationHints'), 'QuestView must not render the operation hints; they belong on the Goals page only.')
+assert(!questViewSource.includes('GuidanceDigestPanel'), 'QuestView must not render the route guidance digest; it belongs on the Goals page only.')
+assert(goalsViewSource.includes('QuestBoardOperationHints'), 'GoalsView must render the shared quest board operation hints.')
+assert(goalsViewSource.includes('GuidanceDigestPanel'), 'GoalsView must render the route guidance digest.')
+assert(goalsViewSource.includes('GuidanceDigestPanel surface-id="quest"'), 'GoalsView route guidance digest must keep the quest surface id for persisted digest state.')
+assert(questOperationHintsSource.includes('data-testid="quest-operation-hints"'), 'Shared operation hints need a stable test id.')
+assert(questOperationHintsSource.includes('weeklyPlanSnapshot.primaryRouteLabel'), 'Shared operation hints must show the weekly route from goalStore.')
+assert(questOperationHintsSource.includes('questStore.specialOrder'), 'Shared operation hints must carry quest board special order direction.')
 
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
@@ -261,6 +271,63 @@ const freshStores = () => {
 }
 
 const clone = value => JSON.parse(JSON.stringify(value))
+
+{
+  const { inventoryStore, questStore } = freshStores()
+  const firstQuest = {
+    id: 'qa-crucian-seven',
+    type: 'fishing',
+    npcId: 'chen_bo',
+    npcName: 'Chen Bo',
+    description: 'QA crucian delivery 7',
+    targetItemId: 'crucian',
+    targetItemName: 'Crucian',
+    targetQuantity: 7,
+    collectedQuantity: 7,
+    moneyReward: 70,
+    friendshipReward: 0,
+    daysRemaining: 2,
+    accepted: true
+  }
+  const secondQuest = {
+    id: 'qa-crucian-four',
+    type: 'fishing',
+    npcId: 'chen_bo',
+    npcName: 'Chen Bo',
+    description: 'QA crucian delivery 4',
+    targetItemId: 'crucian',
+    targetItemName: 'Crucian',
+    targetQuantity: 4,
+    collectedQuantity: 4,
+    moneyReward: 40,
+    friendshipReward: 0,
+    daysRemaining: 2,
+    accepted: true
+  }
+
+  inventoryStore.items = [{ itemId: 'crucian', quantity: 7, quality: 'normal' }]
+  inventoryStore.tempItems = []
+  questStore.deserialize({
+    ...questStore.serialize(),
+    activeQuests: [firstQuest, secondQuest],
+    completedQuestCount: 0,
+    completedQuestHistory: [],
+    specialOrderSettlementReceipts: []
+  })
+
+  assert(questStore.canSubmitQuest(questStore.activeQuests[0]), 'A same-item fishing quest should be submittable while enough fish are carried.')
+  assert(questStore.canSubmitQuest(questStore.activeQuests[1]), 'The smaller same-item quest is individually submittable before the shared stack is consumed.')
+
+  const result = questStore.submitQuest(firstQuest.id)
+  assert(result.success === true, 'Submitting the larger same-item fishing quest should succeed.')
+  const remainingQuest = questStore.activeQuests.find(quest => quest.id === secondQuest.id)
+  assert(remainingQuest, 'The smaller same-item fishing quest should remain active after the larger one is submitted.')
+  assert(inventoryStore.getTotalItemCount('crucian') === 0, 'The shared crucian stack should be consumed by the larger quest.')
+  if (remainingQuest) {
+    assert(questStore.getQuestEffectiveProgress(remainingQuest) === 0, 'Same-item quest progress must reflect current inventory after another quest consumes the shared stack.')
+    assert(!questStore.canSubmitQuest(remainingQuest), 'Same-item quest submit state must clear when current inventory is no longer enough.')
+  }
+}
 
 const makeFinalStageSpecialOrder = () => ({
   id: 'qa-special-order-final-stage',

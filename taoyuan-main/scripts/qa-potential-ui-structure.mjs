@@ -27,7 +27,8 @@ for (const scriptName of [
   'qa:potential-save-guards',
   'qa:potential-effect-guards',
   'qa:potential-resource-guards',
-  'qa:potential-ui-structure'
+  'qa:potential-ui-structure',
+  'qa:potential-random-npc-guards'
 ]) {
   assert(
     packageJson.scripts?.[scriptName] === `node scripts/${scriptName.replace('qa:', 'qa-')}.mjs`,
@@ -46,20 +47,35 @@ assert(sampleSavesSource.includes("recommendedRouteName: 'potential'"), 'late-ga
 for (const testId of [
   'potential-view',
   'potential-resource-grid',
+  'potential-unlock-result',
+  'potential-upgrade-dialog',
   'potential-branch-summary',
+  'potential-next-step',
   'potential-node-grid',
   'potential-respec-panel',
-  'potential-source-grid'
+  'potential-source-grid',
+  'potential-source-progress'
 ]) {
   assert(potentialViewSource.includes(`data-testid="${testId}"`), `PotentialView missing ${testId}.`)
 }
 
 assert(potentialViewSource.includes('refundPotentialBranch'), 'potential page must expose branch respec action.')
 assert(potentialViewSource.includes('getPotentialBranchRefundPreview'), 'potential page must preview branch respec refunds.')
+assert(potentialViewSource.includes('lastUnlockResult'), 'potential page must show an upgrade result panel after successful comprehension.')
+assert(potentialViewSource.includes('effectChangeDisplay'), 'potential upgrade feedback must describe the concrete effect delta.')
+assert(potentialViewSource.includes('pendingUpgradeNodeId') && potentialViewSource.includes('upgradePreview'), 'potential page must stage upgrade preview state before spending resources.')
+assert(potentialViewSource.includes('openUpgradePreview') && potentialViewSource.includes('confirmUpgrade'), 'potential page must preview and confirm potential upgrades separately.')
+assert(potentialViewSource.includes('下一级预览') && potentialViewSource.includes('确认参悟'), 'potential upgrade dialog must show the next-rank preview and confirmation action.')
+assert(potentialViewSource.includes('getPotentialSourceProgress'), 'potential source rows must show current period progress.')
+assert(potentialViewSource.includes('potential-status-badge'), 'potential nodes must expose clear state badges.')
+assert(potentialViewSource.includes('potential-node-ready') && !potentialViewSource.includes('potential-node-planned'), 'potential nodes must distinguish ready states without showing planned-state styling.')
+assert(potentialViewSource.includes("nextStep.action === 'randomNpc'") && potentialViewSource.includes("navigateToPanel('village')"), 'potential page must route random NPC gates to the village panel.')
+assert(!potentialViewSource.includes('暂未开放') && !potentialViewSource.includes('首版') && !potentialViewSource.includes('规划中'), 'potential page must not expose first-version or planned-state copy.')
 assert(potentialViewSource.includes('@media (max-width: 420px)'), 'potential page must keep a mobile-specific layout guard.')
 assert(potentialViewSource.includes('grid-template-columns: repeat(2, minmax(0, 1fr))'), 'potential branch tabs must collapse on narrow screens.')
 assert(potentialViewSource.includes('grid-template-columns: minmax(0, 1fr)'), 'potential node grid must become single-column on narrow screens.')
 assert(potentialViewSource.includes('.potential-action-btn') && potentialViewSource.includes('width: 100%'), 'potential upgrade buttons must have stable width.')
+assert(potentialViewSource.includes('.potential-upgrade-dialog') && potentialViewSource.includes('max-height: min(38rem, 88dvh)'), 'potential upgrade dialog must keep a fixed shell with internal scrolling.')
 
 const template = potentialViewSource.match(/<template>([\s\S]*?)<\/template>/)?.[1] ?? ''
 const visibleTextSurface = template
@@ -68,7 +84,7 @@ const visibleTextSurface = template
   .replace(/<[^>]+>/g, ' ')
   .replace(/\s+/g, ' ')
 
-for (const forbidden of ['effectKey', 'store', 'QA', 'migration', 'guard', 'fallback', '明日之后']) {
+for (const forbidden of ['effectKey', 'store', 'QA', 'migration', 'guard', 'fallback', '首版', '规划中', '明日之后']) {
   assert(!visibleTextSurface.toLowerCase().includes(forbidden.toLowerCase()), `potential page visible copy must not expose internal word: ${forbidden}`)
 }
 

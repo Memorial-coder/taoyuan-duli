@@ -179,6 +179,17 @@ const setDesktopLayoutMode = async (page, mode) => {
   await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-desktop-layout-mode'))).toBe(mode)
 }
 
+const setPageWidth = async (page, { mode, percent }) => {
+  await page.evaluate(async ({ nextMode, nextPercent }) => {
+    const { useSettingsStore } = await import('/src/stores/useSettingsStore.ts')
+    const settingsStore = useSettingsStore()
+    settingsStore.setPageWidthPercent(nextPercent)
+    settingsStore.setPageWidthMode(nextMode)
+  }, { nextMode: mode, nextPercent: percent })
+  await expect.poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-page-width-mode'))).toBe(mode)
+  await expect.poll(async () => page.evaluate(() => document.documentElement.style.getPropertyValue('--app-page-width').trim())).toBe(`${percent}vw`)
+}
+
 const expectedAdaptiveColumns = width => {
   if (width < 1280) return 1
   if (width < 1920) return 2
@@ -188,6 +199,7 @@ const expectedAdaptiveColumns = width => {
 const readLayoutMetrics = async (page, selector) => {
   return await page.evaluate(targetSelector => {
     const target = document.querySelector(targetSelector)
+    const scrollingElement = document.scrollingElement ?? document.documentElement
     const style = target ? window.getComputedStyle(target) : null
     const rect = target?.getBoundingClientRect()
     const columns = style?.gridTemplateColumns && style.gridTemplateColumns !== 'none'
@@ -198,6 +210,9 @@ const readLayoutMetrics = async (page, selector) => {
       bodyScrollWidth: document.body.scrollWidth,
       docScrollWidth: document.documentElement.scrollWidth,
       horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 4,
+      outerScrollHeight: scrollingElement.scrollHeight,
+      viewportHeight: window.innerHeight,
+      verticalOverflow: scrollingElement.scrollHeight > window.innerHeight + 4,
       columns,
       visible: !!target && !!rect && rect.width > 0 && rect.height > 0 && style?.display !== 'none' && style?.visibility !== 'hidden',
       width: rect ? Math.round(rect.width) : 0,
@@ -210,6 +225,9 @@ const assertLayout = async ({ page, viewport, scenario, mode }) => {
   if (!metrics.visible) throw new Error(`${scenario.label}-${viewport.label}-${mode}: layout target is not visible`)
   if (metrics.horizontalOverflow) {
     throw new Error(`${scenario.label}-${viewport.label}-${mode}: horizontal overflow, doc=${metrics.docScrollWidth}, body=${metrics.bodyScrollWidth}`)
+  }
+  if (metrics.verticalOverflow) {
+    throw new Error(`${scenario.label}-${viewport.label}-${mode}: outer vertical overflow, doc=${metrics.outerScrollHeight}, viewport=${metrics.viewportHeight}`)
   }
   const expectedColumns = mode === 'classic' ? 1 : expectedAdaptiveColumns(viewport.width)
   if (metrics.columns !== expectedColumns) {
@@ -240,10 +258,41 @@ const assertLayout = async ({ page, viewport, scenario, mode }) => {
   }
 }
 
+const readFullscreenRootMetrics = async page => {
+  return await page.evaluate(() => {
+    const frame = document.querySelector('[data-testid="game-layout-frame"]')
+    const rect = frame?.getBoundingClientRect()
+    return {
+      fullscreen: Boolean(document.fullscreenElement),
+      pageWidthMode: document.documentElement.getAttribute('data-page-width-mode'),
+      viewportWidth: window.innerWidth,
+      width: rect ? Math.round(rect.width) : 0,
+      left: rect ? Math.round(rect.left) : 0,
+      rightGap: rect ? Math.round(window.innerWidth - rect.right) : 0,
+    }
+  })
+}
+
+const assertCustomFullscreenPageWidth = async (page, percent) => {
+  const metrics = await readFullscreenRootMetrics(page)
+  if (!metrics.fullscreen) throw new Error('fullscreen custom width: document is not fullscreen')
+  if (metrics.pageWidthMode !== 'custom') {
+    throw new Error(`fullscreen custom width: page-width mode is ${metrics.pageWidthMode}`)
+  }
+  const expectedWidth = Math.round(metrics.viewportWidth * (percent / 100))
+  if (Math.abs(metrics.width - expectedWidth) > 8) {
+    throw new Error(`fullscreen custom width: expected ${expectedWidth}px, got ${metrics.width}px`)
+  }
+  if (Math.abs(metrics.left - metrics.rightGap) > 8) {
+    throw new Error(`fullscreen custom width: frame is not centered, left=${metrics.left}, right=${metrics.rightGap}`)
+  }
+}
+
 const verifyFullscreenAdaptiveLayout = async (page, viewport, scenario, nextScenario) => {
   if (viewport.width < 1280) return
   await openScenario(page, scenario)
   await setDesktopLayoutMode(page, 'adaptive')
+  await setPageWidth(page, { mode: 'custom', percent: 70 })
   const canFullscreen = await page.evaluate(() => document.fullscreenEnabled)
   if (!canFullscreen) {
     console.warn('qa-desktop-layout-smoke: fullscreen API unavailable, skipping fullscreen adaptive check')
@@ -251,6 +300,7 @@ const verifyFullscreenAdaptiveLayout = async (page, viewport, scenario, nextScen
   }
   await page.getByTestId('fullscreen-button').click()
   await expect.poll(async () => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true)
+  await assertCustomFullscreenPageWidth(page, 70)
   await assertLayout({ page, viewport, scenario, mode: 'adaptive' })
   if (nextScenario) {
     await page.evaluate(hash => {

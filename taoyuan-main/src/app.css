@@ -91,6 +91,17 @@ body {
   image-rendering: pixelated;
 }
 
+html.app-shell--game,
+body.app-shell--game {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.app-shell--game {
+  scrollbar-gutter: auto;
+}
+
 button {
   background-color: transparent;
   background-image: none;
@@ -244,6 +255,20 @@ button {
   padding-right: 6px;
 }
 
+#app.app-shell--game {
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+}
+
+#app.app-shell--game .game-layout-root {
+  height: 100%;
+  min-height: 0;
+}
+
 @media (min-width: 768px) {
   #app {
     max-width: 1180px;
@@ -271,7 +296,7 @@ button {
 }
 
 @media (min-width: 768px) {
-  html[data-page-width-mode='custom'] #app:not(.app-shell--admin) {
+  html[data-page-width-mode='custom'] #app:not(.app-shell--admin):not(.app-shell--game) {
     width: min(100%, var(--app-page-width));
     max-width: none;
   }

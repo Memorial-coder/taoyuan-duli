@@ -6,55 +6,57 @@
     data-testid="game-layout"
     :class="{ 'py-10': Capacitor.isNativePlatform() }"
   >
-    <!-- 状态栏 -->
-    <StatusBar @request-sleep="showSleepConfirm = true" @request-save-prompt="openSavePrompt" />
+    <div class="game-layout-frame flex min-h-0 flex-1 flex-col gap-1 md:gap-4" data-testid="game-layout-frame">
+      <!-- 状态栏 -->
+      <StatusBar @request-sleep="showSleepConfirm = true" @request-save-prompt="openSavePrompt" />
 
-    <div class="game-layout-header-actions">
-      <Button class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="showSleepConfirm = true">
-        {{ sleepLabel }}
-      </Button>
-    </div>
+      <div class="game-layout-header-actions">
+        <Button class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="showSleepConfirm = true">
+          {{ sleepLabel }}
+        </Button>
+      </div>
 
-    <!-- 内容 -->
-    <div
-      ref="contentViewport"
-      class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto"
-      @touchstart.passive="handleContentTouchStart"
-      @touchend.passive="releaseBottomReveal"
-      @touchcancel.passive="releaseBottomReveal"
-      @scroll.passive="handleContentScroll"
-    >
-      <div class="game-layout-body">
-        <div ref="sceneContentAnchor">
-          <router-view v-slot="{ Component }">
-            <Transition name="panel-fade" mode="out-in">
-              <component :is="Component" :key="$route.path" />
-            </Transition>
-          </router-view>
+      <!-- 内容 -->
+      <div
+        ref="contentViewport"
+        class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto"
+        @touchstart.passive="handleContentTouchStart"
+        @touchend.passive="releaseBottomReveal"
+        @touchcancel.passive="releaseBottomReveal"
+        @scroll.passive="handleContentScroll"
+      >
+        <div class="game-layout-body">
+          <div ref="sceneContentAnchor">
+            <router-view v-slot="{ Component }">
+              <Transition name="panel-fade" mode="out-in">
+                <component :is="Component" :key="$route.path" />
+              </Transition>
+            </router-view>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 移动端总入口 -->
-    <div class="game-side-actions">
-      <button class="mobile-hub-btn" data-testid="mobile-hub-button" :aria-label="mobileHubTitle" :title="mobileHubTitle" @click="showMobileMap = true">
-        <Map :size="20" />
-        <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
-        <span v-if="pendingFriendRequestCount > 0" class="friend-request-badge">{{ friendRequestBadgeLabel }}</span>
-        <span v-if="friendChatStore.totalUnreadCount > 0" class="friend-chat-badge">{{ mobileChatUnreadLabel }}</span>
-      </button>
-      <button
-        v-if="isFullscreenSupported"
-        class="game-floating-btn"
-        data-testid="fullscreen-button"
-        type="button"
-        :aria-label="isFullscreen ? '退出全屏' : '进入全屏'"
-        :title="isFullscreen ? '退出全屏' : '进入全屏'"
-        @click="toggleFullscreen"
-      >
-        <Minimize2 v-if="isFullscreen" :size="20" />
-        <Maximize2 v-else :size="20" />
-      </button>
+      <!-- 移动端总入口 -->
+      <div class="game-side-actions">
+        <button class="mobile-hub-btn" data-testid="mobile-hub-button" :aria-label="mobileHubTitle" :title="mobileHubTitle" @click="showMobileMap = true">
+          <Map :size="20" />
+          <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
+          <span v-if="pendingFriendRequestCount > 0" class="friend-request-badge">{{ friendRequestBadgeLabel }}</span>
+          <span v-if="friendChatStore.totalUnreadCount > 0" class="friend-chat-badge">{{ mobileChatUnreadLabel }}</span>
+        </button>
+        <button
+          v-if="isFullscreenSupported"
+          class="game-floating-btn"
+          data-testid="fullscreen-button"
+          type="button"
+          :aria-label="isFullscreen ? '退出全屏' : '进入全屏'"
+          :title="isFullscreen ? '退出全屏' : '进入全屏'"
+          @click="toggleFullscreen"
+        >
+          <Minimize2 v-if="isFullscreen" :size="20" />
+          <Maximize2 v-else :size="20" />
+        </button>
+      </div>
     </div>
 
     <SettingsDialog :open="showSettings" @close="closeSettings" />
@@ -73,6 +75,7 @@
         v-if="announcementStore.popupQueue.length > 0 && !blockAnnouncementDialogs"
         :announcements="announcementStore.popupQueue"
         :closing="announcementClosing"
+        :claim-rewards="announcementStore.canClaimRewardsInCurrentSession"
         @close="handleAnnouncementClose"
         @cta="handleAnnouncementCta"
         @save-update="handleAnnouncementSaveUpdate"
@@ -209,8 +212,8 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showVoidModal = false"
       >
-        <div class="game-panel max-w-sm w-full">
-          <div class="flex items-center justify-between mb-2">
+        <div class="game-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col overflow-hidden md:max-h-[calc(100dvh-3rem)]" data-testid="void-chest-modal">
+          <div class="mb-2 flex shrink-0 items-center justify-between">
             <p class="text-sm text-accent">
               <Archive :size="14" class="inline" />
               虚空箱
@@ -219,7 +222,7 @@
           </div>
 
           <!-- 虚空箱列表 -->
-          <div class="flex flex-col space-y-1.5">
+          <div class="flex min-h-0 flex-col space-y-1.5 overflow-y-auto overscroll-contain pr-1" data-testid="void-chest-list">
             <div
               v-for="vc in voidChests"
               :key="vc.id"
@@ -305,12 +308,12 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showVoidDepositModal = false"
       >
-        <div class="game-panel max-w-sm w-full">
-          <div class="flex items-center justify-between mb-2">
+        <div class="game-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col overflow-hidden md:max-h-[calc(100dvh-3rem)]">
+          <div class="mb-2 flex shrink-0 items-center justify-between">
             <p class="text-sm text-accent">存入物品</p>
             <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="showVoidDepositModal = false" />
           </div>
-          <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
+          <div class="flex min-h-0 flex-col space-y-1 overflow-y-auto overscroll-contain pr-1">
             <div
               v-for="item in voidDepositableItems"
               :key="item.itemId + item.quality"
@@ -389,7 +392,7 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="voidItemDetail = null"
       >
-        <div class="game-panel max-w-xs w-full relative">
+        <div class="game-panel relative max-h-[calc(100dvh-2rem)] w-full max-w-xs overflow-y-auto overscroll-contain md:max-h-[calc(100dvh-3rem)]">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="voidItemDetail = null">
             <X :size="14" />
           </button>
@@ -927,6 +930,8 @@
       const result = await announcementStore.closeCurrent()
       if (result.claimedCount > 0) {
         showFloat(`公告奖励已领取 ${result.claimedCount} 份`, 'success')
+      } else if (result.skippedRewardCount > 0) {
+        showFloat('已关闭公告；本地存档不会领取服务端公告奖励。', 'accent')
       }
       return true
     } catch (error) {
@@ -1519,6 +1524,12 @@
     min-width: 0;
   }
 
+  .game-layout-frame {
+    width: var(--app-page-width);
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
   .game-side-actions {
     position: fixed;
     right: 12px;
@@ -1569,24 +1580,6 @@
   .mobile-hub-btn:active {
     background: var(--color-accent);
     color: rgb(var(--color-bg));
-  }
-
-  .game-layout-root:fullscreen,
-  .game-layout-root:-webkit-full-screen {
-    width: 100vw;
-    height: 100dvh;
-    max-width: none;
-    margin: 0;
-    background: rgb(var(--color-bg));
-    overflow: hidden;
-    padding: var(--spacing-2);
-  }
-
-  @media (min-width: 768px) {
-    .game-layout-root:fullscreen,
-    .game-layout-root:-webkit-full-screen {
-      padding: var(--spacing-4);
-    }
   }
 
   .mail-badge {

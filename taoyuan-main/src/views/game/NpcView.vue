@@ -219,27 +219,32 @@
             <OnlineTechnicalDetails
               v-if="saveStore.isBuiltInSampleRuntime"
               class="mt-1"
-              title="关系审计技术详情"
-              summary="样例档和 QA 回看时用于核对本地存档节点，默认不进入玩家主信息层。"
+              title="关系回看核对"
+              summary="样例档回看时用于核对本地存档节点，默认不进入玩家主信息层。"
               tone="warning"
-              :copyable="[entry.id, entry.action, entry.targetRef, entry.idempotencyKey]"
+              :copyable="[
+                `记录编号：${entry.id}`,
+                `动作：${getRandomNpcRelationshipAuditActionLabel(entry.action)}`,
+                `对象：${entry.npcName}`,
+                `校验码：${entry.idempotencyKey}`
+              ]"
             >
               <dl class="grid gap-1" data-testid="random-npc-relationship-audit-technical-detail">
                 <div>
-                  <dt class="text-accent">action</dt>
-                  <dd class="break-all">{{ entry.action }}</dd>
+                  <dt class="text-accent">动作</dt>
+                  <dd class="break-all">{{ getRandomNpcRelationshipAuditActionLabel(entry.action) }}</dd>
                 </div>
                 <div>
-                  <dt class="text-accent">targetRef</dt>
-                  <dd class="break-all">{{ entry.targetRef }}</dd>
+                  <dt class="text-accent">对象</dt>
+                  <dd class="break-all">{{ entry.npcName }}</dd>
                 </div>
                 <div>
-                  <dt class="text-accent">idempotencyKey</dt>
-                  <dd class="break-all">{{ entry.idempotencyKey }}</dd>
+                  <dt class="text-accent">校验码</dt>
+                  <dd class="break-all">{{ entry.idempotencyKey ? '已写入' : '未记录' }}</dd>
                 </div>
                 <div>
-                  <dt class="text-accent">privacyScope</dt>
-                  <dd class="break-all">{{ entry.privacyScope }}</dd>
+                  <dt class="text-accent">保存范围</dt>
+                  <dd class="break-all">仅本地存档</dd>
                 </div>
               </dl>
             </OnlineTechnicalDetails>
@@ -269,31 +274,35 @@
           <OnlineTechnicalDetails
             v-if="saveStore.isBuiltInSampleRuntime"
             class="mt-1"
-            title="生成修复技术详情"
-            summary="样例档和 QA 回看时用于核对本地修复证据，默认不进入玩家主信息层。"
+            title="生成修复核对"
+            summary="样例档回看时用于核对本地修复证据，默认不进入玩家主信息层。"
             tone="danger"
-            :copyable="[entry.id, entry.action, entry.idempotencyKey]"
+            :copyable="[
+              `记录编号：${entry.id}`,
+              `处理：${getRandomNpcGenerationAnomalyActionLabel(entry.action)}`,
+              `校验码：${entry.idempotencyKey}`
+            ]"
           >
             <dl class="grid gap-1" data-testid="random-npc-generation-anomaly-technical-detail">
               <div>
-                <dt class="text-accent">action</dt>
-                <dd class="break-all">{{ entry.action }}</dd>
+                <dt class="text-accent">处理</dt>
+                <dd class="break-all">{{ getRandomNpcGenerationAnomalyActionLabel(entry.action) }}</dd>
               </div>
               <div>
-                <dt class="text-accent">visitorIds</dt>
-                <dd class="break-all">{{ entry.visitorIds.join('、') || '无' }}</dd>
+                <dt class="text-accent">来访记录</dt>
+                <dd class="break-all">{{ entry.visitorIds.length || 0 }} 条</dd>
               </div>
               <div>
-                <dt class="text-accent">templateIds</dt>
-                <dd class="break-all">{{ entry.templateIds.join('、') || '无' }}</dd>
+                <dt class="text-accent">模板记录</dt>
+                <dd class="break-all">{{ entry.templateIds.length || 0 }} 条</dd>
               </div>
               <div>
-                <dt class="text-accent">idempotencyKey</dt>
-                <dd class="break-all">{{ entry.idempotencyKey }}</dd>
+                <dt class="text-accent">校验码</dt>
+                <dd class="break-all">{{ entry.idempotencyKey ? '已写入' : '未记录' }}</dd>
               </div>
               <div>
-                <dt class="text-accent">privacyScope</dt>
-                <dd class="break-all">{{ entry.privacyScope }}</dd>
+                <dt class="text-accent">保存范围</dt>
+                <dd class="break-all">仅本地存档</dd>
               </div>
             </dl>
           </OnlineTechnicalDetails>
@@ -1851,6 +1860,94 @@
                 </p>
               </div>
 
+              <div
+                v-if="selectedNpc === MAYOR_TICKET_CONVERSION_NPC_ID"
+                data-testid="mayor-ticket-conversion-panel"
+                class="border border-accent/20 rounded-xs p-2 mb-3"
+              >
+                <p class="text-xs text-accent/80 mb-1.5 flex items-center space-x-1">
+                  <RotateCcw :size="12" />
+                  <span>村务票据转换</span>
+                </p>
+                <p class="text-[0.625rem] text-muted/70 leading-4 mb-2">{{ mayorTicketConversionStatus.hint }}</p>
+
+                <div v-if="!mayorTicketConversionStatus.unlocked" class="flex flex-col space-y-1">
+                  <span
+                    class="text-[0.625rem] flex items-center space-x-1"
+                    :class="mayorTicketConversionStatus.friendshipReady ? 'text-success' : 'text-muted/50'"
+                  >
+                    <CircleCheck v-if="mayorTicketConversionStatus.friendshipReady" :size="10" />
+                    <Circle v-else :size="10" />
+                    <span>柳村长关系：{{ mayorTicketConversionStatus.currentFriendship }} / {{ mayorTicketConversionStatus.requiredFriendship }}</span>
+                  </span>
+                  <span
+                    class="text-[0.625rem] flex items-center space-x-1"
+                    :class="mayorTicketConversionStatus.villageProjectReady ? 'text-success' : 'text-muted/50'"
+                  >
+                    <CircleCheck v-if="mayorTicketConversionStatus.villageProjectReady" :size="10" />
+                    <Circle v-else :size="10" />
+                    <span>村庄建设：{{ mayorTicketConversionStatus.currentVillageProjectLevel }} / {{ mayorTicketConversionStatus.requiredVillageProjectLevel }}</span>
+                  </span>
+                </div>
+
+                <template v-else>
+                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
+                    <div
+                      v-for="option in mayorTicketConversionTicketOptions"
+                      :key="option.ticketType"
+                      class="border border-muted/10 rounded-xs px-2 py-1 flex items-center justify-between text-[0.625rem]"
+                    >
+                      <span class="text-muted/70">{{ option.label }}</span>
+                      <span class="text-accent">×{{ option.balance }}</span>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                    <label class="text-[0.625rem] text-muted/70 flex flex-col space-y-1">
+                      <span>来源券</span>
+                      <select
+                        v-model="mayorTicketConversionSourceType"
+                        data-testid="mayor-ticket-conversion-source"
+                        class="bg-black/20 border border-muted/20 rounded-xs px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent/50"
+                        @change="handleMayorTicketConversionSourceChange"
+                      >
+                        <option v-for="option in mayorTicketConversionTicketOptions" :key="option.ticketType" :value="option.ticketType">
+                          {{ option.label }} ×{{ option.balance }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="text-[0.625rem] text-muted/70 flex flex-col space-y-1">
+                      <span>目标券</span>
+                      <select
+                        v-model="mayorTicketConversionTargetType"
+                        data-testid="mayor-ticket-conversion-target"
+                        class="bg-black/20 border border-muted/20 rounded-xs px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent/50"
+                      >
+                        <option v-for="option in mayorTicketConversionTargetOptions" :key="option.ticketType" :value="option.ticketType">
+                          {{ option.label }} ×{{ option.balance }}
+                        </option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-1 text-[0.625rem] text-muted/70 mb-2">
+                    <span>折损：{{ mayorTicketConversionStatus.sourceTicketCost }} 张换 1 张</span>
+                    <span>手续费：{{ mayorTicketConversionStatus.moneyCost }} 文</span>
+                    <span>本周剩余：{{ mayorTicketConversionStatus.weeklyRemaining }} / {{ mayorTicketConversionStatus.weeklyLimit }}</span>
+                  </div>
+                  <p v-if="selectedMayorTicketConversionOffer?.disabledReason" class="text-[0.625rem] text-warning mb-2">
+                    {{ selectedMayorTicketConversionOffer.disabledReason }}
+                  </p>
+                  <Button
+                    class="w-full text-accent border-accent/40"
+                    :icon="RotateCcw"
+                    :disabled="!selectedMayorTicketConversionOffer?.affordable"
+                    data-testid="mayor-ticket-conversion-submit"
+                    @click="handleMayorTicketConversion"
+                  >
+                    转换票据
+                  </Button>
+                </template>
+              </div>
+
               <!-- 婚礼倒计时 -->
               <p v-if="npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc" class="text-xs text-accent mb-3">
                 婚礼将在 {{ npcStore.weddingCountdown }} 天后举行！
@@ -2244,7 +2341,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onBeforeUnmount, onMounted, type Component } from 'vue'
+  import { ref, computed, onBeforeUnmount, onMounted, watchEffect, type Component } from 'vue'
   import { useRouter } from 'vue-router'
   import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail, Clock, PanelRightOpen } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
@@ -2254,11 +2351,13 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
+  import { useWalletStore } from '@/stores/useWalletStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { NPCS, getNpcById, getItemById, getHeartEventById, getTodayEvent } from '@/data'
+  import { MAYOR_TICKET_CONVERSION_NPC_ID, MAYOR_TICKET_CONVERTIBLE_TYPES } from '@/data/rewardTickets'
   import { getNpcRelationshipFocusLabels } from '@/data/npcWorld'
   import { RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
@@ -2275,6 +2374,7 @@
     ChildState,
     FriendshipLevel,
     GiftPreference,
+    MayorTicketConversionTicketType,
     Quality,
     RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
@@ -2326,8 +2426,13 @@
   const tutorialStore = useTutorialStore()
   const hiddenNpcStore = useHiddenNpcStore()
   const villageProjectStore = useVillageProjectStore()
+  const walletStore = useWalletStore()
   const shopStore = useShopStore()
   const skillStore = useSkillStore()
+
+  watchEffect(() => {
+    walletStore.syncMayorTicketConversionVillageProjectLevel(villageProjectStore.villageProjectLevel)
+  })
 
   const activeTab = ref<'villager' | 'spirit'>('villager')
   const selectedHiddenNpc = ref<string | null>(null)
@@ -3372,6 +3477,8 @@
   const showDivorceConfirm = ref(false)
   const showZhijiDissolveConfirm = ref(false)
   const activeGiftKey = ref<string | null>(null)
+  const mayorTicketConversionSourceType = ref<MayorTicketConversionTicketType>('construction')
+  const mayorTicketConversionTargetType = ref<MayorTicketConversionTicketType>('exhibit')
 
   const activeGiftItem = computed(() => {
     if (!activeGiftKey.value) return null
@@ -3386,6 +3493,25 @@
 
   const selectedNpcDef = computed(() => (selectedNpc.value ? getNpcById(selectedNpc.value) : null))
   const selectedNpcState = computed(() => (selectedNpc.value ? npcStore.getNpcState(selectedNpc.value) : null))
+  const mayorTicketConversionStatus = computed(() => walletStore.mayorTicketConversionStatus)
+  const mayorTicketConversionOffers = computed(() => walletStore.ticketConversionOffers)
+  const mayorTicketConversionTicketOptions = computed(() =>
+    MAYOR_TICKET_CONVERTIBLE_TYPES.map(ticketType => ({
+      ticketType,
+      label: walletStore.getTicketLabel(ticketType),
+      balance: walletStore.getRewardTicketBalance(ticketType)
+    }))
+  )
+  const mayorTicketConversionTargetOptions = computed(() =>
+    mayorTicketConversionTicketOptions.value.filter(option => option.ticketType !== mayorTicketConversionSourceType.value)
+  )
+  const selectedMayorTicketConversionOffer = computed(() =>
+    mayorTicketConversionOffers.value.find(
+      offer =>
+        offer.sourceType === mayorTicketConversionSourceType.value &&
+        offer.targetType === mayorTicketConversionTargetType.value
+    ) ?? null
+  )
   const selectedScheduleStatus = computed(() => (selectedNpc.value ? npcStore.getScheduleStatus(selectedNpc.value) : null))
   const selectedScheduleTimeline = computed(() => (selectedNpc.value ? npcStore.getScheduleTimeline(selectedNpc.value) : []))
   const selectedNextScheduleText = computed(() => (selectedNpc.value ? npcStore.getNextScheduleText(selectedNpc.value) : null))
@@ -3469,6 +3595,37 @@
     showSelectedNpcPortraitPicker.value = false
     selectedNpcDetailTab.value = 'interact'
     selectedNpc.value = null
+  }
+
+  const syncMayorTicketConversionTarget = () => {
+    if (mayorTicketConversionTargetType.value !== mayorTicketConversionSourceType.value) return
+    const nextTarget = MAYOR_TICKET_CONVERTIBLE_TYPES.find(ticketType => ticketType !== mayorTicketConversionSourceType.value)
+    if (nextTarget) {
+      mayorTicketConversionTargetType.value = nextTarget
+    }
+  }
+
+  const handleMayorTicketConversionSourceChange = () => {
+    syncMayorTicketConversionTarget()
+  }
+
+  const handleMayorTicketConversion = () => {
+    const result = walletStore.redeemRewardTicketConversion(
+      mayorTicketConversionSourceType.value,
+      mayorTicketConversionTargetType.value
+    )
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    addLog(`【村务票据】${result.message}`)
+  }
+
+  const notifyMayorTicketConversionFriendshipProgress = (previousFriendship: number) => {
+    const status = mayorTicketConversionStatus.value
+    if (previousFriendship >= status.requiredFriendship || !status.friendshipReady) return
+    const message = status.unlocked
+      ? '柳村长已开放村务票据转换。'
+      : '村长愿意为你担保票据转换，还差村庄建设条件。'
+    showFloat(message, status.unlocked ? 'success' : 'accent')
+    addLog(`【村务票据】${message}`)
   }
 
   const heartCount = (npcId: string): number => {
@@ -3680,11 +3837,15 @@
       handleEndDay()
       return
     }
+    const mayorFriendshipBefore = npcId === MAYOR_TICKET_CONVERSION_NPC_ID ? state?.friendship ?? 0 : null
     const result = npcStore.talkTo(npcId)
     if (result) {
       dialogueText.value = result.message
       addLog(`与${npcName}聊天。(+${result.friendshipGain}好感)`)
       result.unlockedMessages?.forEach(message => addLog(message))
+      if (mayorFriendshipBefore !== null) {
+        notifyMayorTicketConversionFriendshipProgress(mayorFriendshipBefore)
+      }
 
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.talk)
       if (tr.message) addLog(tr.message)
@@ -3726,6 +3887,7 @@
 
   const handleGift = (itemId: string, quality: Quality = 'normal') => {
     if (!selectedNpc.value) return
+    const npcId = selectedNpc.value
     if (!canInteractWithSelectedNpc.value) {
       addLog(unavailableInteractionReason.value || '现在没法把礼物送到对方手里。')
       return
@@ -3735,7 +3897,8 @@
     const ringGiftBonus = inventoryStore.getRingEffectValue('gift_friendship')
     const blessingGiftBonus = skillStore.getBlessingEffectValue('gift_friendship')
     const giftMultiplier = cookingGiftBonus * alchemyGiftBonus * (1 + ringGiftBonus + blessingGiftBonus)
-    const result = npcStore.giveGift(selectedNpc.value, itemId, giftMultiplier, quality)
+    const mayorFriendshipBefore = npcId === MAYOR_TICKET_CONVERSION_NPC_ID ? npcStore.getNpcState(npcId)?.friendship ?? 0 : null
+    const result = npcStore.giveGift(npcId, itemId, giftMultiplier, quality)
     if (result) {
       const itemName = getItemById(itemId)?.name ?? itemId
       const npcName = selectedNpcDef.value?.name
@@ -3755,12 +3918,15 @@
         addLog(result.birthdayMessage)
       }
       result.unlockedMessages?.forEach(message => addLog(message))
+      if (mayorFriendshipBefore !== null) {
+        notifyMayorTicketConversionFriendshipProgress(mayorFriendshipBefore)
+      }
 
       // 关闭送礼弹窗
       activeGiftKey.value = null
 
       // 送礼后也检查心事件
-      const heartEvent = npcStore.checkHeartEvent(selectedNpc.value)
+      const heartEvent = npcStore.checkHeartEvent(npcId)
       if (heartEvent) {
         triggerHeartEvent(heartEvent)
       }

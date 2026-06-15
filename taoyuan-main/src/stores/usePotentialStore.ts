@@ -24,6 +24,7 @@ import type {
   PotentialSourceReceipt
 } from '@/types/potential'
 import { useGameStore } from './useGameStore'
+import { useNpcStore } from './useNpcStore'
 import { useSkillStore } from './useSkillStore'
 
 const POTENTIAL_MAX_RESOURCE_AMOUNT = 9999
@@ -152,9 +153,16 @@ export const usePotentialStore = defineStore('potential', () => {
     return normalizeCostList(node.costsByRank[rank] ?? [])
   }
 
+  const getRandomNpcUnlockConditionProgress = (condition: PotentialNodeDef['unlockConditions'][number]) => {
+    if (condition.kind !== 'randomNpcMilestone' || !condition.milestone) return null
+    const npcStore = useNpcStore()
+    return npcStore.getRandomNpcPotentialMilestoneProgress(condition.milestone, condition.value)
+  }
+
   const isUnlockConditionMet = (condition: PotentialNodeDef['unlockConditions'][number]): boolean => {
     if (condition.kind === 'branchRank') return getBranchRank(condition.branchId ?? 'body') >= condition.value
     if (condition.kind === 'totalRank') return totalRank.value >= condition.value
+    if (condition.kind === 'randomNpcMilestone') return getRandomNpcUnlockConditionProgress(condition)?.ready ?? false
     if (condition.kind === 'skillLevel' && condition.skillType) {
       const skillStore = useSkillStore()
       const skill = skillStore.skills.find(entry => entry.type === condition.skillType)
@@ -167,13 +175,22 @@ export const usePotentialStore = defineStore('potential', () => {
     return true
   }
 
+  const getUnlockConditionDisplay = (condition: PotentialNodeDef['unlockConditions'][number]): string => {
+    const randomNpcProgress = getRandomNpcUnlockConditionProgress(condition)
+    if (!randomNpcProgress) return condition.label
+    const current = Math.min(randomNpcProgress.current, randomNpcProgress.target)
+    if (randomNpcProgress.ready) return `${condition.label}（当前 ${current}/${randomNpcProgress.target}）`
+    return `${condition.label}（当前 ${current}/${randomNpcProgress.target}，${randomNpcProgress.hint}）`
+  }
+
   const getPotentialNodeUpgradeReason = (nodeId: PotentialNodeId): string => {
     const node = getNodeDef(nodeId)
     if (!node) return '没有找到这项潜能。'
     const rank = getNodeRank(nodeId)
     if (rank >= node.maxRank) return '已经修满。'
+    if (!node.firstVersionConnected) return '这项潜能暂未开放。'
     const unmet = node.unlockConditions.find(condition => !isUnlockConditionMet(condition))
-    if (unmet) return unmet.label
+    if (unmet) return getUnlockConditionDisplay(unmet)
     const missing = getNodeNextCost(node.id).find(cost => getPotentialResource(cost.resourceId) < cost.amount)
     if (missing) {
       const resourceLabel = POTENTIAL_RESOURCE_DEFS.find(resource => resource.id === missing.resourceId)?.label ?? missing.resourceId
@@ -217,6 +234,27 @@ export const usePotentialStore = defineStore('potential', () => {
       })
       .filter(entry => entry.value > 0)
   )
+
+  const getPotentialSourceProgress = (sourceId: PotentialSourceId) => {
+    const rule = POTENTIAL_SOURCE_RULE_BY_ID.get(sourceId)
+    if (!rule) {
+      return {
+        periodKey: '',
+        claims: 0,
+        maxClaims: 0,
+        percent: 0
+      }
+    }
+    const periodKey = getPeriodKeyForSource(sourceId)
+    const progress = sourceCapProgress.value[sourceId]
+    const claims = progress?.periodKey === periodKey ? clampInteger(progress.claims, 0, rule.cap.maxClaims) : 0
+    return {
+      periodKey,
+      claims,
+      maxClaims: rule.cap.maxClaims,
+      percent: rule.cap.maxClaims > 0 ? Math.min(100, Math.round((claims / rule.cap.maxClaims) * 100)) : 0
+    }
+  }
 
   const claimPotentialSourceReward = (
     sourceId: PotentialSourceId,
@@ -460,6 +498,7 @@ export const usePotentialStore = defineStore('potential', () => {
     getBranchNodes,
     getPotentialResource,
     getNodeNextCost,
+    getPotentialSourceProgress,
     addPotentialResource,
     spendPotentialResources,
     canUpgradePotentialNode,

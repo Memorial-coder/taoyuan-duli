@@ -43,6 +43,22 @@ const createPlots = (size: FarmSize): FarmPlot[] => {
   }))
 }
 
+const resetCropPlotToTilled = (plot: FarmPlot): void => {
+  plot.state = 'tilled'
+  plot.cropId = null
+  plot.growthDays = 0
+  plot.watered = false
+  plot.unwateredDays = 0
+  plot.fertilizer = null
+  plot.harvestCount = 0
+  plot.giantCropGroup = null
+  plot.seedGenetics = null
+  plot.infested = false
+  plot.infestedDays = 0
+  plot.weedy = false
+  plot.weedyDays = 0
+}
+
 export const useFarmStore = defineStore('farm', () => {
   const farmSize = ref<FarmSize>(4)
   const plots = ref<FarmPlot[]>(createPlots(4))
@@ -146,45 +162,24 @@ export const useFarmStore = defineStore('farm', () => {
       plot.harvestCount++
       if (crop.maxHarvests && plot.harvestCount >= crop.maxHarvests) {
         // 达到最大收获次数，清除作物
-        plot.state = 'tilled'
-        plot.cropId = null
-        plot.growthDays = 0
-        plot.watered = false
-        plot.unwateredDays = 0
-        plot.harvestCount = 0
-        plot.giantCropGroup = null
-        plot.seedGenetics = null
-        plot.infested = false
-        plot.infestedDays = 0
-        plot.weedy = false
-        plot.weedyDays = 0
+        resetCropPlotToTilled(plot)
       } else {
         plot.state = 'growing'
         plot.growthDays = crop.growthDays - crop.regrowthDays
         plot.watered = getAllWateredBySprinklers().has(plotId) || useGameStore().isRainy
         plot.unwateredDays = 0
+        plot.fertilizer = null
         plot.giantCropGroup = null
         // seedGenetics 保留（多茬作物继续使用同一基因）
       }
     } else {
-      plot.state = 'tilled'
-      plot.cropId = null
-      plot.growthDays = 0
-      plot.watered = false
-      plot.unwateredDays = 0
-      plot.harvestCount = 0
-      plot.giantCropGroup = null
-      plot.seedGenetics = null
-      plot.infested = false
-      plot.infestedDays = 0
-      plot.weedy = false
-      plot.weedyDays = 0
+      resetCropPlotToTilled(plot)
     }
 
     return { cropId, genetics }
   }
 
-  /** 铲除作物：将有作物的地块恢复为已耕状态（保留肥料） */
+  /** 铲除作物：将有作物的地块恢复为已耕状态，肥料随作物消耗 */
   const removeCrop = (plotId: number): { cropId: string | null } => {
     const plot = plots.value[plotId]
     if (!plot) return { cropId: null }
@@ -192,18 +187,7 @@ export const useFarmStore = defineStore('farm', () => {
       return { cropId: null }
     }
     const cropId = plot.cropId
-    plot.state = 'tilled'
-    plot.cropId = null
-    plot.growthDays = 0
-    plot.watered = false
-    plot.unwateredDays = 0
-    plot.harvestCount = 0
-    plot.giantCropGroup = null
-    plot.seedGenetics = null
-    plot.infested = false
-    plot.infestedDays = 0
-    plot.weedy = false
-    plot.weedyDays = 0
+    resetCropPlotToTilled(plot)
     return { cropId }
   }
 
@@ -427,18 +411,7 @@ export const useFarmStore = defineStore('farm', () => {
       if (plot.infested) {
         plot.infestedDays++
         if (plot.infestedDays >= 3) {
-          plot.state = 'tilled'
-          plot.cropId = null
-          plot.growthDays = 0
-          plot.watered = false
-          plot.unwateredDays = 0
-          plot.harvestCount = 0
-          plot.giantCropGroup = null
-          plot.seedGenetics = null
-          plot.infested = false
-          plot.infestedDays = 0
-          plot.weedy = false
-          plot.weedyDays = 0
+          resetCropPlotToTilled(plot)
           pestDeaths++
         }
         continue
@@ -448,18 +421,7 @@ export const useFarmStore = defineStore('farm', () => {
       if (plot.weedy) {
         plot.weedyDays++
         if (plot.weedyDays >= 4) {
-          plot.state = 'tilled'
-          plot.cropId = null
-          plot.growthDays = 0
-          plot.watered = false
-          plot.unwateredDays = 0
-          plot.harvestCount = 0
-          plot.giantCropGroup = null
-          plot.seedGenetics = null
-          plot.infested = false
-          plot.infestedDays = 0
-          plot.weedy = false
-          plot.weedyDays = 0
+          resetCropPlotToTilled(plot)
           weedDeaths++
           continue
         }
@@ -485,17 +447,7 @@ export const useFarmStore = defineStore('farm', () => {
         const resistanceFactor = plot.seedGenetics ? 1 - plot.seedGenetics.resistance / 100 : 1
         plot.unwateredDays += resistanceFactor
         if (plot.unwateredDays >= 2) {
-          plot.state = 'tilled'
-          plot.cropId = null
-          plot.growthDays = 0
-          plot.unwateredDays = 0
-          plot.harvestCount = 0
-          plot.giantCropGroup = null
-          plot.seedGenetics = null
-          plot.infested = false
-          plot.infestedDays = 0
-          plot.weedy = false
-          plot.weedyDays = 0
+          resetCropPlotToTilled(plot)
         }
       }
 
@@ -547,23 +499,12 @@ export const useFarmStore = defineStore('farm', () => {
     // 先记录换季前就已经空置的耕地
     const preExistingTilled = new Set(plots.value.filter(p => p.state === 'tilled' && !p.cropId).map(p => p.id))
 
-    // 作物枯萎检查（肥料保留在土壤中）
+    // 作物枯萎检查（肥料随这批作物消耗）
     for (const plot of plots.value) {
       if ((plot.state === 'planted' || plot.state === 'growing' || plot.state === 'harvestable') && plot.cropId) {
         const crop = getCropById(plot.cropId)
         if (crop && !crop.season.includes(newSeason)) {
-          plot.state = 'tilled'
-          plot.cropId = null
-          plot.growthDays = 0
-          plot.watered = false
-          plot.unwateredDays = 0
-          plot.harvestCount = 0
-          plot.giantCropGroup = null
-          plot.seedGenetics = null
-          plot.infested = false
-          plot.infestedDays = 0
-          plot.weedy = false
-          plot.weedyDays = 0
+          resetCropPlotToTilled(plot)
           witheredCount++
         }
       }
@@ -600,18 +541,7 @@ export const useFarmStore = defineStore('farm', () => {
     const crop = getCropById(target.cropId!)
     const cropName = crop?.name ?? '作物'
 
-    target.state = 'tilled'
-    target.cropId = null
-    target.growthDays = 0
-    target.watered = false
-    target.unwateredDays = 0
-    target.harvestCount = 0
-    target.giantCropGroup = null
-    target.seedGenetics = null
-    target.infested = false
-    target.infestedDays = 0
-    target.weedy = false
-    target.weedyDays = 0
+    resetCropPlotToTilled(target)
 
     return { hit: true, absorbed: false, cropName }
   }
@@ -625,18 +555,7 @@ export const useFarmStore = defineStore('farm', () => {
     const target = croppedPlots[Math.floor(Math.random() * croppedPlots.length)]!
     const crop = getCropById(target.cropId!)
     const cropName = crop?.name ?? '作物'
-    target.state = 'tilled'
-    target.cropId = null
-    target.growthDays = 0
-    target.watered = false
-    target.unwateredDays = 0
-    target.harvestCount = 0
-    target.giantCropGroup = null
-    target.seedGenetics = null
-    target.infested = false
-    target.infestedDays = 0
-    target.weedy = false
-    target.weedyDays = 0
+    resetCropPlotToTilled(target)
     return { attacked: true, cropName }
   }
 
@@ -687,18 +606,7 @@ export const useFarmStore = defineStore('farm', () => {
     if (!cropId) return null
     const groupPlots = plots.value.filter(p => p.giantCropGroup === groupId)
     for (const gp of groupPlots) {
-      gp.state = 'tilled'
-      gp.cropId = null
-      gp.growthDays = 0
-      gp.watered = false
-      gp.unwateredDays = 0
-      gp.harvestCount = 0
-      gp.giantCropGroup = null
-      gp.seedGenetics = null
-      gp.infested = false
-      gp.infestedDays = 0
-      gp.weedy = false
-      gp.weedyDays = 0
+      resetCropPlotToTilled(gp)
     }
     return { cropId, quantity: groupPlots.length * 2 }
   }
@@ -1007,27 +915,16 @@ export const useFarmStore = defineStore('farm', () => {
     if (crop && crop.regrowth && crop.regrowthDays) {
       plot.harvestCount++
       if (crop.maxHarvests && plot.harvestCount >= crop.maxHarvests) {
-        plot.state = 'tilled'
-        plot.cropId = null
-        plot.growthDays = 0
-        plot.watered = false
-        plot.unwateredDays = 0
-        plot.harvestCount = 0
-        plot.seedGenetics = null
+        resetCropPlotToTilled(plot)
       } else {
         plot.state = 'growing'
         plot.growthDays = crop.growthDays - crop.regrowthDays
         plot.watered = false
         plot.unwateredDays = 0
+        plot.fertilizer = null
       }
     } else {
-      plot.state = 'tilled'
-      plot.cropId = null
-      plot.growthDays = 0
-      plot.watered = false
-      plot.unwateredDays = 0
-      plot.harvestCount = 0
-      plot.seedGenetics = null
+      resetCropPlotToTilled(plot)
     }
     return cropId
   }

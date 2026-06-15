@@ -4,6 +4,7 @@ import { useBreedingStore } from '@/stores/useBreedingStore'
 import { useCookingStore } from '@/stores/useCookingStore'
 import { useFarmStore } from '@/stores/useFarmStore'
 import { useGameStore } from '@/stores/useGameStore'
+import { useGoalStore } from '@/stores/useGoalStore'
 import { useInventoryStore } from '@/stores/useInventoryStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useQuestStore } from '@/stores/useQuestStore'
@@ -61,6 +62,7 @@ export const handlePlotClick = (plotId: number) => {
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
+  const goalStore = useGoalStore()
   const achievementStore = useAchievementStore()
 
   const plot = farmStore.plots[plotId]
@@ -140,19 +142,10 @@ export const handlePlotClick = (plotId: number) => {
       addLog('无法在此种植。')
       return
     }
+    goalStore.recordWeeklyActivityCounter('farm_seeds_planted', 1)
     sfxPlant()
     showFloat(`-${cost}体力`, 'danger')
     addLog(`种下了${cropDef.name}。(-${cost}体力)`)
-    // 种植预警：作物可能无法在本季成熟
-    const daysLeft = 28 - gameStore.day
-    if (cropDef.growthDays > daysLeft) {
-      const SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter'] as const
-      const nextSeason = SEASON_ORDER[(SEASON_ORDER.indexOf(gameStore.season) + 1) % 4]!
-      if (!cropDef.season.includes(nextSeason)) {
-        showFloat(`${cropDef.name}需${cropDef.growthDays}天，本季仅剩${daysLeft}天！`, 'danger')
-        addLog(`注意：${cropDef.name}需要${cropDef.growthDays}天成熟，但本季仅剩${daysLeft}天，换季后将枯萎。`)
-      }
-    }
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) {
@@ -189,6 +182,7 @@ export const handlePlotClick = (plotId: number) => {
       return
     }
     farmStore.waterPlot(plotId)
+    goalStore.recordWeeklyActivityCounter('farm_watered', 1)
     skillStore.addExp('farming', 2)
     sfxWater()
     showFloat(`-${cost}体力`, 'water')
@@ -336,13 +330,14 @@ export const handleSellAll = (filterCategories?: ItemCategory[]) => {
   const allowed = filterCategories && filterCategories.length > 0 ? new Set(filterCategories) : null
   // 快照当前可卖物品（避免遍历中修改数组）
   const sellable = inventoryStore.items
+    .map((inv, index) => ({ ...inv, originalIndex: index }))
     .filter(inv => {
       const def = getItemById(inv.itemId)
       return def && def.category !== 'seed' && !inv.locked && (!allowed || allowed.has(def.category))
     })
-    .map(inv => ({ itemId: inv.itemId, quantity: inv.quantity, quality: inv.quality }))
+    .sort((a, b) => b.originalIndex - a.originalIndex)
   for (const item of sellable) {
-    const earned = shopStore.sellItem(item.itemId, item.quantity, item.quality)
+    const earned = shopStore.sellInventorySlot(item.originalIndex, item.quantity)
     if (earned > 0) {
       totalEarned += earned
       totalCount += item.quantity
@@ -363,6 +358,7 @@ export const handleBatchWater = () => {
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
+  const goalStore = useGoalStore()
 
   if (!inventoryStore.isToolAvailable('wateringCan')) {
     addLog('水壶正在升级中，无法浇水。')
@@ -408,6 +404,7 @@ export const handleBatchWater = () => {
   }
 
   if (watered > 0) {
+    goalStore.recordWeeklyActivityCounter('farm_watered', watered)
     sfxWater()
     const masterySuffix = batchIrrigationReduction > 0 ? '（批量灌溉）' : ''
     addLog(`一键浇水了${watered}块地。${masterySuffix}`)
@@ -610,6 +607,7 @@ export const handleBatchPlant = (cropId: string) => {
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
+  const goalStore = useGoalStore()
 
   if (!inventoryStore.isToolAvailable('hoe')) {
     addLog('锄头正在升级中，无法播种。')
@@ -660,18 +658,9 @@ export const handleBatchPlant = (cropId: string) => {
   }
 
   if (planted > 0) {
+    goalStore.recordWeeklyActivityCounter('farm_seeds_planted', planted)
     sfxPlant()
     addLog(`一键种植了${planted}株${cropDef.name}。`)
-    // 种植预警：作物可能无法在本季成熟
-    const daysLeft = 28 - gameStore.day
-    if (cropDef.growthDays > daysLeft) {
-      const SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter'] as const
-      const nextSeason = SEASON_ORDER[(SEASON_ORDER.indexOf(gameStore.season) + 1) % 4]!
-      if (!cropDef.season.includes(nextSeason)) {
-        showFloat(`${cropDef.name}需${cropDef.growthDays}天，本季仅剩${daysLeft}天！`, 'danger')
-        addLog(`注意：${cropDef.name}需要${cropDef.growthDays}天成熟，但本季仅剩${daysLeft}天，换季后将枯萎。`)
-      }
-    }
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant * Math.min(planted, 3))
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) handleEndDay()
@@ -685,6 +674,7 @@ export const handleBatchFertilize = (fertilizerType: FertilizerType) => {
   const gameStore = useGameStore()
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
+  const goalStore = useGoalStore()
 
   if (gameStore.isPastBedtime) {
     addLog('已经凌晨2点了，你必须休息。')
@@ -714,6 +704,7 @@ export const handleBatchFertilize = (fertilizerType: FertilizerType) => {
   }
 
   if (applied > 0) {
+    goalStore.recordWeeklyActivityCounter('farm_fertilizer_applied', applied)
     showFloat(`施肥 ×${applied}`, 'success')
     addLog(`一键施了${applied}块地的${fertDef.name}。`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant * Math.min(applied, 3))

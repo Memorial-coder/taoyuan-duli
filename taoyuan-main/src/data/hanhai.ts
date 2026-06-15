@@ -617,11 +617,12 @@ export const HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
     weeklyLimit: 2,
     relicTag: '商路遗物',
     rewards: {
-      money: 1800,
       items: [
         { itemId: 'hanhai_spice', quantity: 2 },
-        { itemId: 'hanhai_silk', quantity: 1 }
-      ]
+        { itemId: 'hanhai_silk', quantity: 1 },
+        { itemId: 'hanhai_map', quantity: 1 }
+      ],
+      ticketRewards: { caravan: 1 }
     }
   },
   {
@@ -632,11 +633,12 @@ export const HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
     weeklyLimit: 2,
     relicTag: '沙海矿藏',
     rewards: {
-      money: 2400,
       items: [
-        { itemId: 'hanhai_turquoise', quantity: 2 },
+        { itemId: 'hanhai_turquoise', quantity: 1 },
+        { itemId: 'hanhai_spice', quantity: 2 },
         { itemId: 'hanhai_map', quantity: 1 }
-      ]
+      ],
+      ticketRewards: { caravan: 1, research: 1 }
     }
   },
   {
@@ -647,11 +649,12 @@ export const HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
     weeklyLimit: 1,
     relicTag: '祭仪遗珍',
     rewards: {
-      money: 4200,
       items: [
         { itemId: 'hanhai_spice', quantity: 3 },
-        { itemId: 'hanhai_turquoise', quantity: 1 }
-      ]
+        { itemId: 'hanhai_turquoise', quantity: 1 },
+        { itemId: 'hanhai_silk', quantity: 1 }
+      ],
+      ticketRewards: { research: 1, exhibit: 1 }
     }
   }
 ]
@@ -665,11 +668,12 @@ export const WS14_HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
     weeklyLimit: 2,
     relicTag: '海市残卷',
     rewards: {
-      money: 3200,
       items: [
         { itemId: 'hanhai_map', quantity: 1 },
-        { itemId: 'hanhai_spice', quantity: 2 }
-      ]
+        { itemId: 'hanhai_spice', quantity: 2 },
+        { itemId: 'hanhai_silk', quantity: 1 }
+      ],
+      ticketRewards: { caravan: 1, research: 1 }
     }
   },
   {
@@ -680,24 +684,26 @@ export const WS14_HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
     weeklyLimit: 1,
     relicTag: '风暴遗骸',
     rewards: {
-      money: 4600,
       items: [
         { itemId: 'hanhai_turquoise', quantity: 2 },
         { itemId: 'hanhai_silk', quantity: 1 }
-      ]
+      ],
+      ticketRewards: { research: 2, exhibit: 1 }
     }
   }
 ]
 
 /** 瀚海驿站商店物品 */
 export const HANHAI_SHOP_ITEMS: HanhaiShopItemDef[] = [
-  { itemId: 'hanhai_cactus_seed', name: '仙人掌种子', price: 500, description: '来自西域的奇特植物种子。', weeklyLimit: 5 },
-  { itemId: 'hanhai_date_seed', name: '椰枣种子', price: 400, description: '丝绸之路带来的西域果实种子。', weeklyLimit: 5 },
+  { itemId: 'hanhai_cactus_seed', name: '仙人掌种子', price: 120, description: '来自西域的奇特植物种子，可作为高阶育种亲本。', weeklyLimit: 5, costItems: [{ itemId: 'hanhai_turquoise', quantity: 1 }] },
+  { itemId: 'hanhai_date_seed', name: '椰枣种子', price: 100, description: '丝绸之路带来的西域果实种子，可作为高阶育种亲本。', weeklyLimit: 5, costItems: [{ itemId: 'hanhai_turquoise', quantity: 1 }] },
   { itemId: 'hanhai_spice', name: '西域香料', price: 300, description: '异域风情的香料，烹饪佳品。', weeklyLimit: 3 },
   { itemId: 'hanhai_silk', name: '丝绸', price: 800, description: '细腻光滑的上等丝绸。', weeklyLimit: 2 },
   { itemId: 'hanhai_turquoise', name: '绿松石', price: 600, description: '西域特产的珍贵宝石。', weeklyLimit: 2 },
   { itemId: 'hanhai_map', name: '藏宝图', price: 1000, description: '标记着荒原某处宝藏的地图。', weeklyLimit: 1 },
-  { itemId: 'mega_bomb_recipe', name: '巨型炸弹配方', price: 5000, description: '据说能炸开整层矿洞的秘方。', weeklyLimit: 1 }
+  { itemId: 'bomb', name: '火药包', price: 200, description: '瀚海商队限量调拨的矿洞炸弹补给。', weeklyLimit: 3, costItems: [{ itemId: 'hanhai_turquoise', quantity: 1 }] },
+  { itemId: 'mega_bomb', name: '雷火弹', price: 500, description: '瀚海商队限量调拨的高规格爆破补给。', weeklyLimit: 1, costItems: [{ itemId: 'hanhai_turquoise', quantity: 3 }] },
+  { itemId: 'mega_bomb_recipe', name: '巨型炸弹配方', price: 1200, description: '据说能炸开整层矿洞的秘方。', weeklyLimit: 1, costItems: [{ itemId: 'hanhai_turquoise', quantity: 8 }] }
 ]
 
 export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
@@ -707,7 +713,7 @@ export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
     summary: '以少量铜钱配合商路补给为主，突出“寻得补给”而非直接暴富。',
     weight: 28,
     rewards: {
-      money: 300,
+      money: 200,
       items: [{ itemId: 'hanhai_spice', quantity: 2 }],
       ticketRewards: { caravan: 1 }
     }
@@ -718,7 +724,7 @@ export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
     summary: '中档现金回收配合丝绸与展陈票券，适合作为中位奖励。',
     weight: 30,
     rewards: {
-      money: 600,
+      money: 400,
       items: [{ itemId: 'hanhai_silk', quantity: 1 }],
       ticketRewards: { exhibit: 1 }
     }
@@ -729,7 +735,7 @@ export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
     summary: '强调矿藏与商路票的替代价值，减少直接现金返还。',
     weight: 24,
     rewards: {
-      money: 900,
+      money: 600,
       items: [{ itemId: 'hanhai_turquoise', quantity: 2 }],
       ticketRewards: { caravan: 1 }
     }
@@ -740,7 +746,7 @@ export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
     summary: '高档奖励改为“少量现金 + 稀有素材 + 研究票券”的复合组合。',
     weight: 12,
     rewards: {
-      money: 1400,
+      money: 800,
       items: [
         { itemId: 'hanhai_turquoise', quantity: 1 },
         { itemId: 'hanhai_spice', quantity: 2 }
@@ -754,7 +760,7 @@ export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
     summary: '最高档奖励仍保留惊喜感，但主要价值由票券与稀有货物承担。',
     weight: 6,
     rewards: {
-      money: 2200,
+      money: 1200,
       items: [
         { itemId: 'hanhai_turquoise', quantity: 2 },
         { itemId: 'hanhai_silk', quantity: 1 }

@@ -7,6 +7,8 @@ import type {
   SkillPerk10,
   SkillPerk15,
   SkillPerk20,
+  SkillPerkLevel,
+  SkillMasteryPoolState,
   RingEffectType,
   SkillMasteryNodeId,
   SkillMasteryEffectKey
@@ -20,14 +22,53 @@ import { usePlayerStore } from './usePlayerStore'
 
 /** 各等级所需累计经验 **/
 const EXP_TABLE = [0, 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000, 21000, 28500, 37500, 48000, 60500, 75000, 91500, 110000, 131000, 155000]
+const MAX_SKILL_LEVEL = 20
+const MAX_SKILL_EXP = EXP_TABLE[MAX_SKILL_LEVEL]!
+const LEGACY_SKILL_MASTERY_EXP_PER_POINT = 5000
+const SKILL_MASTERY_EXP_PER_POINT = 60000
 
 /** 创建初始技能状态 */
-const createSkill = (type: SkillType): SkillState => {
-  return { type, exp: 0, level: 0, perk5: null, perk10: null, perk15: null, perk20: null, masteryExp: 0, masteryPoints: 0, unlockedMasteryNodeIds: [] }
-}
+const createSkill = (type: SkillType): SkillState => ({
+  type,
+  exp: 0,
+  level: 0,
+  perk5: null,
+  perk10: null,
+  perk15: null,
+  perk20: null,
+  perkRespecUsedSeasonKeys: [],
+  masteryExpPerPoint: SKILL_MASTERY_EXP_PER_POINT,
+  masteryExp: 0,
+  masteryPoints: 0,
+  unlockedMasteryNodeIds: []
+})
+
+const createSkillMasteryPool = (): SkillMasteryPoolState => ({
+  exp: 0,
+  points: 0,
+  expPerPoint: SKILL_MASTERY_EXP_PER_POINT
+})
 
 type SkillPerk = SkillPerk5 | SkillPerk10 | SkillPerk15 | SkillPerk20
-type SkillPerkLevel = 5 | 10 | 15 | 20
+type SkillPerkRespecResult = {
+  success: boolean
+  message: string
+  costMoney: number
+  affectedLevels: SkillPerkLevel[]
+  nextPendingLevel?: SkillPerkLevel
+}
+type SkillStoreSaveData = {
+  skills?: SkillState[]
+  masteryPool?: Partial<SkillMasteryPoolState> | null
+}
+
+const SKILL_PERK_LEVELS: readonly SkillPerkLevel[] = [5, 10, 15, 20]
+const PERK_RESPEC_COST_BY_LEVEL: Record<SkillPerkLevel, number> = {
+  5: 12000,
+  10: 18000,
+  15: 28000,
+  20: 40000
+}
 
 const PERK5_OPTIONS: Record<SkillType, readonly SkillPerk5[]> = {
   farming: ['harvester', 'rancher'],
@@ -130,12 +171,28 @@ const includesPerk = <T extends SkillPerk>(options: readonly T[] | undefined, pe
   !!perk && !!options?.includes(perk as T)
 
 const SKILL_TYPES: SkillType[] = ['farming', 'foraging', 'fishing', 'mining', 'combat']
-const MAX_SKILL_LEVEL = 20
-const MAX_SKILL_EXP = EXP_TABLE[MAX_SKILL_LEVEL]!
-const SKILL_MASTERY_EXP_PER_POINT = 5000
 const SKILL_MASTERY_NODE_BY_ID = new Map<SkillMasteryNodeId, (typeof SKILL_MASTERY_NODE_DEFS)[number]>(
   SKILL_MASTERY_NODE_DEFS.map(node => [node.id, node] as const)
 )
+
+const getSkillPerkAtLevel = (skill: SkillState, level: SkillPerkLevel): SkillPerk | null => {
+  if (level === 5) return skill.perk5
+  if (level === 10) return skill.perk10
+  if (level === 15) return skill.perk15
+  return skill.perk20
+}
+
+const clearSkillPerksFromLevel = (skill: SkillState, fromLevel: SkillPerkLevel) => {
+  if (fromLevel <= 5) skill.perk5 = null
+  if (fromLevel <= 10) skill.perk10 = null
+  if (fromLevel <= 15) skill.perk15 = null
+  if (fromLevel <= 20) skill.perk20 = null
+}
+
+const getCurrentPerkRespecSeasonKey = (): string => {
+  const gameStore = useGameStore()
+  return `y${gameStore.year}-${gameStore.season}`
+}
 
 export const useSkillStore = defineStore('skill', () => {
   const skills = ref<SkillState[]>([
@@ -145,6 +202,7 @@ export const useSkillStore = defineStore('skill', () => {
     createSkill('mining'),
     createSkill('combat')
   ])
+  const masteryPool = ref<SkillMasteryPoolState>(createSkillMasteryPool())
   const skillMigrationLogs = ref<string[]>([])
 
   const getSkill = (type: SkillType): SkillState => {
@@ -218,6 +276,11 @@ export const useSkillStore = defineStore('skill', () => {
   }
 
   const normalizeSkillMasteryNumbers = (skill: SkillState) => {
+    const rawMasteryExpPerPoint = Math.floor(Number(skill.masteryExpPerPoint))
+    skill.masteryExpPerPoint = Number.isFinite(rawMasteryExpPerPoint) && rawMasteryExpPerPoint > 0
+      ? rawMasteryExpPerPoint
+      : LEGACY_SKILL_MASTERY_EXP_PER_POINT
+
     const rawMasteryExp = Math.floor(Number(skill.masteryExp))
     const normalizedMasteryExp = Number.isFinite(rawMasteryExp) ? Math.max(0, rawMasteryExp) : 0
     if (skill.masteryExp !== normalizedMasteryExp) {
@@ -238,35 +301,53 @@ export const useSkillStore = defineStore('skill', () => {
     }
   }
 
-  const convertSkillMasteryExp = (skill: SkillState) => {
-    if (skill.masteryExp < SKILL_MASTERY_EXP_PER_POINT) return
-    const gainedPoints = Math.floor(skill.masteryExp / SKILL_MASTERY_EXP_PER_POINT)
-    skill.masteryPoints += gainedPoints
-    skill.masteryExp %= SKILL_MASTERY_EXP_PER_POINT
+  const getSkillMasterySpentCost = (nodeIds: readonly SkillMasteryNodeId[]): number =>
+    nodeIds.reduce((sum, nodeId) => sum + (SKILL_MASTERY_NODE_BY_ID.get(nodeId)?.cost ?? 0), 0)
+
+  const normalizeSkillMasteryPoolState = (rawPool?: Partial<SkillMasteryPoolState> | null): SkillMasteryPoolState => {
+    const rawExpPerPoint = Math.floor(Number(rawPool?.expPerPoint ?? SKILL_MASTERY_EXP_PER_POINT))
+    const previousExpPerPoint = Number.isFinite(rawExpPerPoint) && rawExpPerPoint > 0 ? rawExpPerPoint : SKILL_MASTERY_EXP_PER_POINT
+    const rawExp = Math.floor(Number(rawPool?.exp ?? 0))
+    const rawPoints = Math.floor(Number(rawPool?.points ?? 0))
+    const normalizedExp = Number.isFinite(rawExp) ? Math.max(0, rawExp) : 0
+    const normalizedPoints = Number.isFinite(rawPoints) ? Math.max(0, rawPoints) : 0
+    const totalExp = normalizedPoints * previousExpPerPoint + normalizedExp
+    const normalizedPool = {
+      exp: totalExp % SKILL_MASTERY_EXP_PER_POINT,
+      points: Math.floor(totalExp / SKILL_MASTERY_EXP_PER_POINT),
+      expPerPoint: SKILL_MASTERY_EXP_PER_POINT
+    }
+    if (previousExpPerPoint !== SKILL_MASTERY_EXP_PER_POINT && totalExp > 0) {
+      skillMigrationLogs.value.push(`通用精通池阈值从 ${previousExpPerPoint} 调整为 ${SKILL_MASTERY_EXP_PER_POINT}，池内点数已重算。`)
+    }
+    return normalizedPool
   }
 
-  const addSkillMasteryExp = (skill: SkillState, amount: number) => {
-    normalizeSkillMasteryNumbers(skill)
+  const setSkillMasteryPoolFromTotalExp = (totalExp: number, spentPoints = 0) => {
+    const normalizedTotalExp = Math.max(0, Math.floor(totalExp))
+    const normalizedSpentPoints = Math.max(0, Math.floor(spentPoints))
+    const earnedPoints = Math.floor(normalizedTotalExp / SKILL_MASTERY_EXP_PER_POINT)
+    masteryPool.value = {
+      exp: normalizedTotalExp % SKILL_MASTERY_EXP_PER_POINT,
+      points: Math.max(0, earnedPoints - normalizedSpentPoints),
+      expPerPoint: SKILL_MASTERY_EXP_PER_POINT
+    }
+  }
+
+  const addSkillMasteryPoolTotalExp = (totalExp: number) => {
+    const normalizedTotalExp = Math.floor(Number(totalExp))
+    if (!Number.isFinite(normalizedTotalExp) || normalizedTotalExp <= 0) return
+    const currentTotalExp = masteryPool.value.points * SKILL_MASTERY_EXP_PER_POINT + masteryPool.value.exp
+    setSkillMasteryPoolFromTotalExp(currentTotalExp + normalizedTotalExp)
+  }
+
+  const addSkillMasteryPoolExp = (amount: number) => {
     const normalizedAmount = Math.floor(Number(amount))
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return
-    skill.masteryExp += normalizedAmount
-    convertSkillMasteryExp(skill)
+    addSkillMasteryPoolTotalExp(normalizedAmount)
   }
 
-  const normalizeSkillMasteryState = (skill: SkillState) => {
-    normalizeSkillMasteryNumbers(skill)
-    if (skill.level < MAX_SKILL_LEVEL) {
-      if (skill.masteryExp > 0 || skill.masteryPoints > 0 || skill.unlockedMasteryNodeIds.length > 0) {
-        skillMigrationLogs.value.push(`${skill.type} 未满级的精研记录已清空。`)
-      }
-      skill.masteryExp = 0
-      skill.masteryPoints = 0
-      skill.unlockedMasteryNodeIds = []
-      return
-    }
-
-    convertSkillMasteryExp(skill)
-
+  const normalizeSkillMasteryNodeIds = (skill: SkillState): SkillMasteryNodeId[] => {
     const normalizedNodeIds: SkillMasteryNodeId[] = []
     for (const rawNodeId of skill.unlockedMasteryNodeIds) {
       const node = typeof rawNodeId === 'string' ? SKILL_MASTERY_NODE_BY_ID.get(rawNodeId as SkillMasteryNodeId) : undefined
@@ -284,7 +365,52 @@ export const useSkillStore = defineStore('skill', () => {
       }
       normalizedNodeIds.push(node.id)
     }
+    return normalizedNodeIds
+  }
+
+  const getLegacySkillMasteryTotalExp = (skill: SkillState, normalizedNodeIds: readonly SkillMasteryNodeId[]) => {
+    const spentPoints = getSkillMasterySpentCost(normalizedNodeIds)
+    const totalEarnedPoints = skill.masteryPoints + spentPoints
+    return totalEarnedPoints * skill.masteryExpPerPoint + skill.masteryExp
+  }
+
+  const clearSkillMasteryCarryover = (skill: SkillState) => {
+    skill.masteryExp = 0
+    skill.masteryPoints = 0
+    skill.masteryExpPerPoint = SKILL_MASTERY_EXP_PER_POINT
+  }
+
+  const normalizeSkillMasteryState = (skill: SkillState) => {
+    normalizeSkillMasteryNumbers(skill)
+    if (skill.level < MAX_SKILL_LEVEL) {
+      if (skill.masteryExp > 0 || skill.masteryPoints > 0 || skill.unlockedMasteryNodeIds.length > 0) {
+        skillMigrationLogs.value.push(`${skill.type} 未满级的精研记录已清空。`)
+      }
+      clearSkillMasteryCarryover(skill)
+      skill.unlockedMasteryNodeIds = []
+      return
+    }
+
+    const normalizedNodeIds = normalizeSkillMasteryNodeIds(skill)
     skill.unlockedMasteryNodeIds = normalizedNodeIds
+  }
+
+  const normalizePerkRespecState = (skill: SkillState) => {
+    if (!Array.isArray(skill.perkRespecUsedSeasonKeys)) {
+      skillMigrationLogs.value.push(`${skill.type} 专精重修季节记录格式无效，已重置。`)
+      skill.perkRespecUsedSeasonKeys = []
+      return
+    }
+    const normalizedSeasonKeys = [...new Set(
+      skill.perkRespecUsedSeasonKeys
+        .filter((key): key is string => typeof key === 'string')
+        .map(key => key.trim())
+        .filter(Boolean)
+    )]
+    if (normalizedSeasonKeys.length !== skill.perkRespecUsedSeasonKeys.length) {
+      skillMigrationLogs.value.push(`${skill.type} 专精重修季节记录已去重并清理无效值。`)
+    }
+    skill.perkRespecUsedSeasonKeys = normalizedSeasonKeys.slice(-20)
   }
 
   const getSkillMasteryNodes = (type: SkillType) => getSkillMasteryNodeDefs(type)
@@ -295,14 +421,14 @@ export const useSkillStore = defineStore('skill', () => {
   const canUnlockSkillMasteryNode = (type: SkillType, nodeId: SkillMasteryNodeId): boolean => {
     const skill = getSkill(type)
     const node = SKILL_MASTERY_NODE_BY_ID.get(nodeId)
-    return !!node && node.skillType === type && skill.level >= MAX_SKILL_LEVEL && !skill.unlockedMasteryNodeIds.includes(nodeId) && skill.masteryPoints >= node.cost
+    return !!node && node.skillType === type && skill.level >= MAX_SKILL_LEVEL && !skill.unlockedMasteryNodeIds.includes(nodeId) && masteryPool.value.points >= node.cost
   }
 
   const unlockSkillMasteryNode = (type: SkillType, nodeId: SkillMasteryNodeId): boolean => {
     const skill = getSkill(type)
     const node = SKILL_MASTERY_NODE_BY_ID.get(nodeId)
     if (!node || !canUnlockSkillMasteryNode(type, nodeId)) return false
-    skill.masteryPoints -= node.cost
+    masteryPool.value.points -= node.cost
     skill.unlockedMasteryNodeIds.push(node.id)
     return true
   }
@@ -310,7 +436,7 @@ export const useSkillStore = defineStore('skill', () => {
   const getSkillMasteryProgress = (type: SkillType): { current: number; required: number } | null => {
     const skill = getSkill(type)
     if (skill.level < MAX_SKILL_LEVEL) return null
-    return { current: skill.masteryExp, required: SKILL_MASTERY_EXP_PER_POINT }
+    return { current: masteryPool.value.exp, required: SKILL_MASTERY_EXP_PER_POINT }
   }
 
   const getSkillMasteryEffectValue = (effectKey: SkillMasteryEffectKey): number => {
@@ -330,7 +456,7 @@ export const useSkillStore = defineStore('skill', () => {
 
     if (skill.level >= MAX_SKILL_LEVEL) {
       skill.exp = MAX_SKILL_EXP
-      addSkillMasteryExp(skill, adjustedAmount)
+      addSkillMasteryPoolExp(adjustedAmount)
       refreshMasteryUnlocks()
       return { leveledUp, newLevel: skill.level }
     }
@@ -349,7 +475,7 @@ export const useSkillStore = defineStore('skill', () => {
     if (skill.level >= MAX_SKILL_LEVEL && skill.exp > MAX_SKILL_EXP) {
       const overflowExp = skill.exp - MAX_SKILL_EXP
       skill.exp = MAX_SKILL_EXP
-      addSkillMasteryExp(skill, overflowExp)
+      addSkillMasteryPoolExp(overflowExp)
     }
 
     refreshMasteryUnlocks()
@@ -413,6 +539,78 @@ export const useSkillStore = defineStore('skill', () => {
     return []
   }
 
+  const getSelectedPerkLevelsFrom = (skill: SkillState, fromLevel: SkillPerkLevel): SkillPerkLevel[] =>
+    SKILL_PERK_LEVELS.filter(level => level >= fromLevel && getSkillPerkAtLevel(skill, level) !== null)
+
+  const isPerkRespecAvailableThisSeason = (type: SkillType, seasonKey = getCurrentPerkRespecSeasonKey()): boolean =>
+    !getSkill(type).perkRespecUsedSeasonKeys.includes(seasonKey)
+
+  const getSkillPerkRespecPreview = (type: SkillType, fromLevel: SkillPerkLevel, seasonKey = getCurrentPerkRespecSeasonKey()) => {
+    const skill = getSkill(type)
+    normalizePerkRespecState(skill)
+    const affectedLevels = getSelectedPerkLevelsFrom(skill, fromLevel)
+    const costMoney = affectedLevels.reduce((sum, level) => sum + PERK_RESPEC_COST_BY_LEVEL[level], 0)
+    const usedThisSeason = !isPerkRespecAvailableThisSeason(type, seasonKey)
+    const playerStore = usePlayerStore()
+    const currentMoney = playerStore.money
+    const missingMoney = Math.max(0, costMoney - currentMoney)
+    let reason = ''
+    if (affectedLevels.length === 0) {
+      reason = '这一段还没有可重修的专精。'
+    } else if (usedThisSeason) {
+      reason = '本季已经重修过这项技能专精。'
+    } else if (missingMoney > 0) {
+      reason = `铜钱不足，还差 ${missingMoney} 文。`
+    }
+    return {
+      skillType: type,
+      fromLevel,
+      seasonKey,
+      affectedLevels,
+      costMoney,
+      currentMoney,
+      missingMoney,
+      usedThisSeason,
+      canRespec: reason === '',
+      reason
+    }
+  }
+
+  const canRespecPerks = (type: SkillType, fromLevel: SkillPerkLevel): boolean =>
+    getSkillPerkRespecPreview(type, fromLevel).canRespec
+
+  const respecPerks = (type: SkillType, fromLevel: SkillPerkLevel): SkillPerkRespecResult => {
+    const preview = getSkillPerkRespecPreview(type, fromLevel)
+    if (!preview.canRespec) {
+      return {
+        success: false,
+        message: preview.reason || '暂时无法重修这项专精。',
+        costMoney: preview.costMoney,
+        affectedLevels: preview.affectedLevels
+      }
+    }
+    const playerStore = usePlayerStore()
+    if (!playerStore.spendMoney(preview.costMoney, 'system')) {
+      return {
+        success: false,
+        message: `铜钱不足，需要 ${preview.costMoney} 文。`,
+        costMoney: preview.costMoney,
+        affectedLevels: preview.affectedLevels
+      }
+    }
+    playerStore.recordSinkSpend(preview.costMoney, 'service')
+    const skill = getSkill(type)
+    clearSkillPerksFromLevel(skill, fromLevel)
+    skill.perkRespecUsedSeasonKeys = [...new Set([...skill.perkRespecUsedSeasonKeys, preview.seasonKey])].slice(-20)
+    return {
+      success: true,
+      message: `已重修 ${preview.affectedLevels.map(level => `Lv${level}`).join('、')} 专精，花费 ${preview.costMoney} 文。`,
+      costMoney: preview.costMoney,
+      affectedLevels: preview.affectedLevels,
+      nextPendingLevel: preview.affectedLevels[0]
+    }
+  }
+
   const normalizePerks = (skill: SkillState) => {
     if (skill.level < 5 || !includesPerk(PERK5_OPTIONS[skill.type], skill.perk5)) {
       if (skill.perk5) skillMigrationLogs.value.push(`${skill.type} 清空无效或等级不足的 5 级专精。`)
@@ -463,7 +661,7 @@ export const useSkillStore = defineStore('skill', () => {
       const overflowExp = skill.exp - MAX_SKILL_EXP
       skillMigrationLogs.value.push(`${skill.type} 满级经验超过上限，${overflowExp} 已转入精研经验。`)
       skill.exp = MAX_SKILL_EXP
-      addSkillMasteryExp(skill, overflowExp)
+      skill.masteryExp += overflowExp
     }
   }
 
@@ -511,12 +709,13 @@ export const useSkillStore = defineStore('skill', () => {
   }
 
   const serialize = () => {
-    return { skills: skills.value }
+    return { skills: skills.value, masteryPool: masteryPool.value }
   }
 
-  const deserialize = (data: ReturnType<typeof serialize>) => {
+  const deserialize = (data: SkillStoreSaveData = {}) => {
     skillMigrationLogs.value = []
-    const arr: SkillState[] = data.skills ?? []
+    const hasPersistedMasteryPool = Object.prototype.hasOwnProperty.call(data, 'masteryPool')
+    const arr: SkillState[] = Array.isArray(data.skills) ? data.skills : []
     // 确保 5 个技能都存在（旧存档可能没有 combat）
     const allTypes: SkillType[] = SKILL_TYPES
     for (const type of allTypes) {
@@ -556,9 +755,30 @@ export const useSkillStore = defineStore('skill', () => {
       if (!('masteryExp' in s)) (s as SkillState).masteryExp = 0
       if (!('masteryPoints' in s)) (s as SkillState).masteryPoints = 0
       if (!('unlockedMasteryNodeIds' in s)) (s as SkillState).unlockedMasteryNodeIds = []
+      if (!('perkRespecUsedSeasonKeys' in s)) (s as SkillState).perkRespecUsedSeasonKeys = []
+      if (!('masteryExpPerPoint' in s)) (s as SkillState).masteryExpPerPoint = LEGACY_SKILL_MASTERY_EXP_PER_POINT
       normalizeSkillProgress(s)
       normalizeSkillMasteryState(s)
+      normalizePerkRespecState(s)
       normalizePerks(s)
+    }
+    if (hasPersistedMasteryPool) {
+      masteryPool.value = normalizeSkillMasteryPoolState(data.masteryPool)
+      const carryoverTotalExp = uniqueSkills.reduce((sum, skill) => sum + skill.masteryPoints * skill.masteryExpPerPoint + skill.masteryExp, 0)
+      if (carryoverTotalExp > 0) {
+        addSkillMasteryPoolTotalExp(carryoverTotalExp)
+        skillMigrationLogs.value.push(`旧技能精研余量 ${carryoverTotalExp} 已并入通用精通池。`)
+      }
+    } else {
+      const spentPoints = uniqueSkills.reduce((sum, skill) => sum + getSkillMasterySpentCost(skill.unlockedMasteryNodeIds), 0)
+      const legacyTotalExp = uniqueSkills.reduce((sum, skill) => sum + getLegacySkillMasteryTotalExp(skill, skill.unlockedMasteryNodeIds), 0)
+      setSkillMasteryPoolFromTotalExp(legacyTotalExp, spentPoints)
+      if (legacyTotalExp > 0 || spentPoints > 0) {
+        skillMigrationLogs.value.push(`旧档各技能精研经验已汇入通用精通池，${SKILL_MASTERY_EXP_PER_POINT} 经验兑换 1 点。`)
+      }
+    }
+    for (const s of uniqueSkills) {
+      clearSkillMasteryCarryover(s)
     }
     skills.value = uniqueSkills
     refreshMasteryUnlocks()
@@ -566,6 +786,7 @@ export const useSkillStore = defineStore('skill', () => {
 
   return {
     skills,
+    masteryPool,
     skillMigrationLogs,
     farmingLevel,
     fishingLevel,
@@ -595,6 +816,10 @@ export const useSkillStore = defineStore('skill', () => {
     setPerk15,
     setPerk20,
     getAvailablePerks,
+    getSkillPerkRespecPreview,
+    isPerkRespecAvailableThisSeason,
+    canRespecPerks,
+    respecPerks,
     rollCropQuality,
     rollCropQualityWithBonus,
     rollFishQuality,

@@ -63,6 +63,7 @@ import { useInventoryStore } from './useInventoryStore'
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useWalletStore } from './useWalletStore'
+import { useGoalStore } from './useGoalStore'
 import { useSettingsStore } from './useSettingsStore'
 import { BREEDING_SPECIAL_ORDER_THEME_AUDIT } from '@/data/goals'
 import { getWeekCycleInfo } from '@/utils/weekCycle'
@@ -998,6 +999,7 @@ export const useBreedingStore = defineStore('breeding', () => {
         meta: { slotIndex, duration: slot.totalDays }
       })
     }
+    useGoalStore().recordWeeklyActivityCounter('breeding_started', 1)
     return true
   }
 

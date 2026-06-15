@@ -17,6 +17,7 @@ import {
   fetchMailboxReceipts,
   fetchPlayerLetterPresets,
   fetchSentMailboxList,
+  markAllMailboxRead,
   pinMailboxMail,
   saveMailboxMemorial,
   sendPlayerGiftPackage,
@@ -724,6 +725,12 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     return { ...data, save_sync_state: saveSyncState }
   }
 
+  const markAllRead = async () => {
+    const data = await markAllMailboxRead()
+    await refreshList()
+    return data
+  }
+
   const clearClaimed = async () => {
     const data = await clearClaimedMailboxMail()
     await refreshList()
@@ -861,6 +868,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     openMail,
     claimMail,
     claimAll,
+    markAllRead,
     clearClaimed,
     setPinned,
     saveToMemorial,

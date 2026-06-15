@@ -30,6 +30,8 @@ export type ItemCategory =
 /** 物品品质 */
 export type Quality = 'normal' | 'fine' | 'excellent' | 'supreme'
 
+export type InventoryItemOrigin = 'shop'
+
 export type PriceModifierCategory = 'base' | 'quality' | 'skill' | 'wallet' | 'activity' | 'market' | 'equipment' | 'bond' | 'environment'
 
 export interface PriceModifierStep {
@@ -83,6 +85,9 @@ export interface InventoryItem {
   quantity: number
   quality: Quality
   locked?: boolean
+  origin?: InventoryItemOrigin
+  purchaseDay?: string
+  purchaseUnitPrice?: number
 }
 
 /** 工具等级 */

@@ -160,8 +160,20 @@ await sendRewardMail(claimAllUsername, 'mail idempotency claim all reward b', [
   { type: 'weapon', id: 'wooden_stick', quantity: 1 },
 ])
 
+const unreadBeforeReadAll = await mailbox.listUserMails(claimAllUsername, { skipPendingCampaigns: true })
+assert.equal(unreadBeforeReadAll.unread_count, 2, 'claim-all scenario should start with two unread deliveries')
+const markAllRead = await mailbox.markAllUserMailsRead(claimAllUsername)
+assert.equal(markAllRead.count, 2, 'mark-all-read should mark all unread mailbox deliveries')
+assert.equal(markAllRead.unread_count, 0, 'mark-all-read should return zero remaining unread deliveries')
+const markAllReadAgain = await mailbox.markAllUserMailsRead(claimAllUsername)
+assert.equal(markAllReadAgain.count, 0, 'mark-all-read should be idempotent when nothing is unread')
+const afterReadAllList = await mailbox.listUserMails(claimAllUsername, { skipPendingCampaigns: true })
+assert.equal(afterReadAllList.unread_count, 0, 'mail list should reflect all deliveries as read')
+assert.ok(afterReadAllList.mails.every(entry => !entry.unread), 'mail summaries should no longer be unread after mark-all-read')
+assert.equal(afterReadAllList.mails.filter(entry => entry.can_claim).length, 2, 'mark-all-read must not consume claimable rewards')
+
 const beforeClaimAllMailbox = await readFile(mailboxFile, 'utf8')
-const claimAllList = await mailbox.listUserMails(claimAllUsername, { skipPendingCampaigns: true })
+const claimAllList = afterReadAllList
 const claimAllDeliveries = claimAllList.mails.filter(entry => entry.can_claim)
 assert.equal(claimAllDeliveries.length, 2, 'claim-all scenario should have two claimable deliveries')
 

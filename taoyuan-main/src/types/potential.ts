@@ -46,7 +46,7 @@ export type PotentialEffectKey =
   | 'potential_society_order'
   | 'potential_visitor_chance'
 
-export type PotentialEffectMode = 'formula' | 'info' | 'reserved'
+export type PotentialEffectMode = 'formula' | 'info'
 
 export type PotentialSourceId =
   | 'mine_boss_clear'
@@ -58,16 +58,36 @@ export type PotentialSourceId =
 
 export type PotentialSourcePeriod = 'daily' | 'weekly' | 'seasonal'
 
+export type PotentialRandomNpcMilestoneKey =
+  | 'random_acquaintance'
+  | 'random_small_order'
+  | 'random_long_stay'
+  | 'random_long_stay_story'
+  | 'random_family_tie'
+  | 'random_family_commission'
+  | 'random_relationship_line'
+  | 'random_family_business'
+
+export interface PotentialRandomNpcMilestoneProgress {
+  milestone: PotentialRandomNpcMilestoneKey
+  label: string
+  hint: string
+  current: number
+  target: number
+  ready: boolean
+}
+
 export interface PotentialResourceCost {
   resourceId: PotentialResourceId
   amount: number
 }
 
 export interface PotentialUnlockCondition {
-  kind: 'branchRank' | 'totalRank' | 'skillLevel' | 'masteryNode'
+  kind: 'branchRank' | 'totalRank' | 'skillLevel' | 'masteryNode' | 'randomNpcMilestone'
   branchId?: PotentialBranchId
   skillType?: string
   nodeId?: string
+  milestone?: PotentialRandomNpcMilestoneKey
   value: number
   label: string
 }
