@@ -64,6 +64,7 @@ import { useInventoryStore } from './useInventoryStore'
 import { useMuseumStore } from './useMuseumStore'
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useShopStore } from './useShopStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
@@ -1662,7 +1663,14 @@ export const useGoalStore = defineStore('goal', () => {
     lastWeeklyGoalSettlement.value = summary
     lastSettledWeeklyGoalWeekId.value = summary.weekId
 
-    addLog(`[Weekly Goals] 已结算 ${summary.weekId}：完成 ${summary.completedGoalCount}/${summary.totalGoalCount}。`, {
+    const potentialReward =
+      summary.completedGoalCount > 0
+        ? usePotentialStore().claimPotentialSourceReward('theme_week_settlement', `week:${summary.weekId}:${summary.linkedThemeWeekId ?? 'weekly'}`, {
+            reason: `主题周结算：${summary.weekId}`
+          })
+        : null
+
+    addLog(`[Weekly Goals] 已结算 ${summary.weekId}：完成 ${summary.completedGoalCount}/${summary.totalGoalCount}。${potentialReward?.success ? ' 潜能心得有所沉淀。' : ''}`, {
       category: 'goal',
       tags: ['weekly_goals_settled', 'late_game_cycle'],
       meta: {

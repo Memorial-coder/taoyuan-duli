@@ -721,8 +721,14 @@
       poor: '失败'
     }
     addLog(`小游戏评级：${ratingNames[result.rating]}！`)
+    if (result.lineBreaksPrevented > 0 || result.struggleCount > 0) {
+      const processNotes: string[] = []
+      if (result.lineBreaksPrevented > 0) processNotes.push(`断线保护${result.lineBreaksPrevented}次`)
+      if (result.struggleCount > 0) processNotes.push(`挣扎${result.struggleSuccessCount}/${result.struggleCount}次稳住`)
+      addLog(`搏鱼过程：${processNotes.join('，')}。`)
+    }
 
-    const catchData = fishingStore.completeFishing(result.rating)
+    const catchData = fishingStore.completeFishing(result.rating, { failureReason: result.failureReason })
     if (catchData) {
       addLog(catchData.message)
       lastResult.value = catchData.message

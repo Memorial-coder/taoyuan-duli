@@ -129,9 +129,13 @@ for (const [label, block] of [
   ['温室单块收获', greenhouseHarvestSource],
   ['温室一键收获', greenhouseBatchHarvestSource]
 ]) {
-  assert(!block.includes("isToolAvailable('scythe')"), `${label}不应因镰刀升级阻止成熟作物收获。`)
+  assert(block.includes("isToolAvailable('scythe')"), `${label}必须在镰刀升级中阻止成熟作物收获。`)
   assert(!block.includes('consumeStamina(') && !block.includes('restoreStamina('), `${label}应与普通地块手动收获一致，不消耗体力。`)
 }
+assert(
+  farmViewSource.includes(':disabled="ghHarvestableCount === 0 || !inventoryStore.isToolAvailable(\'scythe\')"'),
+  'greenhouse batch harvest button should be disabled while scythe upgrades.'
+)
 assert(
   greenhouseBatchHarvestSource.includes('ACTION_TIME_COSTS.batchHarvest') &&
     /Math\.ceil\(harvested\s*\/\s*6\)/.test(greenhouseBatchHarvestSource),

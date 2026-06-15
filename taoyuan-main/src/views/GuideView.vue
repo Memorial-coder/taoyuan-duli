@@ -256,6 +256,7 @@
           <Button class="justify-center !px-3 !py-2" :icon="FlaskConical" @click="goGuideBookHash('breeding')">育种</Button>
           <Button class="justify-center !px-3 !py-2" :icon="Landmark" @click="goGuideBookHash('museum')">博物馆</Button>
           <Button class="justify-center !px-3 !py-2" :icon="Tent" @click="goGuideBookHash('hanhai')">瀚海</Button>
+          <Button class="justify-center !px-3 !py-2" :icon="Sparkles" @click="goPotential">潜能</Button>
           <Button class="justify-center !px-3 !py-2" :icon="Wallet" @click="goGuideBookHash('wallet-budget')">钱袋与预算</Button>
           <Button class="justify-center !px-3 !py-2" :icon="MessagesSquare" @click="goGuideBookHash('online')">在线功能</Button>
         </div>
@@ -363,6 +364,10 @@
 
   const goRegionMap = () => {
     void router.push({ name: 'region-map' })
+  }
+
+  const goPotential = () => {
+    void router.push({ name: 'potential' })
   }
 
   const goGuideBookHash = (hash: string) => {

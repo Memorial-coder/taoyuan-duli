@@ -41,6 +41,7 @@ import { useGameStore } from './useGameStore'
 import { useGoalStore } from './useGoalStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useNpcStore } from './useNpcStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useRegionMapStore } from './useRegionMapStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
@@ -1103,13 +1104,17 @@ export const useMuseumStore = defineStore('museum', () => {
         inventoryStore.addItemsExact(rewardItems)
       }
       claimedMilestones.value.push(count)
-      addLog(`【博物馆】已领取里程碑「${milestone.name}」奖励。`, {
+      const potentialReward = usePotentialStore().claimPotentialSourceReward('museum_hidden_sample', `milestone:${count}`, {
+        reason: `博物馆里程碑：${milestone.name}`
+      })
+      addLog(`【博物馆】已领取里程碑「${milestone.name}」奖励。${potentialReward.success ? ' 潜能材料有所沉淀。' : ''}`, {
         category: 'museum',
         tags: ['late_game_cycle'],
         meta: {
           milestoneCount: count,
           rewardMoney: milestone.reward.money ?? 0,
-          rewardItems: rewardItems.map(item => `${item.itemId}x${item.quantity}`).join(' | ')
+          rewardItems: rewardItems.map(item => `${item.itemId}x${item.quantity}`).join(' | '),
+          potentialReward: potentialReward.success
         }
       })
       return true

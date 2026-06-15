@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div data-testid="farm-view">
     <!-- 标签切换 -->
     <div class="flex space-x-1.5 mb-3">
@@ -904,8 +904,8 @@
           <div class="flex flex-wrap gap-2 mb-3">
             <Button
               class="flex-1 min-w-[7.5rem] justify-center"
-              :class="{ '!bg-accent !text-bg': ghHarvestableCount > 0 }"
-              :disabled="ghHarvestableCount === 0"
+              :class="{ '!bg-accent !text-bg': ghHarvestableCount > 0 && inventoryStore.isToolAvailable('scythe') }"
+              :disabled="ghHarvestableCount === 0 || !inventoryStore.isToolAvailable('scythe')"
               :icon-size="12"
               :icon="Wheat"
               @click="doGhBatchHarvest"
@@ -1483,7 +1483,7 @@
       addLog('背包已满，无法开采。')
       return
     }
-    if (!playerStore.consumeStamina(5)) {
+    if (!playerStore.consumeStamina(5, { source: 'tool' })) {
       addLog('体力不足，无法开采。')
       return
     }
@@ -1988,7 +1988,7 @@
             (1 - plantRingGlobalReduction)
         )
       )
-      if (!playerStore.consumeStamina(cost)) break
+      if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
       if (farmStore.plantGeneticSeed(plot.id, seed.genetics)) {
         breedingStore.removeFromBox(seed.genetics.id)
         planted++
@@ -2144,7 +2144,7 @@
           (1 - cropRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法播种。')
       return
     }
@@ -2364,7 +2364,7 @@
       1,
       Math.floor(5 * inventoryStore.getToolStaminaMultiplier('axe') * (1 - skillStore.getStaminaReduction('foraging')))
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法砍伐。')
       return
     }
@@ -2456,7 +2456,7 @@
       1,
       Math.floor(5 * inventoryStore.getToolStaminaMultiplier('axe') * (1 - skillStore.getStaminaReduction('foraging')))
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法伐木。')
       return
     }
@@ -2634,7 +2634,7 @@
           (1 - cropRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       inventoryStore.addItem(crop.seedId)
       addLog('体力不足，无法播种。')
       return
@@ -2684,7 +2684,7 @@
           (1 - cropRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法播种。')
       return
     }
@@ -2709,6 +2709,10 @@
     if (gameStore.isPastBedtime) {
       addLog('已经凌晨2点了，你必须休息。')
       handleEndDay()
+      return
+    }
+    if (!inventoryStore.isToolAvailable('scythe')) {
+      addLog('镰刀正在升级中，无法收获。')
       return
     }
     const result = harvestGreenhousePlotWithRewards(activeGhPlotId.value)
@@ -2738,6 +2742,10 @@
     if (gameStore.isPastBedtime) {
       addLog('已经凌晨2点了，你必须休息。')
       handleEndDay()
+      return
+    }
+    if (!inventoryStore.isToolAvailable('scythe')) {
+      addLog('镰刀正在升级中，无法收获。')
       return
     }
     let harvested = 0
@@ -2808,7 +2816,7 @@
             (1 - plantRingGlobalReduction)
         )
       )
-      if (!playerStore.consumeStamina(cost)) break
+      if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
       if (!inventoryStore.removeItem(crop.seedId)) break
       if (farmStore.greenhousePlantCrop(plot.id, cropId)) {
         planted++
@@ -2870,7 +2878,7 @@
             (1 - plantRingGlobalReduction)
         )
       )
-      if (!playerStore.consumeStamina(cost)) break
+      if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
       if (farmStore.greenhousePlantGeneticSeed(plot.id, seed.genetics)) {
         breedingStore.removeFromBox(seed.genetics.id)
         planted++

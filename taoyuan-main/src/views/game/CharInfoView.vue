@@ -324,6 +324,24 @@
       </div>
     </div>
 
+    <!-- 潜能总览 -->
+    <div class="border border-accent/20 rounded-xs p-2" data-testid="charinfo-potential-summary">
+      <div class="flex items-center justify-between mb-1.5">
+        <p class="text-xs text-muted">潜能</p>
+        <button class="text-xs text-accent hover:underline" @click="goToPotential">查看详情</button>
+      </div>
+      <div class="grid grid-cols-2 gap-1">
+        <div v-for="branch in potentialBranchRows" :key="branch.id" class="flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1">
+          <span class="text-xs text-muted">{{ branch.label }}</span>
+          <span class="text-xs text-accent tabular-nums">{{ branch.rank }}/{{ branch.maxRank }}</span>
+        </div>
+      </div>
+      <div v-if="potentialEffectRows.length > 0" class="mt-1.5 space-y-0.5">
+        <p v-for="line in potentialEffectRows" :key="line" class="text-[0.625rem] text-success leading-4">{{ line }}</p>
+      </div>
+      <p v-else class="mt-1.5 text-[0.625rem] text-muted leading-4">尚未显化潜能效果。</p>
+    </div>
+
     <!-- 被动加成 -->
     <div v-if="unlockedWalletItems.length > 0" class="border border-accent/20 rounded-xs p-2">
       <p class="text-xs text-muted mb-1.5">被动加成</p>
@@ -365,7 +383,9 @@
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGuildStore } from '@/stores/useGuildStore'
   import { useMiningStore } from '@/stores/useMiningStore'
+  import { usePotentialStore } from '@/stores/usePotentialStore'
   import { TOOL_NAMES, TIER_NAMES, getNpcById } from '@/data'
+  import { formatPotentialEffectValue } from '@/data/potential'
   import { getWeaponById, getEnchantmentById, getWeaponDisplayName } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
@@ -386,6 +406,7 @@
   const cookingStore = useCookingStore()
   const guildStore = useGuildStore()
   const miningStore = useMiningStore()
+  const potentialStore = usePotentialStore()
   const npcStore = useNpcStore()
   const gameStore = useGameStore()
   const achievementStore = useAchievementStore()
@@ -801,6 +822,13 @@
   // === 被动 ===
   const unlockedWalletItems = computed(() => WALLET_ITEMS.filter(w => walletStore.has(w.id)))
 
+  const potentialBranchRows = computed(() => potentialStore.branchSummaries)
+  const potentialEffectRows = computed(() =>
+    potentialStore.connectedEffectSummary
+      .map(({ effect, value }) => `${effect.label} ${formatPotentialEffectValue(effect, value)}`)
+      .slice(0, 4)
+  )
+
   // === 家庭 ===
   const spouseInfo = computed(() => {
     const spouseState = npcStore.getSpouse()
@@ -823,5 +851,9 @@
 
   const goToSkills = () => {
     navigateToPanel('skills')
+  }
+
+  const goToPotential = () => {
+    navigateToPanel('potential')
   }
 </script>

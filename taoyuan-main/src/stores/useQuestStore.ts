@@ -59,6 +59,7 @@ import { useGuildStore } from './useGuildStore'
 import { useHanhaiStore } from './useHanhaiStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useMuseumStore } from './useMuseumStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
@@ -346,6 +347,7 @@ export const useQuestStore = defineStore('quest', () => {
       highlightedLabels.length > 0 ? `【市场联动】今日告示板更偏向 ${highlightedLabels.join('、')} 相关委托。` : '',
       activeDailyBlessing ? `【今日祝福】${activeDailyBlessing.sourceLabel}「${activeDailyBlessing.label}」会把告示板轻推向${activeDailyBlessing.preferredMarketCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('、')}。` : '',
       relationshipFocusLabels.length > 0 ? `【陪伴联动】本周可围绕 ${relationshipFocusLabels.slice(0, 3).join('、')} 筹备家务、外出与家业委托。` : '',
+      usePotentialStore().getPotentialEffectValue('potential_quest_bias') > 0 ? '【潜能识人】今日更适合优先查看供货、跑图和节庆筹备类委托。' : '',
       guildQuestBias.boardHint,
       hanhaiQuestBias.boardHint,
       museumQuestBias.boardHint
@@ -357,6 +359,7 @@ export const useQuestStore = defineStore('quest', () => {
       activeDailyBlessing ? `今日祝福：${activeDailyBlessing.sourceLabel}「${activeDailyBlessing.label}」会提高相关供货与跑图委托的出现感。` : '',
       activeFamilyWish ? `陪伴联动：家庭心愿「${activeFamilyWish.title}」会放大 ${relationshipPreferredCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('、') || '陪伴类'} 筹备需求。` : '',
       activeSpiritBlessing ? `仙缘联动：当前祝福「${activeSpiritBlessing.label}」会提高相关外出 / 供货委托的出现感。` : '',
+      usePotentialStore().getPotentialEffectValue('potential_quest_bias') > 0 ? '潜能识人：本周优先留意特殊订单、节庆筹备和外出承接。' : '',
       guildQuestBias.specialOrderHint,
       hanhaiQuestBias.specialOrderHint,
       museumQuestBias.specialOrderHint
@@ -1839,11 +1842,16 @@ export const useQuestStore = defineStore('quest', () => {
     // 记录完成
     completedQuestCount.value++
 
+    let potentialQuestRewardMessage = ''
     if (quest.type === 'special_order') {
       const archiveDayTag = buildQuestHistoryDayTag()
       rememberSpecialOrderReceipt(quest.id)
       playerStore.markSpecialOrderArchived(quest.id, archiveDayTag)
       playerStore.markSpecialOrderArchived(`npc:${quest.npcId}`, archiveDayTag)
+      const potentialReward = usePotentialStore().claimPotentialSourceReward('special_order_finish', `order:${quest.id}`, {
+        reason: `特殊订单：${quest.targetItemName}`
+      })
+      if (potentialReward.success) potentialQuestRewardMessage = ' 潜能材料有所沉淀。'
     }
 
     const rewardSummaryParts = [`${finalMoneyReward}文`, `${quest.npcName}好感+${finalFriendshipReward}`]
@@ -1859,6 +1867,9 @@ export const useQuestStore = defineStore('quest', () => {
     }
     if (orderCookingFeedback) {
       rewardSummaryParts.push(`料理线索：${orderCookingFeedback}`)
+    }
+    if (potentialQuestRewardMessage) {
+      rewardSummaryParts.push('潜能材料')
     }
     completedQuestHistory.value = [
       {
@@ -1926,6 +1937,9 @@ export const useQuestStore = defineStore('quest', () => {
     }
     if (clueMessage) {
       message += clueMessage
+    }
+    if (potentialQuestRewardMessage) {
+      message += potentialQuestRewardMessage
     }
     if (orderCookingFeedback) {
       message += ` ${orderCookingFeedback}`

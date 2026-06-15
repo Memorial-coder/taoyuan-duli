@@ -1024,7 +1024,7 @@ export const useMiningStore = defineStore('mining', () => {
       (1 - spiritMiningReduction)
     const resolvedStaminaCost = resolveFractionalStaminaCost(rawStaminaCost, miningStaminaDiscountCredit.value)
     const staminaCost = resolvedStaminaCost.cost
-    if (staminaCost > 0 && !playerStore.consumeStamina(staminaCost)) {
+    if (staminaCost > 0 && !playerStore.consumeStamina(staminaCost, { source: 'tool' })) {
       return { success: false, message: '体力不足，无法探索。', startsCombat: false }
     }
     miningStaminaDiscountCredit.value = resolvedStaminaCost.discountCredit

@@ -16,6 +16,7 @@ export type BuiltInSampleRouteName =
   | 'upgrade'
   | 'inventory'
   | 'skills'
+  | 'potential'
   | 'achievement'
   | 'glossary'
   | 'wallet'
@@ -1133,6 +1134,29 @@ const createEndgameShowcaseEnvelope = () => {
         research: 2,
         caravan: 1
       }),
+      potential: {
+        resources: {
+          potential_insight: 8,
+          spirit_breath: 3,
+          artisan_notes: 3,
+          mountain_jade: 4
+        },
+        nodeRanks: {
+          body_vital_root: 2,
+          body_stamina_channel: 1,
+          craft_processing_flow: 2,
+          craft_tool_rhythm: 1,
+          trail_hazard_reading: 2,
+          trail_mine_entry_hint: 1,
+          harmony_quest_bias: 1,
+          harmony_festival_supply: 1
+        },
+        sourceReceipts: {},
+        sourceCapProgress: {},
+        branchRespecUsedSeasonKeys: {},
+        branchRespecRecords: [],
+        potentialMigrationLogs: []
+      },
       breeding: {
         unlocked: true,
         seedBoxLevel: 2,
@@ -2472,14 +2496,14 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
   {
     id: 'endgame_showcase',
     label: '终局综合档',
-    description: '多系统综合联动样例，导入后即可继续跑矿洞、票券、村庄、鱼塘、瀚海和博物馆的后期局。',
-    tags: ['endgame', 'economy', 'breeding', 'fishpond', 'museum', 'hanhai', 'village', 'mining'],
+    description: '多系统综合联动样例，导入后即可查看潜能、继续跑矿洞、票券、村庄、鱼塘、瀚海和博物馆的后期局。',
+    tags: ['endgame', 'economy', 'potential', 'breeding', 'fishpond', 'museum', 'hanhai', 'village', 'mining'],
     tier: 'flagship',
-    recommendedRouteName: 'mining',
-    focusAreas: ['终局预算', '矿洞推进', '票券链', '村庄繁荣', '瀚海遗迹', '鱼塘展示'],
+    recommendedRouteName: 'potential',
+    focusAreas: ['潜能修行', '终局预算', '矿洞推进', '票券链', '村庄繁荣', '瀚海遗迹', '鱼塘展示'],
     smokeChecks: [
-      { id: 'open_route', label: '载入后直接进入矿洞页，确认综合局默认落点是可验的主链路。' },
-      { id: 'cross_system', label: '切看钱包、鱼塘、村庄、瀚海和博物馆，确认关键 store 都已带内容。' },
+      { id: 'open_route', label: '载入后直接进入潜能页，确认综合局默认落点能看到跨系统成长。' },
+      { id: 'cross_system', label: '切看技能、钱包、鱼塘、村庄、瀚海和博物馆，确认关键 store 都已带内容。' },
       { id: 'long_run', label: '不用额外补钱或补状态，就能继续做多页面联调。' }
     ],
     runtimeExpectations: {

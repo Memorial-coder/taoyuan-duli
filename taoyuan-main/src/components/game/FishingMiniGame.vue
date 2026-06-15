@@ -43,6 +43,20 @@
       </div>
     </div>
 
+    <div class="flex items-center justify-center gap-2 mt-2 text-[0.625rem] text-muted">
+      <span v-if="totalLineBreakChances > 0" :class="remainingLineBreakChances > 0 ? 'text-accent' : 'text-muted'">
+        断线 {{ remainingLineBreakChances }}/{{ totalLineBreakChances }}
+      </span>
+      <span v-if="hasStruggle">挣扎 {{ struggleSuccessPercent }}%</span>
+    </div>
+    <p
+      v-if="eventMessage"
+      class="text-[0.625rem] text-center mt-1"
+      :class="eventTone === 'good' ? 'text-success' : eventTone === 'danger' ? 'text-danger' : 'text-accent'"
+    >
+      {{ eventMessage }}
+    </p>
+
     <!-- 操作按钮 -->
     <div class="flex space-x-2 mt-3 justify-center">
       <button
@@ -78,6 +92,12 @@
     scoreGain: number
     scoreLoss: number
     timeLimit: number
+    lineBreakChances: number
+    lineBreakRecoveryScore: number
+    struggleChance: number
+    struggleSuccessChance: number
+    struggleScoreLoss: number
+    strugglePower: number
     paused?: boolean
   }>()
 
@@ -87,6 +107,9 @@
 
   const CONTAINER_HEIGHT = 250
   const FISH_HEIGHT = 25
+  const LINE_BREAK_MIN_PEAK_SCORE = 25
+  const STRUGGLE_COOLDOWN_SECONDS = 3.5
+  const EVENT_MESSAGE_SECONDS = 1.2
 
   // Reactive game state (drives template)
   const fishPos = ref(CONTAINER_HEIGHT / 2 - FISH_HEIGHT / 2)
@@ -96,6 +119,13 @@
   const isHolding = ref(false)
   const isOverlap = ref(false)
   const gameActive = ref(false)
+  const remainingLineBreakChances = ref(Math.max(0, Math.floor(props.lineBreakChances)))
+  const eventMessage = ref('')
+  const eventTone = ref<'good' | 'danger' | 'neutral'>('neutral')
+
+  const totalLineBreakChances = Math.max(0, Math.floor(props.lineBreakChances))
+  const hasStruggle = props.struggleChance > 0
+  const struggleSuccessPercent = Math.round(Math.max(0, Math.min(1, props.struggleSuccessChance)) * 100)
 
   // Internal tracking (non-reactive for performance)
   let isPerfect = true
@@ -105,6 +135,11 @@
   let animationId = 0
   let startTime = 0
   let lastFrameTime = 0
+  let eventMessageUntil = 0
+  let struggleCooldown = STRUGGLE_COOLDOWN_SECONDS * 0.5
+  let lineBreaksPrevented = 0
+  let struggleCount = 0
+  let struggleSuccessCount = 0
 
   const startHold = () => {
     isHolding.value = true
@@ -126,19 +161,81 @@
     }
   }
 
-  const endGame = (rating: MiniGameRating) => {
+  const setEventMessage = (message: string, tone: 'good' | 'danger' | 'neutral', timestamp: number) => {
+    eventMessage.value = message
+    eventTone.value = tone
+    eventMessageUntil = timestamp + EVENT_MESSAGE_SECONDS * 1000
+  }
+
+  const clearEventMessageIfExpired = (timestamp: number) => {
+    if (eventMessage.value && timestamp >= eventMessageUntil) {
+      eventMessage.value = ''
+      eventTone.value = 'neutral'
+    }
+  }
+
+  const endGame = (rating: MiniGameRating, failureReason?: MiniGameResult['failureReason']) => {
     gameActive.value = false
     cancelAnimationFrame(animationId)
     emit('complete', {
       rating,
       score: score.value,
-      perfect: isPerfect && rating === 'perfect'
+      perfect: isPerfect && rating === 'perfect',
+      failureReason,
+      lineBreaksPrevented,
+      struggleCount,
+      struggleSuccessCount
     })
+  }
+
+  const resolveLineBreak = (timestamp: number): boolean => {
+    if (remainingLineBreakChances.value > 0) {
+      remainingLineBreakChances.value--
+      lineBreaksPrevented++
+      isPerfect = false
+      score.value = Math.max(score.value, props.lineBreakRecoveryScore)
+      setEventMessage('浮漂托住了钓线', 'good', timestamp)
+      return true
+    }
+
+    setEventMessage('钓线绷断', 'danger', timestamp)
+    endGame('poor', 'line_broken')
+    return false
+  }
+
+  const maybeTriggerStruggle = (deltaSeconds: number, timestamp: number): boolean => {
+    if (props.struggleChance <= 0 || deltaSeconds <= 0) return true
+    struggleCooldown = Math.max(0, struggleCooldown - deltaSeconds)
+    if (struggleCooldown > 0) return true
+    if (Math.random() >= props.struggleChance * deltaSeconds) return true
+
+    struggleCooldown = STRUGGLE_COOLDOWN_SECONDS
+    struggleCount++
+
+    if (Math.random() < props.struggleSuccessChance) {
+      struggleSuccessCount++
+      fishVelocity *= 0.35
+      targetDirection *= 0.35
+      setEventMessage('稳住了挣扎', 'good', timestamp)
+      return true
+    }
+
+    const direction = fishPos.value < CONTAINER_HEIGHT / 2 ? 1 : -1
+    isPerfect = false
+    targetDirection = direction * props.fishSpeed * props.strugglePower
+    fishVelocity = targetDirection
+    score.value = Math.max(score.value - props.struggleScoreLoss, 0)
+    setEventMessage('鱼猛地挣扎', 'danger', timestamp)
+    if (score.value <= 0 && peakScore >= LINE_BREAK_MIN_PEAK_SCORE) {
+      return resolveLineBreak(timestamp)
+    }
+    return true
   }
 
   const gameLoop = (timestamp: number) => {
     if (!gameActive.value) return
     const deltaMs = lastFrameTime > 0 ? timestamp - lastFrameTime : 0
+    const deltaSeconds = Math.min(deltaMs / 1000, 0.05)
     lastFrameTime = timestamp
 
     if (props.paused) {
@@ -146,6 +243,7 @@
       animationId = requestAnimationFrame(gameLoop)
       return
     }
+    clearEventMessageIfExpired(timestamp)
 
     // Timer
     const elapsed = (timestamp - startTime) / 1000
@@ -176,6 +274,7 @@
       targetDirection = -Math.abs(targetDirection)
       fishVelocity = -Math.abs(fishVelocity) * 0.5
     }
+    if (!maybeTriggerStruggle(deltaSeconds, timestamp)) return
 
     // 3. Overlap detection
     // Hook is positioned from bottom: CSS bottom = hookPos
@@ -192,8 +291,10 @@
     if (isOverlap.value) {
       score.value = Math.min(score.value + props.scoreGain, 100)
     } else {
+      const previousScore = score.value
       score.value = Math.max(score.value - props.scoreLoss, 0)
       if (score.value < peakScore) isPerfect = false
+      if (previousScore > 0 && score.value <= 0 && peakScore >= LINE_BREAK_MIN_PEAK_SCORE && !resolveLineBreak(timestamp)) return
     }
     peakScore = Math.max(peakScore, score.value)
 
@@ -205,7 +306,8 @@
 
     // 6. Check timeout
     if (timeLeft.value <= 0) {
-      endGame(score.value >= 60 ? 'good' : 'poor')
+      const rating = score.value >= 60 ? 'good' : 'poor'
+      endGame(rating, rating === 'poor' ? 'timeout' : undefined)
       return
     }
 
@@ -220,9 +322,17 @@
     hookPos.value = 0
     score.value = 0
     timeLeft.value = props.timeLimit
+    remainingLineBreakChances.value = totalLineBreakChances
+    eventMessage.value = ''
+    eventTone.value = 'neutral'
     isPerfect = true
     peakScore = 0
     fishVelocity = 0
+    eventMessageUntil = 0
+    struggleCooldown = STRUGGLE_COOLDOWN_SECONDS * 0.5
+    lineBreaksPrevented = 0
+    struggleCount = 0
+    struggleSuccessCount = 0
     targetDirection = (Math.random() - 0.5) * props.fishSpeed
     animationId = requestAnimationFrame(gameLoop)
   }

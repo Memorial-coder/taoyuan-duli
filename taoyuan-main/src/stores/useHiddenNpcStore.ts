@@ -18,6 +18,7 @@ import { useNpcStore } from './useNpcStore'
 import { useQuestStore } from './useQuestStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
+import { usePotentialStore } from './usePotentialStore'
 import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import { getItemById } from '@/data/items'
 
@@ -727,11 +728,15 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
       for (const item of rewardItems) {
         rewardSummaryParts.push(`${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
       }
+      const potentialReward = usePotentialStore().claimPotentialSourceReward('festival_spirit_event', `bond-memory:${npcId}:${memoryId}`, {
+        reason: `仙灵记忆：${memoryReward.summary}`
+      })
+      const potentialText = potentialReward.success ? '，并沉淀出少量潜能材料' : ''
       return {
         success: true,
         message: rewardSummaryParts.length > 0
-          ? `已归档结缘记忆「${memoryReward.summary}」，并获得${rewardSummaryParts.join('、')}。`
-          : `已归档结缘记忆「${memoryReward.summary}」。`
+          ? `已归档结缘记忆「${memoryReward.summary}」，并获得${rewardSummaryParts.join('、')}${potentialText}。`
+          : `已归档结缘记忆「${memoryReward.summary}」${potentialText}。`
       }
     } finally {
       finishSpiritAction(lockId)

@@ -338,6 +338,11 @@ const installBrowserShims = () => {
         setProperty() {},
         removeProperty() {},
       },
+      getAttribute() {
+        return null
+      },
+      setAttribute() {},
+      removeAttribute() {},
     },
     body: makeElement('body'),
     createElement(tag) {

@@ -1,9 +1,15 @@
 <template>
   <div>
-    <h3 class="text-accent text-sm mb-3">
-      <Star :size="14" class="inline" />
-      技能
-    </h3>
+    <div class="mb-3 flex items-center justify-between gap-2">
+      <h3 class="text-accent text-sm">
+        <Star :size="14" class="inline" />
+        技能
+      </h3>
+      <button class="inline-flex items-center gap-1 rounded-xs border border-accent/20 px-2 py-1 text-xs text-accent hover:bg-accent/5" @click="navigateToPanel('potential')">
+        <Sparkles :size="12" />
+        <span>潜能</span>
+      </button>
+    </div>
     <!-- WS06 anchor: this skill/perk panel is the existing base for future
          mastery-style endgame growth that converges multiple progression lines. -->
     <div class="desktop-adaptive-grid--cards" data-testid="skill-layout-grid">
@@ -168,6 +174,7 @@
 <script setup lang="ts">
   import { type Component } from 'vue'
   import { Star, Wheat, TreePine, Fish, Pickaxe, Sword, Sparkles, Unlock, CheckCircle2 } from 'lucide-vue-next'
+  import { navigateToPanel } from '@/composables/useNavigation'
   import { useSkillStore } from '@/stores/useSkillStore'
   import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, SkillMasteryNodeId } from '@/types'
 
@@ -211,26 +218,36 @@
     farming_processing_flow: '工坊加工耗时',
     farming_seed_recovery: '作物收获返种',
     farming_order_deed: '任务页作物订单',
+    farming_soil_calendar: '轮作提示预留',
+    farming_storage_plan: '仓储整理预留',
     foraging_rare_signal: '采集页稀有物',
     foraging_journey_scout: '行旅构筑侦察',
     foraging_weather_window: '采集环境窗口',
     foraging_mountain_hunch: '采集页稀有提示',
     foraging_herb_sample: '采集见闻账本',
+    foraging_route_cache: '路线藏点预留',
+    foraging_specimen_map: '博物馆样本预留',
     fishing_tide_marker: '钓鱼页传说鱼提示',
     fishing_pond_link: '鱼塘每日产出',
     fishing_legend_weight: '传说鱼经验结算',
     fishing_pond_pedigree: '鱼塘详情谱系',
     fishing_tide_notebook: '钓鱼上钩权重',
+    fishing_bait_journal: '鱼饵提示预留',
+    fishing_contest_prep: '周赛备钓预留',
     mining_floor_intel: '矿洞层位提示',
     mining_bomb_efficiency: '矿洞炸弹返还',
     mining_rare_transmute: '手动采矿奖励',
     mining_vein_marker: '矿洞进层提示',
     mining_stabilized_blasting: '矿洞空爆返还',
+    mining_safety_rope: '深层撤退预留',
+    mining_smelter_notes: '冶炼排程预留',
     combat_boss_pressure: 'Boss 战奖励',
     combat_escort_margin: '行旅构筑压险',
     combat_trinket_tuning: '饰品效果汇总',
     combat_boss_dossier: 'Boss 战开场日志',
-    combat_escort_discipline: '远征失败结算'
+    combat_escort_discipline: '远征失败结算',
+    combat_guard_form: '防御提示预留',
+    combat_supply_route: '补给检查预留'
   }
 
   const PERK_DESCS: Record<SkillPerk5 | SkillPerk10 | SkillPerk15 | SkillPerk20, string> = {

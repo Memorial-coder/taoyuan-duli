@@ -145,6 +145,36 @@ const CRAB_POT_LOOT: { itemId: string; weight: number; locationOverride?: Fishin
 /** 钓鱼垃圾池 */
 const FISHING_JUNK = ['trash', 'driftwood', 'broken_cd', 'soggy_newspaper']
 
+const FISHING_STRUGGLE_CHANCE_BY_DIFFICULTY: Record<FishDef['difficulty'], number> = {
+  easy: 0.015,
+  normal: 0.025,
+  hard: 0.04,
+  legendary: 0.055
+}
+
+const FISHING_STRUGGLE_SCORE_LOSS_BY_DIFFICULTY: Record<FishDef['difficulty'], number> = {
+  easy: 8,
+  normal: 10,
+  hard: 12,
+  legendary: 15
+}
+
+const FISHING_STRUGGLE_POWER_BY_DIFFICULTY: Record<FishDef['difficulty'], number> = {
+  easy: 1.4,
+  normal: 1.8,
+  hard: 2.3,
+  legendary: 2.8
+}
+
+const FISHING_ROD_STRUGGLE_SUCCESS_BONUS: Record<ToolTier, number> = {
+  basic: 0,
+  iron: 0.05,
+  steel: 0.1,
+  iridium: 0.18
+}
+
+const FISHING_LINE_BREAK_RECOVERY_SCORE = 18
+
 const normalizeProbability = (value: number): number => {
   if (!Number.isFinite(value)) return 0
   return Math.min(1, Math.max(0, value))
@@ -554,6 +584,8 @@ export const useFishingStore = defineStore('fishing', () => {
     const fish = currentFish.value!
     const rodTier = inventoryStore.getTool('fishingRod')?.tier ?? 'basic'
     const level = skillStore.fishingLevel
+    const fishingSkill = skillStore.getSkill('fishing')
+    const baitEffectMultiplier = getFishingBaitEffectMultiplier(fishingSkill)
 
     // 基础钩子高度（鱼竿等级）
     const rodHookMap: Record<ToolTier, number> = { basic: 40, iron: 45, steel: 50, iridium: 60 }
@@ -573,23 +605,40 @@ export const useFishingStore = defineStore('fishing', () => {
     let gravity = 1.5
     let scoreGain = 0.15
     let scoreLoss = 0.1
+    let lineBreakChances = 0
+    let struggleChance = FISHING_STRUGGLE_CHANCE_BY_DIFFICULTY[fish.difficulty] ?? FISHING_STRUGGLE_CHANCE_BY_DIFFICULTY.normal
+    let struggleScoreLoss = FISHING_STRUGGLE_SCORE_LOSS_BY_DIFFICULTY[fish.difficulty] ?? FISHING_STRUGGLE_SCORE_LOSS_BY_DIFFICULTY.normal
+    let strugglePower = FISHING_STRUGGLE_POWER_BY_DIFFICULTY[fish.difficulty] ?? FISHING_STRUGGLE_POWER_BY_DIFFICULTY.normal
+    let struggleSuccessChance =
+      0.5 +
+      level * 0.015 +
+      FISHING_ROD_STRUGGLE_SUCCESS_BONUS[rodTier] +
+      (fishingSkill.perk5 === 'trapper' ? 0.15 : 0)
 
     // 鱼饵效果
     if (activeBaitDef.value?.behaviorModifier) {
       fishSpeed *= 1 - activeBaitDef.value.behaviorModifier.calm * 0.3
+      struggleChance *= Math.max(0.5, 1 + activeBaitDef.value.behaviorModifier.dash)
     }
     if (activeBaitDef.value?.struggleBonus) {
       fishSpeed *= 0.9
+      struggleSuccessChance += Math.min(0.35, activeBaitDef.value.struggleBonus * baitEffectMultiplier)
     }
 
     // 浮漂效果
     if (activeTackleDef.value) {
       // 旋转浮漂：重力减免（下落更慢）
       if (activeTackleDef.value.staminaReduction) gravity *= 1 - activeTackleDef.value.staminaReduction
-      // 陷阱浮漂：进度流失减半
-      if (activeTackleDef.value.extraBreakChance) scoreLoss *= 0.5
-      // 软木浮漂：钩子高度+15
-      if (activeTackleDef.value.struggleBonus) hookHeight += 15
+      // 陷阱浮漂：进度流失减半，并在断线时提供保护次数
+      if (activeTackleDef.value.extraBreakChance) {
+        scoreLoss *= 0.5
+        lineBreakChances += activeTackleDef.value.extraBreakChance
+      }
+      // 软木浮漂：钩子高度+15，并提高挣扎判定成功率
+      if (activeTackleDef.value.struggleBonus) {
+        hookHeight += 15
+        struggleSuccessChance += activeTackleDef.value.struggleBonus
+      }
       // 铅坠浮漂：鱼改变方向概率减半
       if (activeTackleDef.value.dangerReduction) fishChangeDir *= 0.5
     }
@@ -615,6 +664,10 @@ export const useFishingStore = defineStore('fishing', () => {
       fishChangeDir *= environmentWindow.value.fishing.fishChangeDirMultiplier
       timeLimit += environmentWindow.value.fishing.treasureChanceBonus > 0.03 ? 2 : 0
     }
+    struggleChance = normalizeProbability(struggleChance)
+    struggleSuccessChance = normalizeProbability(struggleSuccessChance)
+    struggleScoreLoss = Math.max(0, struggleScoreLoss)
+    strugglePower = Math.max(0, strugglePower)
 
     return {
       fishName: fish.name,
@@ -626,7 +679,13 @@ export const useFishingStore = defineStore('fishing', () => {
       liftSpeed: 3.0,
       scoreGain,
       scoreLoss,
-      timeLimit
+      timeLimit,
+      lineBreakChances,
+      lineBreakRecoveryScore: FISHING_LINE_BREAK_RECOVERY_SCORE,
+      struggleChance,
+      struggleSuccessChance,
+      struggleScoreLoss,
+      strugglePower
     }
   }
 
@@ -695,14 +754,20 @@ export const useFishingStore = defineStore('fishing', () => {
   }
 
   /** 完成钓鱼（小游戏结束后调用） */
-  const completeFishing = (rating: MiniGameRating): { message: string; fishName?: string; fishId?: string; difficulty?: string; sellPrice?: number; description?: string; quality?: Quality; quantity?: number; success: boolean } | null => {
+  const completeFishing = (
+    rating: MiniGameRating,
+    context: { failureReason?: 'line_broken' | 'timeout' } = {}
+  ): { message: string; fishName?: string; fishId?: string; difficulty?: string; sellPrice?: number; description?: string; quality?: Quality; quantity?: number; success: boolean } | null => {
     if (!currentFish.value) return null
 
     // poor = 鱼跑了
     if (rating === 'poor') {
       const fish = currentFish.value
       endFishing()
-      return { message: `鱼跑掉了……${fish.name}逃脱了！`, fishName: fish.name, fishId: fish.id, difficulty: fish.difficulty, sellPrice: fish.sellPrice, description: fish.description, success: false }
+      const message = context.failureReason === 'line_broken'
+        ? `钓线绷断了……${fish.name}逃脱了！`
+        : `鱼跑掉了……${fish.name}逃脱了！`
+      return { message, fishName: fish.name, fishId: fish.id, difficulty: fish.difficulty, sellPrice: fish.sellPrice, description: fish.description, success: false }
     }
 
     // 品质计算（基于钓鱼等级）

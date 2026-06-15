@@ -273,6 +273,24 @@
             <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="showLeaveConfirm = true" />
           </div>
 
+          <div class="mining-status-strip" data-testid="mining-explore-status-strip" aria-label="矿洞状态">
+            <div class="mining-status-item" data-testid="mining-status-time">
+              <Clock :size="12" aria-hidden="true" />
+              <span class="mining-status-label">时间</span>
+              <span class="mining-status-value" :class="miningHudTimeClass">{{ gameStore.timeDisplay }}</span>
+            </div>
+            <div class="mining-status-item" data-testid="mining-status-stamina">
+              <Zap :size="12" aria-hidden="true" />
+              <span class="mining-status-label">体力</span>
+              <span class="mining-status-value" :class="miningHudStaminaClass">{{ playerStore.stamina }}/{{ playerStore.maxStamina }}</span>
+            </div>
+            <div class="mining-status-item" data-testid="mining-status-hp">
+              <Heart :size="12" aria-hidden="true" />
+              <span class="mining-status-label">HP</span>
+              <span class="mining-status-value" :class="miningHudHpClass">{{ playerStore.hp }}/{{ playerStore.getMaxHp() }}</span>
+            </div>
+          </div>
+
           <!-- 武器信息 -->
           <div class="text-xs text-muted mb-2 border-b border-accent/20 pb-2 space-y-0.5">
             <p>
@@ -426,6 +444,24 @@
             <p class="text-sm" :class="miningStore.combatIsBoss ? 'text-danger' : 'text-accent'">
               {{ miningStore.combatIsBoss ? 'BOSS 战' : '遭遇怪物' }}
             </p>
+          </div>
+
+          <div class="mining-status-strip" data-testid="mining-combat-status-strip" aria-label="矿洞战斗状态">
+            <div class="mining-status-item" data-testid="mining-status-time">
+              <Clock :size="12" aria-hidden="true" />
+              <span class="mining-status-label">时间</span>
+              <span class="mining-status-value" :class="miningHudTimeClass">{{ gameStore.timeDisplay }}</span>
+            </div>
+            <div class="mining-status-item" data-testid="mining-status-stamina">
+              <Zap :size="12" aria-hidden="true" />
+              <span class="mining-status-label">体力</span>
+              <span class="mining-status-value" :class="miningHudStaminaClass">{{ playerStore.stamina }}/{{ playerStore.maxStamina }}</span>
+            </div>
+            <div class="mining-status-item" data-testid="mining-status-hp">
+              <Heart :size="12" aria-hidden="true" />
+              <span class="mining-status-label">HP</span>
+              <span class="mining-status-value" :class="miningHudHpClass">{{ playerStore.hp }}/{{ playerStore.getMaxHp() }}</span>
+            </div>
           </div>
 
           <!-- 玩家 vs 怪物 -->
@@ -838,10 +874,12 @@
     Mountain,
     Pickaxe,
     Zap,
+    Clock,
     ChevronDown,
     LogOut,
     Swords,
     Shield,
+    Heart,
     MoveRight,
     Skull,
     X,
@@ -897,6 +935,23 @@
     if (achievementStore.stats.highestMineFloor === 0)
       return '矿洞是6x6的网格，点击格子探索。遇到矿石可以开采，遇到怪物需要战斗。找到楼梯可下一层。'
     return null
+  })
+
+  const miningHudTimeClass = computed(() => gameStore.isLateNight ? 'text-danger mining-status-critical' : 'text-accent')
+
+  const miningHudStaminaClass = computed(() => {
+    const pct = playerStore.staminaPercent
+    if (pct <= 12) return 'text-danger mining-status-critical'
+    if (pct <= 35) return 'text-danger'
+    if (pct <= 60) return 'text-accent'
+    return 'text-success'
+  })
+
+  const miningHudHpClass = computed(() => {
+    const pct = playerStore.getHpPercent()
+    if (pct <= 25) return 'text-danger mining-status-critical'
+    if (pct <= 60) return 'text-danger'
+    return 'text-success'
   })
 
   type MiningDialogKind = 'explore' | 'combat'
@@ -1886,7 +1941,8 @@
 
 <style scoped>
   .mining-dialog-overlay {
-    padding-top: 16px;
+    padding-top: calc(16px + constant(safe-area-inset-top, 0px));
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
   }
 
   .mining-dialog-panel {
@@ -1894,13 +1950,82 @@
     will-change: transform;
   }
 
+  .mining-status-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 4px;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.18);
+    border-radius: 2px;
+    background: rgb(var(--color-bg) / 0.26);
+  }
+
+  .mining-status-item {
+    display: flex;
+    min-width: 0;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 3px 4px;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.12);
+    border-radius: 2px;
+    background: rgb(var(--color-panel) / 0.36);
+    font-size: 0.625rem;
+    line-height: 1;
+  }
+
+  .mining-status-label,
+  .mining-status-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mining-status-label {
+    color: rgb(var(--color-muted-rgb));
+  }
+
+  .mining-status-value {
+    font-weight: 600;
+  }
+
+  @keyframes miningStatusPulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+
+  .mining-status-critical {
+    animation: miningStatusPulse 1s ease-in-out infinite;
+  }
+
   .mining-dialog-titlebar {
     user-select: none;
   }
 
+  @media (max-width: 360px) {
+    .mining-status-item {
+      gap: 2px;
+      padding-right: 3px;
+      padding-left: 3px;
+    }
+
+    .mining-status-label {
+      display: none;
+    }
+  }
+
   @media (min-width: 768px) and (pointer: fine) {
     .mining-dialog-overlay {
-      padding-top: 76px;
+      padding-top: calc(76px + constant(safe-area-inset-top, 0px));
+      padding-top: calc(76px + env(safe-area-inset-top, 0px));
     }
 
     .mining-dialog-titlebar {

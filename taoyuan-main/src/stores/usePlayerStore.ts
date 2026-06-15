@@ -314,13 +314,13 @@ export const usePlayerStore = defineStore('player', () => {
   )
 
   /** 消耗体力（含仙缘灵护减免），返回是否成功 */
-  const consumeStamina = (amount: number): boolean => {
+  const consumeStamina = (amount: number, options: { source?: 'tool' | 'travel' | 'combat' | 'fishing' | 'foraging' | 'system' } = {}): boolean => {
     const normalizedAmount = Number(amount)
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return true
     // 仙缘结缘：灵护（spirit_shield）体力消耗减免
     const spiritShield2 = useHiddenNpcStore().getBondBonusByType('spirit_shield')
     const spiritSave = spiritShield2?.type === 'spirit_shield' ? spiritShield2.staminaSave / 100 : 0
-    const potentialToolSave = usePotentialStore().getPotentialEffectValue('potential_tool_stamina_save')
+    const potentialToolSave = options.source === 'tool' ? usePotentialStore().getPotentialEffectValue('potential_tool_stamina_save') : 0
     const effectiveAmount = Math.max(1, Math.floor(normalizedAmount * (1 - spiritSave) * (1 - potentialToolSave)))
     if (stamina.value < effectiveAmount) return false
     stamina.value -= effectiveAmount

@@ -18,6 +18,29 @@ const SAVE_PLAYER_MONEY_LIMIT = 999999999;
 const SAVE_INVENTORY_QUANTITY_LIMIT = 999999;
 const SAVE_FARM_PLOT_LIMIT = 400;
 const SAVE_FARM_GROWTH_DAY_LIMIT = 9999;
+const POTENTIAL_RESOURCE_IDS = ['potential_insight', 'spirit_breath', 'artisan_notes', 'mountain_jade'];
+const POTENTIAL_NODE_MAX_RANK = {
+  body_vital_root: 3,
+  body_stamina_channel: 3,
+  body_safe_fall: 3,
+  body_short_rest: 3,
+  body_low_hp_sense: 1,
+  craft_processing_flow: 3,
+  craft_tool_rhythm: 3,
+  craft_alchemy_patience: 3,
+  craft_storage_order: 3,
+  craft_workshop_hint: 1,
+  trail_hazard_reading: 3,
+  trail_mine_entry_hint: 1,
+  trail_forage_window: 3,
+  trail_expedition_reserve: 3,
+  trail_region_marker: 1,
+  harmony_quest_bias: 1,
+  harmony_festival_supply: 3,
+  harmony_gift_hint: 3,
+  harmony_society_order: 3,
+  harmony_visitor_chance: 1,
+};
 
 function createError(message, status = 400, code = '') {
   const error = new Error(message);
@@ -546,6 +569,30 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
           }
           assertNumberRange(`farm.plots[${index}].growthDays`, plot.growthDays, 0, SAVE_FARM_GROWTH_DAY_LIMIT);
         });
+      }
+    }
+  }
+  if (gameplayData.potential !== undefined) {
+    if (!gameplayData.potential || typeof gameplayData.potential !== 'object') {
+      push('illegal_collection_state', 'potential', gameplayData.potential, 'object', {});
+    } else {
+      if (gameplayData.potential.resources !== undefined) {
+        if (!gameplayData.potential.resources || typeof gameplayData.potential.resources !== 'object' || Array.isArray(gameplayData.potential.resources)) {
+          push('illegal_collection_state', 'potential.resources', gameplayData.potential.resources, 'object', {});
+        } else {
+          for (const resourceId of POTENTIAL_RESOURCE_IDS) {
+            assertIntegerRange(`potential.resources.${resourceId}`, gameplayData.potential.resources[resourceId], 0, 9999);
+          }
+        }
+      }
+      if (gameplayData.potential.nodeRanks !== undefined) {
+        if (!gameplayData.potential.nodeRanks || typeof gameplayData.potential.nodeRanks !== 'object' || Array.isArray(gameplayData.potential.nodeRanks)) {
+          push('illegal_collection_state', 'potential.nodeRanks', gameplayData.potential.nodeRanks, 'object', {});
+        } else {
+          for (const [nodeId, maxRank] of Object.entries(POTENTIAL_NODE_MAX_RANK)) {
+            assertIntegerRange(`potential.nodeRanks.${nodeId}`, gameplayData.potential.nodeRanks[nodeId], 0, maxRank);
+          }
+        }
       }
     }
   }

@@ -42,6 +42,22 @@ export const SKILL_MASTERY_NODE_DEFS: readonly SkillMasteryNodeDef[] = [
     effectKey: 'order_deed'
   },
   {
+    id: 'farming_soil_calendar',
+    skillType: 'farming',
+    label: '地力历法',
+    summary: '预留田地轮作与季节地力提示，首版只作为天赋方向展示。',
+    cost: 2,
+    effectKey: 'soil_calendar'
+  },
+  {
+    id: 'farming_storage_plan',
+    skillType: 'farming',
+    label: '仓储预案',
+    summary: '预留作物留样与出货前整理提示，不直接提高售价或产量。',
+    cost: 3,
+    effectKey: 'storage_plan'
+  },
+  {
     id: 'foraging_rare_signal',
     skillType: 'foraging',
     label: '稀有信号',
@@ -80,6 +96,22 @@ export const SKILL_MASTERY_NODE_DEFS: readonly SkillMasteryNodeDef[] = [
     summary: '首次采到稀有草药和山野素材时，将样本记入见闻账本，不直接翻倍产出。',
     cost: 2,
     effectKey: 'herb_sample'
+  },
+  {
+    id: 'foraging_route_cache',
+    skillType: 'foraging',
+    label: '山路藏点',
+    summary: '预留区域路线回收提示，帮助判断采集与行旅的衔接点。',
+    cost: 2,
+    effectKey: 'route_cache'
+  },
+  {
+    id: 'foraging_specimen_map',
+    skillType: 'foraging',
+    label: '样本地图',
+    summary: '预留博物馆与稀有采集样本联动提示，不额外复制采集物。',
+    cost: 3,
+    effectKey: 'specimen_map'
   },
   {
     id: 'fishing_tide_marker',
@@ -122,6 +154,22 @@ export const SKILL_MASTERY_NODE_DEFS: readonly SkillMasteryNodeDef[] = [
     effectKey: 'tide_notebook'
   },
   {
+    id: 'fishing_bait_journal',
+    skillType: 'fishing',
+    label: '饵谱手札',
+    summary: '预留鱼饵选择提示，首版不改变上钩概率。',
+    cost: 2,
+    effectKey: 'bait_journal'
+  },
+  {
+    id: 'fishing_contest_prep',
+    skillType: 'fishing',
+    label: '赛前备钓',
+    summary: '预留周赛与鱼塘参赛提醒，不直接提高周赛评分。',
+    cost: 3,
+    effectKey: 'contest_prep'
+  },
+  {
     id: 'mining_floor_intel',
     skillType: 'mining',
     label: '层位情报',
@@ -162,6 +210,22 @@ export const SKILL_MASTERY_NODE_DEFS: readonly SkillMasteryNodeDef[] = [
     effectKey: 'stabilized_blasting'
   },
   {
+    id: 'mining_safety_rope',
+    skillType: 'mining',
+    label: '安绳记号',
+    summary: '预留深层撤退和补给提醒，不降低首领或深层怪物强度。',
+    cost: 2,
+    effectKey: 'safety_rope'
+  },
+  {
+    id: 'mining_smelter_notes',
+    skillType: 'mining',
+    label: '炉温札记',
+    summary: '预留冶炼排程提示，不额外提高矿石或金属产出。',
+    cost: 3,
+    effectKey: 'smelter_notes'
+  },
+  {
     id: 'combat_boss_pressure',
     skillType: 'combat',
     label: '首领压制',
@@ -200,6 +264,22 @@ export const SKILL_MASTERY_NODE_DEFS: readonly SkillMasteryNodeDef[] = [
     summary: '远行构筑获得少量撤退余裕，失败时损失更可控，但不会免除失败。',
     cost: 2,
     effectKey: 'escort_discipline'
+  },
+  {
+    id: 'combat_guard_form',
+    skillType: 'combat',
+    label: '守势章法',
+    summary: '预留防御姿态提示，不提高常驻攻击或暴击。',
+    cost: 2,
+    effectKey: 'guard_form'
+  },
+  {
+    id: 'combat_supply_route',
+    skillType: 'combat',
+    label: '补给路线',
+    summary: '预留远征补给检查提示，不直接改变掉落和 Boss 奖励。',
+    cost: 3,
+    effectKey: 'supply_route'
   }
 ]
 
@@ -212,24 +292,34 @@ export const SKILL_MASTERY_EFFECT_VALUES: Record<SkillMasteryEffectKey, number> 
   processing_flow: 0.25,
   seed_recovery: 1,
   order_deed: 1,
+  soil_calendar: 1,
+  storage_plan: 1,
   rare_signal: 0.2,
   journey_scout: 8,
   weather_window: 0.15,
   mountain_hunch: 1,
   herb_sample: 1,
+  route_cache: 1,
+  specimen_map: 1,
   tide_marker: 1,
   pond_link: 0.1,
   legend_weight: 0.25,
   pond_pedigree: 1,
   tide_notebook: 0.25,
+  bait_journal: 1,
+  contest_prep: 1,
   floor_intel: 1,
   bomb_efficiency: 0.2,
   rare_transmute: 0.15,
   vein_marker: 1,
   stabilized_blasting: 1,
+  safety_rope: 1,
+  smelter_notes: 1,
   boss_pressure: 0.15,
   escort_margin: 10,
   trinket_tuning: 0.1,
   boss_dossier: 1,
-  escort_discipline: 0.08
+  escort_discipline: 0.08,
+  guard_form: 1,
+  supply_route: 1
 }

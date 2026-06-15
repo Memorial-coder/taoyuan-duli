@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+﻿import { ref } from 'vue'
 import { useAchievementStore } from '@/stores/useAchievementStore'
 import { useBreedingStore } from '@/stores/useBreedingStore'
 import { useCookingStore } from '@/stores/useCookingStore'
@@ -91,7 +91,7 @@ export const handlePlotClick = (plotId: number) => {
           (1 - ringGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法开垦。')
       return
     }
@@ -130,7 +130,7 @@ export const handlePlotClick = (plotId: number) => {
           (1 - cropRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法播种。')
       return
     }
@@ -184,7 +184,7 @@ export const handlePlotClick = (plotId: number) => {
           (1 - waterRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) {
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法浇水。')
       return
     }
@@ -401,7 +401,7 @@ export const handleBatchWater = () => {
           (1 - batchIrrigationReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) break
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.waterPlot(plot.id)
     skillStore.addExp('farming', 2)
     watered++
@@ -461,7 +461,7 @@ export const handleBatchTill = () => {
           (1 - tillRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) break
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.tillPlot(plot.id)
     if (Math.random() < 0.03) {
       useSecretNoteStore().tryCollectNote('digging')
@@ -648,7 +648,7 @@ export const handleBatchPlant = (cropId: string) => {
           (1 - plantRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) break
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     if (!inventoryStore.removeItem(cropDef.seedId)) break
     if (farmStore.plantCrop(plot.id, cropDef.id)) {
       planted++
@@ -755,7 +755,7 @@ export const handleRemoveCrop = (plotId: number) => {
       2 * (1 - skillStore.getStaminaReduction('farming')) * (1 - farmingBuff) * (1 - ringFarmReduction) * (1 - ringGlobalReduction)
     )
   )
-  if (!playerStore.consumeStamina(cost)) {
+  if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
     addLog('体力不足，无法铲除。')
     return
   }
@@ -801,7 +801,7 @@ export const handleCurePest = (plotId: number) => {
       2 * (1 - skillStore.getStaminaReduction('farming')) * (1 - farmingBuff) * (1 - ringFarmReduction) * (1 - ringGlobalReduction)
     )
   )
-  if (!playerStore.consumeStamina(cost)) {
+  if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
     addLog('体力不足，无法除虫。')
     return
   }
@@ -851,7 +851,7 @@ export const handleBatchCurePest = () => {
           (1 - batchRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) break
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.curePest(plot.id)
     cured++
   }
@@ -897,7 +897,7 @@ export const handleClearWeed = (plotId: number) => {
       2 * (1 - skillStore.getStaminaReduction('farming')) * (1 - farmingBuff) * (1 - ringFarmReduction) * (1 - ringGlobalReduction)
     )
   )
-  if (!playerStore.consumeStamina(cost)) {
+  if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
     addLog('体力不足，无法除草。')
     return
   }
@@ -947,7 +947,7 @@ export const handleBatchClearWeed = () => {
           (1 - batchRingGlobalReduction)
       )
     )
-    if (!playerStore.consumeStamina(cost)) break
+    if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.clearWeed(plot.id)
     cleared++
   }

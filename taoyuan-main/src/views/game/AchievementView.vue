@@ -843,7 +843,7 @@
     return { ...track, percent, ...getMedalTone(percent) }
   }
 
-  const externalGiftSecretNoteIds = new Set(SECRET_NOTE_GIFT_CLUE_LINKS.map(entry => entry.noteId))
+  const externalGiftSecretNoteIds: ReadonlySet<number> = new Set(SECRET_NOTE_GIFT_CLUE_LINKS.map(entry => entry.noteId))
   const verifiableSecretNotes = computed(() => SECRET_NOTES.filter(note => note.verification || note.usable || externalGiftSecretNoteIds.has(note.id)))
   const verifiedSecretNoteCount = computed(() => verifiableSecretNotes.value.filter(note => secretNoteStore.isUsed(note.id)).length)
   const primaryMasteryUnlockedCount = computed(() => skillStore.primaryMasteries.filter(entry => entry.unlocked).length)

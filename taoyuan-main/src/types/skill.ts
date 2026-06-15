@@ -89,26 +89,36 @@ export type SkillMasteryNodeId =
   | 'farming_processing_flow'
   | 'farming_seed_recovery'
   | 'farming_order_deed'
+  | 'farming_soil_calendar'
+  | 'farming_storage_plan'
   | 'foraging_rare_signal'
   | 'foraging_journey_scout'
   | 'foraging_weather_window'
   | 'foraging_mountain_hunch'
   | 'foraging_herb_sample'
+  | 'foraging_route_cache'
+  | 'foraging_specimen_map'
   | 'fishing_tide_marker'
   | 'fishing_pond_link'
   | 'fishing_legend_weight'
   | 'fishing_pond_pedigree'
   | 'fishing_tide_notebook'
+  | 'fishing_bait_journal'
+  | 'fishing_contest_prep'
   | 'mining_floor_intel'
   | 'mining_bomb_efficiency'
   | 'mining_rare_transmute'
   | 'mining_vein_marker'
   | 'mining_stabilized_blasting'
+  | 'mining_safety_rope'
+  | 'mining_smelter_notes'
   | 'combat_boss_pressure'
   | 'combat_escort_margin'
   | 'combat_trinket_tuning'
   | 'combat_boss_dossier'
   | 'combat_escort_discipline'
+  | 'combat_guard_form'
+  | 'combat_supply_route'
 
 export type SkillMasteryEffectKey =
   | 'batch_irrigation'
@@ -116,26 +126,36 @@ export type SkillMasteryEffectKey =
   | 'processing_flow'
   | 'seed_recovery'
   | 'order_deed'
+  | 'soil_calendar'
+  | 'storage_plan'
   | 'rare_signal'
   | 'journey_scout'
   | 'weather_window'
   | 'mountain_hunch'
   | 'herb_sample'
+  | 'route_cache'
+  | 'specimen_map'
   | 'tide_marker'
   | 'pond_link'
   | 'legend_weight'
   | 'pond_pedigree'
   | 'tide_notebook'
+  | 'bait_journal'
+  | 'contest_prep'
   | 'floor_intel'
   | 'bomb_efficiency'
   | 'rare_transmute'
   | 'vein_marker'
   | 'stabilized_blasting'
+  | 'safety_rope'
+  | 'smelter_notes'
   | 'boss_pressure'
   | 'escort_margin'
   | 'trinket_tuning'
   | 'boss_dossier'
   | 'escort_discipline'
+  | 'guard_form'
+  | 'supply_route'
 
 export interface SkillMasteryNodeDef {
   id: SkillMasteryNodeId
@@ -175,6 +195,12 @@ export interface MiniGameParams {
   scoreGain: number
   scoreLoss: number
   timeLimit: number
+  lineBreakChances: number
+  lineBreakRecoveryScore: number
+  struggleChance: number
+  struggleSuccessChance: number
+  struggleScoreLoss: number
+  strugglePower: number
 }
 
 /** 钓鱼小游戏结果 */
@@ -182,6 +208,10 @@ export interface MiniGameResult {
   rating: MiniGameRating
   score: number
   perfect: boolean
+  failureReason?: 'line_broken' | 'timeout'
+  lineBreaksPrevented: number
+  struggleCount: number
+  struggleSuccessCount: number
 }
 
 /** 钓鱼地点 */

@@ -12,6 +12,7 @@ import { useWarehouseStore } from './useWarehouseStore'
 import { useNpcStore } from './useNpcStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useGoalStore } from './useGoalStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { getCropsBySeason, getItemById, getNpcById } from '@/data'
 import { BAITS, TACKLES, FERTILIZERS } from '@/data/processing'
@@ -2742,7 +2743,8 @@ export const useShopStore = defineStore('shop', () => {
       const dayRecord: Record<string, number> = { ...(shippingHistory.value[dayKey] ?? {}) }
       const itemDayRecord: Record<string, number> = { ...(shippingItemHistory.value[dayKey] ?? {}) }
       const festivalSupplyBonus = skillStore.getSkillMasteryEffectValue('festival_supply')
-      const festivalSupplyActive = festivalSupplyBonus > 0 && hasCurrentFestivalSupplyWindow()
+      const potentialFestivalSupplyBonus = usePotentialStore().getPotentialEffectValue('potential_festival_bonus')
+      const festivalSupplyActive = (festivalSupplyBonus > 0 || potentialFestivalSupplyBonus > 0) && hasCurrentFestivalSupplyWindow()
 
       for (const entry of shippingBox.value) {
         const itemDef = getItemById(entry.itemId)
@@ -2757,7 +2759,7 @@ export const useShopStore = defineStore('shop', () => {
             gameStore.day,
             effectiveRecentVolume
           )
-          const festivalSupplyMultiplier = festivalSupplyActive && isFestivalSupplyCategory(itemDef.category) ? 1 + festivalSupplyBonus : 1
+          const festivalSupplyMultiplier = festivalSupplyActive && isFestivalSupplyCategory(itemDef.category) ? 1 + festivalSupplyBonus + potentialFestivalSupplyBonus : 1
           totalIncome += Math.floor(calculateBaseSellPrice(entry.itemId, entry.quantity, entry.quality) * marketMultiplier * festivalSupplyMultiplier)
         }
         recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord, itemDayRecord, dayKey)
@@ -2778,13 +2780,19 @@ export const useShopStore = defineStore('shop', () => {
       if (totalIncome > 0) {
         playerStore.earnMoney(totalIncome, { system: 'shop' })
       }
+      const festivalPotentialReward =
+        totalIncome > 0 && hasCurrentFestivalSupplyWindow()
+          ? usePotentialStore().claimPotentialSourceReward('festival_spirit_event', `shipping:${dayKey}`, {
+              reason: '节庆日出货箱'
+            })
+          : null
 
       return {
         success: true,
         skipped: false,
         totalIncome,
         settledEntries: shippingBoxSnapshot.length,
-        message: totalIncome > 0 ? `出货箱结算：收入${totalIncome}文。` : '出货箱为空，无需结算。'
+        message: totalIncome > 0 ? `出货箱结算：收入${totalIncome}文。${festivalPotentialReward?.success ? ' 潜能材料有所沉淀。' : ''}` : '出货箱为空，无需结算。'
       }
     } catch {
       playerStore.deserialize(playerSnapshot)

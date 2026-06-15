@@ -541,6 +541,7 @@
     upgrade: '工具升级',
     inventory: '背包',
     skills: '技能',
+    potential: '潜能',
     achievement: '成就',
     glossary: '图鉴',
     wallet: '钱包',

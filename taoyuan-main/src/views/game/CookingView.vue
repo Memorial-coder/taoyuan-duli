@@ -154,6 +154,14 @@
             </div>
           </div>
 
+          <!-- 制作耗时 -->
+          <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs text-muted">制作耗时</span>
+              <span class="text-xs text-accent text-right">{{ modalCookingTimeLabel }}</span>
+            </div>
+          </div>
+
           <!-- 数量选择 -->
           <div v-if="modalInfo.maxQty > 1" class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between mb-1.5">
@@ -361,6 +369,30 @@
     }
   })
 
+  const normalizeCookingQuantity = (quantity: number): number => Math.max(1, Math.floor(Number(quantity) || 1))
+
+  const getCookingTimeCostHours = (quantity: number): number => ACTION_TIME_COSTS.cook * normalizeCookingQuantity(quantity)
+
+  const formatCookingTimeCost = (hours: number): string => {
+    const minutes = Math.max(0, Math.round(hours * 60))
+    if (minutes < 60) return `${minutes}分钟`
+    const wholeHours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${wholeHours}小时${remainingMinutes}分钟` : `${wholeHours}小时`
+  }
+
+  const modalCookingQty = computed(() => {
+    const max = normalizeCookingQuantity(modalInfo.value?.maxQty ?? 1)
+    return Math.min(normalizeCookingQuantity(modalQty.value), max)
+  })
+
+  const modalCookingTimeLabel = computed(() => {
+    const qty = modalCookingQty.value
+    const totalLabel = formatCookingTimeCost(getCookingTimeCostHours(qty))
+    if (qty <= 1) return totalLabel
+    return `${totalLabel}（${formatCookingTimeCost(ACTION_TIME_COSTS.cook)}/份）`
+  })
+
   const openModal = (recipeId: string) => {
     modalRecipeId.value = recipeId
     modalQty.value = 1
@@ -405,7 +437,7 @@
     const result = cookingStore.cook(modalInfo.value.recipe.id, qty)
     sfxClick()
     addLog(result.message)
-    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.cook * qty)
+    const tr = gameStore.advanceTime(getCookingTimeCostHours(qty))
     if (tr.message) addLog(tr.message)
     closeModal()
     if (tr.passedOut) handleEndDay()

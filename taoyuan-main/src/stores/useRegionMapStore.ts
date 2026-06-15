@@ -103,6 +103,7 @@ import { useMuseumStore } from './useMuseumStore'
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useFrontierChronicleStore } from './useFrontierChronicleStore'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
@@ -2647,6 +2648,20 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
 
+    if (usePotentialStore().getPotentialEffectValue('potential_region_marker') > 0) {
+      const markerRegion = focusedRegion?.unlocked ? focusedRegion : regionSummaries.value.find(region => region.unlocked) ?? null
+      if (markerRegion) {
+        const unfinishedEliteRoute = REGION_ROUTE_DEFS.find(
+          route => route.regionId === markerRegion.id && route.nodeType === 'elite' && (saveData.value.routeStates[route.id]?.completions ?? 0) <= 0
+        )
+        nextHookSummaries.unshift(
+          unfinishedEliteRoute
+            ? `潜能山图：${markerRegion.name}可先标记「${unfinishedEliteRoute.name}」，它更适合沉淀山行材料。`
+            : `潜能山图：${markerRegion.name}的路线承接已标好，优先看本周事件和首领前线。`
+        )
+      }
+    }
+
     if (latestJourney) {
       highlightSummaries.push(`上次回城：${latestJourney.targetName} / ${latestJourney.outcome === 'victory' ? '凯旋' : latestJourney.outcome === 'retreated' ? '撤退' : '失利'}`)
     }
@@ -4687,6 +4702,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
       title = session.mode === 'boss' ? '首领远征凯旋' : '远征顺利收束'
       summaryLines.push(`带回 ${rewardAmount} 份区域资源。`)
+      if (session.mode === 'boss' || routeDef?.nodeType === 'elite' || session.danger >= 45 || session.encounterMemory.some(entry => entry.kind === 'hazard' || entry.kind === 'anomaly' || entry.kind === 'boss_prep')) {
+        const potentialReward = usePotentialStore().claimPotentialSourceReward('journey_high_risk', `expedition:${session.sessionId}`, {
+          reason: session.mode === 'boss' ? `首领远征：${session.targetName}` : `高风险行旅：${session.targetName}`
+        })
+        if (potentialReward.success) summaryLines.push('潜能材料有所沉淀。')
+      }
     } else if (finalStatus === 'retreated') {
       rewardAmount = session.pendingRewardFamilyId ? Math.max(0, Math.floor((session.pendingRewardAmount + bonusReward) * (0.5 + journeyOutcome.rewardMultiplier * 0.3))) : 0
       rewardItems = session.pendingRewardItems.map(item => ({ ...item, quantity: Math.max(0, Math.floor(item.quantity / 2)) })).filter(item => item.quantity > 0)
@@ -5248,6 +5269,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const grantedRewardItems = rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems) ? rewardItems : []
     if (!recordBossClear(regionId, boss.id, familyId, rewardAmount, dayTag)) return null
     addFamilyResources(familyId, rewardAmount)
+    usePotentialStore().claimPotentialSourceReward('journey_high_risk', `region-boss:${regionId}:${boss.id}:${dayTag || 'today'}`, {
+      reason: `区域首领：${boss.name}`
+    })
     unlockJourneyCrafting(boss.craftingUnlocks)
     unlockJourneyAwakenings(boss.awakeningUnlocks)
     grantJourneyXpRewards(boss.xpRewards, 'victory', journeyOutcome.experienceMultiplier)

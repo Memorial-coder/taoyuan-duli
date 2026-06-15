@@ -2813,7 +2813,7 @@ export const TACKLES: TackleDef[] = [
   {
     id: 'trap_bobber',
     name: '陷阱浮漂',
-    description: '断线时获得1次额外机会。',
+    description: '脱钩时进度流失减半，断线时自动续线1次。',
     maxDurability: 20,
     requiredRodTier: 'iron',
     extraBreakChance: 1,
@@ -2827,7 +2827,7 @@ export const TACKLES: TackleDef[] = [
   {
     id: 'cork_bobber',
     name: '软木浮漂',
-    description: '挣扎时成功率+25%。',
+    description: '钩区更宽，挣扎成功率+25%。',
     maxDurability: 20,
     requiredRodTier: 'iron',
     struggleBonus: 0.25,

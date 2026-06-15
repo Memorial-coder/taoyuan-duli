@@ -247,6 +247,16 @@ for (const [source, fragment, message] of storyConsumptionGuards) {
   assertIncludes(source, fragment, message)
 }
 
+const cookingModalTimeGuards = [
+  [cookingViewSource, '制作耗时', '灶台烹饪弹窗必须显示制作耗时'],
+  [cookingViewSource, 'modalCookingTimeLabel', '灶台烹饪弹窗耗时必须随数量响应式更新'],
+  [cookingViewSource, 'getCookingTimeCostHours(qty)', '灶台烹饪执行耗时必须复用弹窗显示计算']
+]
+
+for (const [source, fragment, message] of cookingModalTimeGuards) {
+  assertIncludes(source, fragment, message)
+}
+
 for (const fragment of ['山药团圆粥', '蒜香萝卜', '苦瓜清暑汤', '固元山药丹', '蒜辛驱寒丹', '苦瓜清暑丹']) {
   assertIncludes(
     recipesSource + '\n' + processingSource + '\n' + itemsSource + '\n' + cookingStoreSource + '\n' + itemEncyclopediaSource,
