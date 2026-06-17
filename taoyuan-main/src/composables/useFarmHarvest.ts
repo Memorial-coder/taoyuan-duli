@@ -1,4 +1,4 @@
-import type { Quality } from '@/types'
+﻿import type { Quality } from '@/types'
 import { getCropById } from '@/data'
 import { getFertilizerById } from '@/data/processing'
 import { useAchievementStore } from '@/stores/useAchievementStore'
@@ -144,7 +144,9 @@ export const harvestFarmPlotWithRewards = (
 
   let quality = options.qualityOverride
   if (!quality) {
-    quality = skillStore.rollCropQualityWithBonus((fertDef?.qualityBonus ?? 0) + ringCropQualityBonus, allSkillsBuff)
+    const rawFertBonus = fertDef?.qualityBonus ?? 0
+    const fertBonus = cropId === 'ancient_fruit' ? rawFertBonus * 0.5 : rawFertBonus
+    quality = skillStore.rollCropQualityWithBonus(fertBonus + ringCropQualityBonus, allSkillsBuff)
     quality = applyCropBlessing(quality)
   }
 
@@ -251,7 +253,9 @@ export const harvestGreenhousePlotWithRewards = (
 
   let quality = options.qualityOverride
   if (!quality) {
-    quality = skillStore.rollCropQualityWithBonus((fertDef?.qualityBonus ?? 0) + ringCropQualityBonus, allSkillsBuff)
+    const rawFertBonus = fertDef?.qualityBonus ?? 0
+    const fertBonus = cropId === 'ancient_fruit' ? rawFertBonus * 0.5 : rawFertBonus
+    quality = skillStore.rollCropQualityWithBonus(fertBonus + ringCropQualityBonus, allSkillsBuff)
     quality = applyCropBlessing(quality)
   }
 

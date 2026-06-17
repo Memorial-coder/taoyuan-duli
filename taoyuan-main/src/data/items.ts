@@ -1,4 +1,4 @@
-import type { ItemDef, ItemCategory } from '@/types/item'
+﻿import type { ItemDef, ItemCategory } from '@/types/item'
 import { CROPS } from './crops'
 import { FISH } from './fish'
 import { RECIPES } from './recipes'
@@ -430,7 +430,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '时令果酒',
     category: 'processed',
     description: '季节性甜果酿出的清亮果酒，比普通百果酒更适合节庆供桌。',
-    sellPrice: 1800,
+    sellPrice: 2500,
     edible: true,
     staminaRestore: 120,
     healthRestore: 60
@@ -440,7 +440,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '灵果清酿',
     category: 'processed',
     description: '灵性作物入坛后凝出的清酿，可用于高阶赠礼、节会供品和公共仓稀有备料。',
-    sellPrice: 2400,
+    sellPrice: 4000,
     edible: true,
     staminaRestore: 160,
     healthRestore: 80
@@ -450,7 +450,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '玄果清酿',
     category: 'processed',
     description: '高阶灵果酿出的深色清酿，适合稀有委托和压轴供礼。',
-    sellPrice: 7600,
+    sellPrice: 12000,
     edible: true,
     staminaRestore: 420,
     healthRestore: 210
@@ -460,7 +460,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '天成果酿',
     category: 'processed',
     description: '顶阶灵果长时酿成的珍贵果酿，保留原料浓缩后的灵息。',
-    sellPrice: 18500,
+    sellPrice: 28000,
     edible: true,
     staminaRestore: 720,
     healthRestore: 360
@@ -470,7 +470,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '远古果酒',
     category: 'processed',
     description: '远古水果慢酿出的幽蓝果酒，酒液里像封着亘古生命力，可陈酿也适合高阶供礼。',
-    sellPrice: 12000,
+    sellPrice: 5000,
     edible: true,
     staminaRestore: 180,
     healthRestore: 90

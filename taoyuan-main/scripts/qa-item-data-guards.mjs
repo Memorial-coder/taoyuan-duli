@@ -159,8 +159,8 @@ for (const crop of CROPS.filter(crop => (crop.seedPrice > 0 || crop.id === 'anci
     `Raw market regrowth crop ${crop.id} restores too much HP per seed cycle: ${(item.healthRestore ?? 0) * crop.maxHarvests}`
   )
 }
-expectItem('ancient_fruit', { category: 'crop', sellPrice: 6000, edible: true, staminaRestore: 14, healthRestore: 5 })
-expectItem('ancient_fruit_wine', { category: 'processed', sellPrice: 12000, edible: true, staminaRestore: 180, healthRestore: 90 })
+expectItem('ancient_fruit', { category: 'crop', sellPrice: 2700, edible: true, staminaRestore: 14, healthRestore: 5 })
+expectItem('ancient_fruit_wine', { category: 'processed', sellPrice: 5000, edible: true, staminaRestore: 180, healthRestore: 90 })
 expectItem('tavern_rice_wine', { name: '桃源米酒', category: 'processed', sellPrice: 80, edible: true })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })

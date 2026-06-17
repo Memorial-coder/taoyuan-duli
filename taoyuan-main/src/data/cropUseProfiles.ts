@@ -2400,7 +2400,778 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['远古果酒', '灵果清酿', '灵宠灵果点心', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品', '远古水果委托'],
     summary: '远古种子孕育的神秘果实，适合高阶酿酒、炼丹、灵宠点心、稀有赠礼、节会供品、公共仓备料和高价值订单。'
+  },
+  {
+    cropId: 'precious_light5_melon',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑶光瓜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑶光瓜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'rare_light5_bean',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['琼光豆酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '琼光豆为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'magnif_light5_rice',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑰光稻酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑰光稻为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'radiant_light5_tuber',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['曦光薯酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '曦光薯为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'lustrous_light5_green',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['璃光菜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '璃光菜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'precious_hua5_fruit',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑶华果酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑶华果为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'rare_hua5_bloom',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['琼华花酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '琼华花为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'magnif_hua5_tea',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑰华茶酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑰华茶为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'radiant_hua5_shoot',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['曦华笋酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '曦华笋为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'lustrous_hua5_lotus',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['璃华莲酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '璃华莲为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'precious_dewdrop_wheat',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑶露麦酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑶露麦为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'rare_dewdrop_sesame',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['琼露芝酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '琼露芝为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'magnif_dewdrop_pepper',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑰露椒酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑰露椒为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'radiant_dewdrop_root',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['曦露参酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '曦露参为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'lustrous_dewdrop_sprout',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['璃露芽酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '璃露芽为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'precious_soul_vine',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑶灵藤酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑶灵藤为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'rare_soul_bud',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['琼灵蕾酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '琼灵蕾为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'magnif_soul_orchid',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑰灵兰酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑰灵兰为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'radiant_soul_gourd',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['曦灵葫酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '曦灵葫为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'lustrous_soul_herb',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['璃灵草酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '璃灵草为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'precious_silk5_chestnut',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑶锦栗酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑶锦栗为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'rare_silk5_apricot',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['琼锦杏酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '琼锦杏为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'magnif_silk5_pear',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['瑰锦梨酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '瑰锦梨为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'radiant_silk5_berry',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['曦锦莓酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '曦锦莓为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'lustrous_silk5_peach_t',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['璃锦桃酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '璃锦桃为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'spirit_wonder_melon',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['灵妙瓜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '灵妙瓜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fairy_wonder_bean',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙妙豆酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '仙妙豆为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'holy_wonder_rice',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['圣妙稻酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '圣妙稻为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'divine_wonder_tuber',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['神妙薯酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '神妙薯为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'trueth_wonder_green',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['真妙菜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '真妙菜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'spirit_grace6_fruit',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['灵华果酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '灵华果为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fairy_grace6_bloom',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙华花酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '仙华花为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'holy_grace6_tea',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['圣华茶酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '圣华茶为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'divine_grace6_shoot',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['神华笋酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '神华笋为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'trueth_grace6_lotus',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['真华莲酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '真华莲为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'spirit_phantom_wheat',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['灵幻麦酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '灵幻麦为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fairy_phantom_sesame',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙幻芝酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '仙幻芝为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'holy_phantom_pepper',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['圣幻椒酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '圣幻椒为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'divine_phantom_root',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['神幻参酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '神幻参为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'trueth_phantom_sprout',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['真幻芽酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '真幻芽为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'spirit_dream_vine',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['灵梦藤酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '灵梦藤为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fairy_dream_bud',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙梦蕾酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '仙梦蕾为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'holy_dream_orchid',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['圣梦兰酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '圣梦兰为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'divine_dream_gourd',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['神梦葫酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '神梦葫为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'trueth_dream_herb',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['真梦草酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '真梦草为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'spirit_zen_chestnut',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['灵禅栗酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '灵禅栗为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fairy_zen_apricot',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙禅杏酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '仙禅杏为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'holy_zen_pear',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['圣禅梨酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '圣禅梨为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'divine_zen_berry',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['神禅莓酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '神禅莓为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'trueth_zen_peach_t',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['真禅桃酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '真禅桃为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'draco_song_melon',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙吟瓜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '龙吟瓜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fenghuang_song_bean',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['凤吟豆酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '凤吟豆为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'qilin_song_rice',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['麟吟稻酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '麟吟稻为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'crane_song_tuber',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['鹤吟薯酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '鹤吟薯为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'tiger_song_green',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虎吟菜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '虎吟菜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'draco_dance_fruit',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙舞果酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '龙舞果为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fenghuang_dance_bloom',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['凤舞花酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '凤舞花为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'qilin_dance_tea',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['麟舞茶酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '麟舞茶为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'crane_dance_shoot',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['鹤舞笋酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '鹤舞笋为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'tiger_dance_lotus',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虎舞莲酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '虎舞莲为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'draco_gleam7_wheat',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙辉麦酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '龙辉麦为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fenghuang_gleam7_sesame',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['凤辉芝酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '凤辉芝为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'qilin_gleam7_pepper',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['麟辉椒酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '麟辉椒为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'crane_gleam7_root',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['鹤辉参酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '鹤辉参为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'tiger_gleam7_sprout',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虎辉芽酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '虎辉芽为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'draco_shadow_vine',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙影藤酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '龙影藤为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fenghuang_shadow_bud',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['凤影蕾酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '凤影蕾为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'qilin_shadow_orchid',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['麟影兰酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '麟影兰为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'crane_shadow_gourd',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['鹤影葫酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '鹤影葫为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'tiger_shadow_herb',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虎影草酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '虎影草为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'draco_roar_chestnut',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙啸栗酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '龙啸栗为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'fenghuang_roar_apricot',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['凤啸杏酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '凤啸杏为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'qilin_roar_pear',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['麟啸梨酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '麟啸梨为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'crane_roar_berry',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['鹤啸莓酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '鹤啸莓为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'tiger_roar_peach_t',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虎啸桃酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '虎啸桃为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'supreme_origin_melon',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['太初瓜酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '太初瓜为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
+  },
+  {
+    cropId: 'firmament_origin_bean',
+    tags: ['food', 'alchemy', 'wine', 'pet_feed', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['乾初豆酒', '灵果清酿', '玄果清酿', '高阶供礼', '远古丹材', '公共仓稀有备料', '节会压轴供品'],
+    summary: '乾初豆为高代杂交珍品，适合高级酿酒、稀有赠礼、节会供品和公共仓备料。'
   }
+
 ]
 
 const MANUAL_CROP_USE_PROFILE_MAP = new Map(CROP_USE_PROFILES.map(profile => [profile.cropId, profile]))

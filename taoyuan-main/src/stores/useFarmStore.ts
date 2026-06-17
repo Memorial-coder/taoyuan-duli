@@ -332,7 +332,10 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    // 再生作物施肥不触发立即收获，只在首次生长阶段加速
+    if (plot.harvestCount === 0) {
+      markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    }
     return true
   }
 
@@ -342,7 +345,9 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (!plot.fertilizer || plot.fertilizer === fertilizerType) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    if (plot.harvestCount === 0) {
+      markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    }
     return true
   }
 
@@ -353,7 +358,9 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    if (plot.harvestCount === 0) {
+      markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    }
     return true
   }
 
@@ -363,7 +370,9 @@ export const useFarmStore = defineStore('farm', () => {
     if (plot.state === 'wasteland') return false
     if (!plot.fertilizer || plot.fertilizer === fertilizerType) return false
     plot.fertilizer = fertilizerType
-    markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    if (plot.harvestCount === 0) {
+      markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + getCurrentCropGrowthBonus())
+    }
     return true
   }
 

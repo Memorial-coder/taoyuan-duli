@@ -1,4 +1,4 @@
-import type { CropDef } from '@/types/farm'
+﻿import type { CropDef } from '@/types/farm'
 
 /** 所有作物定义 */
 export const CROPS: CropDef[] = [
@@ -4905,13 +4905,13 @@ export const CROPS: CropDef[] = [
     seedId: 'ancient_seed',
     season: ['spring', 'summer', 'autumn'],
     growthDays: 28,
-    sellPrice: 4000,
+    sellPrice: 1800,
     seedPrice: 0,
     deepWatering: false,
     description: '远古种子孕育的神秘果实，蕴含亘古生命力，可在春夏秋三季生长。',
     regrowth: true,
-    regrowthDays: 7,
-    maxHarvests: 4
+    regrowthDays: 10,
+    maxHarvests: 3
   },
   // === 瀚海作物 ===
   {

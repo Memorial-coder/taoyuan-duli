@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AlchemyHeat,
   AlchemyNature,
   AlchemyPillRole,
@@ -2673,11 +2673,11 @@ export const FERTILIZERS: FertilizerDef[] = [
     description: '提升作物品质概率+20%。',
     qualityBonus: 0.2,
     craftCost: [
-      { itemId: 'wood', quantity: 5 },
-      { itemId: 'herb', quantity: 2 }
+      { itemId: 'wood', quantity: 10 },
+      { itemId: 'herb', quantity: 4 }
     ],
     craftMoney: 0,
-    shopPrice: 25
+    shopPrice: 50
   },
   {
     id: 'quality_fertilizer',
@@ -2685,11 +2685,11 @@ export const FERTILIZERS: FertilizerDef[] = [
     description: '提升作物品质概率+40%。',
     qualityBonus: 0.4,
     craftCost: [
-      { itemId: 'herb', quantity: 3 },
-      { itemId: 'quartz', quantity: 1 }
+      { itemId: 'herb', quantity: 6 },
+      { itemId: 'quartz', quantity: 2 }
     ],
     craftMoney: 0,
-    shopPrice: 75
+    shopPrice: 150
   },
   {
     id: 'speed_gro',
@@ -2697,11 +2697,11 @@ export const FERTILIZERS: FertilizerDef[] = [
     description: '加速作物生长25%。',
     growthSpeedup: 0.25,
     craftCost: [
-      { itemId: 'pine_cone', quantity: 3 },
-      { itemId: 'herb', quantity: 1 }
+      { itemId: 'pine_cone', quantity: 6 },
+      { itemId: 'herb', quantity: 2 }
     ],
     craftMoney: 0,
-    shopPrice: 50
+    shopPrice: 100
   },
   {
     id: 'deluxe_speed_gro',
@@ -2709,11 +2709,11 @@ export const FERTILIZERS: FertilizerDef[] = [
     description: '加速作物生长33%。',
     growthSpeedup: 0.33,
     craftCost: [
-      { itemId: 'quartz', quantity: 1 },
-      { itemId: 'firewood', quantity: 3 }
+      { itemId: 'quartz', quantity: 2 },
+      { itemId: 'firewood', quantity: 6 }
     ],
     craftMoney: 0,
-    shopPrice: 100
+    shopPrice: 200
   },
   {
     id: 'retaining_soil',
@@ -2721,11 +2721,11 @@ export const FERTILIZERS: FertilizerDef[] = [
     description: '50%概率隔夜保持浇水状态。',
     retainChance: 0.5,
     craftCost: [
-      { itemId: 'wood', quantity: 3 },
-      { itemId: 'firewood', quantity: 2 }
+      { itemId: 'wood', quantity: 6 },
+      { itemId: 'firewood', quantity: 4 }
     ],
     craftMoney: 0,
-    shopPrice: 30
+    shopPrice: 60
   },
   {
     id: 'quality_retaining_soil',
@@ -2733,11 +2733,11 @@ export const FERTILIZERS: FertilizerDef[] = [
     description: '100%隔夜保持浇水状态。',
     retainChance: 1.0,
     craftCost: [
-      { itemId: 'quartz', quantity: 1 },
-      { itemId: 'wood', quantity: 5 }
+      { itemId: 'quartz', quantity: 2 },
+      { itemId: 'wood', quantity: 10 }
     ],
     craftMoney: 0,
-    shopPrice: 80
+    shopPrice: 160
   }
 ]
 
@@ -3162,8 +3162,7 @@ const getHiddenWineOutput = (
   inputEconomy: HiddenInputEconomy,
   processingDays: number
 ): string => {
-  if (cropId === 'ancient_fruit') return 'ancient_fruit_wine'
-  const preferredItemId = profile.spirituality === 'mystic' || profile.spirituality === 'spirit'
+    const preferredItemId = profile.spirituality === 'mystic' || profile.spirituality === 'spirit'
     ? 'spirit_fruit_brew'
     : profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal'
       ? 'seasonal_fruit_wine'
@@ -3242,8 +3241,8 @@ const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
     const title = crop.name
 
     if (profile.tags.includes('wine')) {
-      const wineInputQuantity = crop.id === 'ancient_fruit' ? 1 : inputQuantity
-      const wineProcessingDays = crop.id === 'ancient_fruit' ? 5 : profile.rarityUse === 'valuable' ? 4 : 3
+      const wineInputQuantity = inputQuantity
+      const wineProcessingDays = profile.rarityUse === 'valuable' ? 4 : 3
       const outputItemId = getHiddenWineOutput(crop.id, profile, getCropHiddenEconomy(crop, wineInputQuantity), wineProcessingDays)
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: crop.id === 'ancient_fruit' ? 'hidden_wine_ancient_fruit' : `hidden_wine_${crop.id}`,
