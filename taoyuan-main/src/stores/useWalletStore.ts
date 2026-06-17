@@ -2,6 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
 import { getMysteryBoxDef, MYSTERY_BOX_DEFS, MYSTERY_BOX_NAMING_LAYERS, MYSTERY_BOX_SOURCE_HINTS } from '@/data/mysteryBoxes'
+import { getPotentialResourceDef } from '@/data/potential'
 import { getActiveRewardTicketPrizeStage, PRIZE_TICKET_NAMING_LAYERS, REWARD_TICKET_PRIZE_STAGES, REWARD_TICKET_SOURCE_HINTS } from '@/data/prizeTickets'
 import {
   MAYOR_TICKET_CONVERSION_MONEY_COST,
@@ -40,6 +41,7 @@ import type { ItemCategory } from '@/types/item'
 import { useAchievementStore } from './useAchievementStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
+import { usePotentialStore } from './usePotentialStore'
 import { useSkillStore } from './useSkillStore'
 import { useMiningStore } from './useMiningStore'
 import { useNpcStore } from './useNpcStore'
@@ -104,6 +106,9 @@ const formatMysteryBoxRewardPreview = (reward: { label: string; rewardItems: Mys
 
 const formatMysteryBoxRewardResult = (reward: { label: string; rewardItems: MysteryBoxRewardItem[] }) =>
   `${reward.label}：${getMysteryBoxRewardItemSummary(reward.rewardItems)}，已放入${getMysteryBoxRewardDestination(reward.rewardItems)}`
+
+const getPotentialResourceRewardSummary = (resources: RewardTicketExchangeOffer['rewardPotentialResources'] = []) =>
+  resources.map(resource => `${getPotentialResourceDef(resource.resourceId)?.label ?? resource.resourceId}×${resource.amount}`).join('、')
 
 const GOAL_BIAS_LABELS: Record<WalletGoalBiasKey, string> = {
   cashflow: '现金流',
@@ -236,6 +241,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const inventoryStore = useInventoryStore()
   const gameStore = useGameStore()
   const npcStore = useNpcStore()
+  const potentialStore = usePotentialStore()
   const playerStore = usePlayerStore()
   /** 已解锁的钱袋物品ID */
   const unlockedItems = ref<string[]>([])
@@ -316,17 +322,24 @@ export const useWalletStore = defineStore('wallet', () => {
     }))
   )
   const ticketExchangeOffers = computed(() =>
-    REWARD_TICKET_EXCHANGE_OFFERS.map(offer => ({
-      ...offer,
-      balance: rewardTickets.value[offer.ticketType] ?? 0,
-      affordable: (rewardTickets.value[offer.ticketType] ?? 0) >= offer.costTickets,
-      rewardSummary: offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、'),
-      mysteryBoxSummary: (offer.rewardMysteryBoxes ?? [])
+    REWARD_TICKET_EXCHANGE_OFFERS.map(offer => {
+      const rewardSummary = offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
+      const mysteryBoxSummary = (offer.rewardMysteryBoxes ?? [])
         .map(box => `${getMysteryBoxDef(box.boxId)?.label ?? box.boxId}×${box.quantity}`)
-        .join('、'),
-      poolStageLabel: rewardTicketPrizeStageEntries.value.find(stage => stage.id === offer.poolStageId)?.label ?? '',
-      poolTagsLabel: (offer.poolTags ?? []).join('、')
-    }))
+        .join('、')
+      const potentialResourceSummary = getPotentialResourceRewardSummary(offer.rewardPotentialResources)
+      return {
+        ...offer,
+        balance: rewardTickets.value[offer.ticketType] ?? 0,
+        affordable: (rewardTickets.value[offer.ticketType] ?? 0) >= offer.costTickets,
+        rewardSummary,
+        mysteryBoxSummary,
+        potentialResourceSummary,
+        rewardContentSummary: [rewardSummary, mysteryBoxSummary, potentialResourceSummary].filter(Boolean).join('、'),
+        poolStageLabel: rewardTicketPrizeStageEntries.value.find(stage => stage.id === offer.poolStageId)?.label ?? '',
+        poolTagsLabel: (offer.poolTags ?? []).join('、')
+      }
+    })
   )
 
   const getFriendlyNpcCount = () => {
@@ -859,11 +872,32 @@ export const useWalletStore = defineStore('wallet', () => {
     for (const boxReward of offer.rewardMysteryBoxes ?? []) {
       addMysteryBoxes(boxReward.boxId, boxReward.quantity)
     }
+    const grantedPotentialResources = (offer.rewardPotentialResources ?? [])
+      .map(reward => {
+        const granted = potentialStore.addPotentialResource(reward.resourceId, reward.amount)
+        return granted > 0 ? `${getPotentialResourceDef(reward.resourceId)?.label ?? reward.resourceId}×${granted}` : ''
+      })
+      .filter(Boolean)
+    if (
+      rewardItems.length === 0 &&
+      (offer.rewardMysteryBoxes ?? []).length === 0 &&
+      (offer.rewardPotentialResources ?? []).length > 0 &&
+      grantedPotentialResources.length === 0
+    ) {
+      addRewardTickets({ [offer.ticketType]: offer.costTickets }, { applyMultiplier: false, source: 'ticket_refund' })
+      return { success: false, message: '兑换失败，已返还票券。', offer }
+    }
     usePlayerStore().markPrizeProgress(offer.poolStageId ?? offer.ticketType)
+
+    const grantedRewardSummary = [
+      offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、'),
+      (offer.rewardMysteryBoxes ?? []).map(box => `${getMysteryBoxDef(box.boxId)?.label ?? box.boxId}×${box.quantity}`).join('、'),
+      grantedPotentialResources.join('、')
+    ].filter(Boolean).join('、')
 
     return {
       success: true,
-      message: `消耗${getTicketLabel(offer.ticketType)}×${offer.costTickets}，兑换了${offer.label}。`,
+      message: `消耗${getTicketLabel(offer.ticketType)}×${offer.costTickets}，兑换了${offer.label}${grantedRewardSummary ? `，获得${grantedRewardSummary}` : ''}。`,
       offer
     }
   }

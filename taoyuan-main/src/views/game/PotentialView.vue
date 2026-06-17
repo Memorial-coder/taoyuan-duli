@@ -1,154 +1,170 @@
 <template>
-  <div data-testid="potential-view">
-    <div class="mb-3 flex items-center justify-between gap-2">
-      <div class="flex items-center gap-1.5 text-sm text-accent">
-        <Sparkles :size="14" />
-        <span>桃源潜能</span>
-      </div>
-      <button class="potential-plain-link" @click="navigateToPanel('skills')">
-        <Star :size="12" />
-        <span>天赋精研</span>
-      </button>
-    </div>
-
-    <div class="potential-resource-grid mb-3" data-testid="potential-resource-grid">
-      <div v-for="resource in resourceRows" :key="resource.id" class="potential-resource-tile">
-        <p class="text-[0.625rem] text-muted">{{ resource.label }}</p>
-        <p class="text-base text-accent tabular-nums">{{ resource.amount }}</p>
-        <p class="text-[0.625rem] text-muted leading-4">{{ resource.summary }}</p>
-      </div>
-    </div>
-
-    <section
-      v-if="lastUnlockResult"
-      class="potential-unlock-result mb-3"
-      data-testid="potential-unlock-result"
-    >
-      <div class="flex min-w-0 items-start gap-2">
-        <CheckCircle2 :size="16" class="mt-0.5 shrink-0 text-success" />
-        <div class="min-w-0">
-          <p class="text-sm text-success">{{ lastUnlockResult.title }}</p>
-          <p class="mt-1 text-xs leading-relaxed text-text">{{ lastUnlockResult.effectText }}</p>
-          <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ lastUnlockResult.surface }}</p>
+  <div class="potential-page" data-testid="potential-view">
+    <section class="potential-section-panel" data-testid="potential-overview-section">
+      <div class="potential-section-header">
+        <div class="potential-section-title">
+          <Sparkles :size="14" />
+          <span>桃源潜能</span>
         </div>
-      </div>
-      <button class="potential-icon-link" type="button" aria-label="关闭参悟结果" @click="lastUnlockResult = null">
-        <X :size="12" />
-      </button>
-    </section>
-
-    <div class="potential-branch-tabs mb-3" role="tablist" aria-label="潜能分线">
-      <button
-        v-for="branch in branchRows"
-        :key="branch.id"
-        type="button"
-        class="potential-branch-tab"
-        :class="{ 'potential-branch-tab-active': selectedBranchId === branch.id }"
-        :aria-selected="selectedBranchId === branch.id"
-        :data-testid="`potential-branch-tab-${branch.id}`"
-        @click="selectedBranchId = branch.id"
-      >
-        <span>{{ branch.label }}</span>
-        <span class="tabular-nums">{{ branch.rank }}/{{ branch.maxRank }}</span>
-      </button>
-    </div>
-
-    <section class="mb-3 border border-accent/20 rounded-xs px-3 py-2" data-testid="potential-branch-summary">
-      <div class="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p class="text-sm text-accent">{{ selectedBranch?.label }}</p>
-          <p class="text-xs text-muted mt-1 leading-relaxed">{{ selectedBranch?.summary }}</p>
-        </div>
-        <div class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
-          <span>总阶 {{ potentialStore.totalRank }}</span>
-          <span>{{ selectedBranch?.rank ?? 0 }}/{{ selectedBranch?.maxRank ?? 0 }}</span>
-        </div>
-      </div>
-    </section>
-
-    <section
-      class="potential-next-step mb-3"
-      :class="`potential-next-step-${nextStep.tone}`"
-      data-testid="potential-next-step"
-    >
-      <component :is="nextStep.icon" :size="16" class="mt-0.5 shrink-0" />
-      <div class="min-w-0">
-        <div class="flex flex-wrap items-center gap-1.5">
-          <p class="text-xs text-accent">{{ nextStep.title }}</p>
-          <span class="potential-status-badge" :class="`potential-status-${nextStep.tone}`">{{ nextStep.label }}</span>
-        </div>
-        <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ nextStep.detail }}</p>
-      </div>
-      <button
-        v-if="nextStep.action === 'randomNpc'"
-        class="potential-plain-link potential-next-step-action"
-        type="button"
-        @click="goToRandomNpcPanel"
-      >
-        <Users :size="12" />
-        <span>{{ nextStep.actionLabel }}</span>
-      </button>
-    </section>
-
-    <div class="potential-node-grid mb-3" data-testid="potential-node-grid">
-      <article
-        v-for="node in branchNodes"
-        :key="node.id"
-        class="potential-node"
-        :class="`potential-node-${nodeStatus(node).tone}`"
-        :data-testid="`potential-node-${node.id}`"
-      >
-        <div class="flex items-start justify-between gap-2">
-          <div class="min-w-0">
-            <p class="text-sm" :class="potentialStore.getNodeRank(node.id) > 0 ? 'text-accent' : 'text-text'">
-              {{ node.label }}
-            </p>
-            <p class="text-[0.625rem] text-muted mt-1 leading-relaxed">{{ node.summary }}</p>
-          </div>
-          <div class="flex shrink-0 flex-col items-end gap-1">
-            <span class="potential-rank-pill">{{ potentialStore.getNodeRank(node.id) }}/{{ node.maxRank }}</span>
-            <span class="potential-status-badge" :class="`potential-status-${nodeStatus(node).tone}`">
-              <component :is="nodeStatus(node).icon" :size="11" />
-              <span>{{ nodeStatus(node).label }}</span>
-            </span>
-          </div>
-        </div>
-
-        <div class="mt-2 border-t border-accent/10 pt-2">
-          <p class="text-[0.625rem] text-muted">{{ node.surface }}</p>
-          <p class="text-xs mt-1 text-success">
-            {{ effectDisplay(node) }}
-          </p>
-        </div>
-
-        <div class="mt-2 min-h-10">
-          <p class="text-[0.625rem] text-muted">{{ nodeNextLabel(node) }}</p>
-          <p class="text-xs text-accent leading-relaxed">{{ costDisplay(node) }}</p>
-          <p
-            v-if="upgradeReason(node)"
-            class="text-[0.625rem] mt-1 leading-4"
-            :class="nodeStatus(node).tone === 'missing' || nodeStatus(node).tone === 'locked' ? 'text-warning' : 'text-muted'"
-          >
-            {{ upgradeReason(node) }}
-          </p>
-        </div>
-
-        <button
-          class="potential-action-btn mt-2"
-          :class="canUseNodeAction(node) ? 'potential-action-btn-ready' : 'potential-action-btn-secondary'"
-          :disabled="potentialStore.getNodeRank(node.id) >= node.maxRank"
-          @click="openUpgradePreview(node)"
-        >
-          <component :is="nodeActionIcon(node)" :size="12" />
-          <span>{{ nodeActionLabel(node) }}</span>
+        <button class="potential-plain-link" @click="navigateToPanel('skills')">
+          <Star :size="12" />
+          <span>天赋精研</span>
         </button>
-      </article>
-    </div>
+      </div>
 
-    <section class="mb-3 border border-accent/20 rounded-xs px-3 py-2" data-testid="potential-respec-panel">
-      <div class="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p class="text-sm text-accent">分线重修</p>
+      <div class="potential-resource-grid" data-testid="potential-resource-grid">
+        <div v-for="resource in resourceRows" :key="resource.id" class="potential-resource-tile">
+          <p class="text-[0.625rem] text-muted">{{ resource.label }}</p>
+          <p class="text-base text-accent tabular-nums">{{ resource.amount }}</p>
+          <p class="text-[0.625rem] text-muted leading-4">{{ resource.summary }}</p>
+        </div>
+      </div>
+
+      <section
+        v-if="lastUnlockResult"
+        class="potential-unlock-result"
+        data-testid="potential-unlock-result"
+      >
+        <div class="flex min-w-0 items-start gap-2">
+          <CheckCircle2 :size="16" class="mt-0.5 shrink-0 text-success" />
+          <div class="min-w-0">
+            <p class="text-sm text-success">{{ lastUnlockResult.title }}</p>
+            <p class="mt-1 text-xs leading-relaxed text-text">{{ lastUnlockResult.effectText }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ lastUnlockResult.surface }}</p>
+          </div>
+        </div>
+        <button class="potential-icon-link" type="button" aria-label="关闭参悟结果" @click="lastUnlockResult = null">
+          <X :size="12" />
+        </button>
+      </section>
+
+      <div class="potential-branch-tabs" role="tablist" aria-label="潜能分线">
+        <button
+          v-for="branch in branchRows"
+          :key="branch.id"
+          type="button"
+          class="potential-branch-tab"
+          :class="{ 'potential-branch-tab-active': selectedBranchId === branch.id }"
+          :aria-selected="selectedBranchId === branch.id"
+          :data-testid="`potential-branch-tab-${branch.id}`"
+          @click="selectedBranchId = branch.id"
+        >
+          <span>{{ branch.label }}</span>
+          <span class="tabular-nums">{{ branch.rank }}/{{ branch.maxRank }}</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="potential-section-panel" data-testid="potential-current-section">
+      <div class="potential-section-header">
+        <div class="potential-section-title">
+          <Star :size="14" />
+          <span>当前分线</span>
+        </div>
+      </div>
+
+      <section class="potential-branch-summary" data-testid="potential-branch-summary">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p class="text-sm text-accent">{{ selectedBranch?.label }}</p>
+            <p class="text-xs text-muted mt-1 leading-relaxed">{{ selectedBranch?.summary }}</p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+            <span>总阶 {{ potentialStore.totalRank }}</span>
+            <span>{{ selectedBranch?.rank ?? 0 }}/{{ selectedBranch?.maxRank ?? 0 }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="potential-next-step"
+        :class="`potential-next-step-${nextStep.tone}`"
+        data-testid="potential-next-step"
+      >
+        <component :is="nextStep.icon" :size="16" class="mt-0.5 shrink-0" />
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <p class="text-xs text-accent">{{ nextStep.title }}</p>
+            <span class="potential-status-badge" :class="`potential-status-${nextStep.tone}`">{{ nextStep.label }}</span>
+          </div>
+          <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ nextStep.detail }}</p>
+        </div>
+        <button
+          v-if="nextStep.action === 'randomNpc'"
+          class="potential-plain-link potential-next-step-action"
+          type="button"
+          @click="goToRandomNpcPanel"
+        >
+          <Users :size="12" />
+          <span>{{ nextStep.actionLabel }}</span>
+        </button>
+      </section>
+
+      <div class="potential-node-grid" data-testid="potential-node-grid">
+        <article
+          v-for="node in branchNodes"
+          :key="node.id"
+          class="potential-node"
+          :class="`potential-node-${nodeStatus(node).tone}`"
+          :data-testid="`potential-node-${node.id}`"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-sm" :class="potentialStore.getNodeRank(node.id) > 0 ? 'text-accent' : 'text-text'">
+                {{ node.label }}
+              </p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-relaxed">{{ node.summary }}</p>
+            </div>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="potential-rank-pill">{{ potentialStore.getNodeRank(node.id) }}/{{ node.maxRank }}</span>
+              <span class="potential-status-badge" :class="`potential-status-${nodeStatus(node).tone}`">
+                <component :is="nodeStatus(node).icon" :size="11" />
+                <span>{{ nodeStatus(node).label }}</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-2 border-t border-accent/10 pt-2">
+            <p class="text-[0.625rem] text-muted">{{ node.surface }}</p>
+            <p class="text-xs mt-1 text-success">
+              {{ effectDisplay(node) }}
+            </p>
+          </div>
+
+          <div class="mt-2 min-h-10">
+            <p class="text-[0.625rem] text-muted">{{ nodeNextLabel(node) }}</p>
+            <p class="text-xs text-accent leading-relaxed">{{ costDisplay(node) }}</p>
+            <p
+              v-if="upgradeReason(node)"
+              class="text-[0.625rem] mt-1 leading-4"
+              :class="nodeStatus(node).tone === 'missing' || nodeStatus(node).tone === 'locked' ? 'text-warning' : 'text-muted'"
+            >
+              {{ upgradeReason(node) }}
+            </p>
+          </div>
+
+          <button
+            class="potential-action-btn mt-2"
+            :class="canUseNodeAction(node) ? 'potential-action-btn-ready' : 'potential-action-btn-secondary'"
+            :disabled="potentialStore.getNodeRank(node.id) >= node.maxRank"
+            @click="openUpgradePreview(node)"
+          >
+            <component :is="nodeActionIcon(node)" :size="12" />
+            <span>{{ nodeActionLabel(node) }}</span>
+          </button>
+        </article>
+      </div>
+    </section>
+
+    <section class="potential-section-panel" data-testid="potential-respec-panel">
+      <div class="potential-section-header">
+        <div class="potential-section-title">
+          <RotateCcw :size="14" />
+          <span>分线重修</span>
+        </div>
+      </div>
+      <div class="potential-respec-content">
+        <div class="min-w-0">
           <p class="text-xs text-muted mt-1 leading-relaxed">{{ respecPreviewText }}</p>
         </div>
         <div class="flex shrink-0 gap-2">
@@ -175,105 +191,116 @@
       </div>
     </section>
 
-    <div class="potential-source-grid" data-testid="potential-source-grid">
-      <div v-for="source in sourceRows" :key="source.id" class="potential-source-row">
-        <div class="flex items-start justify-between gap-2">
-          <p class="text-xs text-accent">{{ source.label }}</p>
-          <span class="potential-source-pill tabular-nums">{{ source.progress.claims }}/{{ source.progress.maxClaims }}</span>
+    <section class="potential-section-panel" data-testid="potential-source-section">
+      <div class="potential-section-header">
+        <div class="potential-section-title">
+          <Sparkles :size="14" />
+          <span>材料来源</span>
         </div>
-        <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ source.summary }}</p>
-        <div class="potential-source-progress mt-2" data-testid="potential-source-progress">
-          <span :style="{ width: `${source.progress.percent}%` }"></span>
-        </div>
-        <p class="text-[0.625rem] text-muted/80 mt-1">
-          {{ source.periodLabel }}已获 {{ source.progress.claims }}/{{ source.progress.maxClaims }} 次 · 常规获得 {{ source.rewardText }}
-        </p>
       </div>
-    </div>
+
+      <div class="potential-source-grid" data-testid="potential-source-grid">
+        <div v-for="source in sourceRows" :key="source.id" class="potential-source-row">
+          <div class="flex items-start justify-between gap-2">
+            <p class="text-xs text-accent">{{ source.label }}</p>
+            <span class="potential-source-pill tabular-nums">{{ source.progress.claims }}/{{ source.progress.maxClaims }}</span>
+          </div>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ source.summary }}</p>
+          <div class="potential-source-progress mt-2" data-testid="potential-source-progress">
+            <span :style="{ width: `${source.progress.percent}%` }"></span>
+          </div>
+          <p class="text-[0.625rem] text-muted/80 mt-1">
+            {{ source.periodLabel }}已获 {{ source.progress.claims }}/{{ source.progress.maxClaims }} 次 · 常规获得 {{ source.rewardText }}
+          </p>
+        </div>
+      </div>
+    </section>
 
     <Teleport to="body">
-      <div
-        v-if="upgradePreview"
-        class="potential-upgrade-backdrop"
-        data-testid="potential-upgrade-dialog"
-        @click.self="closeUpgradePreview"
-      >
-        <section
-          class="potential-upgrade-dialog"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="`${upgradePreview.node.label}参悟预览`"
+      <Transition name="potential-upgrade-pop">
+        <div
+          v-if="upgradePreview"
+          class="potential-upgrade-backdrop"
+          data-testid="potential-upgrade-dialog"
+          @click.self="closeUpgradePreview"
         >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm text-accent">{{ upgradePreview.node.label }}</p>
-              <p class="mt-1 text-xs leading-relaxed text-muted">{{ upgradePreview.node.summary }}</p>
-            </div>
-            <button class="potential-icon-link" type="button" aria-label="关闭参悟预览" @click="closeUpgradePreview">
-              <X :size="12" />
-            </button>
-          </div>
-
-          <div class="potential-upgrade-rank mt-3">
-            <span class="tabular-nums">{{ upgradePreview.currentRank }}/{{ upgradePreview.node.maxRank }}</span>
-            <span>→</span>
-            <span class="tabular-nums">{{ upgradePreview.nextRank }}/{{ upgradePreview.node.maxRank }}</span>
-          </div>
-
-          <div class="potential-upgrade-effect mt-3">
-            <div>
-              <p class="text-[0.625rem] text-muted">当前效果</p>
-              <p class="mt-1 text-xs text-text">{{ upgradePreview.currentEffectText }}</p>
-            </div>
-            <div>
-              <p class="text-[0.625rem] text-muted">下一级预览</p>
-              <p class="mt-1 text-xs text-success">{{ upgradePreview.nextEffectText }}</p>
-            </div>
-            <div>
-              <p class="text-[0.625rem] text-muted">本次提升</p>
-              <p class="mt-1 text-xs text-accent">{{ upgradePreview.deltaText }}</p>
-            </div>
-          </div>
-
-          <div class="mt-3">
-            <p class="text-[0.625rem] text-muted">参悟消耗</p>
-            <div class="potential-upgrade-costs mt-2">
-              <span
-                v-for="cost in upgradePreview.costRows"
-                :key="cost.resourceId"
-                class="potential-upgrade-cost"
-                :class="cost.enough ? 'potential-upgrade-cost-ok' : 'potential-upgrade-cost-missing'"
-              >
-                {{ cost.label }} {{ cost.owned }}/{{ cost.amount }}
-              </span>
-            </div>
-          </div>
-
-          <p
-            v-if="upgradePreview.reason"
-            class="mt-3 text-xs leading-relaxed text-warning"
+          <section
+            class="potential-upgrade-dialog"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="`${upgradePreview.node.label}参悟预览`"
           >
-            {{ upgradePreview.reason }}
-          </p>
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm text-accent">{{ upgradePreview.node.label }}</p>
+                <p class="mt-1 text-xs leading-relaxed text-muted">{{ upgradePreview.node.summary }}</p>
+              </div>
+              <button class="potential-icon-link" type="button" aria-label="关闭参悟预览" @click="closeUpgradePreview">
+                <X :size="12" />
+              </button>
+            </div>
 
-          <div class="mt-4 flex justify-end gap-2">
-            <button class="potential-plain-link" type="button" @click="closeUpgradePreview">
-              <X :size="12" />
-              <span>取消</span>
-            </button>
-            <button
-              class="potential-action-btn potential-upgrade-confirm"
-              type="button"
-              :class="upgradePreview.canUpgrade ? 'potential-action-btn-ready' : 'potential-action-btn-disabled'"
-              :disabled="!upgradePreview.canUpgrade"
-              @click="confirmUpgrade"
+            <div class="potential-upgrade-rank mt-3">
+              <span class="tabular-nums">{{ upgradePreview.currentRank }}/{{ upgradePreview.node.maxRank }}</span>
+              <span>→</span>
+              <span class="tabular-nums">{{ upgradePreview.nextRank }}/{{ upgradePreview.node.maxRank }}</span>
+            </div>
+
+            <div class="potential-upgrade-effect mt-3">
+              <div>
+                <p class="text-[0.625rem] text-muted">当前效果</p>
+                <p class="mt-1 text-xs text-text">{{ upgradePreview.currentEffectText }}</p>
+              </div>
+              <div>
+                <p class="text-[0.625rem] text-muted">下一级预览</p>
+                <p class="mt-1 text-xs text-success">{{ upgradePreview.nextEffectText }}</p>
+              </div>
+              <div>
+                <p class="text-[0.625rem] text-muted">本次提升</p>
+                <p class="mt-1 text-xs text-accent">{{ upgradePreview.deltaText }}</p>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <p class="text-[0.625rem] text-muted">参悟消耗</p>
+              <div class="potential-upgrade-costs mt-2">
+                <span
+                  v-for="cost in upgradePreview.costRows"
+                  :key="cost.resourceId"
+                  class="potential-upgrade-cost"
+                  :class="cost.enough ? 'potential-upgrade-cost-ok' : 'potential-upgrade-cost-missing'"
+                >
+                  {{ cost.label }} {{ cost.owned }}/{{ cost.amount }}
+                </span>
+              </div>
+            </div>
+
+            <p
+              v-if="upgradePreview.reason"
+              class="mt-3 text-xs leading-relaxed text-warning"
             >
-              <Unlock :size="12" />
-              <span>确认参悟</span>
-            </button>
-          </div>
-        </section>
-      </div>
+              {{ upgradePreview.reason }}
+            </p>
+
+            <div class="mt-4 flex justify-end gap-2">
+              <button class="potential-plain-link" type="button" @click="closeUpgradePreview">
+                <X :size="12" />
+                <span>取消</span>
+              </button>
+              <button
+                class="potential-action-btn potential-upgrade-confirm"
+                type="button"
+                :class="upgradePreview.canUpgrade ? 'potential-action-btn-ready' : 'potential-action-btn-disabled'"
+                :disabled="!upgradePreview.canUpgrade"
+                @click="confirmUpgrade"
+              >
+                <Unlock :size="12" />
+                <span>确认参悟</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -539,11 +566,46 @@
 </script>
 
 <style scoped>
+  .potential-page {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .potential-section-panel {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+    border: 1px solid rgb(var(--color-accent) / 0.22);
+    border-radius: 2px;
+    padding: 0.75rem;
+    background: rgb(var(--color-panel) / 0.38);
+  }
+
+  .potential-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.625rem;
+    min-width: 0;
+    border-bottom: 1px solid rgb(var(--color-accent) / 0.12);
+    padding-bottom: 0.625rem;
+  }
+
+  .potential-section-title {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.375rem;
+    color: rgb(var(--color-accent));
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
   .potential-resource-grid,
   .potential-node-grid,
   .potential-source-grid {
     display: grid;
-    gap: 0.5rem;
+    gap: 0.625rem;
   }
 
   .potential-resource-grid {
@@ -561,14 +623,31 @@
   .potential-resource-tile,
   .potential-node,
   .potential-source-row {
-    border: 1px solid rgb(var(--color-accent) / 0.18);
+    min-width: 0;
+    border: 1px solid rgb(var(--color-accent) / 0.24);
     border-radius: 2px;
     padding: 0.625rem;
-    background: rgb(var(--color-panel) / 0.42);
+    background: rgb(var(--color-bg) / 0.24);
+  }
+
+  .potential-resource-tile {
+    min-height: 5.5rem;
+  }
+
+  .potential-source-row {
+    display: flex;
+    flex-direction: column;
+    min-height: 7rem;
+  }
+
+  .potential-source-row > .potential-source-progress {
+    margin-top: auto;
   }
 
   .potential-unlock-result,
-  .potential-next-step {
+  .potential-next-step,
+  .potential-branch-summary,
+  .potential-respec-content {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
@@ -576,12 +655,16 @@
     border: 1px solid rgb(var(--color-accent) / 0.22);
     border-radius: 2px;
     padding: 0.625rem;
-    background: rgb(var(--color-panel) / 0.5);
+    background: rgb(var(--color-bg) / 0.2);
   }
 
   .potential-unlock-result {
     border-color: rgb(var(--color-success) / 0.35);
     background: rgb(var(--color-success) / 0.08);
+  }
+
+  .potential-respec-content {
+    flex-wrap: wrap;
   }
 
   .potential-next-step {
@@ -697,7 +780,14 @@
   }
 
   .potential-node {
+    display: flex;
+    min-height: 15rem;
+    flex-direction: column;
     border-left-width: 3px;
+  }
+
+  .potential-node > .potential-action-btn {
+    margin-top: auto;
   }
 
   .potential-node-ready {
@@ -790,6 +880,30 @@
     box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 0.35);
   }
 
+  .potential-upgrade-pop-enter-active,
+  .potential-upgrade-pop-leave-active {
+    transition: opacity 0.18s ease;
+  }
+
+  .potential-upgrade-pop-enter-active .potential-upgrade-dialog,
+  .potential-upgrade-pop-leave-active .potential-upgrade-dialog {
+    transform-origin: center;
+    transition:
+      opacity 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  .potential-upgrade-pop-enter-from,
+  .potential-upgrade-pop-leave-to {
+    opacity: 0;
+  }
+
+  .potential-upgrade-pop-enter-from .potential-upgrade-dialog,
+  .potential-upgrade-pop-leave-to .potential-upgrade-dialog {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+
   .potential-upgrade-rank,
   .potential-upgrade-effect,
   .potential-upgrade-costs {
@@ -847,6 +961,20 @@
   }
 
   @media (max-width: 420px) {
+    .potential-page {
+      gap: 0.625rem;
+    }
+
+    .potential-section-panel {
+      gap: 0.625rem;
+      padding: 0.625rem;
+    }
+
+    .potential-section-header {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
     .potential-next-step {
       flex-wrap: wrap;
     }
@@ -875,6 +1003,20 @@
 
     .potential-upgrade-dialog {
       max-height: 84dvh;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .potential-upgrade-pop-enter-active,
+    .potential-upgrade-pop-leave-active,
+    .potential-upgrade-pop-enter-active .potential-upgrade-dialog,
+    .potential-upgrade-pop-leave-active .potential-upgrade-dialog {
+      transition-duration: 1ms;
+    }
+
+    .potential-upgrade-pop-enter-from .potential-upgrade-dialog,
+    .potential-upgrade-pop-leave-to .potential-upgrade-dialog {
+      transform: none;
     }
   }
 </style>

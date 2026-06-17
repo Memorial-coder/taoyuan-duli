@@ -1,3 +1,4 @@
+/* global console */
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -13,6 +14,11 @@ const mobileMapMenuSource = readSource('src/components/game/MobileMapMenu.vue')
 const dailyDigestSource = readSource('src/components/game/DailyDigestSummaryDialog.vue')
 const aiAssistantWidgetSource = readSource('src/components/game/AiAssistantWidget.vue')
 const hallViewSource = readSource('src/views/HallView.vue')
+const mailViewSource = readSource('src/views/game/MailView.vue')
+const announcementDialogSource = readSource('src/components/game/AnnouncementDialog.vue')
+const announcementHistorySource = readSource('src/components/game/AnnouncementHistoryDialog.vue')
+const playerRecordCenterSource = readSource('src/components/game/PlayerRecordCenterPanel.vue')
+const mainMenuSource = readSource('src/views/MainMenu.vue')
 const packageJson = JSON.parse(readSource('package.json'))
 
 const contrastThemeBlock = themeSource.match(/\{\s*key: 'contrast',[\s\S]*?tone: 'light'\s*\}/)?.[0]
@@ -67,6 +73,21 @@ assert.doesNotMatch(aiAssistantWidgetSource, /background:\s*rgba\(0,\s*0,\s*0,\s
 assert.match(aiAssistantWidgetSource, /\.ai-msg__bubble\s*\{[\s\S]*background:\s*var\(--color-surface-muted\)/, 'AI assistant bubbles should use theme surface color')
 assert.doesNotMatch(hallViewSource, /background:\s*(?:rgb\(38,\s*40,\s*56\)|rgba\(26,\s*26,\s*26,\s*0\.(14|18|2)\)|rgba\(0,\s*0,\s*0,\s*0\.15\)|rgba\(43,\s*45,\s*60,\s*0\.65\))/, 'hall surfaces should not keep fixed dark backgrounds')
 assert.match(hallViewSource, /\.hall-dropdown-panel\s*\{[\s\S]*background:\s*rgb\(var\(--color-panel\)\)/, 'hall dropdown should use theme panel color')
+assert.doesNotMatch(mailViewSource, /background:\s*rgba\(15,\s*18,\s*30,\s*0\.(?:36|4|96)\)/, 'mailbox panels should not keep fixed dark backgrounds on light themes')
+assert.match(mailViewSource, /--mail-panel-bg:\s*rgb\(var\(--color-panel\) \/ 0\.72\)/, 'mailbox panel surface should use theme panel color')
+assert.match(mailViewSource, /--mail-card-bg:\s*var\(--color-surface-muted\)/, 'mailbox cards should use theme surface color')
+assert.match(mailViewSource, /\.mail-toolbar\s*\{[\s\S]*background:\s*var\(--mail-toolbar-bg\)/, 'mailbox sticky toolbar should use theme surface color')
+assert.doesNotMatch(announcementDialogSource, /background:\s*rgba\(0,\s*0,\s*0,\s*0\.(?:08|14|18)\)/, 'announcement dialog surfaces should not keep fixed black backgrounds')
+assert.match(announcementDialogSource, /\.announcement-item\s*\{[\s\S]*background:\s*var\(--color-surface-raised\)/, 'announcement dialog cards should use raised theme surface')
+assert.match(announcementDialogSource, /\.announcement-item--collapsed\s*\{[\s\S]*background:\s*var\(--color-surface-muted\)/, 'collapsed announcement cards should use muted theme surface')
+assert.match(announcementDialogSource, /\.announcement-image\s*\{[\s\S]*background:\s*var\(--color-surface-muted\)/, 'announcement images should use muted theme surface')
+assert.doesNotMatch(announcementHistorySource, /background:\s*rgba\(16,\s*20,\s*30,\s*0\.(?:28|42)\)/, 'announcement history should not keep fixed dark backgrounds')
+assert.match(announcementHistorySource, /\.announcement-history-item\s*\{[\s\S]*background:\s*var\(--color-surface-raised\)/, 'announcement history cards should use raised theme surface')
+assert.match(announcementHistorySource, /\.announcement-history-item--collapsed\s*\{[\s\S]*background:\s*var\(--color-surface-muted\)/, 'collapsed announcement history cards should use muted theme surface')
+assert.doesNotMatch(playerRecordCenterSource, /background:\s*rgba\(14,\s*18,\s*28,\s*0\.45\)/, 'record center empty state should not keep a fixed dark background')
+assert.match(playerRecordCenterSource, /\.record-empty\s*\{[\s\S]*background:\s*var\(--color-surface-muted\)/, 'record center empty state should use muted theme surface')
+assert.doesNotMatch(mainMenuSource, /background:\s*rgba\(18,\s*26,\s*18,\s*0\.22\)/, 'main menu online entry should not keep a fixed dark green background')
+assert.match(mainMenuSource, /\.main-menu-online-entry\s*\{[\s\S]*background:\s*rgb\(var\(--color-success-rgb\) \/ 0\.08\)/, 'main menu online entry should use theme success tint')
 assert.ok(appCssSource.includes("html[data-theme='contrast'] .text-muted\\/50"), 'contrast theme should strengthen low-opacity muted text')
 assert.ok(appCssSource.includes("html[data-theme='contrast'] .placeholder\\:text-muted\\/40::placeholder"), 'contrast theme should strengthen muted placeholders')
 for (const utility of [

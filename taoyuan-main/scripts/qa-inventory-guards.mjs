@@ -233,6 +233,20 @@ assert(
   inventoryViewSource.includes('if (!plan.canUse && !canEatForFoodBuff(itemId))'),
   'Inventory eat handler should not block buff food before cookingStore.eat applies the buff.'
 )
+assert(
+  inventoryViewSource.includes('interface VisibleInventoryItem') &&
+    inventoryViewSource.includes('const getVisibleInventoryItems = (sourceItems: InventoryItem[]): VisibleInventoryItem[]') &&
+    inventoryViewSource.includes('existing.quantity += item.quantity') &&
+    inventoryViewSource.includes('existing.locked = existing.locked || !!item.locked') &&
+    inventoryViewSource.includes(':key="`${item.itemId}-${item.quality}`"') &&
+    inventoryViewSource.includes('@click="openVisibleInventoryItem(item)"'),
+  'Inventory item tab must render player-visible stacks merged by item id and quality, hiding shop-origin batch splits.'
+)
+assert(
+  inventoryViewSource.includes('const activeItemKey = ref<ActiveInventoryItemKey | null>(null)') &&
+    inventoryViewSource.includes('visibleInventoryItems.value.find(item => getVisibleInventoryKey(item) === getVisibleInventoryKey(activeItemKey.value!))'),
+  'Inventory item detail modal should track visible item id + quality instead of underlying batch index.'
+)
 
 {
   const inventoryStore = freshInventoryStore()
@@ -374,6 +388,31 @@ assert(
   assert(
     reloaded.items.some(item => item.itemId === 'silk_ribbon' && item.origin === 'shop' && item.purchaseDay === '2_1_9' && item.purchaseUnitPrice === 500 && item.quantity === 3),
     'Serialize/deserialize should preserve shop-origin metadata.'
+  )
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  const shopMeta = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 }
+
+  assert(inventoryStore.addItemExact('silk_ribbon', 2, 'normal', true, shopMeta) === true, 'Shop-origin stack should be addable before visible lock test.')
+  assert(inventoryStore.addItemExact('silk_ribbon', 1, 'normal') === true, 'Normal stack should be addable before visible lock test.')
+  assert(inventoryStore.items.filter(item => item.itemId === 'silk_ribbon' && item.quality === 'normal').length === 2, 'Underlying shop and normal batches should stay separate for pricing.')
+
+  inventoryStore.toggleLock('silk_ribbon', 'normal')
+  assert(
+    inventoryStore.items
+      .filter(item => item.itemId === 'silk_ribbon' && item.quality === 'normal')
+      .every(item => item.locked === true),
+    'Visible lock action should lock every same-item same-quality batch.'
+  )
+
+  inventoryStore.toggleLock('silk_ribbon', 'normal')
+  assert(
+    inventoryStore.items
+      .filter(item => item.itemId === 'silk_ribbon' && item.quality === 'normal')
+      .every(item => item.locked !== true),
+    'Visible unlock action should unlock every same-item same-quality batch.'
   )
 }
 

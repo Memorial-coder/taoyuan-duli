@@ -13,6 +13,8 @@ const srcRoot = path.join(projectRoot, 'src')
 const questViewSource = fs.readFileSync(path.join(srcRoot, 'views/game/QuestView.vue'), 'utf8')
 const goalsViewSource = fs.readFileSync(path.join(srcRoot, 'views/game/GoalsView.vue'), 'utf8')
 const questOperationHintsSource = fs.readFileSync(path.join(srcRoot, 'components/game/QuestBoardOperationHints.vue'), 'utf8')
+const questDataSource = fs.readFileSync(path.join(srcRoot, 'data/quests.ts'), 'utf8')
+const questStoreSource = fs.readFileSync(path.join(srcRoot, 'stores/useQuestStore.ts'), 'utf8')
 
 const errors = []
 
@@ -198,7 +200,7 @@ const getObjectPropertyName = prop => {
 
 const assertQuestItemDisplayNamesMatchItems = () => {
   const sourcePath = path.join(srcRoot, 'data', 'quests.ts')
-  const source = fs.readFileSync(sourcePath, 'utf8')
+  const source = questDataSource
   const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true)
   const mismatches = []
 
@@ -235,9 +237,100 @@ const assertQuestItemDisplayNamesMatchItems = () => {
   assert(mismatches.length === 0, `Quest item display names must match item definitions: ${mismatches.join(', ')}`)
 }
 
+const getArrayLiteralByName = (sourceFile, name) => {
+  let result = null
+  const visit = node => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name &&
+      node.initializer &&
+      ts.isArrayLiteralExpression(node.initializer)
+    ) {
+      result = node.initializer
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return result
+}
+
+const getObjectLiteralStringProp = (node, propName) => {
+  if (!ts.isObjectLiteralExpression(node)) return null
+  for (const prop of node.properties) {
+    if (!ts.isPropertyAssignment(prop) || getObjectPropertyName(prop) !== propName) continue
+    return getStringLiteralValue(prop.initializer)
+  }
+  return null
+}
+
+const assertVillagerQuestPoolDiversity = () => {
+  const sourcePath = path.join(srcRoot, 'data', 'quests.ts')
+  const sourceFile = ts.createSourceFile(sourcePath, questDataSource, ts.ScriptTarget.Latest, true)
+  const array = getArrayLiteralByName(sourceFile, 'VILLAGER_QUEST_TEMPLATES')
+  assert(!!array, 'Village quest templates must remain statically inspectable.')
+  if (!array) return
+
+  const templates = array.elements.filter(ts.isObjectLiteralExpression)
+  const targetIds = templates.map(node => getObjectLiteralStringProp(node, 'targetItemId')).filter(Boolean)
+  const rumorTargetIds = templates
+    .filter(node => getObjectLiteralStringProp(node, 'category') === 'rumor')
+    .map(node => getObjectLiteralStringProp(node, 'targetItemId'))
+    .filter(Boolean)
+  const formalTargetIds = templates
+    .filter(node => getObjectLiteralStringProp(node, 'category') !== 'rumor')
+    .map(node => getObjectLiteralStringProp(node, 'targetItemId'))
+    .filter(Boolean)
+
+  assert(new Set(targetIds).size >= 32, 'Village daily quest pool should cover at least 32 unique requested items.')
+  assert(new Set(formalTargetIds).size >= 28, 'Formal villager quest pool should cover at least 28 unique requested items.')
+  assert(new Set(rumorTargetIds).size >= 14, 'Rumor quest pool should cover at least 14 unique requested items.')
+  for (const requiredItemId of [
+    'egg',
+    'milk',
+    'honey',
+    'firewood',
+    'wild_mushroom',
+    'fish_feed',
+    'green_tea_drink',
+    'processed_osmanthus_tea',
+    'iron_bar',
+    'mayonnaise',
+    'cheese',
+    'wool',
+    'rabbit_fur'
+  ]) {
+    assert(targetIds.includes(requiredItemId), `Village daily quest pool should include ${requiredItemId}.`)
+  }
+
+  assert(
+    questDataSource.includes("template.category !== 'rumor' && !profile.categories.includes(template.category)"),
+    'Rumor quests must bypass formal NPC category filters so the daily rumor slot can actually rotate.'
+  )
+  assert(
+    questDataSource.includes('recentSameSignature') &&
+      questDataSource.includes('recentSameTarget') &&
+      questDataSource.includes('repeatPenalty'),
+    'Village quest generation should penalize recently completed same NPC/item templates.'
+  )
+  assert(
+    questDataSource.includes("const VILLAGER_CATEGORY_LABELS: Record<VillagerQuestCategory, string>") &&
+      questDataSource.includes("rumor: '传闻请托'"),
+    'Village quest category labels should include rumor requests.'
+  )
+  assert(
+    questStoreSource.includes("'festival_prep', 'rumor'") &&
+      questStoreSource.includes("sourceLabel: typeof quest.sourceLabel === 'string' ? quest.sourceLabel : undefined") &&
+      questStoreSource.includes('rumorTask: quest.rumorTask === true ? true : undefined'),
+    'Quest save normalization must preserve rumor category, source label and lightweight quest marker.'
+  )
+}
+
 const dataForItemNames = await import(pathToFileURL(path.join(projectRoot, 'src/data/index.ts')).href)
 const { getItemById } = dataForItemNames
 assertQuestItemDisplayNamesMatchItems()
+assertVillagerQuestPoolDiversity()
 
 assert(questDetailModalLine.includes('max-h-[calc(100dvh-2rem)]'), 'Quest detail modal must fit inside the mobile viewport.')
 assert(questDetailModalLine.includes('md:max-h-[calc(100dvh-3rem)]'), 'Quest detail modal must fit inside the desktop overlay padding.')

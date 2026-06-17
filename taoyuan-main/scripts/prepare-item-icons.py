@@ -79,6 +79,14 @@ def parse_names(values):
   return names
 
 
+def default_source_dirs(repo_root):
+  sources = [repo_root / "images" / "item"]
+  supplemental = repo_root / "images" / "0615补充"
+  if supplemental.exists():
+    sources.append(supplemental)
+  return sources
+
+
 def display_name_for(base):
   return base.split("__", 1)[0]
 
@@ -285,23 +293,57 @@ def build_by_id_entries(manifest, frontend_root):
   }
 
 
-def collect_groups(source_dir):
+def collect_groups(source_dirs):
   groups = defaultdict(dict)
-  for file_path in sorted(source_dir.iterdir(), key=lambda item: item.name.lower()):
-    if not file_path.is_file() or file_path.suffix.lower() not in SUPPORTED_SOURCE_SUFFIXES:
-      continue
-    match = VARIANT_RE.match(file_path.name)
-    if not match:
-      continue
-    base = match.group("base")
-    variant = match.group("variant")
-    previous = groups[base].get(variant)
-    if previous and previous.suffix.lower() == ".webp":
-      continue
-    if previous and file_path.suffix.lower() != ".webp":
-      continue
-    groups[base][variant] = file_path
-  return dict(sorted(groups.items(), key=lambda item: item[0]))
+  sources = defaultdict(dict)
+  duplicate_sources = []
+
+  for source_index, source_dir in enumerate(source_dirs):
+    for file_path in sorted(source_dir.iterdir(), key=lambda item: item.name.lower()):
+      if not file_path.is_file() or file_path.suffix.lower() not in SUPPORTED_SOURCE_SUFFIXES:
+        continue
+      match = VARIANT_RE.match(file_path.name)
+      if not match:
+        continue
+      base = match.group("base")
+      variant = match.group("variant")
+      previous = groups[base].get(variant)
+      previous_source = sources[base].get(variant)
+
+      should_replace = (
+        previous is not None
+        and previous_source
+        and previous_source["index"] == source_index
+        and previous.suffix.lower() != ".webp"
+        and file_path.suffix.lower() == ".webp"
+      )
+      if previous and not should_replace:
+        duplicate_sources.append({
+          "base": base,
+          "variant": variant,
+          "kept": str(previous),
+          "ignored": str(file_path),
+        })
+        continue
+      if previous and should_replace:
+        duplicate_sources.append({
+          "base": base,
+          "variant": variant,
+          "kept": str(file_path),
+          "ignored": str(previous),
+        })
+
+      groups[base][variant] = file_path
+      sources[base][variant] = {
+        "index": source_index,
+        "source": str(source_dir),
+      }
+
+  source_report = {
+    "sources": [str(source_dir) for source_dir in source_dirs],
+    "duplicates": duplicate_sources,
+  }
+  return dict(sorted(groups.items(), key=lambda item: item[0])), source_report
 
 
 def resize_to_webp(source_file, target_file, size, quality):
@@ -360,7 +402,8 @@ def main():
   repo_root = Path(__file__).resolve().parents[2]
   frontend_root = Path(__file__).resolve().parents[1]
   parser = argparse.ArgumentParser(description="Prepare Taoyuan item icons for runtime use.")
-  parser.add_argument("--source", default=str(repo_root / "images" / "item"))
+  parser.add_argument("--source", action="append", default=None)
+  parser.add_argument("--extra-source", action="append", default=[])
   parser.add_argument("--out", default=str(frontend_root / "public" / "item"))
   parser.add_argument("--sizes", default="128,256")
   parser.add_argument("--quality", type=int, default=82)
@@ -371,15 +414,18 @@ def main():
   parser.add_argument("--zip", action="store_true")
   args = parser.parse_args()
 
-  source_dir = Path(args.source).resolve()
+  raw_sources = args.source if args.source else [str(source) for source in default_source_dirs(repo_root)]
+  raw_sources.extend(args.extra_source or [])
+  source_dirs = [Path(source).resolve() for source in raw_sources]
   output_dir = Path(args.out).resolve()
   sizes = parse_sizes(args.sizes)
   selected_names = parse_names(args.names)
 
-  if not source_dir.exists():
-    raise SystemExit(f"source directory not found: {source_dir}")
+  missing_source_dirs = [source_dir for source_dir in source_dirs if not source_dir.exists()]
+  if missing_source_dirs:
+    raise SystemExit(f"source directory not found: {missing_source_dirs[0]}")
 
-  groups = collect_groups(source_dir)
+  groups, source_report = collect_groups(source_dirs)
   if selected_names:
     groups = {
       base: variants
@@ -448,6 +494,8 @@ def main():
     "candidateItemIds": id_mapping_report["candidateIds"],
     "ambiguousDisplayNames": len(manifest["ambiguousDisplayNames"]),
     "missingVariantGroups": len(missing_variants),
+    "sourceDirs": len(source_dirs),
+    "duplicateSourceVariants": len(source_report["duplicates"]),
   }
 
   output_dir.mkdir(parents=True, exist_ok=True)
@@ -488,7 +536,8 @@ def main():
   qa_report = {
     "version": version,
     "generatedAt": manifest["generatedAt"],
-    "source": str(source_dir),
+    "source": str(source_dirs[0]),
+    "sources": source_report["sources"],
     "out": str(output_dir),
     "groups": len(groups),
     "variantSourceFiles": len(tasks),
@@ -496,6 +545,7 @@ def main():
     "sizes": sizes,
     "missingVariants": missing_variants,
     "ambiguousDisplayNames": manifest["ambiguousDisplayNames"],
+    "duplicateSourceVariants": source_report["duplicates"],
     "idMapping": id_mapping_report,
   }
   qa_report_path = output_dir / "item-icon-qa-report.json"
@@ -507,7 +557,8 @@ def main():
     build_zip(output_dir, zip_path)
 
   summary = {
-    "source": str(source_dir),
+    "source": str(source_dirs[0]),
+    "sources": source_report["sources"],
     "out": str(output_dir),
     "groups": len(groups),
     "convertedFiles": converted,
@@ -516,6 +567,7 @@ def main():
     "zip": str(zip_path) if zip_path else None,
     "missingVariantGroups": len(missing_variants),
     "ambiguousDisplayNames": len(manifest["ambiguousDisplayNames"]),
+    "duplicateSourceVariants": len(source_report["duplicates"]),
     "mappedItemIds": id_mapping_report["mappedIds"],
     "candidateItemIds": id_mapping_report["candidateIds"],
     "runtimeDuplicateIds": len(id_mapping_report["runtimeDuplicateIds"]),

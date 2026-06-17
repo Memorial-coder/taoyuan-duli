@@ -46,13 +46,16 @@ assert(sampleSavesSource.includes("recommendedRouteName: 'potential'"), 'late-ga
 
 for (const testId of [
   'potential-view',
+  'potential-overview-section',
   'potential-resource-grid',
   'potential-unlock-result',
   'potential-upgrade-dialog',
+  'potential-current-section',
   'potential-branch-summary',
   'potential-next-step',
   'potential-node-grid',
   'potential-respec-panel',
+  'potential-source-section',
   'potential-source-grid',
   'potential-source-progress'
 ]) {
@@ -66,12 +69,32 @@ assert(potentialViewSource.includes('effectChangeDisplay'), 'potential upgrade f
 assert(potentialViewSource.includes('pendingUpgradeNodeId') && potentialViewSource.includes('upgradePreview'), 'potential page must stage upgrade preview state before spending resources.')
 assert(potentialViewSource.includes('openUpgradePreview') && potentialViewSource.includes('confirmUpgrade'), 'potential page must preview and confirm potential upgrades separately.')
 assert(potentialViewSource.includes('下一级预览') && potentialViewSource.includes('确认参悟'), 'potential upgrade dialog must show the next-rank preview and confirmation action.')
+assert(potentialViewSource.includes('potential-section-panel') && potentialViewSource.includes('potential-section-header') && potentialViewSource.includes('potential-section-title'), 'potential page must use shallow section panels for visual grouping.')
+assert(
+  /data-testid="potential-overview-section"[\s\S]*data-testid="potential-resource-grid"[\s\S]*role="tablist"/.test(potentialViewSource),
+  'potential overview section must group resources with branch entry tabs.'
+)
+assert(
+  /data-testid="potential-current-section"[\s\S]*data-testid="potential-branch-summary"[\s\S]*data-testid="potential-next-step"[\s\S]*data-testid="potential-node-grid"/.test(potentialViewSource),
+  'potential current section must group branch summary, next step, and node cards.'
+)
+assert(
+  /data-testid="potential-source-section"[\s\S]*data-testid="potential-source-grid"/.test(potentialViewSource),
+  'potential source section must frame source progress rows.'
+)
+assert(potentialViewSource.includes('potential-respec-content'), 'potential respec panel must keep its action content inside a shallow framed row.')
+assert(/<Transition name="potential-upgrade-pop">[\s\S]*data-testid="potential-upgrade-dialog"/.test(potentialViewSource), 'potential upgrade dialog must use a transition animation.')
+assert(
+  potentialViewSource.includes('.potential-upgrade-pop-enter-active') && potentialViewSource.includes('@media (prefers-reduced-motion: reduce)'),
+  'potential upgrade dialog transition must include reduced-motion handling.'
+)
 assert(potentialViewSource.includes('getPotentialSourceProgress'), 'potential source rows must show current period progress.')
 assert(potentialViewSource.includes('potential-status-badge'), 'potential nodes must expose clear state badges.')
 assert(potentialViewSource.includes('potential-node-ready') && !potentialViewSource.includes('potential-node-planned'), 'potential nodes must distinguish ready states without showing planned-state styling.')
 assert(potentialViewSource.includes("nextStep.action === 'randomNpc'") && potentialViewSource.includes("navigateToPanel('village')"), 'potential page must route random NPC gates to the village panel.')
 assert(!potentialViewSource.includes('暂未开放') && !potentialViewSource.includes('首版') && !potentialViewSource.includes('规划中'), 'potential page must not expose first-version or planned-state copy.')
 assert(potentialViewSource.includes('@media (max-width: 420px)'), 'potential page must keep a mobile-specific layout guard.')
+assert(potentialViewSource.includes('.potential-section-panel') && potentialViewSource.includes('padding: 0.625rem'), 'potential section panels must tighten spacing on narrow screens.')
 assert(potentialViewSource.includes('grid-template-columns: repeat(2, minmax(0, 1fr))'), 'potential branch tabs must collapse on narrow screens.')
 assert(potentialViewSource.includes('grid-template-columns: minmax(0, 1fr)'), 'potential node grid must become single-column on narrow screens.')
 assert(potentialViewSource.includes('.potential-action-btn') && potentialViewSource.includes('width: 100%'), 'potential upgrade buttons must have stable width.')

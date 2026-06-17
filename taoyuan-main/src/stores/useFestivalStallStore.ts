@@ -28,6 +28,7 @@ export interface FestivalStallSaveSyncState {
     | 'current_session_not_server'
     | 'no_active_session_slot'
     | 'current_session_slot_mismatch'
+    | 'idempotency_replayed'
     | 'load_failed'
   reason_detail:
     | 'synced'
@@ -37,6 +38,7 @@ export interface FestivalStallSaveSyncState {
     | 'no_active_runtime_session_slot'
     | 'current_runtime_session_slot_mismatch'
     | 'current_runtime_session_has_pending_local_copy'
+    | 'idempotency_replayed'
     | 'load_failed'
   message: string
 }
@@ -140,6 +142,24 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
         reason: 'no_save_slot',
         reason_detail: 'no_save_slot',
         message: '节庆摊位购买已完成，但本次操作没有写入有效的服务端存档槽位。'
+      })
+    }
+
+    if (result.idempotency_replayed === true) {
+      const saveRevision = normalizeSaveRevision(result.save_revision)
+      if (saveRevision !== null && currentSessionSlot === normalizedSaveSlot) {
+        saveStore.acknowledgeServerSlotRevision(currentSessionSlot, saveRevision)
+      }
+      return buildSaveSyncState({
+        attempted: false,
+        current_session_synced: false,
+        current_storage_mode: currentStorageMode,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        purchase_save_slot: normalizedSaveSlot,
+        reason: 'idempotency_replayed',
+        reason_detail: 'idempotency_replayed',
+        message: '节庆摊位已确认这是一笔重复回执，本次没有重复合并奖励；如当前运行态未更新，请重新载入服务端存档确认。'
       })
     }
 

@@ -180,6 +180,35 @@ function getExistingTransactionReceipt(weekState, username, offerId, idempotency
   return normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey)
 }
 
+function countUserOfferClaims(weekState, username, offerId) {
+  const targetUsername = String(username || '')
+  const targetOfferId = String(offerId || '')
+  const usageCount = clampPositiveInt(weekState.user_usage?.[targetUsername]?.[targetOfferId], 0)
+  const recordCount = Array.isArray(weekState.records)
+    ? weekState.records.filter(record => record?.username === targetUsername && record?.offer_id === targetOfferId).length
+    : 0
+  const receiptCount = Object.entries(weekState.transaction_receipts || {})
+    .map(([key, value]) => normalizeTransactionReceipt(value, key))
+    .filter(receipt =>
+      receipt?.status === 'succeeded'
+      && receipt.username === targetUsername
+      && receipt.offer_id === targetOfferId
+    ).length
+  return Math.max(usageCount, recordCount, receiptCount)
+}
+
+function countGlobalOfferClaims(weekState, offerId) {
+  const targetOfferId = String(offerId || '')
+  const usageCount = clampPositiveInt(weekState.offer_claims?.[targetOfferId], 0)
+  const recordCount = Array.isArray(weekState.records)
+    ? weekState.records.filter(record => record?.offer_id === targetOfferId).length
+    : 0
+  const receiptCount = Object.entries(weekState.transaction_receipts || {})
+    .map(([key, value]) => normalizeTransactionReceipt(value, key))
+    .filter(receipt => receipt?.status === 'succeeded' && receipt.offer_id === targetOfferId).length
+  return Math.max(usageCount, recordCount, receiptCount)
+}
+
 function beginTransactionReceipt(store, weekKey, weekState, username, offerId, idempotencyKey) {
   const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey)
   const existing = normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey)
@@ -768,8 +797,8 @@ function getFestivalCatalog(themeId = '') {
 }
 
 function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '', availability = getFestivalAvailability(saveData)) {
-  const claimedByUser = clampPositiveInt(weekState.user_usage?.[username]?.[offer.id], 0)
-  const claimedGlobal = clampPositiveInt(weekState.offer_claims?.[offer.id], 0)
+  const claimedByUser = countUserOfferClaims(weekState, username, offer.id)
+  const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)
   const remainingGlobal = Math.max(0, clampPositiveInt(offer.station_stock, 0) - claimedGlobal)
   let canExchange = true
   let disabledReason = ''
@@ -933,8 +962,8 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
   const userUsage = weekState.user_usage[username] && typeof weekState.user_usage[username] === 'object'
     ? weekState.user_usage[username]
     : {}
-  const claimedByUser = clampPositiveInt(userUsage[offer.id], 0)
-  const claimedGlobal = clampPositiveInt(weekState.offer_claims[offer.id], 0)
+  const claimedByUser = countUserOfferClaims(weekState, username, offer.id)
+  const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)
   if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
     throw createError('本周该摊位已达到个人购买上限')
   }
@@ -978,8 +1007,8 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     rewards: offer.rewards,
   })
 
-  weekState.user_usage[username] = { ...userUsage, [offer.id]: clampPositiveInt(userUsage[offer.id], 0) + 1 }
-  weekState.offer_claims[offer.id] = clampPositiveInt(weekState.offer_claims[offer.id], 0) + 1
+  weekState.user_usage[username] = { ...userUsage, [offer.id]: claimedByUser + 1 }
+  weekState.offer_claims[offer.id] = claimedGlobal + 1
   weekState.records = [record, ...weekState.records].slice(0, MAX_RECORDS_TO_KEEP)
 
   const responsePayload = {

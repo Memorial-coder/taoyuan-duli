@@ -55,13 +55,13 @@
       </div>
       <div v-if="filteredItems.length > 0" class="inventory-adaptive-item-grid grid grid-cols-3 md:grid-cols-5 gap-1.5">
         <ItemCard
-          v-for="(item, idx) in filteredItems"
-          :key="`${item.itemId}-${item.quality}-${idx}`"
+          v-for="item in filteredItems"
+          :key="`${item.itemId}-${item.quality}`"
           :item="getItemById(item.itemId) ?? null"
           :quantity="item.quantity"
           :quality="item.quality"
           :locked="item.locked"
-          @click="activeItemIndex = inventoryStore.items.indexOf(item)"
+          @click="openVisibleInventoryItem(item)"
         />
 
         <!-- 空格子 -->
@@ -602,9 +602,9 @@
 
     <!-- 物品详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="activeItem" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeItemIndex = null">
+      <div v-if="activeItem" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="closeActiveItem">
         <div class="game-panel max-w-xs w-full relative">
-          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeItemIndex = null">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closeActiveItem">
             <X :size="14" />
           </button>
 
@@ -1023,7 +1023,7 @@
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
-  import type { Quality, RingEffectType, ItemCategory } from '@/types'
+  import type { Quality, RingEffectType, ItemCategory, InventoryItem } from '@/types'
 
   const MOON_RABBIT_TEA_MEDICINE_ITEM_IDS = new Set([
     'green_tea_drink',
@@ -1118,22 +1118,57 @@
     text: string
   }
 
+  interface VisibleInventoryItem {
+    itemId: string
+    quality: Quality
+    quantity: number
+    locked: boolean
+  }
+
+  type ActiveInventoryItemKey = Pick<VisibleInventoryItem, 'itemId' | 'quality'>
+
   const isFilterActive = computed(() => settingsStore.inventoryFilter.length > 0 || settingsStore.inventoryCropUseFilter.length > 0)
 
-  const filteredItems = computed(() => {
-    if (settingsStore.inventoryFilter.length === 0 && settingsStore.inventoryCropUseFilter.length === 0) return inventoryStore.items
+  const getVisibleInventoryKey = (item: ActiveInventoryItemKey): string => `${item.itemId}:${item.quality}`
+
+  const getVisibleInventoryItems = (sourceItems: InventoryItem[]): VisibleInventoryItem[] => {
+    const merged = new Map<string, VisibleInventoryItem>()
+    for (const item of sourceItems) {
+      const key = getVisibleInventoryKey(item)
+      const existing = merged.get(key)
+      if (existing) {
+        existing.quantity += item.quantity
+        existing.locked = existing.locked || !!item.locked
+      } else {
+        merged.set(key, {
+          itemId: item.itemId,
+          quality: item.quality,
+          quantity: item.quantity,
+          locked: !!item.locked
+        })
+      }
+    }
+    return [...merged.values()]
+  }
+
+  const visibleInventoryItems = computed(() => getVisibleInventoryItems(inventoryStore.items))
+
+  const isItemAllowedByFilters = (item: InventoryItem): boolean => {
+    if (settingsStore.inventoryFilter.length === 0 && settingsStore.inventoryCropUseFilter.length === 0) return true
     const allowedCategories = new Set(settingsStore.inventoryFilter)
     const allowedCropUseTags = new Set(settingsStore.inventoryCropUseFilter)
-    return inventoryStore.items.filter(item => {
-      const def = getItemById(item.itemId)
-      if (!def) return false
-      const categoryMatched = allowedCategories.size === 0 || allowedCategories.has(def.category)
-      if (!categoryMatched) return false
-      if (allowedCropUseTags.size === 0) return true
-      if (def.category !== 'crop') return false
-      const profile = getCropUseProfile(def.id)
-      return !!profile && profile.tags.some(tag => allowedCropUseTags.has(tag))
-    })
+    const def = getItemById(item.itemId)
+    if (!def) return false
+    const categoryMatched = allowedCategories.size === 0 || allowedCategories.has(def.category)
+    if (!categoryMatched) return false
+    if (allowedCropUseTags.size === 0) return true
+    if (def.category !== 'crop') return false
+    const profile = getCropUseProfile(def.id)
+    return !!profile && profile.tags.some(tag => allowedCropUseTags.has(tag))
+  }
+
+  const filteredItems = computed(() => {
+    return getVisibleInventoryItems(inventoryStore.items.filter(isItemAllowedByFilters))
   })
 
   const buildCropUseRecommendationText = (tags: CropUseTag[]): string => {
@@ -1155,7 +1190,7 @@
       : CROP_USE_RECOMMENDATION_PRIORITY
     const selectedTagSet = new Set(selectedTags)
 
-    return inventoryStore.items
+    return visibleInventoryItems.value
       .map(item => {
         const def = getItemById(item.itemId)
         if (def?.category !== 'crop') return null
@@ -1176,8 +1211,8 @@
   })
 
   const openInventoryItem = (itemId: string) => {
-    const index = inventoryStore.items.findIndex(item => item.itemId === itemId)
-    if (index >= 0) activeItemIndex.value = index
+    const item = visibleInventoryItems.value.find(entry => entry.itemId === itemId)
+    if (item) openVisibleInventoryItem(item)
   }
 
   const openFilterModal = () => {
@@ -1682,11 +1717,22 @@
 
   // === 物品弹窗 ===
 
-  const activeItemIndex = ref<number | null>(null)
+  const activeItemKey = ref<ActiveInventoryItemKey | null>(null)
+
+  const openVisibleInventoryItem = (item: ActiveInventoryItemKey) => {
+    activeItemKey.value = { itemId: item.itemId, quality: item.quality }
+  }
+
+  const closeActiveItem = () => {
+    activeItemKey.value = null
+  }
+
+  const hasVisibleInventoryItem = (itemId: string, quality: Quality): boolean =>
+    visibleInventoryItems.value.some(item => item.itemId === itemId && item.quality === quality)
 
   const activeItem = computed(() => {
-    if (activeItemIndex.value === null || activeItemIndex.value < 0 || activeItemIndex.value >= inventoryStore.items.length) return null
-    return inventoryStore.items[activeItemIndex.value] ?? null
+    if (!activeItemKey.value) return null
+    return visibleInventoryItems.value.find(item => getVisibleInventoryKey(item) === getVisibleInventoryKey(activeItemKey.value!)) ?? null
   })
 
   const activeItemDef = computed(() => {
@@ -1779,8 +1825,8 @@
         addLog(result.message)
       }
       // 物品消耗完则关闭弹窗
-      if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-        activeItemIndex.value = null
+      if (!hasVisibleInventoryItem(itemId, quality)) {
+        closeActiveItem()
       }
       return
     }
@@ -1795,8 +1841,8 @@
     })
     addLog(result.message)
     // 物品消耗完则关闭弹窗
-    if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-      activeItemIndex.value = null
+    if (!hasVisibleInventoryItem(itemId, quality)) {
+      closeActiveItem()
     }
   }
 
@@ -1818,8 +1864,8 @@
     if (alchemyRecipe?.alchemy) {
       const result = cookingStore.useElixir(itemId, quality)
       addLog(result.message)
-      if (result.success && !inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-        activeItemIndex.value = null
+      if (result.success && !hasVisibleInventoryItem(itemId, quality)) {
+        closeActiveItem()
       }
       return
     }
@@ -1827,8 +1873,8 @@
     if (miningStore.isGuildGrowthItem(itemId)) {
       const result = miningStore.useGuildGrowthItem(itemId, quality)
       addLog(result.message)
-      if (result.success && !inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-        activeItemIndex.value = null
+      if (result.success && !hasVisibleInventoryItem(itemId, quality)) {
+        closeActiveItem()
       }
       return
     }
@@ -1848,8 +1894,8 @@
       addLog(`食用了仙桃，体力上限永久提升至${playerStore.maxStamina}！`)
     }
     // 物品消耗完则关闭弹窗
-    if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-      activeItemIndex.value = null
+    if (!hasVisibleInventoryItem(itemId, quality)) {
+      closeActiveItem()
     }
   }
 
@@ -1858,7 +1904,7 @@
   const discardMode = ref(false)
   const discardQty = ref(1)
 
-  watch(activeItemIndex, () => {
+  watch(activeItemKey, () => {
     discardMode.value = false
   })
 
@@ -1883,8 +1929,8 @@
     addLog(`丢弃了${name}×${qty}。`)
     discardMode.value = false
     // 物品消耗完则关闭弹窗
-    if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-      activeItemIndex.value = null
+    if (!hasVisibleInventoryItem(itemId, quality)) {
+      closeActiveItem()
     }
   }
 

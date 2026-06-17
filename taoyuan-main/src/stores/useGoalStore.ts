@@ -1,6 +1,6 @@
 ﻿import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getItemById, getThemeWeekBySeason, getThemeWeekRewardPool, getWeeklyGoalsBySeasonWeek } from '@/data'
+import { getItemById, getThemeWeekBySeason, getThemeWeekRewardPool, getWeeklyGoalsBySeasonWeek, ITEMS } from '@/data'
 import {
   DAILY_GOAL_DEFS,
   GOAL_BIAS_MAP,
@@ -164,6 +164,8 @@ const WEEKLY_CHRONICLE_LIMIT = 8
 const WEEKLY_ACTIVITY_THEME_IDS = new Set<WeeklyActivityThemeId>(['fishpond', 'breeding', 'gathering', 'mining', 'planting', 'region_map'])
 const WEEKLY_ACTIVITY_TASK_KINDS = new Set(['counter', 'metric', 'itemSubmission', 'fishSubmission', 'seedSubmission'])
 const WEEKLY_ACTIVITY_REWARD_THRESHOLDS_SET = new Set([5, 7, 10])
+const LEGACY_REGION_MAP_DISCOVERY_ACTIVITY_TASK_ID = 'weekly_activity_region_map_discover_3'
+const REGION_MAP_PROGRESS_ACTIVITY_TASK_ID = 'weekly_activity_region_map_progress_actions_3'
 
 const WEEKLY_PLAN_ROUTE_LABELS: Record<WeeklyPlanRouteId, string> = {
   top_goals: 'TopGoals',
@@ -1199,6 +1201,17 @@ export const useGoalStore = defineStore('goal', () => {
     regionalResourceTurnIns: getMetricValue('regionalResourceTurnIns')
   })
 
+  const getRemainingDiscoveryGoalCapacity = () => {
+    const achievementStore = useAchievementStore()
+    const discoveredItemIds = new Set(achievementStore.discoveredItems)
+    return ITEMS.filter(item => !discoveredItemIds.has(item.id)).length
+  }
+
+  const isGoalTemplateFeasible = (goal: GoalTemplate) => {
+    if (goal.metric !== 'discoveredCount') return true
+    return getRemainingDiscoveryGoalCapacity() >= Math.max(1, goal.targetValue)
+  }
+
   const buildLateGameMetricSnapshot = (
     weekInfo: WeekCycleInfo,
     generatedAtDayTag: string,
@@ -1425,7 +1438,7 @@ export const useGoalStore = defineStore('goal', () => {
     const gameStore = useGameStore()
     const walletStore = useWalletStore()
     const season = gameStore.season as 'spring' | 'summer' | 'autumn' | 'winter'
-    const pool = [...DAILY_GOAL_DEFS[season]]
+    const pool = DAILY_GOAL_DEFS[season].filter(isGoalTemplateFeasible)
     const rng = seededRandom(getAbsoluteDay(gameStore.year, season, gameStore.day) + 97)
     const goalWeights = walletStore.getGoalPreferenceWeights()
 
@@ -1478,7 +1491,9 @@ export const useGoalStore = defineStore('goal', () => {
     const gameStore = useGameStore()
     const season = gameStore.season as 'spring' | 'summer' | 'autumn' | 'winter'
     const snapshot = getMetricSnapshot()
-    seasonGoals.value = SEASON_GOAL_DEFS[season].map(goal => createGoalState(goal, snapshot[goal.metric] ?? 0, 'season'))
+    seasonGoals.value = SEASON_GOAL_DEFS[season]
+      .filter(isGoalTemplateFeasible)
+      .map(goal => createGoalState(goal, snapshot[goal.metric] ?? 0, 'season'))
     lastSeasonGoalRefresh.value = getCurrentSeasonTag()
     if (announce) {
       addLog(`【季节目标】进入${SEASON_NAMES[season]}季，新的本季目标已经刷新。`)
@@ -1612,22 +1627,37 @@ export const useGoalStore = defineStore('goal', () => {
     if (typeof raw.id !== 'string' || typeof raw.title !== 'string' || typeof raw.description !== 'string') return null
     if (!raw.themeId || !WEEKLY_ACTIVITY_THEME_IDS.has(raw.themeId)) return null
     if (!raw.kind || !WEEKLY_ACTIVITY_TASK_KINDS.has(raw.kind)) return null
+    const isLegacyRegionMapDiscoveryTask =
+      raw.id === LEGACY_REGION_MAP_DISCOVERY_ACTIVITY_TASK_ID &&
+      raw.themeId === 'region_map' &&
+      raw.kind === 'metric' &&
+      raw.metricKey === 'discoveredCount'
+    const targetValue = isLegacyRegionMapDiscoveryTask
+      ? 3
+      : Math.max(1, Number(raw.targetValue) || 1)
+    const progressValue = isLegacyRegionMapDiscoveryTask
+      ? (raw.completed === true ? targetValue : 0)
+      : Math.max(0, Number(raw.progressValue) || 0)
     return {
-      id: raw.id,
+      id: isLegacyRegionMapDiscoveryTask ? REGION_MAP_PROGRESS_ACTIVITY_TASK_ID : raw.id,
       themeId: raw.themeId,
-      title: raw.title,
-      description: raw.description,
-      kind: raw.kind,
-      targetValue: Math.max(1, Number(raw.targetValue) || 1),
-      progressUnit: typeof raw.progressUnit === 'string' ? raw.progressUnit : undefined,
-      counterKey: raw.counterKey,
-      metricKey: raw.metricKey,
+      title: isLegacyRegionMapDiscoveryTask ? '整理行旅记录' : raw.title,
+      description: isLegacyRegionMapDiscoveryTask ? '本周完成 3 次行旅路线、区域资源交付或首领结算。' : raw.description,
+      kind: isLegacyRegionMapDiscoveryTask ? 'counter' : raw.kind,
+      targetValue,
+      progressUnit: isLegacyRegionMapDiscoveryTask ? '次' : typeof raw.progressUnit === 'string' ? raw.progressUnit : undefined,
+      counterKey: isLegacyRegionMapDiscoveryTask ? 'region_map_progress_actions' : raw.counterKey,
+      metricKey: isLegacyRegionMapDiscoveryTask ? undefined : raw.metricKey,
       itemSubmission: raw.itemSubmission,
       fishSubmission: raw.fishSubmission,
       seedSubmission: raw.seedSubmission,
-      routeId: raw.routeId,
-      baselineValue: Number.isFinite(Number(raw.baselineValue)) ? Number(raw.baselineValue) : undefined,
-      progressValue: Math.max(0, Number(raw.progressValue) || 0),
+      routeId: isLegacyRegionMapDiscoveryTask ? 'region-map' : raw.routeId,
+      baselineValue: isLegacyRegionMapDiscoveryTask
+        ? undefined
+        : Number.isFinite(Number(raw.baselineValue))
+          ? Number(raw.baselineValue)
+          : undefined,
+      progressValue,
       completed: raw.completed === true
     }
   }
@@ -1645,6 +1675,11 @@ export const useGoalStore = defineStore('goal', () => {
           Object.entries(raw.counters).map(([key, amount]) => [key, Math.max(0, Number(amount) || 0)])
         )
       : {}
+    for (const task of tasks) {
+      if (task.kind === 'counter' && task.counterKey && task.progressValue > 0) {
+        counters[task.counterKey] = Math.max(counters[task.counterKey] ?? 0, task.progressValue)
+      }
+    }
     return {
       version: Math.max(1, Number(raw.version) || WEEKLY_ACTIVITY_STATE_VERSION),
       weekId: raw.weekId,
@@ -2395,7 +2430,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (data?.lastSeasonGoalRefresh === getCurrentSeasonTag()) {
       const gameStore = useGameStore()
       const season = gameStore.season as 'spring' | 'summer' | 'autumn' | 'winter'
-      seasonGoals.value = mergeSavedGoalArray(SEASON_GOAL_DEFS[season], data?.seasonGoals, snapshot, 'season')
+      seasonGoals.value = mergeSavedGoalArray(SEASON_GOAL_DEFS[season].filter(isGoalTemplateFeasible), data?.seasonGoals, snapshot, 'season')
       lastSeasonGoalRefresh.value = data.lastSeasonGoalRefresh
     } else {
       seasonGoals.value = []

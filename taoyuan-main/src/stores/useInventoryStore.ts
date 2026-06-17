@@ -684,10 +684,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     misc: 20
   }
 
-  /** 切换物品锁定状态 */
+  /** 切换同物品同品质的全部批次锁定状态 */
   const toggleLock = (itemId: string, quality: Quality) => {
-    const slot = items.value.find(i => i.itemId === itemId && i.quality === quality)
-    if (slot) slot.locked = !slot.locked
+    const slots = items.value.filter(i => i.itemId === itemId && i.quality === quality)
+    if (slots.length <= 0) return
+    const nextLocked = !slots.some(slot => slot.locked)
+    for (const slot of slots) {
+      slot.locked = nextLocked
+    }
   }
 
   /** 切换装备锁定状态（锁定后禁止出售） */

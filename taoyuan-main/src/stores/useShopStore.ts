@@ -71,6 +71,8 @@ import type {
   RelationshipStage,
   RewardTicketType,
   SellPriceBreakdown,
+  SkillPerk15,
+  SkillPerk20,
   ShopCatalogContentTier,
   ShopCatalogDebugSnapshot,
   ShopCatalogEntitlementStatus,
@@ -124,6 +126,19 @@ const QUALITY_PRICE_LABELS: Record<Quality, string> = {
   excellent: '精品',
   supreme: '极品'
 }
+const SELL_PRICE_PERK_LABELS: Partial<Record<SkillPerk15 | SkillPerk20, string>> = {
+  livestock_baron: '牲畜大亨',
+  animal_whisperer: '动物语者',
+  aquatic_merchant: '水产巨商',
+  legendary_angler: '传说垂钓者',
+  beast_sovereign: '兽王',
+  nature_bond: '自然契约',
+  ocean_trader: '海洋贸易商',
+  fish_god: '鱼神'
+}
+const sellPricePerkLabel = (perk: SkillPerk15 | SkillPerk20 | null | undefined, fallback: string): string => (
+  perk ? (SELL_PRICE_PERK_LABELS[perk] ?? fallback) : fallback
+)
 const MARKET_CATEGORY_IDS: MarketCategory[] = ['crop', 'fish', 'animal_product', 'processed', 'fruit', 'ore', 'gem']
 const isMarketCategory = (category: string): category is MarketCategory =>
   MARKET_CATEGORY_IDS.includes(category as MarketCategory)
@@ -2399,10 +2414,10 @@ export const useShopStore = defineStore('shop', () => {
       pushStep({ id: 'farming_perk15_processed', label: '技能：高阶加工', category: 'skill', multiplier: 1.4, description: '加工品售价额外 +40%' })
     }
     if (itemDef.category === 'animal_product' && (farmSkill.perk15 === 'livestock_baron' || farmSkill.perk15 === 'animal_whisperer')) {
-      pushStep({ id: 'farming_perk15_animal', label: '技能：高阶牧养', category: 'skill', multiplier: 1.3, description: '畜产品售价额外 +30%' })
+      pushStep({ id: 'farming_perk15_animal', label: `技能：${sellPricePerkLabel(farmSkill.perk15, '农耕15级')}`, category: 'skill', multiplier: 1.3, description: '动物产品售价 +30%' })
     }
     if (itemDef.category === 'fish' && (fishSkill.perk15 === 'legendary_angler' || fishSkill.perk15 === 'aquatic_merchant')) {
-      pushStep({ id: 'fishing_perk15', label: '技能：高阶渔业', category: 'skill', multiplier: 1.3, description: '鱼类售价额外 +30%' })
+      pushStep({ id: 'fishing_perk15', label: `技能：${sellPricePerkLabel(fishSkill.perk15, '钓鱼15级')}`, category: 'skill', multiplier: 1.3, description: '鱼类售价 +30%' })
     }
     if (itemDef.category === 'ore' && (mineSkill.perk15 === 'vein_seeker' || mineSkill.perk15 === 'master_smith')) {
       pushStep({ id: 'mining_perk15', label: '技能：高阶矿业', category: 'skill', multiplier: 1.3, description: '矿石售价额外 +30%' })
@@ -2414,12 +2429,12 @@ export const useShopStore = defineStore('shop', () => {
       pushStep({ id: 'farming_perk20_processed', label: '技能：终阶加工', category: 'skill', multiplier: 1.5, description: '加工品售价额外 +50%' })
     }
     if (itemDef.category === 'animal_product' && (farmSkill.perk20 === 'beast_sovereign' || farmSkill.perk20 === 'nature_bond')) {
-      pushStep({ id: 'farming_perk20_animal', label: '技能：终阶牧养', category: 'skill', multiplier: 1.5, description: '畜产品售价额外 +50%' })
+      pushStep({ id: 'farming_perk20_animal', label: `技能：${sellPricePerkLabel(farmSkill.perk20, '农耕20级')}`, category: 'skill', multiplier: 1.5, description: '动物产品售价 +50%' })
     }
     if (itemDef.category === 'fish' && fishSkill.perk20 === 'ocean_trader') {
-      pushStep({ id: 'fishing_perk20_ocean_trader', label: '技能：海洋贸易商', category: 'skill', multiplier: 2.0, description: '所有鱼售价 +100%' })
+      pushStep({ id: 'fishing_perk20_ocean_trader', label: `技能：${sellPricePerkLabel(fishSkill.perk20, '钓鱼20级')}`, category: 'skill', multiplier: 2.0, description: '所有鱼售价 +100%' })
     } else if (itemDef.category === 'fish' && fishSkill.perk20 === 'fish_god') {
-      pushStep({ id: 'fishing_perk20_fish_god', label: '技能：鱼神', category: 'skill', multiplier: 1.5, description: '鱼类售价额外 +50%' })
+      pushStep({ id: 'fishing_perk20_fish_god', label: `技能：${sellPricePerkLabel(fishSkill.perk20, '钓鱼20级')}`, category: 'skill', multiplier: 1.5, description: '鱼类售价 +50%' })
     }
     if (itemDef.category === 'ore' && mineSkill.perk20 === 'forge_god') {
       pushStep({ id: 'mining_perk20_forge_god', label: '技能：锻造之神', category: 'skill', multiplier: 3.0, description: '金属矿石售价 ×3' })

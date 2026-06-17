@@ -105,7 +105,7 @@ export const ACTION_TIME_COSTS = {
   batchTill: 0.25,
   batchHarvest: 0.5,
   // 淘金
-  pan: 1,
+  pan: 0.5,
   // UI
   checkInventory: 0,
   checkSkills: 0,

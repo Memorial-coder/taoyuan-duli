@@ -22,10 +22,12 @@ const [
   festivalStallStore,
   festivalStallApi,
   festivalStallRuntime,
+  shopView,
 ] = await Promise.all([
   readAppSource(path.join('src', 'stores', 'useFestivalStallStore.ts')),
   readAppSource(path.join('src', 'utils', 'festivalStallApi.ts')),
   readRepoSource(path.join('server', 'src', 'taoyuanFestivalStall.js')),
+  readAppSource(path.join('src', 'views', 'game', 'ShopView.vue')),
 ])
 
 const syncAfterPurchase = extractBetween(
@@ -45,6 +47,14 @@ assert(
 assert(
   syncAfterPurchase.includes('applyPurchaseDeltaToCurrentSession(result)'),
   'festival stall sync must apply only the purchase delta to the current runtime'
+)
+assert(
+  syncAfterPurchase.includes('result.idempotency_replayed === true'),
+  'festival stall sync must detect idempotency replay receipts'
+)
+assert(
+  syncAfterPurchase.indexOf('result.idempotency_replayed === true') < syncAfterPurchase.indexOf('applyPurchaseDeltaToCurrentSession(result)'),
+  'festival stall idempotency replay receipts must skip duplicate reward delta application'
 )
 assert(
   syncAfterPurchase.includes('acknowledgeServerSlotRevision(currentSessionSlot, saveRevision)'),
@@ -79,6 +89,21 @@ assert(
 assert(
   festivalStallRuntime.includes('save_revision: saveRevision'),
   'festival stall purchase response and idempotency receipt must include save_revision'
+)
+assert(
+  festivalStallRuntime.includes('function countUserOfferClaims') &&
+    festivalStallRuntime.includes('function countGlobalOfferClaims'),
+  'festival stall runtime must reconstruct purchase limits from records and receipts'
+)
+assert(
+  festivalStallRuntime.includes('const claimedByUser = countUserOfferClaims(weekState, username, offer.id)') &&
+    festivalStallRuntime.includes('const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)'),
+  'festival stall purchase checks must not rely only on user_usage and offer_claims'
+)
+assert(
+  shopView.includes('const isIdempotencyReplay = result.idempotency_replayed === true') &&
+    shopView.includes('本次未重复发放奖励'),
+  'festival stall UI must label idempotency replay as confirmation instead of a fresh purchase'
 )
 
 console.log('qa-festival-stall-save-sync: ok')

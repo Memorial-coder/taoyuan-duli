@@ -191,6 +191,7 @@ export type WeeklyActivityCounterKey =
   | 'farm_seeds_planted'
   | 'farm_watered'
   | 'farm_fertilizer_applied'
+  | 'region_map_progress_actions'
 
 export type WeeklyActivityMetricKey =
   | 'totalCropsHarvested'

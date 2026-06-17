@@ -522,6 +522,7 @@ const clearInventoryCapacity = inventoryStore => {
     pendingRewardFamilyId: null,
     pendingRewardAmount: 0,
     pendingRewardItems: [],
+    bossCombat: null,
     pendingEncounter: {
       id: 'qa-hazard',
       step: 1,
@@ -556,6 +557,46 @@ const clearInventoryCapacity = inventoryStore => {
   assert(regionMapStore.saveData.activeSession.status === 'failure', 'hazard 致死后 activeSession 必须进入 failure。')
   assert(regionMapStore.saveData.activeSession.pendingEncounter === null, 'hazard 致死后不应保留待处理遭遇。')
   assert(regionMapStore.saveData.activeSession.pendingRewardAmount === 0, 'hazard 致死后不得继续按成功遭遇累加奖励。')
+}
+
+{
+  const { playerStore, regionMapStore } = freshStores()
+  const boss = regionsModule.REGION_BOSS_DEFS[0]
+  const route = regionsModule.REGION_ROUTE_DEFS.find(entry => entry.regionId === boss.regionId)
+  assert(route, '行旅图 Boss 交战测试需要同区域路线。')
+  const saveData = regionsModule.createDefaultRegionMapSaveData()
+  saveData.unlockStates[boss.regionId] = {
+    unlocked: true,
+    unlockedAtDayTag: 'qa-day',
+    unlockSource: 'qa'
+  }
+  regionMapStore.deserialize(saveData)
+  playerStore.hp = playerStore.getMaxHp()
+  playerStore.stamina = 100
+  regionMapStore.markRouteCompleted(route.id, 'qa-day')
+
+  const startResult = regionMapStore.startBossExpeditionSession(boss.regionId, 'qa-day')
+  assert(startResult.success === true, '行旅图 Boss 应能在前置路线完成后发起首领远征。')
+  regionMapStore.saveData.activeSession.progressStep = regionMapStore.saveData.activeSession.totalSteps - 1
+
+  const advanceResult = regionMapStore.advanceActiveExpedition('boss-main', 'qa-day')
+  assert(advanceResult.success === true, '首领远征最终节点应能推进到交战态。')
+  assert(regionMapStore.saveData.activeSession.status === 'ongoing', '进入 Boss 交战后远征应保持 ongoing，等待弹窗交互。')
+  assert(regionMapStore.saveData.activeSession.bossCombat?.status === 'active', '首领最终节点必须创建 active bossCombat。')
+  assert(regionMapStore.saveData.activeSession.bossCombat.phaseHp > 0, 'bossCombat 应记录当前阶段生命。')
+
+  const blockedAdvance = regionMapStore.advanceActiveExpedition('boss-main', 'qa-day')
+  assert(blockedAdvance.success === false && /首领交战/.test(blockedAdvance.message), 'Boss 交战中不得继续推进绕过弹窗。')
+
+  let guard = 0
+  while (regionMapStore.saveData.activeSession.bossCombat?.status === 'active' && guard < 8) {
+    regionMapStore.saveData.activeSession.bossCombat.phaseHp = 1
+    const combatResult = withMockedRandom([0.99, 0.99, 0.99], () => regionMapStore.resolveRegionBossCombatAction('attack', 'qa-day'))
+    assert(combatResult.success === true, 'Boss 交战按钮应推进回合。')
+    guard += 1
+  }
+  assert(regionMapStore.saveData.activeSession.bossCombat?.status === 'victory', '逐阶段击破后 bossCombat 应进入 victory。')
+  assert(regionMapStore.saveData.activeSession.status === 'ready_to_settle', 'Boss 交战胜利后远征应进入可收束状态。')
 }
 
 {

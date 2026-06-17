@@ -43,6 +43,7 @@ const goalsViewSource = readSource('src/views/game/GoalsView.vue')
 const fishPondStoreSource = readSource('src/stores/useFishPondStore.ts')
 const breedingStoreSource = readSource('src/stores/useBreedingStore.ts')
 const miningStoreSource = readSource('src/stores/useMiningStore.ts')
+const regionMapStoreSource = readSource('src/stores/useRegionMapStore.ts')
 const forageViewSource = readSource('src/views/game/ForageView.vue')
 const farmActionsSource = readSource('src/composables/useFarmActions.ts')
 const farmViewSource = readSource('src/views/game/FarmView.vue')
@@ -61,6 +62,10 @@ assert(goalsSource.includes('primaryTicketType') && goalsSource.includes('second
 assert(goalsSource.includes("PONDABLE_FISH") && goalsSource.includes("POND_BREEDS"), 'Fishpond weekly tasks must use the real pond fish and breed data pools.')
 assert(goalsSource.includes('POND_BREEDS.filter') && goalsSource.includes('breedSamples.map'), 'Fishpond weekly tasks must sample from the full breed pool, not only hard-coded example prefixes.')
 assert(goalsSource.includes('sampleWeeklyActivityEntries(pool, WEEKLY_ACTIVITY_TASK_COUNT'), 'Weekly activity task selection must use stable sampling from the theme pool.')
+assert(goalTypesSource.includes("'region_map_progress_actions'"), 'Weekly activity counters must include repeatable region-map progress actions.')
+assert(goalsSource.includes("counterKey: 'region_map_progress_actions'"), 'Region-map weekly activity must use repeatable route/resource/boss progress instead of finite discovery count.')
+assert(!goalsSource.includes("createWeeklyActivityTask('region_map', 'discover_3'"), 'Region-map weekly activity must not keep the legacy discovery task id for new weeks.')
+assert(!goalsSource.includes("metricKey: 'discoveredCount',\n    targetValue: 3,\n    progressUnit: '项',\n    routeId: 'region-map'"), 'Region-map weekly activity must not require three new discoveries.')
 
 assert(goalStoreSource.includes('const WEEKLY_ACTIVITY_STATE_VERSION = 1'), 'Weekly activity state version must be stored for save compatibility.')
 assert(goalStoreSource.includes('weeklyActivityState = ref<WeeklyActivityState | null>(null)'), 'Goal store must own one shared weekly activity state.')
@@ -68,6 +73,11 @@ assert(goalStoreSource.includes('weeklyActivityOverview = computed'), 'Goal stor
 assert(goalStoreSource.includes('walletStore.addRewardTickets(reward.ticketRewards'), 'Goal rewards must grant ticketRewards into the wallet.')
 assert(goalStoreSource.includes('[grantedRewardTickets, weeklyBudgetEffect.ticketRewards, grantedServiceContractTickets].reduce'), 'Ticket reward ledgers must be merged by explicit accumulation.')
 assert(goalStoreSource.includes('grantWeeklyActivityTierReward'), 'Weekly activity tier grants must use an internal helper.')
+assert(goalStoreSource.includes('getRemainingDiscoveryGoalCapacity'), 'Daily and season discovery goals must check remaining discovery capacity.')
+assert(goalStoreSource.includes('DAILY_GOAL_DEFS[season].filter(isGoalTemplateFeasible)'), 'Daily discovery goals must be filtered when no new discoveries remain.')
+assert(goalStoreSource.includes('SEASON_GOAL_DEFS[season].filter(isGoalTemplateFeasible)'), 'Season discovery goals must be filtered when their target cannot be met.')
+assert(goalStoreSource.includes('LEGACY_REGION_MAP_DISCOVERY_ACTIVITY_TASK_ID'), 'Goal store must migrate already-saved region-map discovery activity tasks.')
+assert(goalStoreSource.includes('REGION_MAP_PROGRESS_ACTIVITY_TASK_ID'), 'Goal store must migrate old region-map discovery task id to the repeatable progress id.')
 
 const settleWeeklyActivityBody = getFunctionBody(goalStoreSource, 'settleWeeklyActivity')
 assert(settleWeeklyActivityBody.includes('grantWeeklyActivityTierReward(state, tier)'), 'Weekly activity weekly settlement must auto-grant unclaimed tiers from the old state.')
@@ -118,6 +128,7 @@ for (const [sourceName, source, hook] of [
   ['useBreedingStore.ts', breedingStoreSource, 'breeding_started'],
   ['useMiningStore.ts', miningStoreSource, 'mining_stamina_spent'],
   ['useMiningStore.ts', miningStoreSource, 'mine_floors_descended'],
+  ['useRegionMapStore.ts', regionMapStoreSource, 'region_map_progress_actions'],
   ['ForageView.vue', forageViewSource, 'forage_actions'],
   ['ForageView.vue', forageViewSource, 'forage_items_found'],
   ['useFarmActions.ts', farmActionsSource, 'farm_seeds_planted'],

@@ -1,4 +1,4 @@
-/* global console, process */
+/* global console */
 
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -119,6 +119,11 @@ assert.match(farmViewSource, /playerStore\.restoreStamina\(cost\)\s*inventorySto
 const farmActionsSource = readSource('composables', 'useFarmActions.ts')
 assert.match(farmActionsSource, /if \(farmStore\.plantCrop\(plot\.id, cropDef\.id\)\) \{\s*planted\+\+/s, 'field batch planting should only count successful plant calls')
 assert.match(farmActionsSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(cropDef\.seedId\)/s, 'field batch planting should refund failed plant attempts')
+
+const timeConstantsSource = readSource('data', 'timeConstants.ts')
+assert.match(timeConstantsSource, /fishStart: 0\.5,/, 'fishing action should keep a 30-minute base time before tool and skill reductions')
+assert.match(timeConstantsSource, /forage: 0\.5,/, 'foraging action should keep a 30-minute base time before tool and skill reductions')
+assert.match(timeConstantsSource, /pan: 0\.5,/, 'panning action should keep the same 30-minute base time as fishing and foraging')
 
 const fishingViewSource = readSource('views', 'game', 'FishingView.vue')
 assert.match(

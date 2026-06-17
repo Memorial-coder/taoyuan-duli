@@ -213,6 +213,11 @@ assert(
 )
 assert(recipeById('spirit_forge_dragon_pearl')?.outputItemId === 'spirit_dragon_pearl', 'spirit_forge_dragon_pearl 应产出 spirit_dragon_pearl')
 assert(HIDDEN_NPCS.find(npc => npc.id === 'long_ling')?.bondItemId === 'spirit_dragon_pearl', '龙灵结缘应消耗 spirit_dragon_pearl')
+assert(recipeById('dry_lychee')?.inputItemId === 'lychee', '作物荔枝仍应可脱水制作荔枝干')
+assert(recipeById('dry_lychee')?.outputItemId === 'dried_lychee', '作物荔枝脱水应产出 dried_lychee')
+assert(recipeById('dry_tree_lychee')?.machineType === 'dehydrator', '果树荔枝脱水应接入脱水机')
+assert(recipeById('dry_tree_lychee')?.inputItemId === 'tree_lychee', '果树荔枝脱水应消耗 tree_lychee')
+assert(recipeById('dry_tree_lychee')?.outputItemId === 'dried_lychee', '果树荔枝脱水应产出 dried_lychee')
 
 const expectedMuseumFurnaceItems = [
   { id: 'bronze_bar', name: '青铜锭', category: 'bar', recipeId: 'smelt_bronze' },

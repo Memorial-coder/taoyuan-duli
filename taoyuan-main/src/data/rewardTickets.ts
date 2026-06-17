@@ -164,6 +164,18 @@ export const REWARD_TICKET_EXCHANGE_OFFERS: RewardTicketExchangeOffer[] = [
     ]
   },
   {
+    id: 'research_artisan_notes_case',
+    ticketType: 'research',
+    label: '匠作研修札匣',
+    description: '把研究券转成可投入巧作潜能的手艺记录，适合补齐百工札记缺口。',
+    costTickets: 5,
+    poolStageId: 'discovery',
+    counterLabel: '村衙赏契',
+    poolTags: ['百工札记', '巧作潜能'],
+    rewardItems: [],
+    rewardPotentialResources: [{ resourceId: 'artisan_notes', amount: 1 }]
+  },
+  {
     id: 'research_mystery_box',
     ticketType: 'research',
     label: '灵封试开匣',

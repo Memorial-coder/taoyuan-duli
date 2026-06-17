@@ -1271,6 +1271,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '将荔枝脱水制成荔枝干。'
   },
   {
+    id: 'dry_tree_lychee',
+    machineType: 'dehydrator',
+    name: '荔枝干（果树）',
+    inputItemId: 'tree_lychee',
+    inputQuantity: 1,
+    outputItemId: 'dried_lychee',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '将果树收获的荔枝脱水制成荔枝干。'
+  },
+  {
     id: 'dry_persimmon',
     machineType: 'dehydrator',
     name: '柿饼',

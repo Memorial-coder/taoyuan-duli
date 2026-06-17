@@ -1267,13 +1267,18 @@
 <style scoped>
   .mail-layout {
     align-items: start;
+    --mail-panel-bg: rgb(var(--color-panel) / 0.72);
+    --mail-card-bg: var(--color-surface-muted);
+    --mail-toolbar-bg: rgb(var(--color-panel) / 0.96);
+    --mail-subtle-bg: var(--color-surface-muted);
+    --mail-border: var(--color-border-subtle);
   }
 
   .panel-box {
-    border: 1px solid rgba(200, 164, 92, 0.18);
+    border: 1px solid var(--mail-border);
     border-radius: 2px;
     padding: 10px;
-    background: rgba(15, 18, 30, 0.4);
+    background: var(--mail-panel-bg);
   }
 
   .mail-toolbar {
@@ -1294,9 +1299,9 @@
     align-items: center;
     min-height: 20px;
     padding: 0 8px;
-    border: 1px solid rgba(200, 164, 92, 0.14);
+    border: 1px solid var(--mail-border);
     border-radius: 2px;
-    background: rgba(255, 255, 255, 0.035);
+    background: var(--mail-subtle-bg);
     white-space: nowrap;
   }
 
@@ -1352,10 +1357,10 @@
   }
 
   .detail-card {
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid var(--mail-border);
     border-radius: 2px;
     padding: 10px;
-    background: rgba(15, 18, 30, 0.36);
+    background: var(--mail-card-bg);
   }
 
   .reward-row {
@@ -1454,8 +1459,8 @@
       z-index: 1;
       margin: -2px -2px 12px;
       padding: 2px 2px 10px;
-      background: rgba(15, 18, 30, 0.96);
-      border-bottom: 1px solid rgba(200, 164, 92, 0.12);
+      background: var(--mail-toolbar-bg);
+      border-bottom: 1px solid var(--mail-border);
     }
 
     .mail-toolbar__actions {

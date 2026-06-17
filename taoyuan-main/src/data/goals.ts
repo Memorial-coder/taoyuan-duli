@@ -3127,13 +3127,13 @@ const buildRegionMapActivityPool = (): WeeklyActivityTaskDef[] => [
     progressUnit: '次',
     routeId: 'region-map'
   }),
-  createWeeklyActivityTask('region_map', 'discover_3', {
-    title: '记录行旅见闻',
-    description: '本周新增 3 项图鉴或区域见闻。',
-    kind: 'metric',
-    metricKey: 'discoveredCount',
+  createWeeklyActivityTask('region_map', 'progress_actions_3', {
+    title: '整理行旅记录',
+    description: '本周完成 3 次行旅路线、区域资源交付或首领结算。',
+    kind: 'counter',
+    counterKey: 'region_map_progress_actions',
     targetValue: 3,
-    progressUnit: '项',
+    progressUnit: '次',
     routeId: 'region-map'
   }),
   ...[

@@ -1,5 +1,5 @@
 import type { Season } from './game'
-import type { RelationshipStage } from './npc'
+import type { FriendshipLevel, RelationshipStage } from './npc'
 import type { RewardTicketType } from './economy'
 import type { BreedingCommercialTag, BreedingStabilityRank } from './breeding'
 
@@ -312,6 +312,10 @@ export interface QuestInstance {
   requiredFishMature?: boolean
   /** 是否要求健康鱼 */
   requiredFishHealthy?: boolean
+  /** 需要先达到的 NPC 好感等级 */
+  requiredNpcFriendshipLevel?: FriendshipLevel
+  /** 完成后额外走灵息来源结算 */
+  spiritBreathReward?: boolean
   /** 是否为紧急委托（1天时限，奖励翻倍） */
   isUrgent?: boolean
 }

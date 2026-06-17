@@ -751,9 +751,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(200, 164, 92, 0.12);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 2px;
-    background: rgba(14, 18, 28, 0.45);
+    background: var(--color-surface-muted);
     text-align: center;
   }
 </style>

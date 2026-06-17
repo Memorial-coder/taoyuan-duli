@@ -15,6 +15,7 @@ import type {
   OrderGenerationTraceAttempt,
   ReleaseChecklistItem,
   RelationshipStage,
+  FriendshipLevel,
   RewardTicketType,
   SpecialOrderComboRequirement,
   SpecialOrderScoreRule,
@@ -202,6 +203,8 @@ interface SpecialOrderTemplate {
   requiredFishHealthy?: boolean
   requiredVillageProjectIds?: string[]
   requiredSecretNoteIds?: number[]
+  requiredNpcFriendshipLevel?: FriendshipLevel
+  spiritBreathReward?: boolean
   buildingClueId?: string
   buildingClueText?: string
 }
@@ -723,6 +726,66 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     buildingClueId: 'caravan_station_route_clue',
     buildingClueText: '陈伯说，驿站若真修起来，像这样的备货单就不必每回都临时凑人和车。',
     bonusSummary: ['适合作为早期稳定供货的育种订单。', '更偏向接在商路线索和驿站修复之后出现。']
+  },
+  {
+    name: '阿花的灵息点心',
+    targetItemId: 'food_osmanthus_cake',
+    targetItemName: '桂花糕',
+    quantity: 2,
+    days: 7,
+    moneyReward: 900,
+    itemReward: [{ itemId: 'honey', quantity: 2 }],
+    seasons: [],
+    npcId: 'a_hua',
+    tier: 2,
+    rewardProfileId: 'research_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'child_spirit_sweets',
+    activitySourceLabel: '童心灵息委托',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '准备童心点心',
+      description: '阿花说村口的花影里有会发光的小东西，想用香甜糕点把这段见闻好好记下来。',
+      targetItemId: 'food_osmanthus_cake',
+      targetItemName: '桂花糕',
+      quantity: 2
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['child_spirit', 'spirit_breath', 'a_hua'],
+    antiRepeatCooldownWeeks: 2,
+    requiredNpcFriendshipLevel: 'bestFriend',
+    spiritBreathReward: true,
+    bonusSummary: ['阿花达到挚友后才会进入候选池。', '完成后会额外沉淀灵息×1，用于潜能参悟。']
+  },
+  {
+    name: '石头的纸灯糕',
+    targetItemId: 'food_jujube_cake',
+    targetItemName: '红枣糕',
+    quantity: 2,
+    days: 7,
+    moneyReward: 950,
+    itemReward: [{ itemId: 'wild_berry', quantity: 3 }],
+    seasons: [],
+    npcId: 'shi_tou',
+    tier: 2,
+    rewardProfileId: 'research_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'child_spirit_sweets',
+    activitySourceLabel: '童心灵息委托',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '准备纸灯小糕',
+      description: '石头说夜里跑过学堂墙根时看见一点灵光，想带几块甜糕去和阿花一起确认。',
+      targetItemId: 'food_jujube_cake',
+      targetItemName: '红枣糕',
+      quantity: 2
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['child_spirit', 'spirit_breath', 'shi_tou'],
+    antiRepeatCooldownWeeks: 2,
+    requiredNpcFriendshipLevel: 'bestFriend',
+    spiritBreathReward: true,
+    bonusSummary: ['石头达到挚友后才会进入候选池。', '完成后会额外沉淀灵息×1，用于潜能参悟。']
   },
   // === 第3梯度 (第21天): 困难, 7天时限, 数量大, 奖励丰厚 ===
   {
@@ -1920,15 +1983,36 @@ const getSpecialOrderCropUseSummaries = (template: SpecialOrderTemplate): string
 
 const getVillagerQuestUseWeight = (template: VillagerQuestTemplate): number => {
   const profile = getCropUseProfile(template.targetItemId)
-  if (!profile) return 0
+  const marketCategory = getQuestMarketCategoryByItemId(template.targetItemId)
+  if (!profile) {
+    if (template.category === 'cooking' && (marketCategory === 'processed' || marketCategory === 'animal_product')) return 1
+    if (template.category === 'festival_prep' && (marketCategory === 'processed' || marketCategory === 'animal_product' || marketCategory === 'fish')) return 1
+    if (template.category === 'errand' && marketCategory === 'animal_product') return 1
+    return 0
+  }
   if (template.category === 'festival_prep' && profile.tags.includes('festival')) return 2
   if (template.category === 'cooking' && (profile.tags.includes('food') || profile.tags.includes('order'))) return 1
   if ((template.category === 'gathering' || template.category === 'errand') && profile.tags.includes('order')) return 1
+  if (template.category === 'cooking' && (marketCategory === 'processed' || marketCategory === 'animal_product')) return 1
+  if (template.category === 'festival_prep' && (marketCategory === 'processed' || marketCategory === 'animal_product' || marketCategory === 'fish')) return 1
+  if (template.category === 'errand' && marketCategory === 'animal_product') return 1
   return 0
 }
 
 const TIER_LABELS = ['简单', '普通', '困难', '极难']
 const TIER_FRIENDSHIP = [5, 8, 12, 15]
+const FRIENDSHIP_LEVEL_WEIGHT: Record<FriendshipLevel, number> = {
+  stranger: 0,
+  acquaintance: 1,
+  friendly: 2,
+  bestFriend: 3
+}
+const FRIENDSHIP_LEVEL_LABELS: Record<FriendshipLevel, string> = {
+  stranger: '陌生',
+  acquaintance: '相识',
+  friendly: '友好',
+  bestFriend: '挚友'
+}
 
 interface SpecialOrderRewardProfile {
   id: string
@@ -2349,6 +2433,604 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     bonusSummary: ['云飞说镖局存货里还有铁锭，顺手给你一块。']
   },
   {
+    id: 'chen_bo_firewood_stock',
+    npcId: 'chen_bo',
+    category: 'errand',
+    minStage: 'recognize',
+    targetItemId: 'firewood',
+    targetItemName: '柴火',
+    minQty: 8,
+    maxQty: 12,
+    days: 2,
+    rewardMultiplier: 4,
+    friendshipReward: 6,
+    itemReward: [{ itemId: 'wood', quantity: 5 }],
+    bonusSummary: ['陈伯会把剩下的柴火架整理好，方便你下次直接补货。']
+  },
+  {
+    id: 'chen_bo_cabbage_counter',
+    npcId: 'chen_bo',
+    category: 'festival_prep',
+    minStage: 'familiar',
+    targetItemId: 'cabbage',
+    targetItemName: '青菜',
+    minQty: 4,
+    maxQty: 7,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 8,
+    seasons: ['spring'],
+    itemReward: [{ itemId: 'sesame_oil', quantity: 1 }],
+    bonusSummary: ['春集临时摊位会优先消化这批青菜。']
+  },
+  {
+    id: 'liu_niang_guest_honey',
+    npcId: 'liu_niang',
+    category: 'gathering',
+    minStage: 'familiar',
+    targetItemId: 'honey',
+    targetItemName: '蜂蜜',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    bonusSummary: ['柳娘说茶席边总要备一小罐新蜜，待客才显得圆融。']
+  },
+  {
+    id: 'liu_niang_watermelon_cooling',
+    npcId: 'liu_niang',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'watermelon',
+    targetItemName: '西瓜',
+    minQty: 2,
+    maxQty: 4,
+    days: 2,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    seasons: ['summer'],
+    itemReward: [{ itemId: 'honey', quantity: 1 }],
+    bonusSummary: ['夏日席面会把这批西瓜先切好镇在井水旁。']
+  },
+  {
+    id: 'a_shi_quartz_sorting',
+    npcId: 'a_shi',
+    category: 'gathering',
+    minStage: 'familiar',
+    targetItemId: 'quartz',
+    targetItemName: '石英',
+    minQty: 3,
+    maxQty: 5,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'copper_ore', quantity: 4 }],
+    bonusSummary: ['阿石想把透亮的石英单独挑出来，留着配矿灯和工具窗。']
+  },
+  {
+    id: 'a_shi_bar_support',
+    npcId: 'a_shi',
+    category: 'errand',
+    minStage: 'friend',
+    targetItemId: 'iron_bar',
+    targetItemName: '铁锭',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'iron_ore', quantity: 6 }],
+    bonusSummary: ['阿石说有了现成铁锭，支架和扣件就能当晚一起补完。']
+  },
+  {
+    id: 'qiu_yue_carp_basket',
+    npcId: 'qiu_yue',
+    category: 'fishing',
+    minStage: 'recognize',
+    targetItemId: 'carp',
+    targetItemName: '鲤鱼',
+    minQty: 2,
+    maxQty: 4,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 6,
+    seasons: ['spring', 'summer'],
+    itemReward: [{ itemId: 'standard_bait', quantity: 6 }],
+    bonusSummary: ['秋月想试一篮颜色整齐的鲤鱼，顺手会回你一包饵。']
+  },
+  {
+    id: 'qiu_yue_loach_night_fishing',
+    npcId: 'qiu_yue',
+    category: 'fishing',
+    minStage: 'familiar',
+    targetItemId: 'loach',
+    targetItemName: '泥鳅',
+    minQty: 3,
+    maxQty: 5,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 8,
+    seasons: ['summer', 'autumn'],
+    itemReward: [{ itemId: 'fish_feed', quantity: 4 }],
+    bonusSummary: ['夜里围灯的小桶要先放活泥鳅，秋月会分你些鱼塘饲料。']
+  },
+  {
+    id: 'qiu_yue_shrimp_feast',
+    npcId: 'qiu_yue',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'creek_shrimp',
+    targetItemName: '溪虾',
+    minQty: 3,
+    maxQty: 6,
+    days: 2,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    seasons: ['spring', 'summer', 'autumn'],
+    itemReward: [{ itemId: 'standard_bait', quantity: 10 }],
+    bonusSummary: ['节会前的小碟鲜味全靠这批溪虾撑场。']
+  },
+  {
+    id: 'lin_lao_mushroom_broth',
+    npcId: 'lin_lao',
+    category: 'cooking',
+    minStage: 'friend',
+    targetItemId: 'wild_mushroom',
+    targetItemName: '野蘑菇',
+    minQty: 3,
+    maxQty: 5,
+    days: 3,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    seasons: ['autumn'],
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    bonusSummary: ['林老要用秋天头茬蘑菇煨一锅汤，留给赶夜路的人。']
+  },
+  {
+    id: 'lin_lao_honey_tonic',
+    npcId: 'lin_lao',
+    category: 'cooking',
+    minStage: 'familiar',
+    targetItemId: 'honey',
+    targetItemName: '蜂蜜',
+    minQty: 2,
+    maxQty: 3,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'animal_medicine', quantity: 1 }],
+    bonusSummary: ['林老想调一小罐润喉膏，顺手会给你备一份常用兽药。']
+  },
+  {
+    id: 'lin_lao_ginseng_tonic',
+    npcId: 'lin_lao',
+    category: 'gathering',
+    minStage: 'bestie',
+    targetItemId: 'ginseng',
+    targetItemName: '人参',
+    minQty: 1,
+    maxQty: 2,
+    days: 4,
+    rewardMultiplier: 11,
+    friendshipReward: 12,
+    seasons: ['autumn', 'winter'],
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 2 }],
+    bonusSummary: ['林老只在熟识后才会开口托你留心这一味真补材。']
+  },
+  {
+    id: 'wang_dashen_egg_batter',
+    npcId: 'wang_dashen',
+    category: 'cooking',
+    minStage: 'recognize',
+    targetItemId: 'egg',
+    targetItemName: '鸡蛋',
+    minQty: 4,
+    maxQty: 7,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 6,
+    itemReward: [{ itemId: 'sesame_oil', quantity: 1 }],
+    bonusSummary: ['王大婶今天想先把面糊和蛋液备齐。']
+  },
+  {
+    id: 'wang_dashen_milk_porridge',
+    npcId: 'wang_dashen',
+    category: 'cooking',
+    minStage: 'familiar',
+    targetItemId: 'milk',
+    targetItemName: '牛奶',
+    minQty: 2,
+    maxQty: 4,
+    days: 2,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'egg', quantity: 2 }],
+    bonusSummary: ['她想煨一锅奶香米粥，剩下的新鲜鸡蛋会顺手留给你。']
+  },
+  {
+    id: 'wang_dashen_pumpkin_banquet',
+    npcId: 'wang_dashen',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'pumpkin',
+    targetItemName: '南瓜',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 10,
+    seasons: ['autumn'],
+    itemReward: [{ itemId: 'tavern_rice_wine', quantity: 1 }],
+    bonusSummary: ['秋席上压轴的南瓜羹和酒香都得提前备好。']
+  },
+  {
+    id: 'wang_dashen_mayo_side',
+    npcId: 'wang_dashen',
+    category: 'cooking',
+    minStage: 'friend',
+    targetItemId: 'mayonnaise',
+    targetItemName: '蛋黄酱',
+    minQty: 1,
+    maxQty: 2,
+    days: 2,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'egg', quantity: 3 }],
+    bonusSummary: ['家宴凉菜差一味拌酱，王大婶会把多余鸡蛋回你。']
+  },
+  {
+    id: 'xiao_man_potato_stall',
+    npcId: 'xiao_man',
+    category: 'errand',
+    minStage: 'recognize',
+    targetItemId: 'potato',
+    targetItemName: '土豆',
+    minQty: 4,
+    maxQty: 7,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 6,
+    seasons: ['spring'],
+    itemReward: [{ itemId: 'wood', quantity: 6 }],
+    bonusSummary: ['小满的临时摊位总爱拿土豆垫场，缺口补得快。']
+  },
+  {
+    id: 'xiao_man_winter_wheat_banner',
+    npcId: 'xiao_man',
+    category: 'festival_prep',
+    minStage: 'familiar',
+    targetItemId: 'winter_wheat',
+    targetItemName: '冬小麦',
+    minQty: 4,
+    maxQty: 7,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    seasons: ['winter'],
+    itemReward: [{ itemId: 'tavern_rice_wine', quantity: 1 }],
+    bonusSummary: ['冬集铺底和面点都要先留一批麦子。']
+  },
+  {
+    id: 'zhao_mujiang_stone_anchor',
+    npcId: 'zhao_mujiang',
+    category: 'gathering',
+    minStage: 'friend',
+    targetItemId: 'stone',
+    targetItemName: '石材',
+    minQty: 16,
+    maxQty: 24,
+    days: 3,
+    rewardMultiplier: 5,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'wood', quantity: 10 }],
+    bonusSummary: ['赵木匠说工台脚底要先垫稳，木活才不会晃。']
+  },
+  {
+    id: 'su_su_wool_trim',
+    npcId: 'su_su',
+    category: 'errand',
+    minStage: 'familiar',
+    targetItemId: 'wool',
+    targetItemName: '羊毛',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 8,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'cloth', quantity: 1 }],
+    bonusSummary: ['素素会先给你裁出一匹布，算作试手的谢礼。']
+  },
+  {
+    id: 'su_su_rabbit_fur_collar',
+    npcId: 'su_su',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'rabbit_fur',
+    targetItemName: '兔毛',
+    minQty: 2,
+    maxQty: 3,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'silk_ribbon', quantity: 1 }],
+    bonusSummary: ['她想赶在节前给披肩加一圈软领，丝帕会一并回你。']
+  },
+  {
+    id: 'da_niu_milk_bucket',
+    npcId: 'da_niu',
+    category: 'errand',
+    minStage: 'familiar',
+    targetItemId: 'milk',
+    targetItemName: '牛奶',
+    minQty: 2,
+    maxQty: 4,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'hay', quantity: 6 }],
+    bonusSummary: ['大牛会把多余干草给你捆好，算是换回去的工夫钱。']
+  },
+  {
+    id: 'da_niu_egg_crate',
+    npcId: 'da_niu',
+    category: 'errand',
+    minStage: 'familiar',
+    targetItemId: 'egg',
+    targetItemName: '鸡蛋',
+    minQty: 5,
+    maxQty: 8,
+    days: 2,
+    rewardMultiplier: 6,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'hay', quantity: 4 }],
+    bonusSummary: ['鸡舍里缺一筐稳当的蛋，大牛总会把草垫给你补一些。']
+  },
+  {
+    id: 'da_niu_animal_medicine',
+    npcId: 'da_niu',
+    category: 'errand',
+    minStage: 'friend',
+    targetItemId: 'animal_medicine',
+    targetItemName: '兽药',
+    minQty: 1,
+    maxQty: 2,
+    days: 2,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'milk', quantity: 1 }],
+    bonusSummary: ['大牛遇上牲口不稳时最急这一味，回礼会直接给你一桶新奶。']
+  },
+  {
+    id: 'dan_qing_tea_drink_errand',
+    npcId: 'dan_qing',
+    category: 'errand',
+    minStage: 'friend',
+    targetItemId: 'green_tea_drink',
+    targetItemName: '绿茶',
+    minQty: 1,
+    maxQty: 2,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'osmanthus', quantity: 2 }],
+    bonusSummary: ['丹青想在文会前先润润喉，顺手把香料也留给你。']
+  },
+  {
+    id: 'dan_qing_honey_ink',
+    npcId: 'dan_qing',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'honey',
+    targetItemName: '蜂蜜',
+    minQty: 2,
+    maxQty: 3,
+    days: 3,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    bonusSummary: ['她说蜂蜜能帮节前点心和待客茶都稳住口感。']
+  },
+  {
+    id: 'mo_bai_wine_evening',
+    npcId: 'mo_bai',
+    category: 'festival_prep',
+    minStage: 'bestie',
+    targetItemId: 'tavern_rice_wine',
+    targetItemName: '桃源米酒',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 12,
+    itemReward: [{ itemId: 'processed_osmanthus_tea', quantity: 1 }],
+    bonusSummary: ['墨白说夜里的席面酒和暖盏得同时到位，气氛才压得住。']
+  },
+  {
+    id: 'mo_bai_osmanthus_tea',
+    npcId: 'mo_bai',
+    category: 'errand',
+    minStage: 'friend',
+    targetItemId: 'processed_osmanthus_tea',
+    targetItemName: '桂花茶',
+    minQty: 1,
+    maxQty: 2,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    bonusSummary: ['墨白偏爱席前那一道清香热茶，拿来压住夜风最好。']
+  },
+  {
+    id: 'hong_dou_honey_cellar',
+    npcId: 'hong_dou',
+    category: 'errand',
+    minStage: 'familiar',
+    targetItemId: 'honey',
+    targetItemName: '蜂蜜',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'tavern_rice_wine', quantity: 1 }],
+    bonusSummary: ['红豆想给新酒压一压口，蜂蜜常是最稳的搭子。']
+  },
+  {
+    id: 'hong_dou_cheese_pairing',
+    npcId: 'hong_dou',
+    category: 'gathering',
+    minStage: 'friend',
+    targetItemId: 'cheese',
+    targetItemName: '奶酪',
+    minQty: 1,
+    maxQty: 2,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'tavern_rice_wine', quantity: 1 }],
+    bonusSummary: ['她想试试酒馆新下酒小碟，奶酪正好用得上。']
+  },
+  {
+    id: 'chun_lan_guest_tea',
+    npcId: 'chun_lan',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'processed_osmanthus_tea',
+    targetItemName: '桂花茶',
+    minQty: 1,
+    maxQty: 2,
+    days: 3,
+    rewardMultiplier: 9,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'osmanthus', quantity: 2 }],
+    bonusSummary: ['春兰说暖盏与候客都缺这一壶香茶。']
+  },
+  {
+    id: 'chun_lan_honey_jar',
+    npcId: 'chun_lan',
+    category: 'gathering',
+    minStage: 'familiar',
+    targetItemId: 'honey',
+    targetItemName: '蜂蜜',
+    minQty: 2,
+    maxQty: 3,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    bonusSummary: ['春兰会把新茶和蜂蜜一并配成待客的小饮。']
+  },
+  {
+    id: 'xue_qin_berry_pigment',
+    npcId: 'xue_qin',
+    category: 'errand',
+    minStage: 'familiar',
+    targetItemId: 'wild_berry',
+    targetItemName: '野果',
+    minQty: 4,
+    maxQty: 7,
+    days: 2,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    seasons: ['summer'],
+    itemReward: [{ itemId: 'pine_incense', quantity: 1 }],
+    bonusSummary: ['雪芹想拿野果试一层新色，剩下的松香会回你。']
+  },
+  {
+    id: 'xue_qin_pine_scent',
+    npcId: 'xue_qin',
+    category: 'festival_prep',
+    minStage: 'friend',
+    targetItemId: 'pine_cone',
+    targetItemName: '松果',
+    minQty: 4,
+    maxQty: 6,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 10,
+    seasons: ['autumn', 'winter'],
+    itemReward: [{ itemId: 'camphor_incense', quantity: 1 }],
+    bonusSummary: ['节前装点要一点松香气，雪芹会回你一支提神香。']
+  },
+  {
+    id: 'yun_fei_firewood_patrol',
+    npcId: 'yun_fei',
+    category: 'gathering',
+    minStage: 'recognize',
+    targetItemId: 'firewood',
+    targetItemName: '柴火',
+    minQty: 10,
+    maxQty: 16,
+    days: 2,
+    rewardMultiplier: 5,
+    friendshipReward: 6,
+    itemReward: [{ itemId: 'stone', quantity: 6 }],
+    bonusSummary: ['巡路的歇脚点先缺的是火堆，不是好看摆设。']
+  },
+  {
+    id: 'yun_fei_chili_waystation',
+    npcId: 'yun_fei',
+    category: 'errand',
+    minStage: 'friend',
+    targetItemId: 'chili',
+    targetItemName: '辣椒',
+    minQty: 3,
+    maxQty: 5,
+    days: 2,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    seasons: ['summer'],
+    itemReward: [{ itemId: 'copper_bar', quantity: 1 }],
+    bonusSummary: ['云飞说跑远路的人总想要点辣味压疲气。']
+  },
+  {
+    id: 'sun_tiejiang_copper_bar_order',
+    npcId: 'sun_tiejiang',
+    category: 'gathering',
+    minStage: 'familiar',
+    targetItemId: 'copper_bar',
+    targetItemName: '铜锭',
+    minQty: 2,
+    maxQty: 4,
+    days: 3,
+    rewardMultiplier: 7,
+    friendshipReward: 8,
+    itemReward: [{ itemId: 'copper_ore', quantity: 6 }],
+    bonusSummary: ['孙铁匠想少走一轮炉子，现成铜锭最省工。']
+  },
+  {
+    id: 'sun_tiejiang_iron_bar_order',
+    npcId: 'sun_tiejiang',
+    category: 'errand',
+    minStage: 'friend',
+    targetItemId: 'iron_bar',
+    targetItemName: '铁锭',
+    minQty: 2,
+    maxQty: 3,
+    days: 3,
+    rewardMultiplier: 8,
+    friendshipReward: 10,
+    itemReward: [{ itemId: 'iron_ore', quantity: 6 }],
+    bonusSummary: ['这批铁锭能直接顶上农具和扣件活儿。']
+  },
+  {
+    id: 'sun_tiejiang_jade_inlay',
+    npcId: 'sun_tiejiang',
+    category: 'gathering',
+    minStage: 'bestie',
+    targetItemId: 'jade',
+    targetItemName: '翡翠',
+    minQty: 1,
+    maxQty: 2,
+    days: 4,
+    rewardMultiplier: 12,
+    friendshipReward: 12,
+    itemReward: [{ itemId: 'iron_bar', quantity: 2 }],
+    bonusSummary: ['熟客才会碰到这种镶件活，孙铁匠只肯托最稳的人。']
+  },
+  {
     id: 'chen_bo_market_rumor',
     npcId: 'chen_bo',
     category: 'rumor',
@@ -2485,6 +3167,142 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     rumorTask: true,
     descriptionTemplate: '广场边有人帮{npcName}招呼：今天只差几截顺手的{targetItemName}就能把小摊支起来。',
     itemReward: [{ itemId: 'wood', quantity: 4 }]
+  },
+  {
+    id: 'chen_bo_firewood_rumor',
+    npcId: 'chen_bo',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'firewood',
+    targetItemName: '柴火',
+    minQty: 4,
+    maxQty: 7,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '集口添柴',
+    rumorTask: true,
+    descriptionTemplate: '集口边有人说{npcName}今天临时缺几捆{targetItemName}，补上就能把锅灶重新热起来。',
+    itemReward: [{ itemId: 'wood', quantity: 3 }]
+  },
+  {
+    id: 'qiu_yue_feed_rumor',
+    npcId: 'qiu_yue',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'fish_feed',
+    targetItemName: '鱼饲料',
+    minQty: 2,
+    maxQty: 4,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '鱼棚口风',
+    rumorTask: true,
+    descriptionTemplate: '河边有人提了一嘴：{npcName}刚收的一池样鱼差几把{targetItemName}就能稳下来。',
+    itemReward: [{ itemId: 'standard_bait', quantity: 4 }]
+  },
+  {
+    id: 'wang_dashen_egg_rumor',
+    npcId: 'wang_dashen',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'egg',
+    targetItemName: '鸡蛋',
+    minQty: 3,
+    maxQty: 5,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 4,
+    sourceLabel: '灶台碎讯',
+    rumorTask: true,
+    descriptionTemplate: '灶房那边传来一句：{npcName}手边只差几枚顺手的{targetItemName}，立刻就能起一锅新点心。',
+    itemReward: [{ itemId: 'sesame_oil', quantity: 1 }]
+  },
+  {
+    id: 'da_niu_milk_rumor',
+    npcId: 'da_niu',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'milk',
+    targetItemName: '牛奶',
+    minQty: 1,
+    maxQty: 3,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 4,
+    sourceLabel: '牛棚招呼',
+    rumorTask: true,
+    descriptionTemplate: '牛棚边有人朝你喊：{npcName}手里那桶{targetItemName}还差一点就能凑成今天的交接。',
+    itemReward: [{ itemId: 'hay', quantity: 3 }]
+  },
+  {
+    id: 'hong_dou_honey_rumor',
+    npcId: 'hong_dou',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'honey',
+    targetItemName: '蜂蜜',
+    minQty: 1,
+    maxQty: 2,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 5,
+    sourceLabel: '酒窖碎语',
+    rumorTask: true,
+    descriptionTemplate: '有人说{npcName}想试一小壶新调味，只缺一点顺手的{targetItemName}压口。',
+    itemReward: [{ itemId: 'tavern_rice_wine', quantity: 1 }]
+  },
+  {
+    id: 'su_su_wool_rumor',
+    npcId: 'su_su',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'wool',
+    targetItemName: '羊毛',
+    minQty: 1,
+    maxQty: 3,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 5,
+    sourceLabel: '绣坊短讯',
+    rumorTask: true,
+    descriptionTemplate: '绣坊里传话出来：{npcName}临时缺几团顺手的{targetItemName}，手上的活就能接着走。',
+    itemReward: [{ itemId: 'cloth', quantity: 1 }]
+  },
+  {
+    id: 'xue_qin_berry_rumor',
+    npcId: 'xue_qin',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'wild_berry',
+    targetItemName: '野果',
+    minQty: 2,
+    maxQty: 4,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '画案闲谈',
+    rumorTask: true,
+    descriptionTemplate: '有人提起{npcName}今天想试一抹新色，桌上只差一点带汁的{targetItemName}。',
+    itemReward: [{ itemId: 'pine_incense', quantity: 1 }]
+  },
+  {
+    id: 'lin_lao_mushroom_rumor',
+    npcId: 'lin_lao',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'wild_mushroom',
+    targetItemName: '野蘑菇',
+    minQty: 2,
+    maxQty: 4,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 5,
+    sourceLabel: '廊下见闻',
+    rumorTask: true,
+    descriptionTemplate: '廊下有人说{npcName}今天想临时添一味菌香，只差几朵鲜{targetItemName}。',
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }]
   }
 ]
 
@@ -2531,7 +3349,7 @@ export const generateVillagerQuest = (
     const stage = relationshipStages[template.npcId]
     if (!stage) return false
     const profile = NPC_VILLAGER_QUEST_PROFILES[template.npcId]
-    if (profile && !profile.categories.includes(template.category)) return false
+    if (profile && template.category !== 'rumor' && !profile.categories.includes(template.category)) return false
     if (!isRelationshipStageAtLeast(stage, template.minStage)) return false
     if (template.seasons && template.seasons.length > 0 && !template.seasons.includes(season)) return false
     return true
@@ -2541,7 +3359,13 @@ export const generateVillagerQuest = (
   const preferredPool = preferredCategory ? valid.filter(template => template.category === preferredCategory) : []
   const templatePool = preferredPool.length > 0 ? preferredPool : valid
   const weightedTemplatePool = templatePool.flatMap(template => {
-    const weight = 1 + getVillagerQuestUseWeight(template)
+    const repeatSignature = `villager:${template.npcId}:${template.targetItemId}:${template.category}`
+    const recentSameSignature = completedQuestSignatures.includes(repeatSignature)
+    const recentSameTarget = completedQuestSignatures.some(signature => signature.includes(`:${template.targetItemId}:`))
+    const recentSameNpc = completedQuestSignatures.some(signature => signature.startsWith(`villager:${template.npcId}:`))
+    const baseWeight = 1 + getVillagerQuestUseWeight(template)
+    const repeatPenalty = recentSameSignature ? 3 : recentSameTarget ? 2 : recentSameNpc ? 1 : 0
+    const weight = Math.max(1, baseWeight - repeatPenalty)
     return Array.from({ length: weight }, () => template)
   })
   const template = weightedTemplatePool[Math.floor(Math.random() * weightedTemplatePool.length)]!
@@ -2623,6 +3447,7 @@ export const generateSpecialOrder = (
     preferredHybridIds?: string[]
     preferredMarketCategories?: QuestMarketCategory[]
     discouragedMarketCategories?: QuestMarketCategory[]
+    npcFriendshipLevels?: Partial<Record<string, FriendshipLevel>>
   },
   traceOptions?: {
     onTrace?: (trace: OrderGenerationTraceAttempt) => void
@@ -2638,6 +3463,7 @@ export const generateSpecialOrder = (
   const preferredHybridIds = new Set(options?.preferredHybridIds ?? [])
   const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
   const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
+  const npcFriendshipLevels = options?.npcFriendshipLevels ?? {}
   const stabilityRankWeight: Record<BreedingStabilityRank, number> = {
     volatile: 0,
     emerging: 1,
@@ -2727,6 +3553,13 @@ export const generateSpecialOrder = (
     return template.requiredSecretNoteIds.every(noteId => collectedSecretNoteIds.has(noteId))
   }
 
+  const matchesNpcFriendshipRequirement = (template: SpecialOrderTemplate): boolean => {
+    if (!template.requiredNpcFriendshipLevel) return true
+    const currentLevel = npcFriendshipLevels[template.npcId]
+    if (!currentLevel) return false
+    return FRIENDSHIP_LEVEL_WEIGHT[currentLevel] >= FRIENDSHIP_LEVEL_WEIGHT[template.requiredNpcFriendshipLevel]
+  }
+
   const getSecretNoteTitle = (noteId: number): string => {
     return SECRET_NOTES.find(note => note.id === noteId)?.title ?? `纸条 #${noteId}`
   }
@@ -2752,7 +3585,8 @@ export const generateSpecialOrder = (
       matchesBreedingRequirement(t) &&
       matchesFishpondRequirement(t) &&
       matchesVillageProjectRequirement(t) &&
-      matchesSecretNoteRequirement(t)
+      matchesSecretNoteRequirement(t) &&
+      matchesNpcFriendshipRequirement(t)
   )
   if (valid.length === 0) {
     traceOptions?.onTrace?.({
@@ -2771,6 +3605,10 @@ export const generateSpecialOrder = (
     }
     if (template.requiredSecretNoteIds?.length) {
       summary.push(`需先读过线索纸条：${template.requiredSecretNoteIds.map(noteId => getSecretNoteTitle(noteId)).join('、')}`)
+    }
+    if (template.requiredNpcFriendshipLevel) {
+      const npcName = getNpcById(template.npcId)?.name ?? template.npcId
+      summary.push(`需与${npcName}达到${FRIENDSHIP_LEVEL_LABELS[template.requiredNpcFriendshipLevel]}`)
     }
     if (template.requiredHybridId) {
       summary.push(`已发现杂交：${getCropById(template.requiredHybridId)?.name ?? template.requiredHybridId}`)
@@ -3046,6 +3884,8 @@ export const generateSpecialOrder = (
     requiredPondGenerationMin: template.requiredPondGenerationMin,
     requiredFishMature: template.requiredFishMature,
     requiredFishHealthy: template.requiredFishHealthy,
+    requiredNpcFriendshipLevel: template.requiredNpcFriendshipLevel,
+    spiritBreathReward: template.spiritBreathReward === true ? true : undefined,
     orderProgressState: buildInitialOrderProgressState(template, cloneStageDefinitions(template.stageDefinitions))
   }
 }

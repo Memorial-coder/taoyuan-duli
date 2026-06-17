@@ -368,8 +368,9 @@
           </p>
           <p v-if="offer.poolTagsLabel" class="text-[0.625rem] text-muted/80 mt-0.5">奖池标签：{{ offer.poolTagsLabel }}</p>
           <p class="text-[0.625rem] text-muted mt-1">
-            兑换内容：{{ offer.rewardSummary || offer.mysteryBoxSummary || '按赏格发放' }}
+            兑换内容：{{ offer.rewardContentSummary || '按赏格发放' }}
           </p>
+          <p v-if="offer.potentialResourceSummary" class="text-[0.625rem] text-success mt-0.5">潜能材料：{{ offer.potentialResourceSummary }}</p>
           <p v-if="offer.mysteryBoxSummary" class="text-[0.625rem] text-accent mt-0.5">附带密匣：{{ offer.mysteryBoxSummary }}</p>
           <button
             class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] transition-colors"

@@ -1,3 +1,5 @@
+import type { PotentialResourceCost } from './potential'
+
 export type BudgetChannelId = 'trade' | 'museum' | 'academy' | 'guild' | 'family' | 'research'
 
 export type WeeklyBudgetChannelId = Extract<BudgetChannelId, 'trade' | 'museum' | 'academy'>
@@ -33,6 +35,7 @@ export interface RewardTicketExchangeOffer {
   costTickets: number
   rewardItems: { itemId: string; quantity: number }[]
   rewardMysteryBoxes?: { boxId: string; quantity: number }[]
+  rewardPotentialResources?: PotentialResourceCost[]
   poolStageId?: string
   counterLabel?: string
   poolTags?: string[]

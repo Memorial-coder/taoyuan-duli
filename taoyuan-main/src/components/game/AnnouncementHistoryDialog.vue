@@ -218,14 +218,14 @@
   }
 
   .announcement-history-item {
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 6px;
-    background: rgba(16, 20, 30, 0.42);
+    background: var(--color-surface-raised);
     padding: 12px;
   }
 
   .announcement-history-item--collapsed {
-    background: rgba(16, 20, 30, 0.28);
+    background: var(--color-surface-muted);
   }
 
   .announcement-history-summary {

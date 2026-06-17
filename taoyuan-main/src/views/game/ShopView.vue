@@ -2667,11 +2667,16 @@
   const handleBuyFestivalStallOffer = async (offerId: string) => {
     try {
       const result = await festivalStallStore.buyOffer(offerId)
+      const isIdempotencyReplay = result.idempotency_replayed === true
       await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
-      showFloat('购买成功', 'success')
-      addLog(`【节庆摊位】已购入「${result.offer.name}」：花费${formatExchangeBundle(result.record.costs)}，带回${formatExchangeBundle(result.record.rewards)}。`)
+      showFloat(isIdempotencyReplay ? '购买已确认' : '购买成功', 'success')
+      if (isIdempotencyReplay) {
+        addLog(`【节庆摊位】已确认「${result.offer.name}」的重复回执，本次未重复发放奖励。`)
+      } else {
+        addLog(`【节庆摊位】已购入「${result.offer.name}」：花费${formatExchangeBundle(result.record.costs)}，带回${formatExchangeBundle(result.record.rewards)}。`)
+      }
       if (!result.save_sync_state.current_session_synced) {
         addLog(`【节庆摊位】${result.save_sync_state.message}`)
       }

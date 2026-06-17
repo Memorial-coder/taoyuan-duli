@@ -3070,7 +3070,7 @@ function moderateAnnouncementPayload(req, payload = {}, options = {}) {
   };
 
   moderateField('title', 'Announcement title', 120, 2);
-  moderateField('body', 'Announcement body', 8000, 300);
+  moderateField('body', 'Announcement body', 8000);
   moderateField('cta_text', 'Announcement CTA text', 60, 0);
   moderateField('ctaText', 'Announcement CTA text', 60, 0);
 

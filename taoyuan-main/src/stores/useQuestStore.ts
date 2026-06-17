@@ -13,6 +13,7 @@ import type {
   QuestType,
   RewardTicketType,
   Season,
+  FriendshipLevel,
   SpecialOrderComboRequirement,
   SpecialOrderProgressState,
   SpecialOrderScoreRank,
@@ -638,6 +639,7 @@ export const useQuestStore = defineStore('quest', () => {
       preferredHybridIds: string[]
       preferredMarketCategories: QuestMarketCategory[]
       discouragedMarketCategories: QuestMarketCategory[]
+      npcFriendshipLevels: Record<string, FriendshipLevel>
     } = {
       discoveredHybridIds: breedingStore.compendium.map(entry => entry.hybridId),
       breedingCompendiumEntries: breedingStore.compendium,
@@ -650,7 +652,8 @@ export const useQuestStore = defineStore('quest', () => {
       allowedActivitySourceIds: currentLimitedTimeQuestCampaign.value ? [...activityQuestWindowState.value.activeQuestTemplateIds] : undefined,
       preferredHybridIds: goalStore.currentThemeWeek?.breedingFocusHybridIds ?? [],
       preferredMarketCategories: marketQuestBias.preferredMarketCategories,
-      discouragedMarketCategories: marketQuestBias.discouragedMarketCategories
+      discouragedMarketCategories: marketQuestBias.discouragedMarketCategories,
+      npcFriendshipLevels: Object.fromEntries(npcStore.npcStates.map(state => [state.npcId, npcStore.getFriendshipLevel(state.npcId)]))
     }
 
     let selectedOrder: QuestInstance | null = null
@@ -1842,15 +1845,27 @@ export const useQuestStore = defineStore('quest', () => {
     completedQuestCount.value++
 
     let potentialQuestRewardMessage = ''
+    let potentialQuestRewardSummary = ''
     if (quest.type === 'special_order') {
       const archiveDayTag = buildQuestHistoryDayTag()
       rememberSpecialOrderReceipt(quest.id)
       playerStore.markSpecialOrderArchived(quest.id, archiveDayTag)
       playerStore.markSpecialOrderArchived(`npc:${quest.npcId}`, archiveDayTag)
+      const potentialRewardParts: string[] = []
       const potentialReward = usePotentialStore().claimPotentialSourceReward('special_order_finish', `order:${quest.id}`, {
         reason: `特殊订单：${quest.targetItemName}`
       })
-      if (potentialReward.success) potentialQuestRewardMessage = ' 潜能材料有所沉淀。'
+      if (potentialReward.success) potentialRewardParts.push('潜能材料')
+      if (quest.spiritBreathReward) {
+        const spiritReward = usePotentialStore().claimPotentialSourceReward('child_spirit_sweets', `child-spirit-order:${quest.id}`, {
+          reason: `童心灵息委托：${quest.npcName}`
+        })
+        if (spiritReward.success) potentialRewardParts.push('灵息')
+      }
+      if (potentialRewardParts.length > 0) {
+        potentialQuestRewardSummary = potentialRewardParts.join('、')
+        potentialQuestRewardMessage = ` ${potentialQuestRewardSummary}有所沉淀。`
+      }
     }
 
     const rewardSummaryParts = [`${finalMoneyReward}文`, `${quest.npcName}好感+${finalFriendshipReward}`]
@@ -1867,8 +1882,8 @@ export const useQuestStore = defineStore('quest', () => {
     if (orderCookingFeedback) {
       rewardSummaryParts.push(`料理线索：${orderCookingFeedback}`)
     }
-    if (potentialQuestRewardMessage) {
-      rewardSummaryParts.push('潜能材料')
+    if (potentialQuestRewardSummary) {
+      rewardSummaryParts.push(potentialQuestRewardSummary)
     }
     completedQuestHistory.value = [
       {
@@ -2534,8 +2549,9 @@ export const useQuestStore = defineStore('quest', () => {
     if (typeof quest.id !== 'string' || typeof quest.npcId !== 'string' || typeof quest.targetItemId !== 'string') return null
 
     const validTypes = ['delivery', 'fishing', 'mining', 'gathering', 'special_order', 'cooking', 'errand', 'festival_prep']
-    const validCategories = ['gathering', 'cooking', 'fishing', 'errand', 'festival_prep']
+    const validCategories = ['gathering', 'cooking', 'fishing', 'errand', 'festival_prep', 'rumor']
     const validStages = ['recognize', 'familiar', 'friend', 'bestie', 'romance', 'married', 'family']
+    const validFriendshipLevels = ['stranger', 'acquaintance', 'friendly', 'bestFriend']
     const normalizedDaysRemaining = Math.max(1, Number(quest.daysRemaining) || 1)
     const normalizedOrderProgressState = normalizeOrderProgressState(quest.orderProgressState)
     if (normalizedOrderProgressState && !Number.isFinite(Number(quest.orderProgressState?.initialDaysRemaining))) {
@@ -2573,6 +2589,9 @@ export const useQuestStore = defineStore('quest', () => {
       daysRemaining: normalizedDaysRemaining,
       accepted: !!quest.accepted,
       sourceCategory: validCategories.includes(quest.sourceCategory) ? quest.sourceCategory : undefined,
+      sourceLabel: typeof quest.sourceLabel === 'string' ? quest.sourceLabel : undefined,
+      rumorTask: quest.rumorTask === true ? true : undefined,
+      variantLabel: typeof quest.variantLabel === 'string' ? quest.variantLabel : undefined,
       relationshipStageRequired: validStages.includes(quest.relationshipStageRequired) ? quest.relationshipStageRequired : undefined,
       itemReward: Array.isArray(quest.itemReward)
         ? quest.itemReward
@@ -2638,6 +2657,8 @@ export const useQuestStore = defineStore('quest', () => {
       requiredPondGenerationMin: Number.isFinite(Number(quest.requiredPondGenerationMin)) ? Number(quest.requiredPondGenerationMin) : undefined,
       requiredFishMature: quest.requiredFishMature === true ? true : undefined,
       requiredFishHealthy: quest.requiredFishHealthy === true ? true : undefined,
+      requiredNpcFriendshipLevel: validFriendshipLevels.includes(quest.requiredNpcFriendshipLevel) ? quest.requiredNpcFriendshipLevel : undefined,
+      spiritBreathReward: quest.spiritBreathReward === true ? true : undefined,
       isUrgent: quest.isUrgent === true ? true : undefined
     }
   }

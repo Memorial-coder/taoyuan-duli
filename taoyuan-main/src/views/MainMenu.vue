@@ -1486,10 +1486,10 @@
   }
 
   .main-menu-online-entry {
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 2px;
     padding: 10px 12px;
-    background: rgba(18, 26, 18, 0.22);
+    background: rgb(var(--color-success-rgb) / 0.08);
     transition:
       border-color 0.15s,
       background-color 0.15s,
@@ -1497,8 +1497,8 @@
   }
 
   .main-menu-online-entry:hover {
-    border-color: rgba(200, 164, 92, 0.42);
-    background: rgba(200, 164, 92, 0.08);
+    border-color: var(--color-border);
+    background: rgb(var(--color-accent-rgb) / 0.1);
     transform: translateY(-1px);
   }
 
@@ -1517,11 +1517,11 @@
 
   .main-menu-online-entry-chip {
     flex-shrink: 0;
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 2px;
     padding: 2px 6px;
     color: rgb(var(--color-accent));
-    background: rgba(200, 164, 92, 0.06);
+    background: rgb(var(--color-accent-rgb) / 0.06);
     font-size: 0.625rem;
   }
 

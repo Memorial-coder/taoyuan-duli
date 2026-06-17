@@ -70,7 +70,16 @@ const EXCAVATOR_BOMB_REFUND_CHANCE = 0.3
 const DEEP_EXCAVATOR_BOMB_REFUND_CHANCE = 0.5
 const ABYSS_MINER_GUARANTEED_REFUNDS_PER_FLOOR = 1
 const ABYSS_MINER_EXTRA_REFUND_CHANCE = 0.6
+const BOSS_POTENTIAL_REPLAY_MAX_CHANCE = 0.3
+const BOSS_POTENTIAL_REPLAY_FULL_CHANCE_FLOOR = MAX_MINE_FLOOR
 const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
+const getMineBossPotentialReplayChance = (floorNum: number): number => {
+  const safeFloor = Math.max(0, Math.floor(floorNum))
+  const ramp = BOSS_POTENTIAL_REPLAY_FULL_CHANCE_FLOOR > 0
+    ? safeFloor / BOSS_POTENTIAL_REPLAY_FULL_CHANCE_FLOOR
+    : 0
+  return Math.min(BOSS_POTENTIAL_REPLAY_MAX_CHANCE, Math.max(0, ramp * BOSS_POTENTIAL_REPLAY_MAX_CHANCE))
+}
 const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
   copper_ore: 'iron_ore',
   iron_ore: 'gold_ore',
@@ -214,6 +223,8 @@ export const useMiningStore = defineStore('mining', () => {
 
   /** 已击败的 BOSS（首杀记录） */
   const defeatedBosses = ref<string[]>([])
+  const potentialBossFirstRewardIds = ref<string[]>([])
+  const mineBossPotentialRewardSequence = ref(0)
 
   /** 已领取过感染层清剿奖励的楼层 */
   const claimedInfestedRewardFloors = ref<number[]>([])
@@ -694,16 +705,52 @@ export const useMiningStore = defineStore('mining', () => {
     }
   }
 
+  const claimMineBossPotentialReward = ({
+    source,
+    floorNum,
+    bossId,
+    reason
+  }: {
+    source: 'main' | 'skull'
+    floorNum: number
+    bossId: string | null
+    reason: string
+  }): string => {
+    const normalizedBossId = bossId ?? 'boss'
+    const shouldGuaranteePotential = !!bossId && !potentialBossFirstRewardIds.value.includes(bossId)
+    const replayChance = getMineBossPotentialReplayChance(floorNum)
+    if (!shouldGuaranteePotential && Math.random() >= replayChance) return ''
+
+    const repeatSource = source === 'main' ? 'main-repeat' : 'skull-repeat'
+    const eventKey = shouldGuaranteePotential
+      ? `boss-first:${normalizedBossId}`
+      : `${repeatSource}:${floorNum}:${normalizedBossId}:${mineBossPotentialRewardSequence.value + 1}`
+    if (!shouldGuaranteePotential) mineBossPotentialRewardSequence.value += 1
+
+    const potentialReward = usePotentialStore().claimPotentialSourceReward('mine_boss_clear', eventKey, { reason })
+    if (!potentialReward.success) return ''
+    if (shouldGuaranteePotential && bossId && !potentialBossFirstRewardIds.value.includes(bossId)) {
+      potentialBossFirstRewardIds.value.push(bossId)
+    }
+    return ' 潜能材料有所沉淀。'
+  }
+
   const grantMainMineBossRewards = (floorNum: number): MineRewardClaimResult => {
     const pendingReward = getPendingMineReward('main_mine_boss', floorNum)
     if (pendingReward) {
       return grantPendingMineReward(pendingReward)
     }
+    const bossId = BOSS_MONSTERS[floorNum]?.id ?? null
     if (!hasPendingMainMineBossRewards(floorNum)) {
-      return { granted: false, pending: false, message: '' }
+      const potentialMessage = claimMineBossPotentialReward({
+        source: 'main',
+        floorNum,
+        bossId,
+        reason: `矿洞第${floorNum}层首领复战`
+      })
+      return { granted: !!potentialMessage, pending: false, message: potentialMessage }
     }
 
-    const bossId = BOSS_MONSTERS[floorNum]?.id ?? null
     const shouldGrantFirstKill = !!bossId && !defeatedBosses.value.includes(bossId)
     const shouldGrantMainReward = !claimedBossRewardFloors.value.includes(floorNum)
     const weaponId = shouldGrantFirstKill ? (BOSS_DROP_WEAPONS[floorNum] ?? null) : null
@@ -754,10 +801,12 @@ export const useMiningStore = defineStore('mining', () => {
       message += ` 获得${moneyReward}文！`
       if (bossPressureBonus > 0 && moneyReward > baseMoneyReward) message += '（首领压制）'
     }
-    const potentialReward = usePotentialStore().claimPotentialSourceReward('mine_boss_clear', `main:${floorNum}:${bossId ?? 'boss'}`, {
+    message += claimMineBossPotentialReward({
+      source: 'main',
+      floorNum,
+      bossId,
       reason: `矿洞第${floorNum}层首领`
     })
-    if (potentialReward.success) message += ' 潜能材料有所沉淀。'
 
     if (oreRewardMessage) {
       message += oreRewardMessage
@@ -1860,10 +1909,12 @@ export const useMiningStore = defineStore('mining', () => {
             combatRewardEntries.push({ itemId: oreId, quantity: 1 })
           }
         }
-        const potentialReward = usePotentialStore().claimPotentialSourceReward('mine_boss_clear', `skull:${scFloor}`, {
+        msg += claimMineBossPotentialReward({
+          source: 'skull',
+          floorNum: scFloor,
+          bossId: monster.id,
           reason: `骷髅矿穴第${scFloor}层首领`
         })
-        if (potentialReward.success) msg += ' 潜能材料有所沉淀。'
         msg += ` 获得了${bonusOreCount}个稀有矿石！`
       } else {
         // 主矿洞BOSS
@@ -2303,6 +2354,8 @@ export const useMiningStore = defineStore('mining', () => {
       currentFloor: currentFloor.value,
       safePointFloor: safePointFloor.value,
       defeatedBosses: defeatedBosses.value,
+      potentialBossFirstRewardIds: potentialBossFirstRewardIds.value,
+      mineBossPotentialRewardSequence: mineBossPotentialRewardSequence.value,
       claimedInfestedRewardFloors: claimedInfestedRewardFloors.value,
       claimedBossRewardFloors: claimedBossRewardFloors.value,
       claimedBossRingRewardFloors: claimedBossRingRewardFloors.value,
@@ -2331,6 +2384,15 @@ export const useMiningStore = defineStore('mining', () => {
         .map(entry => Math.floor(Number(entry)))
         .filter(entry => Number.isFinite(entry) && entry > 0)
     )].sort((left, right) => left - right)
+  }
+
+  const normalizeStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return []
+    return [...new Set(
+      value
+        .map(entry => String(entry || '').trim())
+        .filter(Boolean)
+    )]
   }
 
   const normalizePendingMineRewards = (value: unknown): PendingMineRewardEntry[] => {
@@ -2388,7 +2450,12 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
-    defeatedBosses.value = ((data as Record<string, unknown>).defeatedBosses as string[]) ?? []
+    defeatedBosses.value = normalizeStringArray((data as Record<string, unknown>).defeatedBosses)
+    const hasPotentialBossFirstRewardIds = 'potentialBossFirstRewardIds' in data
+    potentialBossFirstRewardIds.value = hasPotentialBossFirstRewardIds
+      ? normalizeStringArray((data as Record<string, unknown>).potentialBossFirstRewardIds)
+      : [...defeatedBosses.value]
+    mineBossPotentialRewardSequence.value = Math.max(0, Math.floor(Number((data as Record<string, unknown>).mineBossPotentialRewardSequence) || 0))
 
     // 检测旧存档（30层系统）并迁移
     const rawSafePoint = ((data as Record<string, unknown>).safePointFloor as number) ?? 0
@@ -2449,6 +2516,9 @@ export const useMiningStore = defineStore('mining', () => {
           claimedBossShoeRewardFloors.value = [...new Set([...claimedBossShoeRewardFloors.value, reward.floorNum])].sort((left, right) => left - right)
         }
       }
+    }
+    if (!hasPotentialBossFirstRewardIds) {
+      potentialBossFirstRewardIds.value = [...new Set([...potentialBossFirstRewardIds.value, ...defeatedBosses.value])]
     }
 
     // 骷髅矿穴状态

@@ -160,5 +160,17 @@ assert.doesNotThrow(
   'normal crop growth bonuses may persist fractional farm plot growthDays'
 )
 
+const longRunningSaveRaw = encryptTaoyuanData({
+  data: {
+    player: { playerName: 'long_running_guard_user', money: 120 },
+    game: { year: 100, season: 'spring', day: 1 },
+  },
+})
+
+assert.doesNotThrow(
+  () => prepareSlotEntryForSave('long_running_guard_user', 0, longRunningSaveRaw, 1),
+  'legitimate year 100 long-running saves should pass the normal write guard'
+)
+
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-save-corruption-guard] passed')

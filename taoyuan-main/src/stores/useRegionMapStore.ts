@@ -23,6 +23,8 @@ import { getEnchantmentById, getWeaponById } from '@/data/weapons'
 import { getNpcById } from '@/data'
 import type {
   ExpeditionRuntimeState,
+  RegionBossCombatAction,
+  RegionBossCombatState,
   RegionBossDef,
   RegionCampActionId,
   RegionCampSiteState,
@@ -83,10 +85,13 @@ import type {
 } from '@/types/region'
 import {
   buildPlayerCombatRuntime,
+  calculateIncomingDamage,
   getDefendHeal,
+  getEffectiveDamage,
   getExpectedAttackDamage,
   getExpectedIncomingDamage,
-  getLifestealHeal
+  getLifestealHeal,
+  rollAttackOutcome
 } from '@/utils/combatRuntime'
 import { getItemById } from '@/data/items'
 import { resolveEnvironmentWindow } from '@/data/environmentWindows'
@@ -106,6 +111,7 @@ import { useSkillStore } from './useSkillStore'
 import { usePotentialStore } from './usePotentialStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useFrontierChronicleStore } from './useFrontierChronicleStore'
+import { useGoalStore } from './useGoalStore'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
 import type { Season, SkillType, Weather } from '@/types'
 
@@ -292,6 +298,8 @@ const consumeJourneyCookingTopic = () => {
 }
 
 const createSessionToken = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const REGION_BOSS_COMBAT_LOG_LIMIT = 80
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -564,6 +572,14 @@ const cloneEncounter = (encounter: RegionExpeditionEncounter | null): RegionExpe
         detailLines: [...encounter.detailLines],
         rewardItems: encounter.rewardItems.map(item => ({ ...item })),
         options: encounter.options.map(option => ({ ...option }))
+      }
+    : null
+
+const cloneBossCombat = (combat: RegionBossCombatState | null): RegionBossCombatState | null =>
+  combat
+    ? {
+        ...combat,
+        log: [...combat.log]
       }
     : null
 
@@ -2879,6 +2895,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lastCompletedDayTag: dayTag
     }
     saveData.value.telemetry.totalRouteCompletions += 1
+    useGoalStore().recordWeeklyActivityCounter('region_map_progress_actions', 1)
     if (route) {
       syncRouteMapNodeState(route.id, dayTag, 1, 1)
       syncShortcutState(route.id, dayTag)
@@ -2912,6 +2929,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const normalized = Math.max(0, Math.floor(Number(amount) || 0))
     if (normalized <= 0) return false
     saveData.value.telemetry.resourceTurnIns += normalized
+    useGoalStore().recordWeeklyActivityCounter('region_map_progress_actions', normalized)
     return true
   }
 
@@ -3235,6 +3253,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const buildExpeditionNodeChoices = (session: RegionExpeditionSession): RegionExpeditionNodeChoice[] => {
     if (session.status !== 'ongoing' || session.pendingEncounter || session.campState) return []
+    if (session.bossCombat?.status === 'active') return []
 
     if (session.mode === 'boss') {
       const boss = getRegionBossDef(session.regionId)
@@ -3325,6 +3344,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     supplies: { ...session.supplies },
     carryItems: session.carryItems.map(item => ({ ...item })),
     pendingRewardItems: session.pendingRewardItems.map(item => ({ ...item })),
+    bossCombat: cloneBossCombat(session.bossCombat),
     pendingEncounter: cloneEncounter(session.pendingEncounter),
     riskState: { ...session.riskState },
     campState: session.campState
@@ -3655,6 +3675,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       pendingRewardFamilyId: route.primaryResourceFamilyId,
       pendingRewardAmount: Math.max(1, Math.round(getRouteRewardAmount(route.id) * (1 + journeyOutcome.rewardMultiplier))),
       pendingRewardItems: (ROUTE_ITEM_REWARDS[route.id] ?? []).map(item => ({ ...item })),
+      bossCombat: null,
       pendingEncounter: null,
       queuedEncounterKind: null,
       campState: null,
@@ -3761,6 +3782,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       pendingRewardFamilyId: boss.rewardFamilyId,
       pendingRewardAmount: Math.max(1, Math.round(getBossRewardAmount(regionId) * (1 + journeyOutcome.rewardMultiplier))),
       pendingRewardItems: (BOSS_ITEM_REWARDS[regionId] ?? []).map(item => ({ ...item })),
+      bossCombat: null,
       pendingEncounter: null,
       queuedEncounterKind: null,
       campState: null,
@@ -3937,6 +3959,15 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         tone: 'danger' as const
       }
     }
+    if (session.bossCombat?.status === 'active') {
+      return {
+        success: false,
+        message: '当前正在首领交战，请先完成战斗弹窗中的行动。',
+        title: '无法推进',
+        lines: ['当前正在首领交战，请先完成战斗弹窗中的行动。'],
+        tone: 'danger' as const
+      }
+    }
     if (session.status !== 'ongoing') {
       return {
         success: false,
@@ -4092,25 +4123,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (session.mode === 'boss' && stepNumber >= session.totalSteps) {
       const boss = getRegionBossDef(session.regionId)
       if (boss) {
-        const combatResult = simulateBossExpedition(session.regionId, boss, session)
-        const hpDelta = Math.max(0, playerStore.hp - Math.max(0, combatResult.projectedHp))
-        if (hpDelta > 0) {
-          playerStore.takeDamage(hpDelta)
-          effects.push(`决战阶段额外损失 ${hpDelta} 点生命。`)
-        }
-        effects.push(combatResult.supportSummary)
-        effects.push(...combatResult.phaseLines.slice(0, 2))
-        if (combatResult.success) {
-          session.status = 'ready_to_settle'
-          session.pendingRewardAmount += Math.max(1, Math.floor(session.findings / 3))
-          summary = `你已压制 ${boss.name}，可以回城收束这趟首领远征。`
-          tone = 'success'
-        } else {
-          session.status = 'failure'
-          session.recommendedRouteId = combatResult.recommendedRouteId ?? getRecommendedRecoveryRoute(session.regionId)?.id ?? null
-          summary = `你在 ${boss.name} 面前被迫后撤，这趟远征转入失败收束。`
-          tone = 'danger'
-        }
+        session.bossCombat = createRegionBossCombatState(session, boss)
+        effects.push(session.bossCombat.supportSummary)
+        effects.push(`首领交战已展开：${boss.name} / ${getRegionBossCombatPhase(boss, 0).label}。`)
+        summary = `你已逼近 ${boss.name}，决战弹窗已展开。`
+        tone = 'danger'
       }
     } else if (session.progressStep >= session.totalSteps) {
       session.status = 'ready_to_settle'
@@ -4185,6 +4202,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
     if (session.status !== 'ongoing') {
       return { success: false, message: '当前远征已不在可扎营阶段。', title: '无法扎营', lines: ['当前远征已不在可扎营阶段。'], tone: 'danger' as const }
+    }
+    if (session.bossCombat?.status === 'active') {
+      return { success: false, message: '首领交战中无法扎营。', title: '无法扎营', lines: ['首领交战中无法扎营。'], tone: 'danger' as const }
     }
     if (session.campUsed) {
       return { success: false, message: '本次远征已经扎营过一次。', title: '无法扎营', lines: ['本次远征已经扎营过一次。'], tone: 'danger' as const }
@@ -4369,6 +4389,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
     if (session.status !== 'ongoing') {
       return { success: false, message: '当前远征已不在可撤退阶段。', title: '无法撤退', lines: ['当前远征已不在可撤退阶段。'], tone: 'danger' as const }
+    }
+    if (session.bossCombat?.status === 'active') {
+      return { success: false, message: '首领交战中无法撤退。', title: '无法撤退', lines: ['首领交战中无法撤退。'], tone: 'danger' as const }
     }
     session.status = 'retreated'
     session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
@@ -4646,10 +4669,149 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
+  const resolveRegionBossCombatAction = (action: RegionBossCombatAction, _dayTag = '') => {
+    const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
+    if (!session || session.mode !== 'boss' || !session.bossId || !session.bossCombat) {
+      return { success: false, message: '当前没有进行中的首领交战。', title: '无法交战', lines: ['当前没有进行中的首领交战。'], tone: 'danger' as const }
+    }
+    const boss = REGION_BOSS_DEFS.find(entry => entry.id === session.bossId && entry.regionId === session.regionId) ?? null
+    if (!boss) {
+      return { success: false, message: '当前首领配置不存在。', title: '无法交战', lines: ['当前首领配置不存在。'], tone: 'danger' as const }
+    }
+    const combat = session.bossCombat
+    if (combat.status !== 'active') {
+      return { success: false, message: '本场首领交战已经结束。', title: '无法交战', lines: ['本场首领交战已经结束。'], tone: 'danger' as const }
+    }
+
+    const gameStore = useGameStore()
+    const playerStore = usePlayerStore()
+    const { runtime, weaponLabel } = buildRegionBossPlayerRuntime()
+    const context = getRegionBossCombatContext(session.regionId, boss, session)
+    const phase = getRegionBossCombatPhase(boss, combat.phaseIndex)
+    const timeCost = action === 'defend' ? 0.17 : action === 'press' ? 0.2 : 0.25
+    const timeResult = gameStore.advanceTime(timeCost, { skipSpeedBuff: true })
+    combat.round += 1
+    combat.supportSummary = context.supportSummary
+
+    const incomingDamage = (mode: 'normal' | 'defend' | 'press') => {
+      const defenseProfile = mode === 'defend' ? runtime.defendDefense : runtime.defense
+      if (mode !== 'defend' && (defenseProfile.dodgeRate ?? 0) > 0 && Math.random() < (defenseProfile.dodgeRate ?? 0)) {
+        appendBossCombatLog(combat, `你避开了 ${phase.label} 的反击。`)
+        return 0
+      }
+      const baseDamage = calculateIncomingDamage({
+        incomingAttack: phase.enemyAttack + Math.floor(session.danger / 30) + Math.floor(combat.round / 5),
+        flatReduction: defenseProfile.flatReduction,
+        modifiers: defenseProfile.damageMultipliers ?? []
+      })
+      const stanceMultiplier = mode === 'defend' ? 0.65 : mode === 'press' ? 0.82 : 1
+      const damage = Math.max(1, Math.ceil(baseDamage * context.incomingPressureMultiplier * (1 - context.supportMitigation) * stanceMultiplier))
+      return playerStore.takeDamage(damage)
+    }
+
+    let title = '首领交战'
+    let tone: 'success' | 'danger' | 'accent' = 'accent'
+    let message = ''
+
+    if (action === 'defend') {
+      const damage = incomingDamage('defend')
+      const recoverAmount = getDefendHeal({
+        maxHp: playerStore.getMaxHp(),
+        healFlat: runtime.defendHealFlat,
+        healRatio: runtime.defendHealRatio
+      })
+      if (recoverAmount > 0 && playerStore.hp > 0) {
+        playerStore.restoreHealth(recoverAmount)
+      }
+      message = recoverAmount > 0
+        ? `你稳住防线，承受 ${damage} 点伤害并回稳 ${recoverAmount} 点生命。`
+        : `你稳住防线，承受 ${damage} 点伤害。`
+      appendBossCombatLog(combat, message)
+    } else {
+      const phaseHpBefore = combat.phaseHp
+      const attackOutcome = action === 'attack'
+        ? rollAttackOutcome(runtime.attack, phase.enemyDefense)
+        : {
+            damage: Math.max(1, Math.floor((session.frontlinePrep + context.supportDamageBonus) / 4)),
+            extraDamage: 0,
+            totalDamage: Math.max(1, Math.floor((session.frontlinePrep + context.supportDamageBonus) / 4)),
+            isCrit: false,
+            didExtraStrike: false,
+            didStun: false
+          }
+      const supportDamage = action === 'attack' ? Math.max(0, Math.floor(context.supportDamageBonus / 3)) : 0
+      const totalDamage = attackOutcome.totalDamage + supportDamage
+      const effectiveDamage = getEffectiveDamage(phaseHpBefore, totalDamage)
+      combat.phaseHp = Math.max(0, combat.phaseHp - totalDamage)
+      if (action === 'press') {
+        session.frontlinePrep = Math.max(0, session.frontlinePrep - 1)
+        session.danger = clamp(session.danger - 2, 0, 100)
+      }
+      const lifestealHeal = action === 'attack' ? getLifestealHeal(effectiveDamage, runtime.attack.lifesteal) : 0
+      if (lifestealHeal > 0) playerStore.restoreHealth(lifestealHeal)
+      message =
+        action === 'attack'
+          ? `${weaponLabel} 命中 ${phase.label}，造成 ${attackOutcome.totalDamage} 点伤害${supportDamage > 0 ? `，前线支援追加 ${supportDamage}` : ''}${attackOutcome.isCrit ? '，触发暴击' : ''}${attackOutcome.didExtraStrike ? '，触发追击' : ''}${lifestealHeal > 0 ? `，吸血回稳 ${lifestealHeal}` : ''}。`
+          : `你调用前线布置压制 ${phase.label}，造成 ${totalDamage} 点战术伤害。`
+      appendBossCombatLog(combat, message)
+
+      if (combat.phaseHp > 0 && !attackOutcome.didStun) {
+        const damage = incomingDamage(action === 'press' ? 'press' : 'normal')
+        if (damage > 0) appendBossCombatLog(combat, `${phase.label} 反击，你受到 ${damage} 点伤害。`)
+      } else if (combat.phaseHp > 0 && attackOutcome.didStun) {
+        appendBossCombatLog(combat, `${phase.label} 被震住，没能立刻反击。`)
+      }
+    }
+
+    if (playerStore.hp <= 0) {
+      finishRegionBossCombatFailure(session, boss, combat)
+      title = '首领交战失利'
+      tone = 'danger'
+      message = `你在 ${boss.name} 面前被迫后撤。`
+      appendBossCombatLog(combat, message)
+    } else if (combat.phaseHp <= 0) {
+      const nextPhaseIndex = combat.phaseIndex + 1
+      if (nextPhaseIndex >= boss.phases.length) {
+        finishRegionBossCombatVictory(session, boss, combat)
+        title = '首领交战胜利'
+        tone = 'success'
+        message = `你已压制 ${boss.name}。`
+        appendBossCombatLog(combat, message)
+      } else {
+        const nextPhase = getRegionBossCombatPhase(boss, nextPhaseIndex)
+        combat.phaseIndex = nextPhaseIndex
+        combat.phaseHp = nextPhase.enemyHp
+        combat.phaseMaxHp = nextPhase.enemyHp
+        message = `你突破 ${phase.label}，${nextPhase.label} 已展开。`
+        appendBossCombatLog(combat, `${message} ${nextPhase.summary}`)
+      }
+    }
+
+    persistActiveSession(session)
+    showFloat(title, tone)
+    return {
+      success: true,
+      message: message || '首领交战已推进。',
+      title,
+      lines: [
+        `目标：${boss.name}`,
+        `阶段：${getRegionBossCombatPhase(boss, combat.phaseIndex).label}`,
+        `首领生命：${combat.phaseHp}/${combat.phaseMaxHp}`,
+        `玩家生命：${playerStore.hp}/${playerStore.getMaxHp()}`,
+        combat.supportSummary
+      ],
+      tone,
+      timeResult
+    }
+  }
+
   const settleActiveExpedition = (dayTag = '') => {
     const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
     if (!session) {
       return { success: false, message: '当前没有可收束的远征。', title: '无法收束', lines: ['当前没有可收束的远征。'], tone: 'danger' as const }
+    }
+    if (session.bossCombat?.status === 'active') {
+      return { success: false, message: '首领交战尚未结束，请先处理战斗弹窗。', title: '无法收束', lines: ['首领交战尚未结束，请先处理战斗弹窗。'], tone: 'danger' as const }
     }
     if (session.status === 'ongoing') {
       return { success: false, message: '这趟远征仍在途中，请先推进、扎营或撤退。', title: '无法收束', lines: ['这趟远征仍在途中，请先推进、扎营或撤退。'], tone: 'danger' as const }
@@ -5115,6 +5277,132 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
+  const getRegionBossCombatPhase = (boss: RegionBossDef, phaseIndex: number) =>
+    boss.phases[clamp(Math.floor(phaseIndex), 0, Math.max(0, boss.phases.length - 1))] ?? {
+      id: `${boss.id}_fallback`,
+      label: boss.name,
+      summary: boss.description,
+      enemyHp: 1,
+      enemyAttack: 1,
+      enemyDefense: 0
+    }
+
+  const appendBossCombatLog = (combat: RegionBossCombatState, line: string) => {
+    combat.log = [...combat.log, line].slice(-REGION_BOSS_COMBAT_LOG_LIMIT)
+  }
+
+  const getRegionBossCombatContext = (regionId: RegionId, boss: RegionBossDef, session: RegionExpeditionSession) => {
+    const journeyOutcome = getBossJourneyBuildSnapshot(regionId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
+    const completedRouteCount = getRegionCompletedRouteCount(regionId)
+    const weeklyEventCompletions = getRegionWeeklyEventCompletions(regionId)
+    const familyStock = getFamilyResourceQuantity(boss.rewardFamilyId)
+    const failureStreak = saveData.value.bossFailureStreaks[regionId] ?? 0
+    const focusBonus = currentWeeklyFocus.value.focusedRegionId === regionId ? 1 : 0
+    const branchCount = session.nodeHistory.filter(node => node.lane === 'branch').length
+    const deepCount = session.nodeHistory.filter(node => node.lane === 'deep' || node.lane === 'boss').length
+    const campCount = session.nodeHistory.filter(node => node.lane === 'camp').length
+    const supportCount = session.encounterMemory.filter(entry => entry.kind === 'support').length
+    const anomalyCount = session.encounterMemory.filter(entry => entry.kind === 'anomaly').length
+    const hazardBoldCount = session.encounterMemory.filter(entry => entry.kind === 'hazard' && entry.optionId === 'bold').length
+    const frontlinePrepBonus = Math.min(12, session.frontlinePrep)
+    const weatherPressure =
+      session.riskState.weather === 'storm' ? 3 : session.riskState.weather === 'fog' ? 2 : session.riskState.weather === 'wind' ? 1 : 0
+    const anomalyPressure = Math.floor(session.riskState.anomaly / 14) + anomalyCount * 2
+    const alertPressure = Math.floor(session.riskState.alertness / 20)
+    const pollutionPressure = Math.floor(session.riskState.pollution / 18)
+    const supportDamageBonus =
+      completedRouteCount * 2 +
+      weeklyEventCompletions * 2 +
+      Math.min(6, familyStock) +
+      focusBonus * 2 +
+      failureStreak +
+      frontlinePrepBonus +
+      branchCount +
+      deepCount +
+      supportCount * 2
+    const supportMitigation = Math.min(
+      0.55,
+      weeklyEventCompletions * 0.04 +
+        failureStreak * 0.05 +
+        focusBonus * 0.03 +
+        Math.min(0.2, frontlinePrepBonus * 0.015) +
+        supportCount * 0.04 +
+        campCount * 0.03 +
+        journeyOutcome.bossPressureResist
+    )
+    const incomingPressureMultiplier =
+      1 + weatherPressure * 0.05 + alertPressure * 0.04 + pollutionPressure * 0.03 + hazardBoldCount * 0.04
+
+    return {
+      supportDamageBonus,
+      supportMitigation,
+      incomingPressureMultiplier,
+      anomalyPressure,
+      supportSummary: `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 前线准备 ${frontlinePrepBonus} / 支援链 ${supportCount} / 焦点加成 ${focusBonus > 0 ? '有' : '无'}`
+    }
+  }
+
+  const createRegionBossCombatState = (session: RegionExpeditionSession, boss: RegionBossDef): RegionBossCombatState => {
+    const phase = getRegionBossCombatPhase(boss, 0)
+    const context = getRegionBossCombatContext(session.regionId, boss, session)
+    return {
+      combatId: createSessionToken(),
+      bossId: boss.id,
+      phaseIndex: 0,
+      phaseHp: phase.enemyHp,
+      phaseMaxHp: phase.enemyHp,
+      round: 0,
+      status: 'active',
+      supportSummary: context.supportSummary,
+      log: [
+        `决战开始：${boss.name}。`,
+        `${phase.label}：${phase.summary}`,
+        context.supportSummary
+      ]
+    }
+  }
+
+  const finishRegionBossCombatFailure = (
+    session: RegionExpeditionSession,
+    boss: RegionBossDef,
+    combat: RegionBossCombatState
+  ) => {
+    combat.status = 'failure'
+    session.status = 'failure'
+    session.pendingRewardAmount = 0
+    session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+    appendSessionJournal(
+      session,
+      '首领决战失利',
+      `你在 ${boss.name} 面前被迫后撤，这趟远征转入失败收束。`,
+      [
+        combat.supportSummary,
+        session.recommendedRouteId ? `建议先回补给路线：${resolveSessionTargetLabel(session.regionId, session.recommendedRouteId, null)}。` : '建议先恢复状态，再重新压进。'
+      ],
+      'danger'
+    )
+  }
+
+  const finishRegionBossCombatVictory = (
+    session: RegionExpeditionSession,
+    boss: RegionBossDef,
+    combat: RegionBossCombatState
+  ) => {
+    combat.status = 'victory'
+    session.status = 'ready_to_settle'
+    session.pendingRewardAmount += Math.max(1, Math.floor(session.findings / 3))
+    appendSessionJournal(
+      session,
+      '首领决战胜利',
+      `你已压制 ${boss.name}，可以回城收束这趟首领远征。`,
+      [
+        combat.supportSummary,
+        `决战回合：${combat.round}，最终阶段：${getRegionBossCombatPhase(boss, combat.phaseIndex).label}。`
+      ],
+      'success'
+    )
+  }
+
   const simulateBossExpedition = (regionId: RegionId, boss: RegionBossDef, session: RegionExpeditionSession | null = null) => {
     const { playerHp, maxHp, weaponLabel, runtime } = buildRegionBossPlayerRuntime()
     const journeyOutcome = getBossJourneyBuildSnapshot(regionId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
@@ -5239,6 +5527,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!expeditionFeatureEnabled.value) return false
     const bossName = getRegionBossDef(regionId)?.name ?? bossId
     saveData.value.telemetry.bossClears += 1
+    useGoalStore().recordWeeklyActivityCounter('region_map_progress_actions', 1)
     saveData.value.bossClearCounts[regionId] = (saveData.value.bossClearCounts[regionId] ?? 0) + 1
     saveData.value.bossFailureStreaks[regionId] = 0
     saveData.value.lastBossOutcome = {
@@ -5708,6 +5997,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             pendingRewardFamilyId: null,
             pendingRewardAmount: 0,
             pendingRewardItems: [],
+            bossCombat: null,
             pendingEncounter: null,
             queuedEncounterKind: null,
             campState: null,
@@ -5758,6 +6048,45 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             } satisfies RegionExpeditionNodeRecord
           })
       : []
+    const bossCombat =
+      bossId && raw.bossCombat && typeof raw.bossCombat === 'object'
+        ? (() => {
+            const combatRaw = raw.bossCombat as {
+              combatId?: unknown
+              bossId?: unknown
+              phaseIndex?: unknown
+              phaseHp?: unknown
+              phaseMaxHp?: unknown
+              round?: unknown
+              status?: unknown
+              supportSummary?: unknown
+              log?: unknown
+            }
+            if (combatRaw.bossId !== bossId) return null
+            const boss = REGION_BOSS_DEFS.find(entry => entry.id === bossId && entry.regionId === regionId)
+            if (!boss) return null
+            const phaseIndex = clamp(Math.floor(Number(combatRaw.phaseIndex) || 0), 0, Math.max(0, boss.phases.length - 1))
+            const phase = getRegionBossCombatPhase(boss, phaseIndex)
+            const phaseMaxHp = Math.max(1, Math.floor(Number(combatRaw.phaseMaxHp) || phase.enemyHp))
+            const status =
+              combatRaw.status === 'victory' || combatRaw.status === 'failure' || combatRaw.status === 'active'
+                ? combatRaw.status
+                : 'active'
+            return {
+              combatId: typeof combatRaw.combatId === 'string' && combatRaw.combatId ? combatRaw.combatId : createSessionToken(),
+              bossId,
+              phaseIndex,
+              phaseHp: clamp(Math.floor(Number(combatRaw.phaseHp) || phaseMaxHp), 0, phaseMaxHp),
+              phaseMaxHp,
+              round: Math.max(0, Math.floor(Number(combatRaw.round) || 0)),
+              status,
+              supportSummary: typeof combatRaw.supportSummary === 'string' ? combatRaw.supportSummary : '',
+              log: Array.isArray(combatRaw.log)
+                ? combatRaw.log.filter((line: unknown): line is string => typeof line === 'string').slice(-REGION_BOSS_COMBAT_LOG_LIMIT)
+                : []
+            } satisfies RegionBossCombatState
+          })()
+        : null
 
     return {
       sessionId: typeof raw.sessionId === 'string' && raw.sessionId ? raw.sessionId : createSessionToken(),
@@ -5795,6 +6124,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         : null,
       pendingRewardAmount: Math.max(0, Math.floor(Number(raw.pendingRewardAmount) || 0)),
       pendingRewardItems,
+      bossCombat,
       pendingEncounter,
       queuedEncounterKind:
         raw.queuedEncounterKind === 'hazard' ||
@@ -6534,6 +6864,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     resolveCampAction,
     retreatActiveExpedition,
     resolveActiveEncounter,
+    resolveRegionBossCombatAction,
     settleActiveExpedition,
     runRouteExpedition,
     runRegionEvent,

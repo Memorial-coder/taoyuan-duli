@@ -242,14 +242,14 @@
   }
 
   .announcement-item {
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 6px;
-    background: rgba(0, 0, 0, 0.14);
+    background: var(--color-surface-raised);
     padding: 12px;
   }
 
   .announcement-item--collapsed {
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--color-surface-muted);
   }
 
   .announcement-summary {
@@ -315,9 +315,9 @@
     width: 100%;
     max-height: 320px;
     object-fit: contain;
-    border: 1px solid rgba(200, 164, 92, 0.16);
+    border: 1px solid var(--color-border-subtle);
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--color-surface-muted);
     margin: 12px 0;
   }
 

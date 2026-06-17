@@ -1011,6 +1011,8 @@ export const useMuseumStore = defineStore('museum', () => {
     const goalSnapshot = goalStore.serialize()
     const npcSnapshot = npcStore.serialize()
     const museumSnapshot = serialize()
+    const potentialStore = usePotentialStore()
+    const potentialSnapshot = potentialStore.serialize()
 
     try {
     const commission = getScholarCommissionOverview(commissionId)
@@ -1047,6 +1049,10 @@ export const useMuseumStore = defineStore('museum', () => {
       : []
 
     setScholarCommissionState(commissionId, { rewarded: true })
+    const scholarPotentialEventKey = `scholar:${commission.id}:${commission.state.acceptedDayTag || getCurrentDayTag()}`
+    const potentialReward = potentialStore.claimPotentialSourceReward('museum_hidden_sample', scholarPotentialEventKey, {
+      reason: `博物馆学者委托：${commission.title}`
+    })
 
     const rewardSummary = [
       commission.reward.money ? `${commission.reward.money}文` : '',
@@ -1059,19 +1065,21 @@ export const useMuseumStore = defineStore('museum', () => {
       tags: ['late_game_cycle'],
       meta: {
         commissionId: commission.id,
-        rewardSummary: rewardSummary.join(' | ')
+        rewardSummary: rewardSummary.join(' | '),
+        potentialReward: potentialReward.success
       }
     })
 
     return {
       success: true,
-      message: `领取了学者委托奖励：${commission.title}${rewardSummary.length > 0 ? `，获得${rewardSummary.join('、')}` : ''}${friendshipMessages.length > 0 ? `。${friendshipMessages.join(' ')}` : '。'}`
+      message: `领取了学者委托奖励：${commission.title}${rewardSummary.length > 0 ? `，获得${rewardSummary.join('、')}` : ''}${potentialReward.success ? '，并沉淀了博物馆考据材料' : ''}${friendshipMessages.length > 0 ? `。${friendshipMessages.join(' ')}` : '。'}`
     }
     } catch {
       inventoryStore.deserialize(inventorySnapshot)
       playerStore.deserialize(playerSnapshot)
       goalStore.deserialize(goalSnapshot)
       npcStore.deserialize(npcSnapshot)
+      potentialStore.deserialize(potentialSnapshot)
       deserialize(museumSnapshot)
       return { success: false, message: '学者委托奖励结算失败，已回滚，请稍后再试。' }
     } finally {
@@ -1087,6 +1095,8 @@ export const useMuseumStore = defineStore('museum', () => {
     const inventorySnapshot = inventoryStore.serialize()
     const playerSnapshot = playerStore.serialize()
     const claimedSnapshot = [...claimedMilestones.value]
+    const potentialStore = usePotentialStore()
+    const potentialSnapshot = potentialStore.serialize()
 
     try {
       const milestone = MUSEUM_MILESTONES.find(m => m.count === count)
@@ -1104,7 +1114,7 @@ export const useMuseumStore = defineStore('museum', () => {
         inventoryStore.addItemsExact(rewardItems)
       }
       claimedMilestones.value.push(count)
-      const potentialReward = usePotentialStore().claimPotentialSourceReward('museum_hidden_sample', `milestone:${count}`, {
+      const potentialReward = potentialStore.claimPotentialSourceReward('museum_hidden_sample', `milestone:${count}`, {
         reason: `博物馆里程碑：${milestone.name}`
       })
       addLog(`【博物馆】已领取里程碑「${milestone.name}」奖励。${potentialReward.success ? ' 潜能材料有所沉淀。' : ''}`, {
@@ -1121,6 +1131,7 @@ export const useMuseumStore = defineStore('museum', () => {
     } catch {
       inventoryStore.deserialize(inventorySnapshot)
       playerStore.deserialize(playerSnapshot)
+      potentialStore.deserialize(potentialSnapshot)
       claimedMilestones.value = claimedSnapshot
       return false
     } finally {

@@ -13,6 +13,7 @@ import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useSkillStore } from '@/stores/useSkillStore'
 import { useCookingStore } from '@/stores/useCookingStore'
+import { usePotentialStore } from '@/stores/usePotentialStore'
 import { addLog, showFloat, _registerPerkChecker } from './useGameLog'
 import { useAudio } from './useAudio'
 
@@ -171,6 +172,9 @@ export const closeFestival = (prize: number) => {
     if (totalMoney > 0) {
       playerStore.earnMoney(totalMoney)
     }
+    const potentialReward = usePotentialStore().claimPotentialSourceReward('festival_minigame_clear', `festival-mini:${rewardKey}`, {
+      reason: currentFestivalEvent.value ? `节会小游戏：${currentFestivalEvent.value.name}` : '节会小游戏'
+    })
     if (festivalBonusItems.length > 0) {
       const rewardItems = festivalBonusItems.map(item => ({
         itemId: item.itemId,
@@ -194,6 +198,9 @@ export const closeFestival = (prize: number) => {
       if (alchemyFestivalMultiplier > 1 && adjustedPrize > prize) {
         addLog(`丹药让节会发挥更稳，奖金提升至${adjustedPrize}文。`)
       }
+    }
+    if (potentialReward.success) {
+      addLog('节会小游戏表现沉淀出少量潜能材料。')
     }
     const cookingTopic = cookingStore.consumeStoryTriggerRecord(FESTIVAL_COOKING_TOPIC_LABELS)
     if (cookingTopic) {

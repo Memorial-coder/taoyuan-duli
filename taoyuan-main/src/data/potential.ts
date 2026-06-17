@@ -43,25 +43,25 @@ export const POTENTIAL_RESOURCE_DEFS: readonly PotentialResourceDef[] = [
   {
     id: 'potential_insight',
     label: '潜能心得',
-    summary: '从长期目标、主题周和精研结算中沉淀的通用修行材料。',
+    summary: '多条长期结算都会沉淀的通用修行材料，常随首领、行旅、订单、主题周、考据和节会小游戏奖励出现。',
     branchHints: ['body', 'craft', 'trail', 'harmony']
   },
   {
     id: 'spirit_breath',
     label: '灵息',
-    summary: '来自仙灵、节庆和旅途异象的轻灵材料，偏向根骨与人和。',
+    summary: '来自仙灵结缘记忆、孩童挚友甜点委托、日历节日出货箱有效结算，或节会小游戏有效完成的轻灵材料，偏向根骨与人和。',
     branchHints: ['body', 'harmony']
   },
   {
     id: 'artisan_notes',
     label: '百工札记',
-    summary: '工坊、订单和瀚海贸易带回的手艺记录，偏向巧作。',
+    summary: '特殊订单、博物馆考据和研究券兑换等经营研究线带回的手艺记录，偏向巧作。',
     branchHints: ['craft']
   },
   {
     id: 'mountain_jade',
     label: '山行玉',
-    summary: '采集、矿洞和远征中得到的山野凭证，偏向山行。',
+    summary: '矿洞首领、高层首领和高风险行旅中得到的山野凭证，偏向山行。',
     branchHints: ['trail']
   }
 ]
@@ -569,7 +569,7 @@ export const POTENTIAL_SOURCE_RULES: readonly PotentialSourceRule[] = [
   {
     id: 'mine_boss_clear',
     label: '矿洞首领结算',
-    summary: '击败矿洞 Boss 或高层首领时少量获得。',
+    summary: '首次击败矿洞 Boss 稳定获得，复战和高层首领随层数有一定概率获得。',
     rewards: [
       { resourceId: 'potential_insight', amount: 1 },
       { resourceId: 'mountain_jade', amount: 1 }
@@ -606,7 +606,7 @@ export const POTENTIAL_SOURCE_RULES: readonly PotentialSourceRule[] = [
   {
     id: 'museum_hidden_sample',
     label: '博物馆考据',
-    summary: '捐赠稀有样本、考据隐藏样本时获得专门材料。',
+    summary: '领取捐赠里程碑、完成学者委托考据时获得专门材料。',
     rewards: [
       { resourceId: 'potential_insight', amount: 1 },
       { resourceId: 'artisan_notes', amount: 1 }
@@ -615,13 +615,30 @@ export const POTENTIAL_SOURCE_RULES: readonly PotentialSourceRule[] = [
   },
   {
     id: 'festival_spirit_event',
-    label: '节庆灵息',
-    summary: '节庆或仙灵相关事件中少量获得。',
+    label: '灵息机缘',
+    summary: '归档仙灵结缘记忆，或在有日历节日的当天完成出货箱结算时少量获得。',
     rewards: [
       { resourceId: 'potential_insight', amount: 1 },
       { resourceId: 'spirit_breath', amount: 1 }
     ],
     cap: { period: 'weekly', maxClaims: 2, maxResourceAmount: 4 }
+  },
+  {
+    id: 'festival_minigame_clear',
+    label: '节会小游戏',
+    summary: '在互动节日小游戏中取得有效成绩时少量获得，独立于仙灵记忆和节庆出货上限。',
+    rewards: [
+      { resourceId: 'potential_insight', amount: 1 },
+      { resourceId: 'spirit_breath', amount: 1 }
+    ],
+    cap: { period: 'weekly', maxClaims: 2, maxResourceAmount: 4 }
+  },
+  {
+    id: 'child_spirit_sweets',
+    label: '童心灵息委托',
+    summary: '阿花或石头达到挚友后，告示板有概率刷出提交甜点/糕点的童心甜点委托，完成时获得。',
+    rewards: [{ resourceId: 'spirit_breath', amount: 1 }],
+    cap: { period: 'weekly', maxClaims: 1, maxResourceAmount: 1 }
   }
 ]
 

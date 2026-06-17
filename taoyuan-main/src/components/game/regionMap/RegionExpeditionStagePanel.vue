@@ -120,13 +120,18 @@
   const recentJournal = computed(() => props.session.journal.slice(-3).reverse())
   const compactRecentJournal = computed(() => recentJournal.value.slice(0, 2))
   const nodeTrail = computed(() => props.session.nodeHistory.slice(-8))
+  const bossCombatActive = computed(() => props.session.bossCombat?.status === 'active')
   const visibleSignalLines = computed(() => props.signalLines.slice(0, 3))
   const compactEncounterTrail = computed(() => props.encounterTrail.slice(0, 3))
+  const latestBossCombatLogLine = computed(() => {
+    const log = props.session.bossCombat?.log ?? []
+    return log.length > 0 ? log[log.length - 1] : ''
+  })
   const carryPreviewLines = computed(() =>
     props.session.carryItems.slice(0, 4).map(item => `${item.label} x${item.quantity} · ${item.note}`)
   )
   const sceneKey = computed(
-    () => `${props.session.sessionId}:${revealState.value.phase}:${props.session.progressStep}:${props.session.pendingEncounter?.id ?? 'none'}:${props.session.campState?.enteredAtStep ?? 'none'}:${props.session.status}`
+    () => `${props.session.sessionId}:${revealState.value.phase}:${props.session.progressStep}:${props.session.pendingEncounter?.id ?? 'none'}:${props.session.campState?.enteredAtStep ?? 'none'}:${props.session.bossCombat?.round ?? 'none'}:${props.session.status}`
   )
   const progressPercent = computed(() =>
     props.session.totalSteps > 0 ? Math.max(6, Math.round((props.session.progressStep / props.session.totalSteps) * 100)) : 0
@@ -209,6 +214,14 @@
       ].filter(Boolean)
     }
 
+    if (bossCombatActive.value) {
+      return [
+        latestBossCombatLogLine.value || '首领决战已经展开。',
+        props.session.bossCombat?.supportSummary ?? '',
+        '请先在首领交战弹窗中完成当前回合。'
+      ].filter(Boolean)
+    }
+
     if (phase === 'settlement_reveal') {
       return [
         latestJournal.value?.summary ?? '这趟远征已经脱离推进阶段。',
@@ -235,6 +248,7 @@
   const primaryActionMode = computed<RegionExpeditionPrimaryAction>(() => {
     const phase = revealState.value.phase
     if (phase === 'intro' || phase === 'node_reveal' || phase === 'encounter_reveal' || phase === 'camp_reveal') return 'waiting'
+    if (bossCombatActive.value) return 'waiting'
     if (props.session.pendingEncounter) return 'encounter'
     if (props.session.campState) return 'camp'
     if (props.session.status !== 'ongoing') return 'settlement'
@@ -244,6 +258,7 @@
   const sceneTitle = computed(() => {
     const phase = revealState.value.phase
     if (phase === 'intro') return '整装出发'
+    if (bossCombatActive.value) return '首领决战'
     if (phase === 'encounter_reveal' || phase === 'encounter_result') return props.session.pendingEncounter?.title ?? '途中遭遇'
     if (phase === 'camp_reveal' || phase === 'camp_result') return '前线营地'
     if (phase === 'settlement_reveal') {
@@ -259,6 +274,7 @@
   const sceneSummary = computed(() => {
     const phase = revealState.value.phase
     if (phase === 'intro') return `${props.approachLabel} / ${props.retreatLabel}`
+    if (bossCombatActive.value) return '交战弹窗处理中'
     if (phase === 'encounter_reveal' || phase === 'encounter_result') return props.session.pendingEncounter?.summary ?? '先决定如何处理眼前的遭遇。'
     if (phase === 'camp_reveal' || phase === 'camp_result') return props.session.campState?.nightEventHint ?? '营地动作完成后才会继续推进。'
     if (phase === 'settlement_reveal') return '本趟推进已经进入回城阶段。'
@@ -267,6 +283,7 @@
 
   const scenePanelClass = computed(() => {
     const phase = revealState.value.phase
+    if (bossCombatActive.value) return 'border-danger/30 bg-danger/5'
     if (phase === 'encounter_reveal' || phase === 'encounter_result') return 'border-warning/30 bg-warning/5'
     if (phase === 'camp_reveal' || phase === 'camp_result') return 'border-success/30 bg-success/5'
     if (phase === 'settlement_reveal') {

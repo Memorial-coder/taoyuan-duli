@@ -91,8 +91,7 @@ export const EQUIPMENT_SETS: EquipmentSetDef[] = [
     description: '凤凰涅槃，福运加身',
     pieces: { ring: 'fortune_ring', hat: 'phoenix_crown', shoe: 'phoenix_boots' },
     bonuses: [
-      { count: 2, effects: [{ type: 'luck', value: 0.05 }], description: '幸运+5%' },
-      { count: 3, effects: [{ type: 'exp_bonus', value: 0.15 }], description: '经验加成+15%' }
+      { count: 2, effects: [{ type: 'luck', value: 0.05 }], description: '幸运+5%' }
     ]
   },
 

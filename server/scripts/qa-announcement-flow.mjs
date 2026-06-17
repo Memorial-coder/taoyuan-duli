@@ -332,6 +332,22 @@ try {
   assert.equal(createResult.data.announcement.status, 'draft', 'new announcement should be draft');
   assert.equal(createResult.data.announcement.rewards?.length, 2, 'created announcement should retain rewards');
 
+  const longMarkdownBody = Array.from({ length: 360 }, (_, index) => `- L${index + 1}`).join('\n');
+  const multilineDraft = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA multiline announcement',
+      body: longMarkdownBody,
+    },
+  });
+  assert.equal(multilineDraft.response.status, 200, 'announcement body should not reject Markdown with many line breaks');
+  assert.equal(multilineDraft.data?.ok, true, 'multiline announcement draft should return ok=true');
+  assert.match(
+    multilineDraft.data?.announcement?.body || '',
+    /- L360/,
+    'multiline announcement draft should retain the full Markdown body',
+  );
+
   const templateResult = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements');
   assert.equal(templateResult.response.status, 200, 'announcement list should load');
   assert.ok(Array.isArray(templateResult.data?.templates) && templateResult.data.templates.length >= 5, 'templates should be returned');

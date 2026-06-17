@@ -55,6 +55,8 @@ export type PotentialSourceId =
   | 'theme_week_settlement'
   | 'museum_hidden_sample'
   | 'festival_spirit_event'
+  | 'festival_minigame_clear'
+  | 'child_spirit_sweets'
 
 export type PotentialSourcePeriod = 'daily' | 'weekly' | 'seasonal'
 

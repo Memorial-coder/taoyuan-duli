@@ -295,11 +295,15 @@
     if (!query) return 0
     const normalizedName = normalizeQuery(entry.name)
     const normalizedCategory = normalizeQuery(entry.categoryLabel)
+    const commonTicketTypoName = normalizedName.endsWith('券') ? `${normalizedName.slice(0, -1)}卷` : ''
     let score = 0
 
     if (normalizedName === query) score += 120
+    if (commonTicketTypoName === query) score += 112
     if (normalizedName.startsWith(query)) score += 80
+    if (commonTicketTypoName.startsWith(query)) score += 72
     if (normalizedName.includes(query)) score += 60
+    if (commonTicketTypoName.includes(query)) score += 52
     if (normalizedCategory.includes(query)) score += 30
     if ((entry.source ?? '').toLowerCase().includes(query)) score += 20
     if ((entry.usage ?? '').toLowerCase().includes(query)) score += 18
@@ -509,6 +513,8 @@
     weapon: 'text-danger',
     item: 'text-muted',
     location: 'text-water',
+    currency: 'text-warning',
+    system: 'text-accent',
   }
 
   const getCategoryColor = (category: GlossaryCategory): string => CATEGORY_COLOR_MAP[category] ?? 'text-accent'

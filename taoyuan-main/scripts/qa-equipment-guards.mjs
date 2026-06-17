@@ -264,6 +264,23 @@ assert(miningViewSource.includes('inventoryStore.isEquipmentPresetActive(preset.
 }
 
 {
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedRings = [{ defId: 'fortune_ring' }]
+  inventoryStore.ownedHats = [{ defId: 'phoenix_crown' }]
+  inventoryStore.ownedShoes = [{ defId: 'phoenix_boots' }]
+  inventoryStore.equippedRingSlot1 = 0
+  inventoryStore.equippedHatIndex = 0
+  inventoryStore.equippedShoeIndex = 0
+
+  const phoenixCatalog = inventoryStore.equipmentSetCatalog.find(set => set.id === 'phoenix_set')
+  const phoenixSet = inventoryStore.activeSets.find(set => set.id === 'phoenix_set')
+  assert(Math.abs(inventoryStore.getEquipmentBonus('exp_bonus') - 0.18) < 0.0001, 'Phoenix full set should only keep item exp bonuses, not a set exp bonus.')
+  assert(inventoryStore.getEquipmentBonus('luck') >= 0.27, 'Phoenix full set should keep its set luck bonus.')
+  assert(!phoenixCatalog?.bonuses.some(bonus => bonus.description.includes('经验')), 'Phoenix set catalog should not advertise an exp set bonus.')
+  assert(!phoenixSet?.bonuses.some(bonus => bonus.description.includes('经验')), 'Phoenix active set should not display an exp set bonus.')
+}
+
+{
   setActivePinia(createPinia())
   const playerStore = playerStoreModule.usePlayerStore()
   playerStore.markMasteryUnlocked('mastery_combat')

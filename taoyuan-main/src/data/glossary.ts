@@ -11,6 +11,25 @@ import { RINGS } from './rings'
 import { HATS } from './hats'
 import { SHOES } from './shoes'
 import { WEAPONS, ENCHANTMENTS } from './weapons'
+import { MYSTERY_BOX_DEFS, MYSTERY_BOX_NAMING_LAYERS, MYSTERY_BOX_SOURCE_HINTS } from './mysteryBoxes'
+import { POTENTIAL_BRANCH_DEFS, POTENTIAL_EFFECT_VALUES, POTENTIAL_NODE_DEFS, POTENTIAL_RESOURCE_DEFS, POTENTIAL_SOURCE_RULES, formatPotentialEffectValue } from './potential'
+import { PRIZE_TICKET_NAMING_LAYERS, REWARD_TICKET_PRIZE_STAGES, REWARD_TICKET_SOURCE_HINTS } from './prizeTickets'
+import { VILLAGE_PROJECT_DEFS } from './villageProjects'
+import {
+  MAYOR_TICKET_CONVERSION_MONEY_COST,
+  MAYOR_TICKET_CONVERSION_NPC_NAME,
+  MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP,
+  MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL,
+  MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST,
+  MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT,
+  MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT,
+  MAYOR_TICKET_CONVERTIBLE_TYPES,
+  REWARD_TICKET_DEFS,
+  REWARD_TICKET_EXCHANGE_OFFERS,
+  REWARD_TICKET_LABELS,
+} from './rewardTickets'
+import { WALLET_ARCHETYPES, WALLET_ITEMS } from './wallet'
+import { WEEKLY_BUDGET_CHANNELS } from './weeklyBudgets'
 import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_LABELS } from './cropUseProfiles'
 import {
   getGlossaryEntryIdForItemId,
@@ -38,6 +57,8 @@ export type GlossaryCategory =
   | 'weapon'
   | 'item'
   | 'location'
+  | 'currency'
+  | 'system'
 
 export type GlossaryIntentKey = 'acquire' | 'usage' | 'gift' | 'unlock' | 'where' | 'system'
 
@@ -94,7 +115,9 @@ export const GLOSSARY_CATEGORY_LABELS: Record<GlossaryCategory, string> = {
   seed: '种子',
   weapon: '武器',
   item: '物品',
-  location: '地点'
+  location: '地点',
+  currency: '票券',
+  system: '机制'
 }
 
 export const GLOSSARY_INTENT_LABELS: Record<GlossaryIntentKey, string> = {
@@ -172,6 +195,771 @@ const buildItemIntents = (itemCategory: string): GlossaryIntentKey[] => {
 
 const existingItemId = (itemId: string | null | undefined): string | undefined =>
   itemId && getItemById(itemId) ? itemId : undefined
+
+const getRewardTicketLabel = (ticketType: string): string =>
+  REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType
+
+const getRewardTicketSearchAliases = (label: string): string[] => {
+  const aliases = ['票券', '奖券', '资源券', label]
+  if (label.endsWith('券')) aliases.push(label.replace(/券$/, '卷'))
+  return uniqueStrings(aliases)
+}
+
+const formatItemRewards = (items: readonly { itemId: string; quantity: number }[]): string =>
+  items.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
+
+const formatPotentialRewards = (costs: readonly { resourceId: string; amount: number }[]): string =>
+  costs.map(cost => `${POTENTIAL_RESOURCE_DEFS.find(resource => resource.id === cost.resourceId)?.label ?? cost.resourceId}×${cost.amount}`).join('、')
+
+const getPotentialBranchLabel = (branchId: string): string =>
+  POTENTIAL_BRANCH_DEFS.find(branch => branch.id === branchId)?.label ?? branchId
+
+const getPrizeStageLabel = (stageId: string | undefined): string =>
+  stageId ? REWARD_TICKET_PRIZE_STAGES.find(stage => stage.id === stageId)?.label ?? stageId : ''
+
+const getMysteryBoxLabel = (boxId: string): string =>
+  MYSTERY_BOX_DEFS.find(box => box.id === boxId)?.label ?? boxId
+
+const formatMoney = (amount: number): string => `${amount}文`
+
+const PERIOD_LABELS: Record<string, string> = {
+  daily: '每日',
+  weekly: '每周',
+  seasonal: '每季',
+}
+
+const POTENTIAL_RESOURCE_GLOSSARY_DESCRIPTIONS: Partial<Record<string, string>> = {
+  potential_insight: '通用潜能材料，矿洞首领、高风险行旅、特殊订单、主题周、博物馆考据、仙灵记忆、节日出货箱和节会小游戏等长期结算都会少量沉淀。',
+  spirit_breath: '偏向根骨与人和的轻灵潜能材料，主要来自仙灵结缘记忆归档、阿花或石头挚友后的童心甜点委托、日历节日当天的出货箱有效结算，或节会小游戏有效完成。',
+  artisan_notes: '偏向巧作的手艺记录，可从特殊订单、博物馆考据和研究券兑换等经营研究线获得。',
+  mountain_jade: '偏向山行的山野凭证，主要来自矿洞首领、高层首领、高风险行旅和区域首领远征。',
+}
+
+const POTENTIAL_RESOURCE_SOURCE_HINTS: Partial<Record<string, string>> = {
+  potential_insight: '具体入口：矿洞或骷髅洞首领结算、高风险或精英行旅、特殊订单、主题周结算、博物馆捐赠里程碑/学者委托，以及仙灵记忆归档、节日当天出货箱结算或互动节日小游戏有效完成。',
+  spirit_breath: '具体入口：NPC 页「仙灵」里把结缘记忆链推进到可收尾后点归档记忆；阿花或石头达到挚友后，告示板有概率刷出提交桂花糕、红枣糕等甜点的童心灵息委托；也可以在有日历节日的当天让出货箱结算产生收入，或完成互动节日小游戏并取得有效成绩。',
+  artisan_notes: '具体入口：完成特殊订单/阶段性订单、领取博物馆捐赠里程碑或学者委托考据奖励；研究券也可在钱包兑换百工札记。',
+  mountain_jade: '具体入口：击败矿洞 Boss/骷髅洞高层首领，或完成区域地图里的高风险路线、精英路线、区域首领远征。',
+}
+
+const POTENTIAL_SOURCE_ENTRY_HINTS: Partial<Record<string, string>> = {
+  mine_boss_clear: '击败矿洞 Boss 或骷髅洞高层首领后，在战斗结算中少量获得。',
+  journey_high_risk: '完成区域地图里的高风险路线、精英路线或区域首领远征后获得。',
+  special_order_finish: '在告示板完成特殊订单或阶段性订单提交时获得。',
+  theme_week_settlement: '在目标页完成主题周或周目标收尾结算时，按表现发放。',
+  museum_hidden_sample: '领取博物馆捐赠里程碑，或完成学者委托考据领奖时获得。',
+  festival_spirit_event: '仙灵结缘后，在 NPC 页「仙灵」把结缘记忆链推进到“可收尾”并归档；也可以在有日历节日的当天，让出货箱结算收入大于 0。',
+  festival_minigame_clear: '端午赛龙舟、钓鱼大赛、斗茶、灯谜、投壶、包饺子、烟花会、风筝会或农展会等互动节日小游戏结算奖金大于 0 时获得。',
+  child_spirit_sweets: '阿花或石头达到挚友后，告示板有概率刷出提交桂花糕、红枣糕等甜点/糕点的童心灵息委托；完成后获得灵息×1。',
+}
+
+const WALLET_MODULE_LABELS: Record<string, string> = {
+  shop: '商店',
+  goal: '目标',
+  farming: '农耕',
+  fishing: '钓鱼',
+  mining: '采矿',
+  cooking: '烹饪',
+}
+
+const WALLET_SHOP_LABELS: Record<string, string> = {
+  wanwupu: '万物铺',
+  tiejiangpu: '铁匠铺',
+  yugupu: '渔具铺',
+  yaopu: '药铺',
+  chouduanzhuang: '绸缎庄',
+  jiuguan: '醉桃源酒馆',
+  biaoju: '镖局',
+}
+
+const WALLET_GOAL_BIAS_LABELS: Record<string, string> = {
+  cashflow: '现金流',
+  farming: '农耕',
+  fishing: '钓鱼',
+  mining: '采矿',
+  cooking: '烹饪',
+  social: '社交',
+  discovery: '探索见闻',
+}
+
+const WALLET_POOL_LABELS: Record<string, string> = {
+  basic: '基础消费池',
+  weekly: '每周精选',
+  seasonal: '季节限定',
+  premium: '高价长期商品',
+}
+
+const LINKED_SYSTEM_LABELS: Record<string, string> = {
+  quest: '告示板',
+  goal: '目标',
+  museum: '博物馆',
+  guild: '公会',
+  hanhai: '瀚海',
+  farm: '农场',
+  shop: '商圈',
+  village: '桃源村',
+  wallet: '钱包',
+}
+
+const formatPercent = (value: number): string => `${Math.round(value * 100)}%`
+
+const summarizeWalletEffect = (effect: {
+  shopDiscount?: number
+  shopDiscountByShopId?: Partial<Record<string, number>>
+  goalWeights?: Partial<Record<string, number>>
+  catalogPoolWeights?: Partial<Record<string, number>>
+  catalogTagWeights?: Partial<Record<string, number>>
+}): string[] => {
+  const summaries: string[] = []
+  if ((effect.shopDiscount ?? 0) > 0) summaries.push(`通用购物折扣 ${formatPercent(effect.shopDiscount ?? 0)}`)
+
+  const shopDiscounts = Object.entries(effect.shopDiscountByShopId ?? {}).filter(([, value]) => (value ?? 0) > 0)
+  if (shopDiscounts.length > 0) {
+    summaries.push(`指定商店折扣：${shopDiscounts.map(([shopId, value]) => `${WALLET_SHOP_LABELS[shopId] ?? shopId} ${formatPercent(value ?? 0)}`).join('、')}`)
+  }
+
+  const goalWeights = Object.entries(effect.goalWeights ?? {}).filter(([, value]) => (value ?? 0) > 0)
+  if (goalWeights.length > 0) {
+    summaries.push(`目标偏好：${goalWeights.map(([key]) => WALLET_GOAL_BIAS_LABELS[key] ?? key).join('、')}`)
+  }
+
+  const catalogPools = Object.entries(effect.catalogPoolWeights ?? {}).filter(([, value]) => (value ?? 0) > 0)
+  if (catalogPools.length > 0) {
+    summaries.push(`货架偏好：${catalogPools.map(([key]) => WALLET_POOL_LABELS[key] ?? key).join('、')}`)
+  }
+
+  const catalogTags = Object.entries(effect.catalogTagWeights ?? {}).filter(([, value]) => (value ?? 0) > 0)
+  if (catalogTags.length > 0) {
+    summaries.push(`推荐标签：${catalogTags.slice(0, 6).map(([key]) => key).join('、')}`)
+  }
+
+  return summaries
+}
+
+const getOfferRewardDetails = (offer: (typeof REWARD_TICKET_EXCHANGE_OFFERS)[number]): string[] => {
+  const rewards: string[] = []
+  const itemRewards = formatItemRewards(offer.rewardItems)
+  if (itemRewards) rewards.push(itemRewards)
+  const mysteryBoxRewards = (offer.rewardMysteryBoxes ?? []).map(box => `${getMysteryBoxLabel(box.boxId)}×${box.quantity}`).join('、')
+  if (mysteryBoxRewards) rewards.push(mysteryBoxRewards)
+  const potentialRewards = formatPotentialRewards(offer.rewardPotentialResources ?? [])
+  if (potentialRewards) rewards.push(potentialRewards)
+  return rewards
+}
+
+const getOfferRelatedEntryIds = (offer: (typeof REWARD_TICKET_EXCHANGE_OFFERS)[number]): string[] => uniqueStrings([
+  `reward_ticket_${offer.ticketType}`,
+  ...(offer.rewardItems ?? []).map(item => getGlossaryEntryIdForItemId(item.itemId)),
+  ...(offer.rewardMysteryBoxes ?? []).map(box => `mystery_box_${box.boxId}`),
+  ...(offer.rewardPotentialResources ?? []).map(resource => `potential_resource_${resource.resourceId}`),
+  ...(offer.poolStageId ? [`reward_ticket_stage_${offer.poolStageId}`] : []),
+])
+
+const formatTicketLedger = (ledger: Partial<Record<string, number>> | undefined): string =>
+  Object.entries(ledger ?? {})
+    .filter(([, amount]) => (amount ?? 0) > 0)
+    .map(([ticketType, amount]) => `${getRewardTicketLabel(ticketType)}×${amount}`)
+    .join('、')
+
+const formatLinkedSystems = (systems: readonly string[] | undefined): string =>
+  uniqueStrings([...(systems ?? [])].map(system => LINKED_SYSTEM_LABELS[system] ?? system)).join('、')
+
+const formatProjectMaterials = (materials: readonly { itemId: string; quantity: number }[]): string =>
+  materials.map(material => `${getItemById(material.itemId)?.name ?? material.itemId}×${material.quantity}`).join('、')
+
+const addRewardTicketGlossaryEntries = (entries: GlossaryEntry[]) => {
+  const ticketPanels: CollectionPanelLink[] = [
+    { panel: 'wallet', label: '去钱包看票券' },
+    { panel: 'quest', label: '看告示板奖励' },
+    { panel: 'goals', label: '看周目标' },
+  ]
+
+  entries.push(makeEntry({
+    id: 'system_reward_ticket_prize_pool',
+    name: '奖券命名与奖池阶段',
+    category: 'currency',
+    categoryLabel: '奖券',
+    description: '委托、节庆、周赛和阶段成果会把奖励写入钱包票券，并按累计入账推进奖池层级。',
+    details: [
+      { label: '命名层', value: PRIZE_TICKET_NAMING_LAYERS.map(layer => `${layer.label}：${layer.summary}`).join('；') },
+      { label: '阶段', value: REWARD_TICKET_PRIZE_STAGES.map(stage => `${stage.label}（累计${stage.unlockLifetimeTickets}张）：${stage.summary}`).join('；') },
+      { label: '常见来源', value: REWARD_TICKET_SOURCE_HINTS.join('；') },
+    ],
+    source: '普通委托、特殊订单、节庆、周赛、主题周和阶段性交付会产出票券。具体余额在钱包页查看。',
+    usage: '累计票券会推进初阶赏格、安居赏格、见闻赏契和高阶赏契；当前余额可在祠堂赏格或村衙赏契兑换补给、密匣或潜能材料。',
+    relatedPanels: ticketPanels,
+    relatedEntryIds: [
+      ...REWARD_TICKET_DEFS.map(def => `reward_ticket_${def.id}`),
+      ...REWARD_TICKET_PRIZE_STAGES.map(stage => `reward_ticket_stage_${stage.id}`),
+    ],
+    keywords: [
+      '乡约牌',
+      '祠堂赏格',
+      '村衙赏契',
+      '奖券',
+      '票券',
+      '资源券',
+      '兑奖台',
+      '奖池',
+      '累计奖券',
+      ...PRIZE_TICKET_NAMING_LAYERS.map(layer => layer.label),
+      ...REWARD_TICKET_PRIZE_STAGES.map(stage => stage.label),
+    ],
+    intents: ['acquire', 'usage', 'system'],
+  }))
+
+  for (const stage of REWARD_TICKET_PRIZE_STAGES) {
+    entries.push(makeEntry({
+      id: `reward_ticket_stage_${stage.id}`,
+      name: stage.label,
+      category: 'currency',
+      categoryLabel: '奖池阶段',
+      description: stage.summary,
+      details: [
+        { label: '解锁门槛', value: `累计入账 ${stage.unlockLifetimeTickets} 张票券` },
+        { label: '关联票券', value: stage.linkedTicketTypes.map(getRewardTicketLabel).join('、') },
+        { label: '代表奖励', value: stage.spotlightRewards.join('、') },
+        { label: '说明', value: stage.notes.join('；') },
+      ],
+      source: '由钱包中的票券累计入账推进，消费当前余额不会倒退已解锁阶段。',
+      usage: '决定祠堂赏格、村衙赏契等兑换池更偏向补给、安居、见闻还是高阶长期奖励。',
+      relatedPanels: ticketPanels,
+      relatedEntryIds: ['system_reward_ticket_prize_pool', ...stage.linkedTicketTypes.map(ticketType => `reward_ticket_${ticketType}`)],
+      keywords: ['奖池阶段', '累计票券', '赏格', '赏契', ...stage.spotlightRewards, ...stage.linkedTicketTypes.map(getRewardTicketLabel)],
+      intents: ['unlock', 'usage', 'system'],
+    }))
+  }
+
+  for (const def of REWARD_TICKET_DEFS) {
+    const relatedOffers = REWARD_TICKET_EXCHANGE_OFFERS.filter(offer => offer.ticketType === def.id)
+    const convertible = MAYOR_TICKET_CONVERTIBLE_TYPES.some(ticketType => ticketType === def.id)
+    entries.push(makeEntry({
+      id: `reward_ticket_${def.id}`,
+      name: def.label,
+      category: 'currency',
+      categoryLabel: '票券',
+      description: def.description,
+      details: [
+        { label: '底层类型', value: def.id },
+        { label: '可兑换项目', value: relatedOffers.map(offer => offer.label).join('、') },
+        { label: '村务转换', value: convertible ? `柳村长可按 ${MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST} 张换 ${MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT} 张同阶目标券，另需 ${MAYOR_TICKET_CONVERSION_MONEY_COST} 文。` : '当前不参与柳村长的村务票据转换。' },
+      ],
+      source: '来自任务、周目标、特殊订单、周赛、节庆或部分瀚海/鱼塘/育种结算。',
+      usage: relatedOffers.length > 0
+        ? `在钱包页兑换：${relatedOffers.map(offer => `${offer.label}（${offer.costTickets}张）`).join('、')}。`
+        : '当前主要作为钱包余额与后续系统预留凭证使用。',
+      relatedPanels: ticketPanels,
+      relatedEntryIds: [
+        'system_reward_ticket_prize_pool',
+        ...relatedOffers.map(offer => `reward_ticket_offer_${offer.id}`),
+        ...REWARD_TICKET_PRIZE_STAGES.filter(stage => stage.linkedTicketTypes.includes(def.id)).map(stage => `reward_ticket_stage_${stage.id}`),
+      ],
+      keywords: getRewardTicketSearchAliases(def.label),
+      intents: ['acquire', 'usage', 'system'],
+    }))
+  }
+
+  for (const offer of REWARD_TICKET_EXCHANGE_OFFERS) {
+    const rewardDetails = getOfferRewardDetails(offer)
+    const counterLabel = offer.counterLabel ?? '兑奖台'
+    const poolTags = offer.poolTags ?? []
+    entries.push(makeEntry({
+      id: `reward_ticket_offer_${offer.id}`,
+      name: offer.label,
+      category: 'currency',
+      categoryLabel: '兑奖',
+      description: offer.description,
+      details: [
+        { label: '消耗', value: `${getRewardTicketLabel(offer.ticketType)}×${offer.costTickets}` },
+        { label: '奖池层', value: getPrizeStageLabel(offer.poolStageId) },
+        { label: '兑奖台', value: counterLabel },
+        { label: '兑换内容', value: rewardDetails.join('、') },
+        { label: '标签', value: poolTags.join('、') },
+      ],
+      source: `在钱包页的${counterLabel}消耗${getRewardTicketLabel(offer.ticketType)}兑换。`,
+      usage: rewardDetails.length > 0 ? `兑换后获得：${rewardDetails.join('、')}。` : '兑换后按奖池配置发放奖励。',
+      relatedPanels: [{ panel: 'wallet', label: '去钱包兑换' }],
+      relatedEntryIds: getOfferRelatedEntryIds(offer),
+      keywords: [
+        offer.label,
+        offer.id,
+        counterLabel,
+        getRewardTicketLabel(offer.ticketType),
+        ...getRewardTicketSearchAliases(getRewardTicketLabel(offer.ticketType)),
+        ...poolTags,
+        ...rewardDetails,
+      ],
+      intents: ['acquire', 'usage', 'system'],
+    }))
+  }
+
+  entries.push(makeEntry({
+    id: 'system_mayor_ticket_conversion',
+    name: '村务票据转换',
+    category: 'currency',
+    categoryLabel: '票券',
+    description: `柳村长开放的专项票券互转服务，用来把多余的建设券、展陈券、商路票和研究券调成当前更缺的方向。`,
+    details: [
+      { label: '负责人', value: MAYOR_TICKET_CONVERSION_NPC_NAME },
+      { label: '开放条件', value: `村庄建设完成 ${MAYOR_TICKET_CONVERSION_REQUIRED_VILLAGE_PROJECT_LEVEL} 项，且柳村长好感达到 ${MAYOR_TICKET_CONVERSION_REQUIRED_FRIENDSHIP}。` },
+      { label: '兑换成本', value: `${MAYOR_TICKET_CONVERSION_SOURCE_TICKET_COST} 张来源券 + ${MAYOR_TICKET_CONVERSION_MONEY_COST} 文，换 ${MAYOR_TICKET_CONVERSION_TARGET_TICKET_AMOUNT} 张目标券。` },
+      { label: '周上限', value: `每周最多 ${MAYOR_TICKET_CONVERSION_WEEKLY_LIMIT} 次。` },
+      { label: '可转换类型', value: MAYOR_TICKET_CONVERTIBLE_TYPES.map(getRewardTicketLabel).join('、') },
+    ],
+    source: '推进村庄建设并提升柳村长好感后，在钱包票券区查看转换项目。',
+    usage: '用于补齐当前玩法线缺口，例如把暂时富余的展示/商路方向票券转给扩建、研究或供货线。',
+    relatedPanels: [
+      { panel: 'wallet', label: '去钱包看转换' },
+      { panel: 'village', label: '去桃源村找柳村长' },
+    ],
+    relatedEntryIds: MAYOR_TICKET_CONVERTIBLE_TYPES.map(ticketType => `reward_ticket_${ticketType}`),
+    keywords: ['柳村长', '村务票据', '票据转换', '票券转换', '换券', ...MAYOR_TICKET_CONVERTIBLE_TYPES.map(getRewardTicketLabel)],
+    intents: ['unlock', 'usage', 'system'],
+  }))
+}
+
+const addWeeklyBudgetGlossaryEntries = (entries: GlossaryEntry[]) => {
+  entries.push(makeEntry({
+    id: 'system_weekly_budget',
+    name: '周预算',
+    category: 'currency',
+    categoryLabel: '票券',
+    description: '每周把铜钱投入商路、展馆或学舍方向，让本周目标结算获得更高收益和专项票券。',
+    details: [
+      { label: '渠道', value: WEEKLY_BUDGET_CHANNELS.map(channel => channel.label).join('、') },
+      { label: '续投规则', value: '每周开始后投入，当周有效；开启自动续投的槽位会在跨周时尝试同档位续投。' },
+      { label: '票券方向', value: '商路预算产出商路票，展馆预算产出展陈券，学舍预算产出研究券。' },
+    ],
+    source: '在钱包页配置周预算，随后通过目标结算回收收益。',
+    usage: '用于把本周日常目标引向现金、声望或研究积累，并稳定产出票券。',
+    relatedPanels: [
+      { panel: 'wallet', label: '去钱包配预算' },
+      { panel: 'goals', label: '去目标页结算' },
+    ],
+    relatedEntryIds: WEEKLY_BUDGET_CHANNELS.map(channel => `weekly_budget_channel_${channel.channelId}`),
+    keywords: ['周预算', '每周预算', '预算', '自动续投', '目标结算', '商路预算', '展馆预算', '学舍预算'],
+    intents: ['acquire', 'usage', 'system'],
+  }))
+
+  for (const channel of WEEKLY_BUDGET_CHANNELS) {
+    const tierEntryIds = channel.tiers.map(tier => `weekly_budget_tier_${tier.id}`)
+    const ticketTypes = uniqueStrings(channel.tiers.flatMap(tier => Object.keys(tier.effect.ticketRewards ?? {})))
+    entries.push(makeEntry({
+      id: `weekly_budget_channel_${channel.channelId}`,
+      name: channel.label,
+      category: 'currency',
+      categoryLabel: '周预算',
+      description: channel.description,
+      details: [
+        { label: '简称', value: channel.shortLabel },
+        { label: '生效规则', value: channel.resetRule },
+        { label: '预算档位', value: channel.tiers.map(tier => `${tier.label}（${formatMoney(tier.costMoney)}）`).join('、') },
+        { label: '票券产出', value: ticketTypes.map(getRewardTicketLabel).join('、') },
+      ],
+      source: '在钱包页选择预算渠道与档位后投入铜钱。',
+      usage: `本周目标结算会读取${channel.label}效果：${channel.tiers.map(tier => `${tier.label}：${tier.effect.summary}`).join('；')}`,
+      relatedPanels: [
+        { panel: 'wallet', label: '去钱包配预算' },
+        { panel: 'goals', label: '去目标页结算' },
+      ],
+      relatedEntryIds: ['system_weekly_budget', ...tierEntryIds, ...ticketTypes.map(ticketType => `reward_ticket_${ticketType}`)],
+      keywords: [
+        channel.label,
+        channel.shortLabel,
+        channel.description,
+        channel.resetRule,
+        '周预算',
+        '预算档',
+        '自动续投',
+        ...channel.tiers.flatMap(tier => [tier.label, tier.effect.summary, formatTicketLedger(tier.effect.ticketRewards)]),
+      ],
+      intents: ['acquire', 'usage', 'system'],
+    }))
+
+    for (const tier of channel.tiers) {
+      const ticketSummary = formatTicketLedger(tier.effect.ticketRewards)
+      entries.push(makeEntry({
+        id: `weekly_budget_tier_${tier.id}`,
+        name: `${channel.label}·${tier.label}`,
+        category: 'currency',
+        categoryLabel: '预算档位',
+        description: tier.effect.summary,
+        details: [
+          { label: '所属渠道', value: channel.label },
+          { label: '投入成本', value: formatMoney(tier.costMoney) },
+          { label: '预计价值', value: formatMoney(tier.projectedValue) },
+          { label: '票券产出', value: ticketSummary },
+          { label: '档位编号', value: `${tier.tier}` },
+        ],
+        source: `在钱包页选择${channel.label}的${tier.label}并投入${formatMoney(tier.costMoney)}。`,
+        usage: tier.effect.summary,
+        relatedPanels: [
+          { panel: 'wallet', label: '去钱包配预算' },
+          { panel: 'goals', label: '去目标页结算' },
+        ],
+        relatedEntryIds: [
+          'system_weekly_budget',
+          `weekly_budget_channel_${channel.channelId}`,
+          ...Object.keys(tier.effect.ticketRewards ?? {}).map(ticketType => `reward_ticket_${ticketType}`),
+        ],
+        keywords: [
+          channel.label,
+          channel.shortLabel,
+          tier.label,
+          tier.id,
+          tier.effect.summary,
+          ticketSummary,
+          '周预算',
+          '预算档位',
+          '目标结算',
+        ],
+        intents: ['acquire', 'usage', 'system'],
+      }))
+    }
+  }
+}
+
+const addMysteryBoxGlossaryEntries = (entries: GlossaryEntry[]) => {
+  entries.push(makeEntry({
+    id: 'system_mystery_box_reward_pool',
+    name: '密匣与神秘箱奖池',
+    category: 'system',
+    categoryLabel: '机制',
+    description: '神秘箱是低频奖励容器，会把钓鱼、采集、挖矿、书商、节庆和奖券赏格中的小惊喜统一进钱包管理。',
+    details: [
+      { label: '命名层', value: MYSTERY_BOX_NAMING_LAYERS.map(layer => `${layer.label}：${layer.summary}`).join('；') },
+      { label: '常见来源', value: MYSTERY_BOX_SOURCE_HINTS.join('；') },
+      { label: '已接入箱体', value: MYSTERY_BOX_DEFS.map(box => `${box.label} / ${box.aliasLabel}`).join('、') },
+    ],
+    source: '来自钓鱼、采集、挖矿、怪物、书商、节庆或票券兑换。',
+    usage: '在钱包页打开后，奖励会直接进入普通背包，并显示具体物品、数量和背包分类去向。',
+    relatedPanels: [
+      { panel: 'wallet', label: '去钱包开匣' },
+      { panel: 'fishing', label: '去清溪钓鱼' },
+      { panel: 'mining', label: '去矿洞探索' },
+    ],
+    relatedEntryIds: MYSTERY_BOX_DEFS.map(box => `mystery_box_${box.id}`),
+    keywords: ['神秘箱', '密匣', '山泽遗箱', '灵物封匣', '开匣', '祠后开匣案', ...MYSTERY_BOX_NAMING_LAYERS.map(layer => layer.label)],
+    intents: ['acquire', 'usage', 'system'],
+  }))
+
+  for (const box of MYSTERY_BOX_DEFS) {
+    const rewardItemIds = box.rewardEntries.flatMap(entry => entry.rewardItems.map(item => item.itemId))
+    entries.push(makeEntry({
+      id: `mystery_box_${box.id}`,
+      name: box.label,
+      category: 'system',
+      categoryLabel: '密匣',
+      description: `${box.aliasLabel}，开启入口为${box.openingLabel}。`,
+      details: [
+        { label: '别名', value: box.aliasLabel },
+        { label: '开启入口', value: box.openingLabel },
+        { label: '来源提示', value: box.sourceHints.join('、') },
+        { label: '可能奖励', value: box.rewardEntries.map(entry => `${entry.label}：${formatItemRewards(entry.rewardItems)}（${entry.summary}）`).join('；') },
+      ],
+      source: box.sourceHints.join('、'),
+      usage: '在钱包页开启后，会把抽到的具体物品放入背包，并在日志中写明奖励去向。',
+      relatedPanels: [{ panel: 'wallet', label: '去钱包开匣' }],
+      relatedEntryIds: ['system_mystery_box_reward_pool', ...uniqueStrings(rewardItemIds).map(getGlossaryEntryIdForItemId)],
+      keywords: [
+        box.label,
+        box.aliasLabel,
+        box.openingLabel,
+        box.id,
+        ...box.sourceHints,
+        ...box.rewardEntries.flatMap(entry => [entry.label, entry.summary, formatItemRewards(entry.rewardItems)]),
+      ],
+      intents: ['acquire', 'usage', 'system'],
+    }))
+  }
+}
+
+const addPotentialGlossaryEntries = (entries: GlossaryEntry[]) => {
+  for (const branch of POTENTIAL_BRANCH_DEFS) {
+    const branchNodes = POTENTIAL_NODE_DEFS.filter(node => node.branchId === branch.id)
+    entries.push(makeEntry({
+      id: `potential_branch_${branch.id}`,
+      name: branch.label,
+      category: 'system',
+      categoryLabel: '潜能分支',
+      description: branch.summary,
+      details: [
+        { label: '分支 ID', value: branch.id },
+        { label: '节点', value: branchNodes.map(node => node.label).join('、') },
+        { label: '主要材料', value: uniqueStrings(branchNodes.flatMap(node => node.costsByRank[0]?.map(cost => cost.resourceId) ?? [])).map(resourceId => POTENTIAL_RESOURCE_DEFS.find(resource => resource.id === resourceId)?.label ?? resourceId).join('、') },
+      ],
+      source: '在潜能页选择分支后查看和参悟。',
+      usage: '用于规划角色长期成长方向。分支总阶会影响后续节点解锁。',
+      relatedPanels: [{ panel: 'potential', label: '去潜能页' }],
+      relatedEntryIds: branchNodes.map(node => `potential_node_${node.id}`),
+      keywords: ['潜能', '潜能分支', branch.label, branch.id, ...branchNodes.map(node => node.label)],
+      intents: ['unlock', 'usage', 'system'],
+    }))
+  }
+
+  for (const resource of POTENTIAL_RESOURCE_DEFS) {
+    const usedNodes = POTENTIAL_NODE_DEFS.filter(node => node.costsByRank.some(costs => costs.some(cost => cost.resourceId === resource.id)))
+    const sourceRules = POTENTIAL_SOURCE_RULES.filter(rule => rule.rewards.some(reward => reward.resourceId === resource.id))
+    entries.push(makeEntry({
+      id: `potential_resource_${resource.id}`,
+      name: resource.label,
+      category: 'system',
+      categoryLabel: '潜能材料',
+      description: POTENTIAL_RESOURCE_GLOSSARY_DESCRIPTIONS[resource.id] ?? resource.summary,
+      details: [
+        { label: '适用分支', value: resource.branchHints.map(getPotentialBranchLabel).join('、') },
+        { label: '获得方式', value: POTENTIAL_RESOURCE_SOURCE_HINTS[resource.id] ?? (sourceRules.length > 0 ? sourceRules.map(rule => `${rule.label}：${POTENTIAL_SOURCE_ENTRY_HINTS[rule.id] ?? rule.summary}`).join('；') : '来自潜能页列出的长期结算来源。') },
+        { label: '常见来源', value: sourceRules.map(rule => rule.label).join('、') },
+        { label: '消耗节点', value: usedNodes.slice(0, 8).map(node => node.label).join('、') },
+      ],
+      source: POTENTIAL_RESOURCE_SOURCE_HINTS[resource.id] ?? (sourceRules.length > 0 ? sourceRules.map(rule => `${rule.label}：${POTENTIAL_SOURCE_ENTRY_HINTS[rule.id] ?? rule.summary}`).join('；') : '来自潜能页列出的长期结算来源。'),
+      usage: usedNodes.length > 0 ? `用于参悟：${usedNodes.slice(0, 8).map(node => node.label).join('、')}。` : '用于潜能参悟和后续成长节点。',
+      relatedPanels: [{ panel: 'potential', label: '去潜能页' }],
+      relatedEntryIds: [
+        ...resource.branchHints.map(branchId => `potential_branch_${branchId}`),
+        ...usedNodes.slice(0, 8).map(node => `potential_node_${node.id}`),
+        ...sourceRules.map(rule => `potential_source_${rule.id}`),
+      ],
+      keywords: ['潜能材料', '潜能资源', resource.id, resource.label, POTENTIAL_RESOURCE_SOURCE_HINTS[resource.id] ?? '', ...resource.branchHints.map(getPotentialBranchLabel), ...sourceRules.map(rule => rule.label)],
+      intents: ['acquire', 'usage', 'system'],
+    }))
+  }
+
+  for (const node of POTENTIAL_NODE_DEFS) {
+    const effect = POTENTIAL_EFFECT_VALUES[node.effectKey]
+    entries.push(makeEntry({
+      id: `potential_node_${node.id}`,
+      name: node.label,
+      category: 'system',
+      categoryLabel: '潜能节点',
+      description: node.summary,
+      details: [
+        { label: '所属分支', value: getPotentialBranchLabel(node.branchId) },
+        { label: '上限', value: `${node.maxRank} 阶` },
+        { label: '消耗示例', value: formatPotentialRewards(node.costsByRank[0] ?? []) },
+        { label: '解锁条件', value: node.unlockConditions.length > 0 ? node.unlockConditions.map(condition => condition.label).join('、') : '默认开放' },
+        { label: '作用面', value: node.surface },
+        { label: '效果', value: effect ? `${effect.label}：${effect.playerSummary}；封顶 ${formatPotentialEffectValue(effect, effect.cap)}` : node.effectKey },
+      ],
+      source: `在潜能页的${getPotentialBranchLabel(node.branchId)}分支参悟。`,
+      usage: effect?.playerSummary ?? node.surface,
+      relatedPanels: [{ panel: 'potential', label: '去潜能页' }],
+      relatedEntryIds: [
+        `potential_branch_${node.branchId}`,
+        ...uniqueStrings(node.costsByRank[0]?.map(cost => `potential_resource_${cost.resourceId}`) ?? []),
+      ],
+      keywords: [
+        '潜能节点',
+        '参悟',
+        node.id,
+        node.label,
+        node.summary,
+        node.surface,
+        getPotentialBranchLabel(node.branchId),
+        effect?.label ?? '',
+        effect?.playerSummary ?? '',
+        ...node.unlockConditions.map(condition => condition.label),
+      ],
+      intents: ['unlock', 'usage', 'system'],
+    }))
+  }
+
+  for (const rule of POTENTIAL_SOURCE_RULES) {
+    entries.push(makeEntry({
+      id: `potential_source_${rule.id}`,
+      name: rule.label,
+      category: 'system',
+      categoryLabel: '潜能来源',
+      description: POTENTIAL_SOURCE_ENTRY_HINTS[rule.id] ?? rule.summary,
+      details: [
+        { label: '奖励', value: formatPotentialRewards(rule.rewards) },
+        { label: '具体入口', value: POTENTIAL_SOURCE_ENTRY_HINTS[rule.id] ?? rule.summary },
+        { label: '上限', value: `${PERIOD_LABELS[rule.cap.period] ?? rule.cap.period}最多 ${rule.cap.maxClaims} 次 / ${rule.cap.maxResourceAmount} 份材料` },
+      ],
+      source: POTENTIAL_SOURCE_ENTRY_HINTS[rule.id] ?? rule.summary,
+      usage: '通过统一潜能来源结算发放，带周期上限和凭据去重。',
+      relatedPanels: [{ panel: 'potential', label: '去潜能页' }],
+      relatedEntryIds: rule.rewards.map(reward => `potential_resource_${reward.resourceId}`),
+      keywords: ['潜能来源', rule.id, rule.label, rule.summary, POTENTIAL_SOURCE_ENTRY_HINTS[rule.id] ?? '', ...rule.rewards.map(reward => POTENTIAL_RESOURCE_DEFS.find(resource => resource.id === reward.resourceId)?.label ?? reward.resourceId)],
+      intents: ['acquire', 'usage', 'system'],
+    }))
+  }
+}
+
+const addVillageProjectGlossaryEntries = (entries: GlossaryEntry[]) => {
+  entries.push(makeEntry({
+    id: 'system_village_projects',
+    name: '村庄建设',
+    category: 'system',
+    categoryLabel: '机制',
+    description: '村庄建设是把铜钱、材料、线索和跨系统进度转成长期村庄功能的恢复线。',
+    details: [
+      { label: '项目数', value: `${VILLAGE_PROJECT_DEFS.length} 项` },
+      { label: '常见门槛', value: '项目线索、前置建设、委托 / 订单、博物馆、瀚海、公会和社区目标。' },
+      { label: '常见回报', value: '任务容量、委托奖励、恢复设施、区域入口、展示/捐赠位和长期维护计划。' },
+    ],
+    source: '从设施页或村庄相关入口查看，部分项目需要先拿到 NPC/公告板线索。',
+    usage: '用于承接中后期铜钱和材料，并把村庄从一次性建造扩展成持续经营网络。',
+    relatedPanels: [
+      { panel: 'village', label: '去桃源村' },
+      { panel: 'home', label: '去设施页' },
+      { panel: 'quest', label: '看公告板线索' },
+    ],
+    relatedEntryIds: VILLAGE_PROJECT_DEFS.map(project => `village_project_${project.id}`),
+    keywords: ['村庄建设', '建设项目', '建设线索', '村建', '扩建', '维护', '捐献', ...VILLAGE_PROJECT_DEFS.map(project => project.name)],
+    intents: ['unlock', 'usage', 'system'],
+  }))
+
+  for (const project of VILLAGE_PROJECT_DEFS) {
+    const requirements = project.requirements ?? []
+    const worldChanges = project.restorationProfile?.worldChanges ?? []
+    const linkedSystems = formatLinkedSystems(project.linkedSystems)
+    const maintenance = project.maintenancePlan
+    const donation = project.donationPlan
+    const stageConfig = project.stageConfig
+    entries.push(makeEntry({
+      id: `village_project_${project.id}`,
+      name: project.name,
+      category: 'system',
+      categoryLabel: '村庄建设',
+      description: project.description,
+      details: [
+        { label: '铜钱成本', value: formatMoney(project.moneyCost) },
+        { label: '材料', value: formatProjectMaterials(project.materials) },
+        { label: '建设收益', value: project.benefitSummary },
+        { label: '线索条件', value: project.requiredClueText ?? '' },
+        { label: '前置条件', value: requirements.map(requirement => requirement.label).join('、') },
+        { label: '前置建设', value: project.requiredProjectText ?? '' },
+        { label: '阶段', value: stageConfig ? `${stageConfig.stageLabel}（${stageConfig.stageIndex}/${stageConfig.totalStages}）：${stageConfig.gateSummary}` : project.fundingPhase },
+        { label: '联动系统', value: linkedSystems },
+        { label: '维护计划', value: maintenance ? `${maintenance.label}：每 ${maintenance.cycleDays} 天 ${formatMoney(maintenance.costMoney)}；${maintenance.effectSummary}` : '' },
+        { label: '捐献计划', value: donation ? `${donation.label}：${donation.requirementSummary}；${donation.rewardSummary}` : '' },
+        { label: '世界变化', value: worldChanges.map(change => `${change.title}：${change.summary}`).join('；') },
+      ],
+      source: project.requiredClueText
+        ? `${project.requiredClueText}；满足材料与铜钱后可开工。`
+        : '满足项目条件、材料与铜钱后可开工。',
+      usage: `${project.benefitSummary}${worldChanges.length > 0 ? `；完成后：${worldChanges.map(change => change.summary).join('；')}` : ''}`,
+      relatedPanels: [
+        { panel: 'village', label: '去桃源村' },
+        { panel: 'home', label: '去设施页' },
+        { panel: 'quest', label: '看公告板线索' },
+      ],
+      relatedEntryIds: uniqueStrings([
+        'system_village_projects',
+        ...(project.materials ?? []).map(material => getGlossaryEntryIdForItemId(material.itemId)),
+        ...(donation?.acceptedItemIds ?? []).map(getGlossaryEntryIdForItemId),
+        ...(project.requiredProjectId ? [`village_project_${project.requiredProjectId}`] : []),
+        ...(stageConfig?.previousStageProjectId ? [`village_project_${stageConfig.previousStageProjectId}`] : []),
+        ...(stageConfig?.nextStageProjectId ? [`village_project_${stageConfig.nextStageProjectId}`] : []),
+      ]),
+      keywords: [
+        '村庄建设',
+        '建设项目',
+        '村建',
+        '建设线索',
+        '扩建',
+        '维护',
+        '捐献',
+        project.id,
+        project.name,
+        project.description,
+        project.benefitSummary,
+        project.requiredClueText ?? '',
+        project.requiredProjectText ?? '',
+        project.fundingPhase,
+        project.contentTier ?? '',
+        stageConfig?.stageLabel ?? '',
+        stageConfig?.gateSummary ?? '',
+        maintenance?.label ?? '',
+        donation?.label ?? '',
+        linkedSystems,
+        ...requirements.map(requirement => requirement.label ?? ''),
+        ...project.materials.map(material => getItemById(material.itemId)?.name ?? material.itemId),
+        ...worldChanges.flatMap(change => [change.title, change.summary]),
+      ],
+      intents: ['unlock', 'usage', 'system'],
+    }))
+  }
+}
+
+const addWalletGlossaryEntries = (entries: GlossaryEntry[]) => {
+  for (const item of WALLET_ITEMS) {
+    entries.push(makeEntry({
+      id: `wallet_item_${item.id}`,
+      name: item.name,
+      category: 'system',
+      categoryLabel: '钱包物',
+      description: item.description,
+      details: [
+        { label: '解锁条件', value: item.unlockCondition },
+        { label: '效果类型', value: item.effect.type },
+        { label: '效果数值', value: typeof item.effect.value === 'number' && item.effect.value < 1 ? formatPercent(item.effect.value) : `${item.effect.value}` },
+      ],
+      source: item.unlockCondition,
+      usage: item.description,
+      relatedPanels: [{ panel: 'wallet', label: '去钱包查看' }],
+      relatedEntryIds: [],
+      keywords: ['钱包物', '旧钱包', item.id, item.name, item.unlockCondition, item.description],
+      intents: ['unlock', 'usage', 'system'],
+    }))
+  }
+
+  for (const archetype of WALLET_ARCHETYPES) {
+    entries.push(makeEntry({
+      id: `wallet_archetype_${archetype.id}`,
+      name: archetype.name,
+      category: 'system',
+      categoryLabel: '钱包流派',
+      description: `${archetype.title}：${archetype.description}`,
+      details: [
+        { label: '解锁条件', value: archetype.unlockRequirement.label },
+        { label: '主模块', value: archetype.primaryModules.map(module => WALLET_MODULE_LABELS[module] ?? module).join('、') },
+        { label: '推荐商店', value: (archetype.recommendedShops ?? []).map(shopId => WALLET_SHOP_LABELS[shopId] ?? shopId).join('、') },
+        { label: '主效果', value: archetype.mainEffectText },
+        { label: '效果摘要', value: summarizeWalletEffect(archetype.effect).join('；') },
+        { label: '后续节点', value: archetype.nodes.map(node => node.name).join('、') },
+      ],
+      source: archetype.unlockRequirement.label,
+      usage: archetype.mainEffectText,
+      relatedPanels: [{ panel: 'wallet', label: '去钱包选流派' }],
+      relatedEntryIds: archetype.nodes.map(node => `wallet_node_${node.id}`),
+      keywords: [
+        '钱包流派',
+        '经营流派',
+        archetype.id,
+        archetype.name,
+        archetype.title,
+        archetype.description,
+        archetype.unlockRequirement.label,
+        ...archetype.nodes.map(node => node.name),
+      ],
+      intents: ['unlock', 'usage', 'system'],
+    }))
+
+    for (const node of archetype.nodes) {
+      entries.push(makeEntry({
+        id: `wallet_node_${node.id}`,
+        name: node.name,
+        category: 'system',
+        categoryLabel: '钱包节点',
+        description: node.description,
+        details: [
+          { label: '所属流派', value: archetype.name },
+          { label: '解锁条件', value: node.unlockRequirement.label },
+          { label: '作用模块', value: node.modules.map(module => WALLET_MODULE_LABELS[module] ?? module).join('、') },
+          { label: '效果摘要', value: summarizeWalletEffect(node.effect).join('；') },
+        ],
+        source: `选择${archetype.name}后，满足${node.unlockRequirement.label}。`,
+        usage: node.description,
+        relatedPanels: [{ panel: 'wallet', label: '去钱包看节点' }],
+        relatedEntryIds: [`wallet_archetype_${archetype.id}`],
+        keywords: ['钱包节点', node.id, node.name, node.description, archetype.name, node.unlockRequirement.label],
+        intents: ['unlock', 'usage', 'system'],
+      }))
+    }
+  }
+}
 
 const buildGlossary = (): GlossaryEntry[] => {
   const entries: GlossaryEntry[] = []
@@ -588,6 +1376,13 @@ const buildGlossary = (): GlossaryEntry[] => {
       intents: ['where', 'system'],
     }))
   }
+
+  addRewardTicketGlossaryEntries(entries)
+  addWeeklyBudgetGlossaryEntries(entries)
+  addMysteryBoxGlossaryEntries(entries)
+  addPotentialGlossaryEntries(entries)
+  addVillageProjectGlossaryEntries(entries)
+  addWalletGlossaryEntries(entries)
 
   entries.push(makeEntry({
     id: 'system_crop_use_profile',

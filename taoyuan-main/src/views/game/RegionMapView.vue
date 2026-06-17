@@ -1032,6 +1032,14 @@
           @resolve-camp="handleResolveCampAction"
           @resolve-encounter="handleResolveEncounter"
         />
+        <RegionBossCombatDialog
+          :combat="currentBossCombat"
+          :boss="currentBossCombatDef"
+          :player-hp="playerStore.hp"
+          :player-max-hp="playerStore.getMaxHp()"
+          :action-locked="regionBossCombatActionLocked"
+          @action="handleRegionBossCombatAction"
+        />
       </div>
       </section>
 
@@ -1279,6 +1287,7 @@
   import RegionExplorationTree from '@/components/game/regionMap/RegionExplorationTree.vue'
   import RegionOpenWorldMap from '@/components/game/regionMap/RegionOpenWorldMap.vue'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
+  import RegionBossCombatDialog from '@/components/game/regionMap/RegionBossCombatDialog.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import RegionJourneyAftermathPanel from '@/components/game/regionMap/RegionJourneyAftermathPanel.vue'
   import RegionResourcePrepPanel from '@/components/game/regionMap/RegionResourcePrepPanel.vue'
@@ -1303,6 +1312,7 @@
   import { useShopStore } from '@/stores/useShopStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import type {
+    RegionBossCombatAction,
     RegionCampActionId,
     RegionExpeditionArchiveEntry,
     RegionExpeditionApproach,
@@ -1920,6 +1930,15 @@
     expeditionRetreatRuleOptions.find(entry => entry.value === retreatRule)?.label ?? '平衡推进'
   const currentSession = computed<any>(() => regionMapStore.sessionState.activeSession)
   const currentSessionNodeChoices = computed<any[]>(() => regionMapStore.sessionState.currentExpeditionNodeChoices)
+  const regionBossCombatActionLocked = ref(false)
+  const currentBossCombat = computed(() =>
+    currentSession.value?.bossCombat?.status === 'active' ? currentSession.value.bossCombat : null
+  )
+  const currentBossCombatDef = computed(() =>
+    currentBossCombat.value
+      ? regionMapStore.bossDefs.find(entry => entry.id === currentBossCombat.value?.bossId) ?? null
+      : null
+  )
   const selectedJourneyAftermathId = ref<string | null>(null)
   const currentSessionApproachLabel = computed(() =>
     currentSession.value ? getApproachLabel(currentSession.value.approach) : '稳健推进'
@@ -2068,6 +2087,7 @@
   )
   const currentSessionStatusLabel = computed(() => {
     if (!currentSession.value) return '无'
+    if (currentSession.value.bossCombat?.status === 'active') return '首领交战'
     if (currentSession.value.campState) return '前线营地'
     return currentSession.value.status === 'ongoing'
       ? '推进中'
@@ -4084,6 +4104,23 @@
       settlementDialog.value = null
     } else {
       openSettlementDialog(result.title, result.lines, result.tone)
+    }
+  }
+
+  const handleRegionBossCombatAction = (action: RegionBossCombatAction) => {
+    if (regionBossCombatActionLocked.value) return
+    regionBossCombatActionLocked.value = true
+    try {
+      const result = regionMapStore.resolveRegionBossCombatAction(action, currentDayTag.value)
+      setActionSummary(result.message, result.tone)
+      if (result.success) {
+        settlementDialog.value = null
+      } else {
+        openSettlementDialog(result.title, result.lines, result.tone)
+      }
+      handleRegionActionEndDay(result)
+    } finally {
+      regionBossCombatActionLocked.value = false
     }
   }
 

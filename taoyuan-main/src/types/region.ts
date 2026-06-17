@@ -219,6 +219,10 @@ export type RegionExpeditionRetreatRule = 'balanced' | 'low_hp' | 'pack_full' | 
 
 export type RegionExpeditionStatus = 'ongoing' | 'ready_to_settle' | 'victory' | 'retreated' | 'failure'
 
+export type RegionBossCombatAction = 'attack' | 'defend' | 'press'
+
+export type RegionBossCombatStatus = 'active' | 'victory' | 'failure'
+
 export type RegionExpeditionEncounterKind = 'weekly_event' | 'hazard' | 'cache' | 'traveler' | 'support' | 'anomaly' | 'boss_prep'
 
 export type RegionExpeditionEncounterRisk = 'low' | 'medium' | 'high'
@@ -696,6 +700,18 @@ export interface RegionExpeditionEncounter {
   options: RegionExpeditionEncounterOption[]
 }
 
+export interface RegionBossCombatState {
+  combatId: string
+  bossId: string
+  phaseIndex: number
+  phaseHp: number
+  phaseMaxHp: number
+  round: number
+  status: RegionBossCombatStatus
+  supportSummary: string
+  log: string[]
+}
+
 export interface RegionExpeditionSession {
   sessionId: string
   mode: RegionExpeditionMode
@@ -723,6 +739,7 @@ export interface RegionExpeditionSession {
   pendingRewardFamilyId: RegionalResourceFamilyId | null
   pendingRewardAmount: number
   pendingRewardItems: Array<{ itemId: string; quantity: number }>
+  bossCombat: RegionBossCombatState | null
   pendingEncounter: RegionExpeditionEncounter | null
   queuedEncounterKind: RegionExpeditionEncounterKind | null
   campState: RegionExpeditionCampState | null

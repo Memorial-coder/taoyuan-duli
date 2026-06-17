@@ -2,7 +2,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { registerHooks } from 'node:module'
+import { createRequire, registerHooks } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
@@ -10,6 +10,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
 const srcRoot = path.join(projectRoot, 'src')
+const require = createRequire(import.meta.url)
 
 const tryResolveFile = candidate => {
   const variants = [candidate, `${candidate}.ts`, `${candidate}.js`, path.join(candidate, 'index.ts'), path.join(candidate, 'index.js')]
@@ -183,6 +184,7 @@ setActivePinia(createPinia())
 
 const { POTENTIAL_NODE_DEFS, POTENTIAL_NODE_MAX_RANK, POTENTIAL_RESOURCE_DEFS } = await import(pathToFileURL(path.join(srcRoot, 'data/potential.ts')).href)
 const { usePotentialStore } = await import(pathToFileURL(path.join(srcRoot, 'stores/usePotentialStore.ts')).href)
+const { applyGameplaySaveFieldRepairs, detectGameplaySaveFieldAnomalies } = require(path.join(projectRoot, '..', 'server', 'src', 'taoyuanSaveRuntime.js'))
 
 const store = usePotentialStore()
 
@@ -193,6 +195,54 @@ assert(POTENTIAL_NODE_MAX_RANK === 30, '潜能正式版节点上限必须是 30 
 assert(POTENTIAL_NODE_DEFS.every(node => node.maxRank === POTENTIAL_NODE_MAX_RANK), '每个潜能节点都必须开放 30 阶。')
 assert(POTENTIAL_NODE_DEFS.every(node => node.firstVersionConnected), '每个潜能节点都必须正式开放。')
 assert(POTENTIAL_NODE_DEFS.every(node => node.costsByRank.length === node.maxRank), '每个潜能节点必须为每一阶配置成本。')
+
+const serverMaxRankSave = {
+  potential: {
+    nodeRanks: Object.fromEntries(POTENTIAL_NODE_DEFS.map(node => [node.id, node.maxRank]))
+  }
+}
+const serverMaxRankAnomalies = detectGameplaySaveFieldAnomalies(serverMaxRankSave)
+assert(
+  !serverMaxRankAnomalies.some(anomaly => String(anomaly.field_path).startsWith('potential.nodeRanks.')),
+  'server save field validation must accept official 30-rank potential nodes.'
+)
+const serverMaxResourceSave = {
+  potential: {
+    resources: Object.fromEntries(POTENTIAL_RESOURCE_DEFS.map(resource => [resource.id, 9999]))
+  }
+}
+const serverMaxResourceAnomalies = detectGameplaySaveFieldAnomalies(serverMaxResourceSave)
+assert(
+  !serverMaxResourceAnomalies.some(anomaly => String(anomaly.field_path).startsWith('potential.resources.')),
+  'server save field validation must accept all official potential resources at 9999.'
+)
+const serverLongRunningSave = {
+  game: {
+    year: 100,
+    season: 'spring',
+    day: 1
+  }
+}
+const serverLongRunningAnomalies = detectGameplaySaveFieldAnomalies(serverLongRunningSave)
+assert(
+  !serverLongRunningAnomalies.some(anomaly => anomaly.field_path === 'game.year'),
+  'server save field validation must not clamp legitimate year 100 long-running saves.'
+)
+const serverOverflowSave = {
+  gameplayData: {
+    potential: {
+      nodeRanks: {
+        craft_processing_flow: POTENTIAL_NODE_MAX_RANK + 9
+      }
+    }
+  }
+}
+const serverOverflowRepair = applyGameplaySaveFieldRepairs(serverOverflowSave, 'qa_potential_save_guards')
+assert(serverOverflowRepair.repaired, 'server save repair must handle potential node ranks above 30.')
+assert(
+  serverOverflowSave.gameplayData.potential.nodeRanks.craft_processing_flow === POTENTIAL_NODE_MAX_RANK,
+  'server save repair must clamp potential node ranks to the official 30-rank cap.'
+)
 
 store.deserialize({
   resources: {

@@ -14,32 +14,35 @@ const CURRENT_SAVE_VERSION = 4;
 const SAVE_ID_MIN = 100000000;
 const SAVE_ID_MAX_EXCLUSIVE = 1000000000;
 const SAVE_FIELD_ANOMALY_AUDIT_LIMIT = 20;
+const SAVE_GAME_YEAR_LIMIT = 9999;
 const SAVE_PLAYER_MONEY_LIMIT = 999999999;
 const SAVE_INVENTORY_QUANTITY_LIMIT = 999999;
 const SAVE_FARM_PLOT_LIMIT = 400;
 const SAVE_FARM_GROWTH_DAY_LIMIT = 9999;
 const POTENTIAL_RESOURCE_IDS = ['potential_insight', 'spirit_breath', 'artisan_notes', 'mountain_jade'];
+const POTENTIAL_RESOURCE_AMOUNT_LIMIT = 9999;
+const POTENTIAL_NODE_MAX_RANK_LIMIT = 30;
 const POTENTIAL_NODE_MAX_RANK = {
-  body_vital_root: 3,
-  body_stamina_channel: 3,
-  body_safe_fall: 3,
-  body_short_rest: 3,
-  body_low_hp_sense: 1,
-  craft_processing_flow: 3,
-  craft_tool_rhythm: 3,
-  craft_alchemy_patience: 3,
-  craft_storage_order: 3,
-  craft_workshop_hint: 1,
-  trail_hazard_reading: 3,
-  trail_mine_entry_hint: 1,
-  trail_forage_window: 3,
-  trail_expedition_reserve: 3,
-  trail_region_marker: 1,
-  harmony_quest_bias: 1,
-  harmony_festival_supply: 3,
-  harmony_gift_hint: 3,
-  harmony_society_order: 3,
-  harmony_visitor_chance: 1,
+  body_vital_root: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  body_stamina_channel: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  body_safe_fall: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  body_short_rest: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  body_low_hp_sense: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  craft_processing_flow: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  craft_tool_rhythm: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  craft_alchemy_patience: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  craft_storage_order: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  craft_workshop_hint: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  trail_hazard_reading: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  trail_mine_entry_hint: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  trail_forage_window: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  trail_expedition_reserve: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  trail_region_marker: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  harmony_quest_bias: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  harmony_festival_supply: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  harmony_gift_hint: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  harmony_society_order: POTENTIAL_NODE_MAX_RANK_LIMIT,
+  harmony_visitor_chance: POTENTIAL_NODE_MAX_RANK_LIMIT,
 };
 
 function createError(message, status = 400, code = '') {
@@ -523,7 +526,7 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
     assertIntegerRange('player.money', gameplayData.player.money, 0, SAVE_PLAYER_MONEY_LIMIT);
   }
   if (gameplayData.game && typeof gameplayData.game === 'object') {
-    assertIntegerRange('game.year', gameplayData.game.year, 1, 99);
+    assertIntegerRange('game.year', gameplayData.game.year, 1, SAVE_GAME_YEAR_LIMIT);
     assertIntegerRange('game.day', gameplayData.game.day, 1, 28);
     if (gameplayData.game.season !== undefined && !['spring', 'summer', 'autumn', 'fall', 'winter'].includes(String(gameplayData.game.season))) {
       push('illegal_enum_state', 'game.season', gameplayData.game.season, 'spring|summer|autumn|winter', 'spring');
@@ -581,7 +584,7 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
           push('illegal_collection_state', 'potential.resources', gameplayData.potential.resources, 'object', {});
         } else {
           for (const resourceId of POTENTIAL_RESOURCE_IDS) {
-            assertIntegerRange(`potential.resources.${resourceId}`, gameplayData.potential.resources[resourceId], 0, 9999);
+            assertIntegerRange(`potential.resources.${resourceId}`, gameplayData.potential.resources[resourceId], 0, POTENTIAL_RESOURCE_AMOUNT_LIMIT);
           }
         }
       }
