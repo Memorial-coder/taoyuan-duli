@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+﻿import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   AnimalBuildingType,
@@ -970,6 +970,8 @@ export const useAnimalStore = defineStore('animal', () => {
       animal.daysOwned++
       animal.daysSinceAutoProduct++
 
+      animal.daysSinceGrazingProduct++
+
       // === 饥饿系统 ===
       if (!animal.wasFed) {
         animal.hunger++
@@ -1309,7 +1311,7 @@ export const useAnimalStore = defineStore('animal', () => {
   const isAnimalReadyForGrazingProduct = (animal: Animal, def: { produceDays: number }): boolean => {
     const effectiveDays = getEffectiveAnimalProduceDays(def, animal.fedWith)
     if (effectiveDays <= 0) return false
-    return animal.daysSinceGrazingProduct + 1 >= effectiveDays
+    return animal.daysSinceGrazingProduct >= effectiveDays
   }
 
   const formatAnimalProductGrant = (grant: AnimalProductGrant): string => {

@@ -1,4 +1,4 @@
-/* global console */
+﻿/* global console */
 
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -25,7 +25,8 @@ assert.ok(animalTypeSource.includes('daysSinceGrazingProduct: number'), 'Animal 
 assert.ok(!animalTypeSource.includes('pastureProducedToday'), 'Animal type should no longer have pastureProducedToday')
 
 // Store: grazing uses grazing timer
-assert.ok(animalStoreSource.includes('return animal.daysSinceGrazingProduct + 1 >= effectiveDays'), 'grazing readiness should use daysSinceGrazingProduct')
+assert.ok(animalStoreSource.includes('return animal.daysSinceGrazingProduct >= effectiveDays'), 'grazing readiness should use daysSinceGrazingProduct without +1 offset')
+assert.ok(animalStoreSource.includes('animal.daysSinceGrazingProduct++'), 'daily update should also advance the grazing production timer')
 assert.ok(animalStoreSource.includes('animal.daysSinceGrazingProduct = 0'), 'grazing products should reset the grazing timer')
 
 // Store: daily update uses auto timer, always increments
