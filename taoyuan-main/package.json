@@ -71,6 +71,7 @@
     "qa:greenhouse-fruit-trees": "node scripts/qa-greenhouse-fruit-trees.mjs",
     "qa:fertilizer-retention": "node scripts/qa-fertilizer-retention.mjs",
     "qa:farming-experience-guards": "node scripts/qa-farming-experience-guards.mjs",
+    "qa:animal-production-guards": "node scripts/qa-animal-production-guards.mjs",
     "qa:item-data-guards": "node scripts/qa-item-data-guards.mjs",
     "qa:yue-tu-balance": "node scripts/qa-yue-tu-balance.mjs",
     "qa:skill-save-normalization-guards": "node scripts/qa-skill-save-normalization-guards.mjs",

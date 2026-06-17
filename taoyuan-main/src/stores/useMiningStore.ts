@@ -2000,7 +2000,7 @@ export const useMiningStore = defineStore('mining', () => {
       if (candidates.length === 0) break
       const pick = candidates[Math.floor(Math.random() * candidates.length)]!
       droppedItems.push(pick.itemId)
-      inventoryStore.removeItem(pick.itemId, 1, pick.quality)
+      inventoryStore.removeUnlockedItem(pick.itemId, 1, pick.quality)
     }
 
     // 扣除铜钱
@@ -2173,25 +2173,25 @@ export const useMiningStore = defineStore('mining', () => {
 
   const useGuildGrowthItem = (itemId: string, quality?: Quality): { success: boolean; message: string } => {
     if (itemId === 'guild_badge') {
-      if (!inventoryStore.removeItem('guild_badge', 1, quality)) return { success: false, message: '没有公会徽章。' }
+      if (!inventoryStore.removeUnlockedItem('guild_badge', 1, quality)) return { success: false, message: '没有公会徽章。' }
       guildBadgeBonusAttack.value += 3
       return { success: true, message: '使用了公会徽章，攻击力永久+3！' }
     }
 
     if (itemId === 'life_talisman') {
-      if (!inventoryStore.removeItem('life_talisman', 1, quality)) return { success: false, message: '没有生命护符。' }
+      if (!inventoryStore.removeUnlockedItem('life_talisman', 1, quality)) return { success: false, message: '没有生命护符。' }
       guildBonusMaxHp.value += 15
       return { success: true, message: '使用了生命护符，最大生命值永久+15！' }
     }
 
     if (itemId === 'lucky_coin') {
-      if (!inventoryStore.removeItem('lucky_coin', 1, quality)) return { success: false, message: '没有幸运铜钱。' }
+      if (!inventoryStore.removeUnlockedItem('lucky_coin', 1, quality)) return { success: false, message: '没有幸运铜钱。' }
       guildBonusDropRate.value += 0.05
       return { success: true, message: '使用了幸运铜钱，怪物掉落率永久+5%！' }
     }
 
     if (itemId === 'defense_charm') {
-      if (!inventoryStore.removeItem('defense_charm', 1, quality)) return { success: false, message: '没有守护符。' }
+      if (!inventoryStore.removeUnlockedItem('defense_charm', 1, quality)) return { success: false, message: '没有守护符。' }
       guildBonusDefense.value += 0.03
       return { success: true, message: '使用了守护符，防御永久+3%！' }
     }
@@ -2212,7 +2212,7 @@ export const useMiningStore = defineStore('mining', () => {
     // 猎魔符：本次探索掉落率+20%
     if (itemId === 'slayer_charm') {
       if (slayerCharmActive.value) return { success: false, message: '猎魔符效果已激活。' }
-      if (!inventoryStore.removeItem('slayer_charm')) return { success: false, message: '没有猎魔符。' }
+      if (!inventoryStore.removeUnlockedItem('slayer_charm')) return { success: false, message: '没有猎魔符。' }
       slayerCharmActive.value = true
       const msg = '使用了猎魔符，本次探索怪物掉落率+20%！'
       if (inCombat.value) combatLog.value.push(msg)
@@ -2251,7 +2251,7 @@ export const useMiningStore = defineStore('mining', () => {
 
       for (let i = 0; i < requestedQuantity; i++) {
         if (isRestoreTargetFull()) break
-        const foodQuality = qualityOrder.find(q => inventoryStore.getItemCount(itemId, q) > 0) ?? null
+        const foodQuality = qualityOrder.find(q => inventoryStore.getUnlockedItemCount(itemId, q) > 0) ?? null
         if (!foodQuality) break
         const result = cookingStore.eat(itemId.slice(5), foodQuality)
         if (!result.success) {
@@ -2278,7 +2278,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     for (let i = 0; i < requestedQuantity; i++) {
       if (isRestoreTargetFull()) break
-      if (!inventoryStore.removeItem(itemId)) {
+      if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) {
         if (used === 0) return { success: false, message: `没有${def.name}。` }
         break
       }
@@ -2314,7 +2314,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (!isExploring.value) return { success: false, message: '不在矿洞中。' }
     if (inCombat.value) return { success: false, message: '战斗中无法使用怪物诱饵。' }
     if (monsterLureUsedOnFloor.value) return { success: false, message: '本层已经使用过怪物诱饵了。' }
-    if (!inventoryStore.removeItem('monster_lure')) return { success: false, message: '没有怪物诱饵。' }
+    if (!inventoryStore.removeUnlockedItem('monster_lure')) return { success: false, message: '没有怪物诱饵。' }
 
     const floor = getActiveFloorData()
     if (!floor) return { success: true, message: '使用了怪物诱饵，但本层无效。' }

@@ -1147,7 +1147,14 @@ export const handleEndDay = () => {
     for (const p of animalResult.products) {
       inventoryStore.addItem(p.itemId, p.quantity ?? 1, p.quality)
     }
-    addLog(`动物们产出了${animalResult.products.length}件产品。`)
+    const animalProductExperience = animalResult.products.reduce((sum, product) => sum + product.experience, 0)
+    const levelResult = animalProductExperience > 0 ? skillStore.addExp('farming', animalProductExperience) : { leveledUp: false, newLevel: 0 }
+    let animalProductMessage = `动物们产出了${animalResult.products.length}件产品。`
+    if (animalProductExperience > 0) {
+      animalProductMessage += ` (+${animalProductExperience}农耕经验)`
+      if (levelResult.leveledUp) animalProductMessage += ` 农耕提升到${levelResult.newLevel}级！`
+    }
+    addLog(animalProductMessage)
   }
   if (animalResult.died.length > 0) {
     addLog(`${animalResult.died.join('、')}因长期饥饿或病重不治而死亡了……`)

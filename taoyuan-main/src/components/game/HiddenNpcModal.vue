@@ -401,7 +401,8 @@
   }
 
   const offerableItems = computed(() => {
-    const filtered = inventoryStore.items.filter(i => {
+    const filtered = inventoryStore.visibleItems.filter(i => {
+      if (i.locked) return false
       const def = getItemById(i.itemId)
       return def && def.category !== 'seed'
     })

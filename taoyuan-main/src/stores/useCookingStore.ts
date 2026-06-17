@@ -427,7 +427,7 @@ export const useCookingStore = defineStore('cooking', () => {
     if (!recipe) return { success: false, message: '食谱数据丢失。' }
 
     const foodItemId = `food_${recipeId}`
-    if (!inventoryStore.removeItem(foodItemId, 1, quality)) {
+    if (!inventoryStore.removeUnlockedItem(foodItemId, 1, quality)) {
       return { success: false, message: '背包中没有这个食物。' }
     }
 
@@ -490,7 +490,7 @@ export const useCookingStore = defineStore('cooking', () => {
     if (activeElixir.value) {
       return { success: false, message: `今日已服用${activeElixir.value.name}，丹药效果不可叠加。` }
     }
-    if (!inventoryStore.removeItem(itemId, 1, quality)) {
+    if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) {
       return { success: false, message: '背包中没有这枚丹药。' }
     }
 

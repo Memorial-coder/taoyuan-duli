@@ -169,6 +169,16 @@ export interface RegionOpenWorldViewportSize {
   rows: number
 }
 
+export interface RegionOpenWorldBossCta {
+  bossId: string
+  bossName: string
+  available: boolean
+  actionLabel: string
+  disabledReason: string
+  metaLines: string[]
+  clearCount: number
+}
+
 export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
   discovered: boolean
   current: boolean
@@ -184,6 +194,7 @@ export interface RegionOpenWorldTileView extends RegionOpenWorldTileDef {
   moveStaminaCost: number
   canMove: boolean
   canAct: boolean
+  bossCta: RegionOpenWorldBossCta | null
 }
 
 export interface RegionOpenWorldRegionWindowView {

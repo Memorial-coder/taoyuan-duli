@@ -291,15 +291,31 @@
 
   const normalizeQuery = (value: string): string => value.toLowerCase().replace(/\s+/g, ' ').trim()
 
+  const getCommonTicketTypoQuery = (value: string): string => {
+    const normalized = normalizeQuery(value)
+    if (normalized.endsWith('券')) return `${normalized.slice(0, -1)}卷`
+    if (normalized.endsWith('卷')) return `${normalized.slice(0, -1)}券`
+    return ''
+  }
+
+  const isGlossaryQueryMatch = (entry: GlossaryEntry, query: string): boolean => {
+    if (!query) return true
+    if (entry.searchText.includes(query)) return true
+    const commonTicketTypoQuery = getCommonTicketTypoQuery(query)
+    return Boolean(commonTicketTypoQuery && entry.searchText.includes(commonTicketTypoQuery))
+  }
+
   const getMatchScore = (entry: GlossaryEntry, query: string): number => {
     if (!query) return 0
     const normalizedName = normalizeQuery(entry.name)
     const normalizedCategory = normalizeQuery(entry.categoryLabel)
-    const commonTicketTypoName = normalizedName.endsWith('券') ? `${normalizedName.slice(0, -1)}卷` : ''
+    const commonTicketTypoName = getCommonTicketTypoQuery(normalizedName)
+    const commonTicketTypoQuery = getCommonTicketTypoQuery(query)
     let score = 0
 
     if (normalizedName === query) score += 120
     if (commonTicketTypoName === query) score += 112
+    if (commonTicketTypoQuery && normalizedName === commonTicketTypoQuery) score += 112
     if (normalizedName.startsWith(query)) score += 80
     if (commonTicketTypoName.startsWith(query)) score += 72
     if (normalizedName.includes(query)) score += 60
@@ -331,7 +347,7 @@
       if (!includeSpoilers.value && entry.spoiler) continue
       visibleBase.push(entry)
 
-      const queryMatched = !q || entry.searchText.includes(q)
+      const queryMatched = isGlossaryQueryMatch(entry, q)
       if (!queryMatched) continue
 
       if (activeIntent.value === 'all' || entry.intents.includes(activeIntent.value)) {

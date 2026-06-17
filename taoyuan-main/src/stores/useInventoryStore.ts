@@ -107,9 +107,34 @@ export const inventoryStacksMatch = (
   )
 }
 
+export type VisibleInventoryItemStack = Pick<InventoryItem, 'itemId' | 'quality' | 'quantity'> & { locked: boolean }
+
+export const getVisibleInventoryItemKey = (item: Pick<InventoryItem, 'itemId' | 'quality'>): string => `${item.itemId}:${item.quality}`
+
+export const mergeVisibleInventoryItems = (sourceItems: InventoryItem[]): VisibleInventoryItemStack[] => {
+  const merged = new Map<string, VisibleInventoryItemStack>()
+  for (const item of sourceItems) {
+    const key = getVisibleInventoryItemKey(item)
+    const existing = merged.get(key)
+    if (existing) {
+      existing.quantity += item.quantity
+      existing.locked = existing.locked || !!item.locked
+    } else {
+      merged.set(key, {
+        itemId: item.itemId,
+        quality: item.quality,
+        quantity: item.quantity,
+        locked: !!item.locked
+      })
+    }
+  }
+  return [...merged.values()]
+}
+
 export const useInventoryStore = defineStore('inventory', () => {
   const playerStore = usePlayerStore()
   const items = ref<InventoryItem[]>([])
+  const visibleItems = computed(() => mergeVisibleInventoryItems(items.value))
   const capacity = ref(INITIAL_CAPACITY)
   const tools = ref<Tool[]>([
     { type: 'wateringCan', tier: 'basic' },
@@ -1890,6 +1915,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   return {
     items,
+    visibleItems,
     capacity,
     tools,
     ownedWeapons,

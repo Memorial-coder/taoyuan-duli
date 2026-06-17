@@ -40,7 +40,7 @@ assert.ok(animalStoreSource.includes('rollPetMoodChance(0.12, companion.mood)'),
 assert.ok(animalStoreSource.includes('rollPetMoodChance(0.18, companion.mood)'), 'festival event should read pet mood')
 assert.ok(animalStoreSource.includes('rollPetMoodChance(0.14, companion.mood)'), 'rumor event should read pet mood')
 assert.ok(animalStoreSource.includes('const moodBonusChance = getAnimalMoodProductBonusChance(animal.mood)'), 'animal production should roll a mood bonus')
-assert.ok(animalStoreSource.includes("products.push({ itemId: def.productId, quality, quantity: 1 })"), 'mood bonus should add one extra product')
+assert.ok(animalStoreSource.includes('products.push(buildAnimalProductGrantFromDef(def, quality, 1))'), 'mood bonus should add one extra product')
 assert.ok(animalStoreSource.includes('mood: Number.isFinite(savedPet.mood) ? clampMood(savedPet.mood) : PET_MOOD_DEFAULT'), 'legacy pet saves should receive default mood')
 
 const gameStoreSource = readProject('src', 'stores', 'useGameStore.ts')

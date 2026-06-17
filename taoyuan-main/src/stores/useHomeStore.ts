@@ -225,7 +225,7 @@ export const useHomeStore = defineStore('home', () => {
     if (quality === 'supreme') return false
 
     const inventoryStore = useInventoryStore()
-    if (!inventoryStore.removeItem(itemId, 1, quality)) return false
+    if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) return false
 
     cellarSlots.value.push({ itemId, quality, daysAging: 0 })
     return true

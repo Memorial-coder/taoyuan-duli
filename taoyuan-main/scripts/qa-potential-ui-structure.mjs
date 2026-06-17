@@ -48,6 +48,7 @@ for (const testId of [
   'potential-view',
   'potential-overview-section',
   'potential-resource-grid',
+  'potential-resource-landing',
   'potential-unlock-result',
   'potential-upgrade-dialog',
   'potential-current-section',
@@ -66,6 +67,12 @@ assert(potentialViewSource.includes('refundPotentialBranch'), 'potential page mu
 assert(potentialViewSource.includes('getPotentialBranchRefundPreview'), 'potential page must preview branch respec refunds.')
 assert(potentialViewSource.includes('lastUnlockResult'), 'potential page must show an upgrade result panel after successful comprehension.')
 assert(potentialViewSource.includes('effectChangeDisplay'), 'potential upgrade feedback must describe the concrete effect delta.')
+assert(
+  potentialViewSource.includes('getResourceLandingText') &&
+    potentialViewSource.includes('可参悟：') &&
+    potentialViewSource.includes('可用于：'),
+  'potential resource tiles must explain where owned materials can land next.'
+)
 assert(potentialViewSource.includes('pendingUpgradeNodeId') && potentialViewSource.includes('upgradePreview'), 'potential page must stage upgrade preview state before spending resources.')
 assert(potentialViewSource.includes('openUpgradePreview') && potentialViewSource.includes('confirmUpgrade'), 'potential page must preview and confirm potential upgrades separately.')
 assert(potentialViewSource.includes('下一级预览') && potentialViewSource.includes('确认参悟'), 'potential upgrade dialog must show the next-rank preview and confirmation action.')

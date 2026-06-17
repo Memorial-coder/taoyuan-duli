@@ -36,14 +36,15 @@
         <div
           v-for="item in placedDecorations"
           :key="item.def.id"
-          class="decoration-card-grid__item flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1"
+          class="decoration-card-grid__item flex items-center gap-1.5 border border-accent/10 rounded-xs px-2 py-1"
         >
+          <ItemIcon :item="decoItem(item.def)" size="xs" :show-badge="false" />
           <div class="min-w-0">
             <span class="text-xs">{{ item.def.name }}</span>
             <span class="text-[0.625rem] text-muted ml-1">x{{ item.placedCount }}</span>
             <span class="text-[0.625rem] text-accent ml-1">美观+{{ item.def.beautyScore * item.placedCount }}</span>
           </div>
-          <Button :icon="Minus" :icon-size="10" @click="handleRemove(item.def.id)" />
+          <Button class="shrink-0" :icon="Minus" :icon-size="10" @click="handleRemove(item.def.id)" />
         </div>
       </div>
     </div>
@@ -74,8 +75,9 @@
           class="decoration-card-grid__item border rounded-xs px-3 py-2"
           :class="isUnavailable(def) ? 'border-accent/10 opacity-50' : 'border-accent/20'"
         >
-          <div class="flex items-center justify-between">
-            <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <ItemIcon :item="decoItem(def)" size="xs" :show-badge="false" :silhouette="isLocked(def)" />
+            <div class="min-w-0 flex-1">
               <p class="text-xs">{{ def.name }}</p>
               <p class="text-[0.625rem] text-muted truncate">{{ def.description }}</p>
               <div class="flex gap-2 mt-0.5 flex-wrap">
@@ -87,7 +89,7 @@
                 <span v-if="getOwnedCount(def.id) > 0" class="text-[0.625rem] text-muted">已购{{ getOwnedCount(def.id) }}个</span>
               </div>
             </div>
-            <div class="flex flex-col items-end gap-1 ml-2 shrink-0">
+            <div class="flex flex-col items-end gap-1 shrink-0">
               <Button
                 v-if="!isCatalogDecoration(def)"
                 :disabled="!canBuy(def.id)"
@@ -113,18 +115,32 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { Flower, Home, ShoppingBag, Plus, Minus } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { loadItemIconManifest } from '@/composables/useItemIconManifest'
   import { useDecorationStore } from '@/stores/useDecorationStore'
   import { DECORATIONS, DECORATION_CATEGORY_NAMES } from '@/data/decorations'
   import type { DecorationCategory } from '@/data/decorations'
   import { addLog } from '@/composables/useGameLog'
+  import type { ItemDef } from '@/types'
 
   const decorationStore = useDecorationStore()
   const activeCategory = ref<DecorationCategory | 'all'>('all')
 
   type DecorationEntry = (typeof DECORATIONS)[number]
+
+  const decoItem = (def: DecorationEntry): ItemDef => ({
+    id: def.id,
+    name: def.name,
+    category: 'misc',
+    description: def.description,
+    sellPrice: def.price,
+    edible: false,
+  })
+
+  onMounted(() => { void loadItemIconManifest() })
 
   const categories = [
     { value: 'all' as const, label: '全部' },

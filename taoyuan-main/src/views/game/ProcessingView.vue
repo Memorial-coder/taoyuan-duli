@@ -306,11 +306,16 @@
             :data-testid="`processing-craft-${item.id}`"
             @click="openCraftModal(item)"
           >
-            <div class="processing-craft-card__name">
-              {{ item.name }}
-              <span v-if="item.badge" class="text-muted ml-1">[{{ item.badge }}]</span>
+            <div class="processing-craft-card__body">
+              <ItemIcon :item="getCraftIconItem(item)" size="xs" :show-badge="false" />
+              <span class="processing-craft-card__copy">
+                <span class="processing-craft-card__name">
+                  {{ item.name }}
+                  <span v-if="item.badge" class="text-muted ml-1">[{{ item.badge }}]</span>
+                </span>
+                <span v-if="item.cost > 0" class="processing-craft-card__meta">{{ item.cost }}文</span>
+              </span>
             </div>
-            <span v-if="item.cost > 0" class="processing-craft-card__meta">{{ item.cost }}文</span>
           </div>
         </div>
       </div>
@@ -1490,6 +1495,7 @@
 
   interface CraftableItem {
     id: string
+    iconItemId?: string
     name: string
     description: string
     materials: { itemId: string; quantity: number }[]
@@ -1525,6 +1531,19 @@
   const openCraftModal = (item: CraftableItem) => {
     craftModal.value = item
     craftQuantity.value = 1
+  }
+
+  const getCraftIconItem = (item: CraftableItem): ItemDef => {
+    const iconItem = getItemById(item.iconItemId ?? item.id)
+    if (iconItem) return iconItem
+    return {
+      id: item.iconItemId ?? item.id,
+      name: item.name,
+      category: 'misc',
+      description: item.description,
+      sellPrice: item.cost,
+      edible: false,
+    }
   }
 
   const setCraftQuantity = (val: number) => {
@@ -1643,6 +1662,7 @@
           ? [
               {
                 id: 'auto_petter_coop',
+                iconItemId: AUTO_PETTER.id,
                 name: `${AUTO_PETTER.name}（鸡舍）`,
                 description: AUTO_PETTER.description,
                 materials: AUTO_PETTER.craftCost,
@@ -1658,6 +1678,7 @@
           ? [
               {
                 id: 'auto_petter_barn',
+                iconItemId: AUTO_PETTER.id,
                 name: `${AUTO_PETTER.name}（牧场）`,
                 description: AUTO_PETTER.description,
                 materials: AUTO_PETTER.craftCost,
@@ -1753,6 +1774,7 @@
               const def = CHEST_DEFS[tier]
               return {
                 id: `chest_${tier}`,
+                iconItemId: def.id,
                 name: def.name,
                 description: def.description,
                 materials: def.craftCost,
@@ -2228,7 +2250,15 @@
     gap: 6px;
   }
 
+  .processing-craft-card__body {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+  }
+
   .processing-option-card__copy,
+  .processing-craft-card__copy,
   .processing-craft-card {
     display: flex;
     min-width: 0;
@@ -2237,6 +2267,11 @@
   }
 
   .processing-option-card__copy {
+    flex: 1 1 auto;
+    gap: 3px;
+  }
+
+  .processing-craft-card__copy {
     flex: 1 1 auto;
     gap: 3px;
   }

@@ -889,7 +889,8 @@
   const GIFT_PREF_ORDER: Record<GiftPreference, number> = { loved: 0, liked: 1, neutral: 2, hated: 3 }
 
   const spouseGiftableItems = computed(() => {
-    const filtered = inventoryStore.items.filter(i => {
+    const filtered = inventoryStore.visibleItems.filter(i => {
+      if (i.locked) return false
       const def = getItemById(i.itemId)
       return def && def.category !== 'seed'
     })
@@ -1171,7 +1172,7 @@
   })
 
   const ageableInInventory = computed(() => {
-    return inventoryStore.items.filter(inv => CELLAR_AGEABLE_ITEMS.includes(inv.itemId) && inv.quality !== 'supreme')
+    return inventoryStore.visibleItems.filter(inv => CELLAR_AGEABLE_ITEMS.includes(inv.itemId) && inv.quality !== 'supreme')
   })
 
   const getItemName = (itemId: string): string => {

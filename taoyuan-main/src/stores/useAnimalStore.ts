@@ -40,6 +40,7 @@ import { useVillageProjectStore } from './useVillageProjectStore'
 import { useCookingStore } from './useCookingStore'
 import { getCombinedItemCount, removeCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
+import { getAnimalProductExperience } from '@/utils/farmingExperience'
 
 const PET_COOKING_TOPIC_LABELS = ['宠物反馈']
 const MEAT_ITEM_ID = 'wild_meat'
@@ -893,12 +894,12 @@ export const useAnimalStore = defineStore('animal', () => {
 
     for (const animal of grazeable) {
       animal.wasFed = true
-      animal.fedWith = null
       animal.hunger = 0
       animal.mood = 255
       animal.friendship = Math.min(1000, animal.friendship + 10)
 
-      if (!animal.pastureProducedToday) {
+      const def = ANIMAL_DEFS.find(d => d.type === animal.type)
+      if (def && !animal.pastureProducedToday && isAnimalReadyForGrazingProduct(animal, def)) {
         const product = buildAnimalProductGrant(animal, productContext)
         if (product) {
           inventoryStore.addItem(product.itemId, product.quantity, product.quality)
@@ -949,8 +950,8 @@ export const useAnimalStore = defineStore('animal', () => {
   const SICK_DEATH_DAYS = 5
 
   /** 每日更新：产品收集、心情/友好度变化、饥饿/生病/死亡 */
-  const dailyUpdate = (): { products: { itemId: string; quality: Quality; quantity?: number }[]; died: string[]; gotSick: string[]; healed: string[] } => {
-    const products: { itemId: string; quality: Quality; quantity?: number }[] = []
+  const dailyUpdate = (): { products: AnimalProductGrant[]; died: string[]; gotSick: string[]; healed: string[] } => {
+    const products: AnimalProductGrant[] = []
     const died: string[] = []
     const gotSick: string[] = []
     const healed: string[] = []
@@ -965,7 +966,9 @@ export const useAnimalStore = defineStore('animal', () => {
     const hasShepherd = farmingSkill.perk10 === 'shepherd'
     for (const animal of animals.value) {
       animal.daysOwned++
-      animal.daysSinceProduct++
+      if (!animal.pastureProducedToday) {
+        animal.daysSinceProduct++
+      }
 
       // === 饥饿系统 ===
       if (!animal.wasFed) {
@@ -1072,7 +1075,7 @@ export const useAnimalStore = defineStore('animal', () => {
       // 产品检查（跳过马，马无产出；生病时不产出）
       const def = ANIMAL_DEFS.find(d => d.type === animal.type)
       if (def && def.produceDays > 0 && animal.wasFed && !animal.sick && !animal.pastureProducedToday) {
-        const effectiveDays = animal.fedWith === NOURISHING_FEED_ID ? Math.max(1, def.produceDays - 1) : def.produceDays
+        const effectiveDays = getEffectiveAnimalProduceDays(def, animal.fedWith)
         if (animal.daysSinceProduct >= effectiveDays) {
           let quality = getAnimalProductQuality(animal.friendship)
           // 牧羊人专精：品质提升一档
@@ -1100,23 +1103,29 @@ export const useAnimalStore = defineStore('animal', () => {
           }
           // 兽王：产量×2
           const productQty = hasBeastSovereign ? 2 : 1
-          products.push({ itemId: def.productId, quality, quantity: productQty })
+          products.push(buildAnimalProductGrantFromDef(def, quality, productQty))
           const moodBonusChance = getAnimalMoodProductBonusChance(animal.mood)
           if (moodBonusChance > 0 && Math.random() < moodBonusChance) {
-            products.push({ itemId: def.productId, quality, quantity: 1 })
+            products.push(buildAnimalProductGrantFromDef(def, quality, 1))
           }
           animal.daysSinceProduct = 0
 
           // 草甸田庄：40%概率额外产出1件
           if (gameStore.farmMapType === 'meadowlands' && Math.random() < 0.4) {
-            products.push({ itemId: def.productId, quality })
+            products.push(buildAnimalProductGrantFromDef(def, quality, 1))
           }
         }
       }
 
       // 兔子: 好感≥600时4%概率额外产出幸运兔脚
       if (animal.type === 'rabbit' && animal.friendship >= 600 && !animal.sick && Math.random() < 0.04) {
-        products.push({ itemId: 'rabbit_foot', quality: getAnimalProductQuality(animal.friendship) })
+        products.push({
+          animalType: animal.type,
+          itemId: 'rabbit_foot',
+          quality: getAnimalProductQuality(animal.friendship),
+          quantity: 1,
+          experience: 0
+        })
       }
 
       // 重置每日状态
@@ -1244,7 +1253,7 @@ export const useAnimalStore = defineStore('animal', () => {
     return 'normal'
   }
 
-  type AnimalProductGrant = { itemId: string; quality: Quality; quantity: number }
+  type AnimalProductGrant = { animalType: AnimalType; itemId: string; quality: Quality; quantity: number; experience: number }
 
   type AnimalProductQualityContext = {
     hasShepherd: boolean
@@ -1278,11 +1287,30 @@ export const useAnimalStore = defineStore('animal', () => {
     const def = ANIMAL_DEFS.find(d => d.type === animal.type)
     if (!def || def.produceDays <= 0 || !def.productId || animal.sick) return null
 
-    return {
-      itemId: def.productId,
-      quality: getBoostedAnimalProductQuality(animal, context),
-      quantity: context.hasBeastSovereign ? 2 : 1
-    }
+    return buildAnimalProductGrantFromDef(
+      def,
+      getBoostedAnimalProductQuality(animal, context),
+      context.hasBeastSovereign ? 2 : 1
+    )
+  }
+
+  const buildAnimalProductGrantFromDef = (def: { type: AnimalType; productId: string; produceDays: number }, quality: Quality, quantity: number): AnimalProductGrant => ({
+    animalType: def.type,
+    itemId: def.productId,
+    quality,
+    quantity,
+    experience: getAnimalProductExperience(def, quality, quantity)
+  })
+
+  const getEffectiveAnimalProduceDays = (def: { produceDays: number } | null | undefined, feedId: string | null): number => {
+    if (!def || def.produceDays <= 0) return 0
+    return feedId === NOURISHING_FEED_ID ? Math.max(1, def.produceDays - 1) : def.produceDays
+  }
+
+  const isAnimalReadyForGrazingProduct = (animal: Animal, def: { produceDays: number }): boolean => {
+    const effectiveDays = getEffectiveAnimalProduceDays(def, animal.fedWith)
+    if (effectiveDays <= 0) return false
+    return animal.daysSinceProduct + 1 >= effectiveDays
   }
 
   const formatAnimalProductGrant = (grant: AnimalProductGrant): string => {

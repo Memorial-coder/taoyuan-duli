@@ -60,6 +60,7 @@ import type {
   RegionMapSettlementState,
   RegionOpenWorldActionId,
   RegionOpenWorldActionResult,
+  RegionOpenWorldBossCta,
   RegionOpenWorldId,
   RegionOpenWorldLandmarkStage,
   RegionOpenWorldLogEntry,
@@ -1437,6 +1438,35 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return state.lastActionDayTag === dayTag && state.status !== 'fresh'
   }
 
+  const getOpenWorldBossCta = (
+    regionId: RegionOpenWorldId,
+    tile: RegionOpenWorldTileDef,
+    discovered: boolean
+  ): RegionOpenWorldBossCta | null => {
+    if (!discovered || tile.objectType !== 'boss_landmark' || !tile.bossId) return null
+    const region = REGION_DEFS.find(entry => entry.id === regionId)
+    if (!region) return null
+    const boss = REGION_BOSS_DEFS.find(entry => entry.id === tile.bossId && entry.regionId === region.id) ?? null
+    if (!boss) return null
+    const status = getBossExpeditionStatus(region.id)
+    const completedRouteCount = getRegionCompletedRouteCount(region.id)
+    const clearCount = saveData.value.bossClearCounts[region.id] ?? 0
+    const rewardFamily = REGIONAL_RESOURCE_FAMILY_DEFS.find(entry => entry.id === boss.rewardFamilyId)
+    return {
+      bossId: boss.id,
+      bossName: boss.name,
+      available: status.available,
+      actionLabel: status.available ? (clearCount > 0 ? '再次挑战首领' : '发起首领远征') : '待战备',
+      disabledReason: status.available ? '' : status.reason,
+      metaLines: [
+        `路线 ${completedRouteCount}/1`,
+        `体力 ${boss.staminaCost} / ${boss.timeCostHours}h`,
+        `${rewardFamily?.label ?? boss.rewardFamilyId}${clearCount > 0 ? ` / 已胜 ${clearCount}` : ''}`
+      ],
+      clearCount
+    }
+  }
+
   const getOpenWorldTileView = (regionId: RegionOpenWorldId, tileId: string): RegionOpenWorldTileView | null => {
     const tile = getOpenWorldTileDef(regionId, tileId)
     if (!tile) return null
@@ -1451,6 +1481,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const selected = regionState.selectedTileId === tileId
     const actionLabel = tile.actionId ? OPEN_WORLD_ACTION_LABELS[tile.actionId] : '查看'
     const spent = isOpenWorldTileSpentToday(tile, state, `${useGameStore().year}-${useGameStore().season}-${useGameStore().day}`)
+    const bossCta = getOpenWorldBossCta(regionId, tile, discovered)
     const disabledReason = !unlock.unlocked
       ? unlock.reason
       : !discovered
@@ -1475,7 +1506,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       moveDistance,
       moveStaminaCost,
       canMove: unlock.unlocked && discovered && !current,
-      canAct: unlock.unlocked && discovered && Boolean(tile.actionId) && !disabledReason
+      canAct: unlock.unlocked && discovered && Boolean(tile.actionId) && !disabledReason,
+      bossCta
     }
   }
 

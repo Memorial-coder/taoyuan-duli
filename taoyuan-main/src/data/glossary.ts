@@ -200,8 +200,9 @@ const getRewardTicketLabel = (ticketType: string): string =>
   REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType
 
 const getRewardTicketSearchAliases = (label: string): string[] => {
-  const aliases = ['票券', '奖券', '资源券', label]
+  const aliases = ['票券', '票卷', '奖券', '奖卷', '资源券', '资源卷', label]
   if (label.endsWith('券')) aliases.push(label.replace(/券$/, '卷'))
+  if (label.endsWith('卷')) aliases.push(label.replace(/卷$/, '券'))
   return uniqueStrings(aliases)
 }
 

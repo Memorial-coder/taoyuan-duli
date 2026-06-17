@@ -2620,6 +2620,41 @@ export const useShopStore = defineStore('shop', () => {
     return getInventorySlotSellPriceBreakdown(inventoryIndex, quantity)?.finalTotal ?? 0
   }
 
+  const buildInventoryItemSellPlan = (itemId: string, quantity: number, quality: Quality): Array<{
+    inventoryIndex: number
+    quantity: number
+    breakdown: SellPriceBreakdown
+  }> | null => {
+    const requestedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+    if (requestedQuantity <= 0) return null
+
+    let remaining = requestedQuantity
+    const plan: Array<{ inventoryIndex: number; quantity: number; breakdown: SellPriceBreakdown }> = []
+    const slots = inventoryStore.items
+      .map((item, inventoryIndex) => ({ item, inventoryIndex }))
+      .filter(({ item }) => !item.locked && item.itemId === itemId && item.quality === quality)
+      .sort((left, right) => right.inventoryIndex - left.inventoryIndex)
+
+    for (const { item, inventoryIndex } of slots) {
+      if (remaining <= 0) break
+      const take = Math.min(remaining, item.quantity)
+      const breakdown = getInventorySlotSellPriceBreakdown(inventoryIndex, take)
+      if (!breakdown) return null
+      plan.push({ inventoryIndex, quantity: take, breakdown })
+      remaining -= take
+    }
+
+    return remaining <= 0 ? plan : null
+  }
+
+  const getInventoryItemSellPriceBreakdowns = (itemId: string, quantity: number, quality: Quality): SellPriceBreakdown[] | null =>
+    buildInventoryItemSellPlan(itemId, quantity, quality)?.map(entry => entry.breakdown) ?? null
+
+  const calculateInventoryItemSellPrice = (itemId: string, quantity: number = 1, quality: Quality = 'normal'): number => {
+    const breakdowns = getInventoryItemSellPriceBreakdowns(itemId, quantity, quality)
+    return breakdowns?.reduce((sum, breakdown) => sum + breakdown.finalTotal, 0) ?? 0
+  }
+
   /** 计算物品售价（不执行出售，用于估价） */
   const calculateSellPrice = (itemId: string, quantity: number, quality: Quality): number => {
     return getSellPriceBreakdown(itemId, quantity, quality).finalTotal
@@ -2732,6 +2767,18 @@ export const useShopStore = defineStore('shop', () => {
     } else {
       playerStore.earnMoney(totalPrice)
       recordCompletedSale(removed.itemId, requestedQuantity, 'direct_shop')
+    }
+    return totalPrice
+  }
+
+  const sellInventoryItem = (itemId: string, quantity: number = 1, quality: Quality = 'normal'): number => {
+    const plan = buildInventoryItemSellPlan(itemId, quantity, quality)
+    if (!plan) return 0
+    let totalPrice = 0
+    for (const entry of plan) {
+      const earned = sellInventorySlot(entry.inventoryIndex, entry.quantity)
+      if (earned <= 0) return 0
+      totalPrice += earned
     }
     return totalPrice
   }
@@ -3588,11 +3635,14 @@ export const useShopStore = defineStore('shop', () => {
     buyItem,
     sellItem,
     sellInventorySlot,
+    sellInventoryItem,
     calculateSellPrice,
     calculateInventorySlotSellPrice,
+    calculateInventoryItemSellPrice,
     calculateBaseSellPrice,
     getSellPriceBreakdown,
     getInventorySlotSellPriceBreakdown,
+    getInventoryItemSellPriceBreakdowns,
     getShopBuybackUnitPrice,
     // 旅行商人
     travelingStock,

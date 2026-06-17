@@ -17,6 +17,13 @@
           <p class="text-[0.625rem] text-muted">{{ resource.label }}</p>
           <p class="text-base text-accent tabular-nums">{{ resource.amount }}</p>
           <p class="text-[0.625rem] text-muted leading-4">{{ resource.summary }}</p>
+          <p
+            v-if="resource.landingText"
+            class="mt-1 text-[0.625rem] leading-4 text-success"
+            data-testid="potential-resource-landing"
+          >
+            {{ resource.landingText }}
+          </p>
         </div>
       </div>
 
@@ -309,6 +316,7 @@
   import { computed, ref, type Component } from 'vue'
   import { AlertTriangle, CheckCircle2, LockKeyhole, RotateCcw, Sparkles, Star, Unlock, Users, X } from 'lucide-vue-next'
   import {
+    POTENTIAL_BRANCH_DEFS,
     POTENTIAL_EFFECT_VALUES,
     POTENTIAL_RESOURCE_DEFS,
     POTENTIAL_SOURCE_RULES,
@@ -339,10 +347,34 @@
     actionLabel?: string
   }
 
+  const branchLabel = (branchId: PotentialBranchId): string =>
+    POTENTIAL_BRANCH_DEFS.find(branch => branch.id === branchId)?.label ?? branchId
+
+  const getResourceRelatedNodes = (resourceId: PotentialResourceCost['resourceId']): PotentialNodeDef[] =>
+    POTENTIAL_BRANCH_DEFS
+      .flatMap(branch => potentialStore.getBranchNodes(branch.id))
+      .filter(node =>
+        potentialStore.getNodeRank(node.id) < node.maxRank &&
+        potentialStore.getNodeNextCost(node.id).some(cost => cost.resourceId === resourceId)
+      )
+
+  const getResourceLandingText = (resourceId: PotentialResourceCost['resourceId']): string => {
+    if (potentialStore.getPotentialResource(resourceId) <= 0) return ''
+    const relatedNodes = getResourceRelatedNodes(resourceId)
+    const readyNode = relatedNodes.find(node => potentialStore.canUpgradePotentialNode(node.id))
+    if (readyNode) return `可参悟：${branchLabel(readyNode.branchId)}·${readyNode.label}`
+    const nextNode = relatedNodes[0]
+    if (!nextNode) return ''
+    const reason = potentialStore.getPotentialNodeUpgradeReason(nextNode.id)
+    if (reason.includes('不足')) return `可用于：${branchLabel(nextNode.branchId)}·${nextNode.label}（${reason}）`
+    return `后续用途：${branchLabel(nextNode.branchId)}·${nextNode.label}${reason ? `（${reason}）` : ''}`
+  }
+
   const resourceRows = computed(() =>
     POTENTIAL_RESOURCE_DEFS.map(resource => ({
       ...resource,
-      amount: potentialStore.getPotentialResource(resource.id)
+      amount: potentialStore.getPotentialResource(resource.id),
+      landingText: getResourceLandingText(resource.id)
     }))
   )
 

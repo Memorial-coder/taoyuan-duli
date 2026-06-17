@@ -767,6 +767,7 @@
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import {
     ANIMAL_BUILDINGS,
     ANIMAL_DEFS,
@@ -796,6 +797,7 @@
   const playerStore = usePlayerStore()
   const gameStore = useGameStore()
   const tutorialStore = useTutorialStore()
+  const skillStore = useSkillStore()
   const petAdoptionDefaultNames: Record<PetType, string> = {
     cat: '狸奴',
     dog: '田犬',
@@ -1419,7 +1421,14 @@
 
   const handleGraze = () => {
     const result = animalStore.grazeAnimals()
-    addLog(result.message)
+    const experienceGained = result.products?.reduce((sum, product) => sum + product.experience, 0) ?? 0
+    let message = result.message
+    if (experienceGained > 0) {
+      const levelResult = skillStore.addExp('farming', experienceGained)
+      message += ` (+${experienceGained}农耕经验)`
+      if (levelResult.leveledUp) message += ` 农耕提升到${levelResult.newLevel}级！`
+    }
+    addLog(message)
     if (result.success) {
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.graze)
       if (tr.message) addLog(tr.message)

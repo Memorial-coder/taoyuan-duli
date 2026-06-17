@@ -328,9 +328,62 @@ const assertVillagerQuestPoolDiversity = () => {
 }
 
 const dataForItemNames = await import(pathToFileURL(path.join(projectRoot, 'src/data/index.ts')).href)
-const { getItemById } = dataForItemNames
+const {
+  CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID,
+  generateSpecialOrder,
+  getItemById
+} = dataForItemNames
 assertQuestItemDisplayNamesMatchItems()
 assertVillagerQuestPoolDiversity()
+
+const assertChildSpiritSpecialOrderGeneration = () => {
+  assert(
+    questDataSource.includes("export const CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID = 'child_spirit_sweets'"),
+    'Child-spirit special orders must expose a shared activity source id.'
+  )
+  assert(
+    questStoreSource.includes('getActivityWindowAllowedSpecialOrderSourceIds') &&
+      questStoreSource.includes('CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID'),
+    'Limited activity windows must not filter out best-friend child-spirit special orders.'
+  )
+  assert(
+    questDataSource.includes('blockedAntiRepeatTags?: string[]') &&
+      questDataSource.includes('const antiRepeatFiltered = blockedAntiRepeatTags.size > 0'),
+    'Special order generation should filter cooling anti-repeat tags before selecting a template.'
+  )
+
+  const baseOptions = {
+    npcFriendshipLevels: {
+      a_hua: 'bestFriend',
+      shi_tou: 'bestFriend'
+    },
+    allowedActivitySourceIds: [CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID]
+  }
+  const childSpiritOrder = generateSpecialOrder('spring', 2, baseOptions)
+  assert(childSpiritOrder?.activitySourceId === CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID, 'Best-friend Ahua/Shitou child-spirit orders must enter the allowed special-order candidate pool.')
+  assert(childSpiritOrder?.requiredNpcFriendshipLevel === 'bestFriend', 'Child-spirit orders must preserve the best-friend gate on generated quests.')
+  assert(childSpiritOrder?.spiritBreathReward === true, 'Child-spirit orders must preserve the spirit-breath reward flag on generated quests.')
+
+  const blockedWithoutFriendship = generateSpecialOrder('spring', 2, {
+    npcFriendshipLevels: {
+      a_hua: 'friendly',
+      shi_tou: 'friendly'
+    },
+    allowedActivitySourceIds: [CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID]
+  })
+  assert(blockedWithoutFriendship === null, 'Child-spirit orders must stay out of the pool before Ahua/Shitou reach best-friend.')
+
+  const cooledPoolOrder = generateSpecialOrder('spring', 2, {
+    npcFriendshipLevels: {
+      a_hua: 'bestFriend',
+      shi_tou: 'bestFriend'
+    },
+    blockedAntiRepeatTags: ['child_spirit', 'spirit_breath', 'a_hua', 'shi_tou']
+  })
+  assert(cooledPoolOrder?.activitySourceId !== CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID, 'Cooling child-spirit anti-repeat tags should make the generator pick another available tier-2 order.')
+}
+
+assertChildSpiritSpecialOrderGeneration()
 
 assert(questDetailModalLine.includes('max-h-[calc(100dvh-2rem)]'), 'Quest detail modal must fit inside the mobile viewport.')
 assert(questDetailModalLine.includes('md:max-h-[calc(100dvh-3rem)]'), 'Quest detail modal must fit inside the desktop overlay padding.')
@@ -347,7 +400,9 @@ assert(questOperationHintsSource.includes('questStore.specialOrder'), 'Shared op
 
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
+const npcStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useNpcStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const potentialStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePotentialStore.ts')).href)
 const questStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useQuestStore.ts')).href)
 const shopStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useShopStore.ts')).href)
 const villageProjectStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useVillageProjectStore.ts')).href)
@@ -356,11 +411,83 @@ const freshStores = () => {
   setActivePinia(createPinia())
   return {
     inventoryStore: inventoryStoreModule.useInventoryStore(),
+    npcStore: npcStoreModule.useNpcStore(),
     playerStore: playerStoreModule.usePlayerStore(),
+    potentialStore: potentialStoreModule.usePotentialStore(),
     questStore: questStoreModule.useQuestStore(),
     shopStore: shopStoreModule.useShopStore(),
     villageProjectStore: villageProjectStoreModule.useVillageProjectStore()
   }
+}
+
+{
+  const { inventoryStore, npcStore, potentialStore, questStore } = freshStores()
+  const save = questStore.serialize()
+  questStore.deserialize({
+    ...save,
+    specialOrder: null,
+    activeQuests: [],
+    completedQuestCount: 0,
+    completedQuestHistory: [],
+    specialOrderSettlementReceipts: [],
+    recentSpecialOrderTagHistory: [],
+    weeklySpecialOrderState: {
+      lastRefreshWeekId: '',
+      refreshMode: 'weekly'
+    },
+    activityQuestWindowState: {
+      version: 1,
+      activeCampaignId: 'ws10_limited_theme_rotation',
+      activeQuestTemplateIds: ['ws10_theme_rotation'],
+      lastRefreshDayTag: '1-spring-8',
+      nextRefreshDayTag: '1-spring-15',
+      completedWindowIds: [],
+      claimedRewardMailIds: []
+    }
+  })
+
+  const aHuaState = npcStore.npcStates.find(state => state.npcId === 'a_hua')
+  const shiTouState = npcStore.npcStates.find(state => state.npcId === 'shi_tou')
+  if (aHuaState) aHuaState.friendship = 2000
+  if (shiTouState) shiTouState.friendship = 2000
+
+  questStore.generateSpecialOrder('spring', 2, {
+    weekId: 'qa-child-spirit-window',
+    absoluteWeek: 8
+  })
+
+  const generatedOrder = questStore.specialOrder
+  assert(generatedOrder?.activitySourceId === CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID, 'Activity windows should still generate best-friend child-spirit orders when the active campaign whitelist does not include them.')
+  assert(generatedOrder?.requiredNpcFriendshipLevel === 'bestFriend', 'Generated child-spirit orders should keep their friendship requirement in runtime store state.')
+  assert(generatedOrder?.spiritBreathReward === true, 'Generated child-spirit orders should keep the runtime spirit-breath reward flag.')
+  assert(
+    questStore.lastSpecialOrderGenerationTrace?.attemptsDetail?.[0]?.candidates?.every(candidate => candidate.activitySourceId === CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID),
+    'Activity-window generation trace should show child-spirit candidates are admitted through the runtime whitelist.'
+  )
+
+  inventoryStore.items = [
+    { itemId: 'food_osmanthus_cake', quantity: 2, quality: 'normal' },
+    { itemId: 'food_jujube_cake', quantity: 2, quality: 'normal' }
+  ]
+  inventoryStore.tempItems = []
+  const acceptResult = questStore.acceptSpecialOrder()
+  assert(acceptResult.success === true, 'Generated child-spirit special order should be accepted.')
+  const acceptedOrder = questStore.activeQuests.find(quest => quest.activitySourceId === CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID)
+  assert(acceptedOrder, 'Accepted child-spirit order should move into active quests.')
+  assert(acceptedOrder && questStore.canSubmitQuest(acceptedOrder), 'Accepted child-spirit order should be submittable when the matching sweet is carried.')
+
+  const beforeSpiritBreath = potentialStore.getPotentialResource('spirit_breath')
+  const acceptedOrderId = acceptedOrder?.id ?? ''
+  const submitResult = questStore.submitQuest(acceptedOrderId)
+  const potentialSave = potentialStore.serialize()
+  const questSave = questStore.serialize()
+  assert(submitResult.success === true, 'Submitting a carried child-spirit special order should succeed.')
+  assert(potentialStore.getPotentialResource('spirit_breath') === beforeSpiritBreath + 1, 'Child-spirit special order completion should grant spirit breath through the potential store.')
+  assert(Object.keys(potentialSave.sourceReceipts).some(receiptId => receiptId.startsWith('child_spirit_sweets:')), 'Child-spirit completion should write a potential source receipt.')
+  assert(questSave.completedQuestHistory[0]?.activitySourceLabel === generatedOrder?.activitySourceLabel, 'Child-spirit completion history should preserve the activity source label.')
+  assert(questSave.completedQuestHistory[0]?.rewardSummary.includes('\u7075\u606f'), 'Child-spirit completion history should mention the spirit-breath reward.')
+  assert(questSave.specialOrderSettlementReceipts.includes(acceptedOrderId), 'Child-spirit special order completion should write the special-order settlement receipt.')
+  assert(questSave.recentSpecialOrderTagHistory.some(entry => entry.endsWith('|child_spirit')), 'Generating child-spirit orders should write anti-repeat history for the child_spirit tag.')
 }
 
 const clone = value => JSON.parse(JSON.stringify(value))

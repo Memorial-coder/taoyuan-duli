@@ -1083,7 +1083,7 @@
 
   /** 背包中可存入箱子的物品（排除种子和锁定物品） */
   const depositableItems = computed(() =>
-    inventoryStore.items.filter(i => {
+    inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
       const def = getItemById(i.itemId)
       return def && def.category !== 'seed'
@@ -1094,7 +1094,7 @@
   const duplicateDepositItems = computed(() => {
     if (!currentOpenChest.value) return []
     const chestItemIds = new Set(currentOpenChest.value.items.map(i => i.itemId))
-    return inventoryStore.items.filter(i => {
+    return inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
       const def = getItemById(i.itemId)
       if (!def || def.category === 'seed') return false

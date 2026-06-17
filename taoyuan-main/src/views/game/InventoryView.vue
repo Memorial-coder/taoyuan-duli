@@ -43,14 +43,18 @@
         <p class="text-[0.625rem] text-accent mb-1">库存用途建议</p>
         <div
           v-for="entry in cropUseRecommendations"
-          :key="entry.itemId"
+          :key="`${entry.itemId}-${entry.quality}`"
           class="flex items-start justify-between gap-2 py-0.5"
         >
           <div class="min-w-0">
-            <p class="text-xs text-text truncate">{{ entry.name }} ×{{ entry.quantity }}</p>
+            <p class="text-xs text-text truncate">
+              {{ entry.name }}
+              <span v-if="entry.quality !== 'normal'" class="text-muted">({{ QUALITY_NAMES[entry.quality] }})</span>
+              ×{{ entry.quantity }}
+            </p>
             <p class="text-[0.625rem] text-muted leading-snug">{{ entry.text }}</p>
           </div>
-          <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId)">查看</button>
+          <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId, entry.quality)">查看</button>
         </div>
       </div>
       <div v-if="filteredItems.length > 0" class="inventory-adaptive-item-grid grid grid-cols-3 md:grid-cols-5 gap-1.5">
@@ -66,7 +70,7 @@
 
         <!-- 空格子 -->
         <div
-          v-for="i in isFilterActive ? 0 : Math.max(0, inventoryStore.capacity - inventoryStore.items.length)"
+          v-for="i in isFilterActive ? 0 : Math.max(0, inventoryStore.capacity - filteredItems.length)"
           :key="'empty-' + i"
           class="border border-accent/10 rounded-xs p-1.5 text-center text-xs text-muted/30"
         >
@@ -715,7 +719,7 @@
               class="w-full justify-center"
               :icon="activeItem.locked ? LockOpen : Lock"
               :icon-size="12"
-              @click="inventoryStore.toggleLock(activeItem.itemId, activeItem.quality)"
+              @click="handleToggleActiveItemLock"
             >
               {{ activeItem.locked ? '解锁' : '锁定' }}
             </Button>
@@ -724,7 +728,7 @@
               class="w-full justify-center"
               :icon="Apple"
               :icon-size="12"
-              :disabled="isEatBlocked(activeItem.itemId)"
+              :disabled="activeItem.locked || isEatBlocked(activeItem.itemId)"
               @click="handleEat(activeItem.itemId, activeItem.quality)"
             >
               食用
@@ -734,7 +738,7 @@
               class="w-full justify-center"
               :icon="Zap"
               :icon-size="12"
-              :disabled="isUseBlocked(activeItem.itemId)"
+              :disabled="activeItem.locked || isUseBlocked(activeItem.itemId)"
               @click="handleUse(activeItem.itemId, activeItem.quality)"
             >
               {{ getUseButtonLabel(activeItem.itemId) }}
@@ -1005,7 +1009,7 @@
   import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore, type VisibleInventoryItemStack } from '@/stores/useInventoryStore'
   import { useMiningStore } from '@/stores/useMiningStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -1113,45 +1117,19 @@
 
   interface CropUseInventoryRecommendation {
     itemId: string
+    quality: Quality
     name: string
     quantity: number
     text: string
   }
 
-  interface VisibleInventoryItem {
-    itemId: string
-    quality: Quality
-    quantity: number
-    locked: boolean
-  }
-
-  type ActiveInventoryItemKey = Pick<VisibleInventoryItem, 'itemId' | 'quality'>
+  type ActiveInventoryItemKey = Pick<VisibleInventoryItemStack, 'itemId' | 'quality'>
 
   const isFilterActive = computed(() => settingsStore.inventoryFilter.length > 0 || settingsStore.inventoryCropUseFilter.length > 0)
 
-  const getVisibleInventoryKey = (item: ActiveInventoryItemKey): string => `${item.itemId}:${item.quality}`
+  const getVisibleInventoryKey = (item: ActiveInventoryItemKey): string => getVisibleInventoryItemKey(item)
 
-  const getVisibleInventoryItems = (sourceItems: InventoryItem[]): VisibleInventoryItem[] => {
-    const merged = new Map<string, VisibleInventoryItem>()
-    for (const item of sourceItems) {
-      const key = getVisibleInventoryKey(item)
-      const existing = merged.get(key)
-      if (existing) {
-        existing.quantity += item.quantity
-        existing.locked = existing.locked || !!item.locked
-      } else {
-        merged.set(key, {
-          itemId: item.itemId,
-          quality: item.quality,
-          quantity: item.quantity,
-          locked: !!item.locked
-        })
-      }
-    }
-    return [...merged.values()]
-  }
-
-  const visibleInventoryItems = computed(() => getVisibleInventoryItems(inventoryStore.items))
+  const visibleInventoryItems = computed(() => inventoryStore.visibleItems)
 
   const isItemAllowedByFilters = (item: InventoryItem): boolean => {
     if (settingsStore.inventoryFilter.length === 0 && settingsStore.inventoryCropUseFilter.length === 0) return true
@@ -1168,7 +1146,7 @@
   }
 
   const filteredItems = computed(() => {
-    return getVisibleInventoryItems(inventoryStore.items.filter(isItemAllowedByFilters))
+    return mergeVisibleInventoryItems(inventoryStore.items.filter(isItemAllowedByFilters))
   })
 
   const buildCropUseRecommendationText = (tags: CropUseTag[]): string => {
@@ -1200,6 +1178,7 @@
         if (matchedTags.length === 0) return null
         return {
           itemId: item.itemId,
+          quality: item.quality,
           name: def.name,
           quantity: item.quantity,
           text: buildCropUseRecommendationText(matchedTags)
@@ -1210,8 +1189,8 @@
       .slice(0, 3)
   })
 
-  const openInventoryItem = (itemId: string) => {
-    const item = visibleInventoryItems.value.find(entry => entry.itemId === itemId)
+  const openInventoryItem = (itemId: string, quality?: Quality) => {
+    const item = visibleInventoryItems.value.find(entry => entry.itemId === itemId && (quality === undefined || entry.quality === quality))
     if (item) openVisibleInventoryItem(item)
   }
 
@@ -1717,23 +1696,48 @@
 
   // === 物品弹窗 ===
 
+  const discardMode = ref(false)
+  const discardQty = ref(1)
+
+  const resetActiveItemInteractionState = () => {
+    discardMode.value = false
+    discardQty.value = 1
+  }
+
   const activeItemKey = ref<ActiveInventoryItemKey | null>(null)
 
   const openVisibleInventoryItem = (item: ActiveInventoryItemKey) => {
     activeItemKey.value = { itemId: item.itemId, quality: item.quality }
+    resetActiveItemInteractionState()
   }
 
   const closeActiveItem = () => {
     activeItemKey.value = null
+    resetActiveItemInteractionState()
   }
 
   const hasVisibleInventoryItem = (itemId: string, quality: Quality): boolean =>
     visibleInventoryItems.value.some(item => item.itemId === itemId && item.quality === quality)
 
+  const isVisibleInventoryItemLocked = (itemId: string, quality: Quality): boolean =>
+    visibleInventoryItems.value.find(item => item.itemId === itemId && item.quality === quality)?.locked ?? false
+
   const activeItem = computed(() => {
     if (!activeItemKey.value) return null
     return visibleInventoryItems.value.find(item => getVisibleInventoryKey(item) === getVisibleInventoryKey(activeItemKey.value!)) ?? null
   })
+
+  watch(activeItem, item => {
+    if (activeItemKey.value && !item) {
+      closeActiveItem()
+    }
+  })
+
+  const handleToggleActiveItemLock = () => {
+    if (!activeItem.value) return
+    inventoryStore.toggleLock(activeItem.value.itemId, activeItem.value.quality)
+    resetActiveItemInteractionState()
+  }
 
   const activeItemDef = computed(() => {
     if (!activeItem.value) return null
@@ -1807,6 +1811,10 @@
   }
 
   const handleEat = (itemId: string, quality: Quality) => {
+    if (isVisibleInventoryItemLocked(itemId, quality)) {
+      addLog('物品已锁定，先解锁才能食用。')
+      return
+    }
     const def = getItemById(itemId)
     if (!def || !hasItemRecovery(def)) return
     const plan = getEatRecoveryPlan(itemId)
@@ -1835,7 +1843,7 @@
       def,
       vitals: getRecoveryVitals(),
       multiplier: getInventoryRecoveryMultiplier(itemId),
-      removeItem: () => inventoryStore.removeItem(itemId, 1, quality),
+      removeItem: () => inventoryStore.removeUnlockedItem(itemId, 1, quality),
       restoreStamina: amount => playerStore.restoreStamina(amount),
       restoreHealth: amount => playerStore.restoreHealth(amount)
     })
@@ -1860,6 +1868,10 @@
   const getUseButtonLabel = (itemId: string): string => (isUseBlocked(itemId) ? '今日已服丹' : '使用')
 
   const handleUse = (itemId: string, quality: Quality) => {
+    if (isVisibleInventoryItemLocked(itemId, quality)) {
+      addLog('物品已锁定，先解锁才能使用。')
+      return
+    }
     const alchemyRecipe = getAlchemyRecipeByOutputItemId(itemId)
     if (alchemyRecipe?.alchemy) {
       const result = cookingStore.useElixir(itemId, quality)
@@ -1880,7 +1892,7 @@
     }
 
     if (itemId === 'rain_totem') {
-      if (!inventoryStore.removeItem(itemId, 1, quality)) return
+      if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) return
       gameStore.setTomorrowWeather('rainy')
       addLog('你使用了雨图腾，明天将会下雨。')
     }
@@ -1889,7 +1901,7 @@
         addLog('体力上限已达到最高，无法再使用仙桃。')
         return
       }
-      if (!inventoryStore.removeItem(itemId, 1, quality)) return
+      if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) return
       playerStore.upgradeMaxStamina()
       addLog(`食用了仙桃，体力上限永久提升至${playerStore.maxStamina}！`)
     }
@@ -1901,11 +1913,8 @@
 
   // === 丢弃物品 ===
 
-  const discardMode = ref(false)
-  const discardQty = ref(1)
-
   watch(activeItemKey, () => {
-    discardMode.value = false
+    resetActiveItemInteractionState()
   })
 
   /** 进入丢弃模式 */
@@ -1925,7 +1934,7 @@
       return
     }
     const qty = Math.min(requestedQty, activeItem.value.quantity)
-    if (!inventoryStore.removeItem(itemId, qty, quality)) return
+    if (!inventoryStore.removeUnlockedItem(itemId, qty, quality)) return
     addLog(`丢弃了${name}×${qty}。`)
     discardMode.value = false
     // 物品消耗完则关闭弹窗

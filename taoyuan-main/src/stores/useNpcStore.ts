@@ -5864,7 +5864,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (state.giftsThisWeek >= 2) return null
 
     const inventoryStore = useInventoryStore()
-    if (!inventoryStore.removeItem(itemId, 1, quality)) return null
+    if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) return null
     const cookingStore = useCookingStore()
 
     state.giftedToday = true

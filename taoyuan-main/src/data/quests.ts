@@ -563,6 +563,9 @@ export const createDefaultActivityQuestWindowState = (): ActivityQuestWindowStat
   claimedRewardMailIds: []
 })
 
+export const CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID = 'child_spirit_sweets'
+export const CHILD_SPIRIT_SPECIAL_ORDER_NPC_IDS = ['a_hua', 'shi_tou'] as const
+
 /** 按梯度分层的特殊订单模板 */
 const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
   // === 第1梯度 (第7天): 简单, 7天时限, 数量少, 奖励适中 ===
@@ -740,7 +743,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     tier: 2,
     rewardProfileId: 'research_mix',
     orderVersion: '3.0',
-    activitySourceId: 'child_spirit_sweets',
+    activitySourceId: CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID,
     activitySourceLabel: '童心灵息委托',
     orderStageType: 'single',
     stageDefinitions: createSingleStageDefinitions({
@@ -770,7 +773,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     tier: 2,
     rewardProfileId: 'research_mix',
     orderVersion: '3.0',
-    activitySourceId: 'child_spirit_sweets',
+    activitySourceId: CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID,
     activitySourceLabel: '童心灵息委托',
     orderStageType: 'single',
     stageDefinitions: createSingleStageDefinitions({
@@ -3448,6 +3451,7 @@ export const generateSpecialOrder = (
     preferredMarketCategories?: QuestMarketCategory[]
     discouragedMarketCategories?: QuestMarketCategory[]
     npcFriendshipLevels?: Partial<Record<string, FriendshipLevel>>
+    blockedAntiRepeatTags?: string[]
   },
   traceOptions?: {
     onTrace?: (trace: OrderGenerationTraceAttempt) => void
@@ -3464,6 +3468,7 @@ export const generateSpecialOrder = (
   const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
   const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
   const npcFriendshipLevels = options?.npcFriendshipLevels ?? {}
+  const blockedAntiRepeatTags = new Set(options?.blockedAntiRepeatTags ?? [])
   const stabilityRankWeight: Record<BreedingStabilityRank, number> = {
     volatile: 0,
     emerging: 1,
@@ -3597,6 +3602,10 @@ export const generateSpecialOrder = (
     })
     return null
   }
+  const antiRepeatFiltered = blockedAntiRepeatTags.size > 0
+    ? valid.filter(template => !(template.antiRepeatTags ?? []).some(tag => blockedAntiRepeatTags.has(tag)))
+    : valid
+  const candidateTemplates = antiRepeatFiltered.length > 0 ? antiRepeatFiltered : valid
 
   const getRequirementSummary = (template: SpecialOrderTemplate): string[] => {
     const summary: string[] = []
@@ -3755,7 +3764,7 @@ export const generateSpecialOrder = (
     }
   }
 
-  const candidateTraces = valid.map(template => {
+  const candidateTraces = candidateTemplates.map(template => {
     let weight = 1
     const weightReasons = ['基础权重 1']
     const marketCategory = getQuestMarketCategoryByItemId(template.targetItemId)

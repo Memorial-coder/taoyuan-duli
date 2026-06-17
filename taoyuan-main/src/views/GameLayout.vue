@@ -1347,7 +1347,7 @@
   }
 
   const voidDepositableItems = computed(() =>
-    inventoryStore.items.filter(i => {
+    inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
       const def = getItemById(i.itemId)
       return def && def.category !== 'seed'
@@ -1360,7 +1360,7 @@
     const chest = warehouseStore.getChest(expandedVoidChestId.value)
     if (!chest) return []
     const chestItemIds = new Set(chest.items.map(i => i.itemId))
-    return inventoryStore.items.filter(i => {
+    return inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
       const def = getItemById(i.itemId)
       if (!def || def.category === 'seed') return false

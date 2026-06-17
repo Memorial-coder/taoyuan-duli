@@ -3483,7 +3483,7 @@
   const activeGiftItem = computed(() => {
     if (!activeGiftKey.value) return null
     const [itemId, quality] = activeGiftKey.value.split(':')
-    return inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality) ?? null
+    return inventoryStore.visibleItems.find(i => !i.locked && i.itemId === itemId && i.quality === quality) ?? null
   })
 
   const activeGiftDef = computed(() => {
@@ -3664,7 +3664,8 @@
   })
 
   const giftableItems = computed(() => {
-    const filtered = inventoryStore.items.filter(i => {
+    const filtered = inventoryStore.visibleItems.filter(i => {
+      if (i.locked) return false
       const def = getItemById(i.itemId)
       return def && def.category !== 'seed'
     })

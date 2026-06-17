@@ -23,6 +23,7 @@ addCheck('RegionMapSaveData has openWorld field', /interface RegionMapSaveData[\
 addCheck('Open world save type exists', /interface RegionOpenWorldSaveData/.test(regionTypes))
 addCheck('Open world camera type exists', /interface RegionOpenWorldViewportCamera[\s\S]*x:\s*number[\s\S]*y:\s*number/.test(regionTypes))
 addCheck('Open world viewport size type exists', /interface RegionOpenWorldViewportSize[\s\S]*columns:\s*number[\s\S]*rows:\s*number/.test(regionTypes))
+addCheck('Open world tile view exposes boss CTA state', /interface RegionOpenWorldBossCta[\s\S]*bossId:\s*string[\s\S]*available:\s*boolean[\s\S]*actionLabel:\s*string/.test(regionTypes) && /interface RegionOpenWorldTileView[\s\S]*bossCta:\s*RegionOpenWorldBossCta \| null/.test(regionTypes))
 addCheck('Open world window view exposes camera and visible size', /interface RegionOpenWorldRegionWindowView[\s\S]*camera:\s*RegionOpenWorldViewportCamera[\s\S]*visibleColumnCount:\s*number[\s\S]*visibleRowCount:\s*number/.test(regionTypes))
 const openWorldSaveType = regionTypes.match(/interface RegionOpenWorldSaveData \{[\s\S]*?\n\}/)?.[0] ?? ''
 addCheck('Open world camera stays out of save data', !/\bcamera\b/.test(openWorldSaveType) && !/\bviewport\b/.test(openWorldSaveType))
@@ -78,6 +79,7 @@ const moveOpenWorldPlayerBlock = regionStore.match(/const moveOpenWorldPlayer[\s
 addCheck('Movement consumes distance-based stamina', /OPEN_WORLD_MOVE_TILES_PER_STAMINA\s*=\s*5/.test(regionStore) && /Math\.hypot\(a\.x - b\.x,\s*a\.y - b\.y\)/.test(regionStore) && /Math\.ceil\(distance \/ OPEN_WORLD_MOVE_TILES_PER_STAMINA\)/.test(regionStore))
 addCheck('Movement consumes stamina before changing player tile', moveOpenWorldPlayerBlock.includes('playerStore.consumeStamina(staminaCost)') && moveOpenWorldPlayerBlock.indexOf('playerStore.consumeStamina(staminaCost)') < moveOpenWorldPlayerBlock.indexOf('regionState.playerTileId = tileId'))
 addCheck('Tile view exposes move stamina preview', /moveDistance/.test(regionTypes) && /moveStaminaCost/.test(regionTypes) && /moveStaminaCost/.test(regionStore))
+addCheck('Tile view builds boss CTA from boss landmark', /getOpenWorldBossCta/.test(regionStore) && /tile\.objectType !== 'boss_landmark'/.test(regionStore) && /getBossExpeditionStatus\(region\.id\)/.test(regionStore) && /actionLabel: status\.available \?/.test(regionStore))
 addCheck('Open world view uses overscan render bounds', /OPEN_WORLD_VIEWPORT_OVERSCAN\s*=\s*1/.test(regionStore) && /Math\.floor\(cameraX\) - OPEN_WORLD_VIEWPORT_OVERSCAN/.test(regionStore) && /Math\.ceil\(cameraX \+ visibleColumnCount\) \+ OPEN_WORLD_VIEWPORT_OVERSCAN/.test(regionStore))
 addCheck('Open world view accepts measured viewport size', /RegionOpenWorldViewportSize/.test(regionStore) && /normalizeOpenWorldViewportCount/.test(regionStore) && /viewportSize\?\.columns/.test(regionStore) && /viewportSize\?\.rows/.test(regionStore))
 addCheck('Open world region view returns bounded tile window', /for \(let y = bounds\.minY; y <= bounds\.maxY; y \+= 1\)/.test(regionStore) && /for \(let x = bounds\.minX; x <= bounds\.maxX; x \+= 1\)/.test(regionStore) && !/visibleTiles\s*=\s*def\.tiles/.test(regionStore))
@@ -99,6 +101,8 @@ for (const testId of [
   'region-open-world-tile-dialog-move',
   'region-open-world-tile-dialog-action-',
   'region-open-world-action-',
+  'region-open-world-boss-action-',
+  'region-open-world-tile-dialog-boss-action-',
   'region-open-world-handbook',
   'region-open-world-log'
 ]) {
@@ -117,6 +121,7 @@ addCheck('Component shows move stamina on move button', /selectedTile\.moveStami
 addCheck('Component opens tile detail dialog from tile clicks', /@click="handleTileClick\(tile\.id\)"/.test(openWorldComponent) && /const handleTileClick = \(tileId: string\)/.test(openWorldComponent) && /emit\('select-tile', tileId\)/.test(openWorldComponent) && /tileDetailDialogOpen\.value = true/.test(openWorldComponent))
 addCheck('Component renders accessible tile detail dialog', /v-if="tileDetailDialogOpen && selectedTile"/.test(openWorldComponent) && /data-testid="region-open-world-tile-dialog"/.test(openWorldComponent) && /role="dialog"/.test(openWorldComponent) && /aria-modal="true"/.test(openWorldComponent) && /:aria-labelledby="tileDetailDialogTitleId"/.test(openWorldComponent) && /@click\.self="closeTileDetailDialog"/.test(openWorldComponent) && /handleTileDetailDialogKeydown/.test(openWorldComponent))
 addCheck('Component keeps tile dialog actions on existing event contract', /const handleTileDialogMove = \(\) => \{[\s\S]*emit\('move', tile\.id\)[\s\S]*closeTileDetailDialog\(\)/.test(openWorldComponent) && /const handleTileDialogAction = \(\) => \{[\s\S]*emit\('perform-action', tile\.id, tile\.actionId\)[\s\S]*closeTileDetailDialog\(\)/.test(openWorldComponent))
+addCheck('Component routes boss landmark CTA through challenge-boss event', /bossCta/.test(openWorldComponent) && /event: 'challenge-boss'/.test(openWorldComponent) && /region-open-world-boss-action-/.test(openWorldComponent) && /handleTileDialogBossAction/.test(openWorldComponent) && /emit\('challenge-boss', tile\.id, tile\.bossCta\.bossId\)/.test(openWorldComponent))
 addCheck('Component styles tile dialog for desktop and mobile', /\.region-open-world-tile-dialog-shell/.test(openWorldComponent) && /@media \(max-width: 767px\)[\s\S]*\.region-open-world-tile-dialog-overlay[\s\S]*align-items: flex-end/.test(openWorldComponent))
 addCheck('Component imports zoom and dialog icons', /MapPin,\s*Minus,\s*Plus,\s*X/.test(openWorldComponent))
 addCheck('Component exposes bounded open world zoom state', /const ZOOM_MIN\s*=\s*0\.5/.test(openWorldComponent) && /const ZOOM_MAX\s*=\s*1\.6/.test(openWorldComponent) && /const ZOOM_STEP\s*=\s*0\.15/.test(openWorldComponent) && /const zoomLevel = ref\(1\)/.test(openWorldComponent) && /const canZoomIn/.test(openWorldComponent) && /const canZoomOut/.test(openWorldComponent))
@@ -132,6 +137,8 @@ addCheck('RegionMapView renders open world before old tabs', regionView.indexOf(
 addCheck('RegionMapView handles viewport pan event', /@pan-viewport="handlePanOpenWorldViewport"/.test(regionView) && /const handlePanOpenWorldViewport/.test(regionView))
 addCheck('RegionMapView handles measured viewport size event', /@viewport-size="handleOpenWorldViewportSize"/.test(regionView) && /openWorldViewportSizes/.test(regionView) && /getOpenWorldViewportSize/.test(regionView))
 addCheck('RegionMapView handles focus current event', /@focus-current="handleFocusCurrentOpenWorldTile"/.test(regionView) && /const handleFocusCurrentOpenWorldTile/.test(regionView) && /view\.state\.playerTileId/.test(regionView))
+addCheck('RegionMapView starts boss expedition from open world boss landmark', /@challenge-boss="handleOpenWorldBossChallenge"/.test(regionView) && /const handleOpenWorldBossChallenge/.test(regionView) && /startBossExpeditionSession\(bossRegion/.test(regionView))
+addCheck('RegionMapView no longer exposes old primary boss button copy', !/>\s*发起首领远征\s*<\/button>/.test(regionView) && /请在上方开放行旅地图中点选“首”地标/.test(regionView))
 addCheck('RegionMapView allows outskirts before old unlock', /近郊 \/ 竹林已可探索/.test(regionView))
 addCheck('RegionMapView keeps temporary float cameras', /openWorldViewportCameras/.test(regionView) && /RegionOpenWorldViewportCamera/.test(regionView) && /view\.camera\.x \+ delta\.deltaX/.test(regionView) && !/openWorldViewportOrigins/.test(regionView))
 addCheck('RegionMapView refreshes open world by day', /ensureOpenWorldState\(currentDayTag\.value\)/.test(regionView))

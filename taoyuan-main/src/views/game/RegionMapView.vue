@@ -25,6 +25,7 @@
       @focus-current="handleFocusCurrentOpenWorldTile"
       @move="handleMoveOpenWorldPlayer"
       @perform-action="handlePerformOpenWorldAction"
+      @challenge-boss="handleOpenWorldBossChallenge"
     />
 
     <div v-if="regionMapStore.unlockedRegionCount <= 0" class="border border-accent/20 rounded-xs p-3 mb-3">
@@ -591,48 +592,19 @@
               </div>
               </div>
 
-              <div class="flex flex-col sm:flex-row flex-wrap gap-2">
-              <button
-                class="border border-danger/20 rounded-xs px-2 py-1 text-[0.625rem] text-danger hover:bg-danger/5"
-                :class="[isCompactMobile ? 'w-full' : '', !canChallengeBoss(region.id) ? 'opacity-60' : '']"
-                :aria-disabled="!canChallengeBoss(region.id)"
-                :title="getBossDisabledReason(region.id)"
-                :data-testid="`region-boss-primary-${region.id}`"
-                @click="handleRunBoss(region.id)"
-              >
-                发起首领远征
-              </button>
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[0.625rem] text-muted mb-1">首领入口</p>
+                  <p class="text-xs text-accent leading-5">请在上方开放行旅地图中点选“首”地标，右侧格子面板会直接发起首领远征。</p>
+                </div>
+                <span class="text-[0.625rem] shrink-0" :class="canChallengeBoss(region.id) ? 'text-success' : 'text-muted'">
+                  {{ canChallengeBoss(region.id) ? '可挑战' : '待战备' }}
+                </span>
               </div>
-              <p v-if="getBossDisabledReason(region.id)" class="text-[0.625rem] text-muted leading-4">
+              <p v-if="getBossDisabledReason(region.id)" class="text-[0.625rem] text-muted leading-4 mt-2">
                 {{ getBossDisabledReason(region.id) }}
               </p>
-
-              <div class="border border-accent/10 rounded-xs px-3 py-2">
-              <p class="text-[0.625rem] text-muted mb-2">首领准备</p>
-              <div class="mb-2 flex justify-center">
-                <FishBossImage
-                  kind="regionBoss"
-                  :id="getBossMapPreview(region.id).bossId"
-                  :name="getBossMapPreview(region.id).bossName || getBossMapPreview(region.id).title"
-                  :resolution="256"
-                  size="lg"
-                  :silhouette="!canChallengeBoss(region.id) || !getBossMapPreview(region.id).bossId"
-                />
-              </div>
-              <p class="text-xs text-accent">{{ getBossMapPreview(region.id).description }}</p>
-              <div class="flex items-center justify-between gap-2 mt-2">
-                <span class="text-[0.625rem]" :class="getBossMapPreview(region.id).stageToneClass">{{ getBossMapPreview(region.id).stageLabel }}</span>
-                <span class="text-[0.625rem] text-muted">{{ getBossPrepSummary(region.id).headline }}</span>
-              </div>
-              <div class="mt-2 space-y-1" v-if="getBossMapPreview(region.id).detailLines.length > 0">
-                <p
-                  v-for="line in getBossMapPreview(region.id).detailLines"
-                  :key="`${region.id}-boss-map-${line}`"
-                  class="text-[0.625rem] text-muted leading-4"
-                >
-                  · {{ line }}
-                </p>
-              </div>
               </div>
 
               <div class="border border-accent/10 rounded-xs px-3 py-2">
@@ -1283,7 +1255,6 @@
   import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { Map } from 'lucide-vue-next'
-  import FishBossImage from '@/components/game/FishBossImage.vue'
   import RegionExplorationTree from '@/components/game/regionMap/RegionExplorationTree.vue'
   import RegionOpenWorldMap from '@/components/game/regionMap/RegionOpenWorldMap.vue'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
@@ -4034,6 +4005,23 @@
       openSettlementDialog(result.title, result.lines, result.tone)
     }
     handleRegionActionEndDay(result)
+  }
+
+  const handleOpenWorldBossChallenge = (tileId: string, bossId: string) => {
+    const tile = regionMapStore.getOpenWorldTileView(regionMapStore.openWorldState.activeRegionId, tileId)
+    const bossRegion = regionMapStore.bossDefs.find(entry => entry.id === bossId)?.regionId ?? null
+    if (!tile?.bossCta || tile.bossCta.bossId !== bossId || !bossRegion) {
+      openSettlementDialog('无法出发', ['当前格子没有可发起的区域首领。'], 'danger')
+      return
+    }
+    const result = regionMapStore.startBossExpeditionSession(bossRegion, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    if (result.success) {
+      setRegionMapTab('today')
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
 

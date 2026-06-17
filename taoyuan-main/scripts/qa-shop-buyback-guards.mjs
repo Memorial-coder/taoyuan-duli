@@ -157,9 +157,17 @@ assert(itemTypesSource.includes("export type InventoryItemOrigin = 'shop'"), 'In
 assert(itemTypesSource.includes('purchaseUnitPrice?: number'), 'InventoryItem must persist purchaseUnitPrice.')
 assert(shopStoreSource.includes('sellInventorySlot,'), 'useShopStore must export slot-based selling.')
 assert(shopStoreSource.includes('getInventorySlotSellPriceBreakdown,'), 'useShopStore must export slot-based price breakdown.')
+assert(shopStoreSource.includes('sellInventoryItem,'), 'useShopStore must export merged item selling that preserves slot pricing.')
+assert(shopStoreSource.includes('getInventoryItemSellPriceBreakdowns,'), 'useShopStore must export merged item price breakdowns.')
 assert(shopStoreSource.includes("playerStore.earnMoney(totalPrice, { countAsEarned: false, system: 'shop' })"), 'Shop buyback must not count as earned income.')
 assert(shopStoreSource.includes('!isShopOriginInventoryItem(item) && item.itemId === itemId'), 'Shipping box and legacy selling must avoid shop-origin slots.')
-assert(shopViewSource.includes('商圈回购') && shopViewSource.includes('getInventorySlotSellPriceBreakdown'), 'Shop sell modal must expose buyback breakdown from inventory slots.')
+assert(
+  shopViewSource.includes('商圈回购') &&
+    shopViewSource.includes('分段售价') &&
+    shopViewSource.includes('shopStore.getInventoryItemSellPriceBreakdowns(data.itemId, sellQuantity.value, data.quality)') &&
+    shopStoreSource.includes('const earned = sellInventorySlot(entry.inventoryIndex, entry.quantity)'),
+  'Shop sell modal must merge display while preserving slot-based buyback pricing.'
+)
 assert(farmViewSource.includes("item.origin !== 'shop'"), 'Shipping box inventory list must hide shop-origin slots.')
 assert(farmViewSource.includes('商圈购入品只能商店回购'), 'Shipping box failure must explain that shop-origin items only support shop buyback.')
 assert(farmActionsSource.includes('shopStore.sellInventorySlot(item.originalIndex, item.quantity)'), 'Sell-all must use slot-based selling.')

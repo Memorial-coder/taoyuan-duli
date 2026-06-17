@@ -148,7 +148,9 @@
               {{ selectedTile?.current ? '脚下' : selectedTile?.discovered ? '已发现' : '迷雾' }}
             </span>
           </div>
-          <p class="text-xs text-muted leading-5 mt-2">{{ selectedTile?.discovered ? selectedTile.description : '靠近这片区域后才会显形。' }}</p>
+          <p class="text-xs text-muted leading-5 mt-2">
+            {{ selectedTile?.bossCta ? `${selectedTile.bossCta.bossName}：${selectedTile.description}` : selectedTile?.discovered ? selectedTile.description : '靠近这片区域后才会显形。' }}
+          </p>
           <div v-if="selectedTile?.discovered" class="mt-3 grid grid-cols-2 gap-2 text-[0.625rem]">
             <div class="border border-accent/10 rounded-xs px-2 py-1.5">
               <span class="text-muted">对象</span>
@@ -156,7 +158,16 @@
             </div>
             <div class="border border-accent/10 rounded-xs px-2 py-1.5">
               <span class="text-muted">状态</span>
-              <p class="text-accent mt-0.5">{{ selectedTile.statusLabel }}</p>
+              <p class="text-accent mt-0.5">{{ selectedTile.bossCta ? selectedTile.bossCta.actionLabel : selectedTile.statusLabel }}</p>
+            </div>
+          </div>
+          <div v-if="selectedTile?.bossCta" class="mt-3 grid grid-cols-3 gap-1 text-[0.625rem]">
+            <div
+              v-for="line in selectedTile.bossCta.metaLines"
+              :key="`boss-cta-${selectedTile.id}-${line}`"
+              class="border border-danger/15 rounded-xs px-2 py-1.5 text-center text-danger"
+            >
+              {{ line }}
             </div>
           </div>
           <div v-if="selectedTile?.discovered" class="mt-3 flex flex-col gap-2">
@@ -171,7 +182,16 @@
               </span>
             </button>
             <button
-              v-if="selectedTile.actionId"
+              v-if="selectedTile.bossCta"
+              class="border border-danger/30 rounded-xs px-3 py-2 text-xs text-danger hover:bg-danger/10 disabled:text-muted disabled:border-muted/20 disabled:hover:bg-transparent"
+              :disabled="!selectedTile.bossCta.available"
+              :data-testid="`region-open-world-boss-action-${selectedTile.bossCta.bossId}`"
+              @click="$emit('challenge-boss', selectedTile.id, selectedTile.bossCta.bossId)"
+            >
+              {{ selectedTile.bossCta.actionLabel }}
+            </button>
+            <button
+              v-if="selectedTile.actionId && !selectedTile.bossCta"
               class="border border-success/30 rounded-xs px-3 py-2 text-xs text-success hover:bg-success/10 disabled:text-muted disabled:border-muted/20 disabled:hover:bg-transparent"
               :disabled="!selectedTile.canAct"
               :data-testid="`region-open-world-action-${selectedTile.actionId}`"
@@ -182,7 +202,9 @@
                 {{ selectedTile.staminaCost }}体 / {{ selectedTile.timeCostHours }}h
               </span>
             </button>
-            <p v-if="selectedTile.disabledReason" class="text-[0.625rem] text-muted leading-4">{{ selectedTile.disabledReason }}</p>
+            <p v-if="selectedTile.bossCta?.disabledReason || selectedTile.disabledReason" class="text-[0.625rem] text-muted leading-4">
+              {{ selectedTile.bossCta?.disabledReason || selectedTile.disabledReason }}
+            </p>
           </div>
         </div>
 
@@ -261,7 +283,7 @@
 
           <div class="mt-3 space-y-3">
             <p class="text-xs text-muted leading-5">
-              {{ selectedTile.discovered ? selectedTile.description : '靠近这片区域后才会显形。' }}
+              {{ selectedTile.bossCta ? `${selectedTile.bossCta.bossName}：${selectedTile.description}` : selectedTile.discovered ? selectedTile.description : '靠近这片区域后才会显形。' }}
             </p>
             <div v-if="selectedTile.discovered" class="grid grid-cols-2 gap-2 text-[0.625rem]">
               <div class="border border-accent/10 rounded-xs px-2 py-1.5">
@@ -270,7 +292,16 @@
               </div>
               <div class="border border-accent/10 rounded-xs px-2 py-1.5">
                 <span class="text-muted">状态</span>
-                <p class="text-accent mt-0.5">{{ selectedTile.statusLabel }}</p>
+                <p class="text-accent mt-0.5">{{ selectedTile.bossCta ? selectedTile.bossCta.actionLabel : selectedTile.statusLabel }}</p>
+              </div>
+            </div>
+            <div v-if="selectedTile.bossCta" class="grid grid-cols-3 gap-1 text-[0.625rem]">
+              <div
+                v-for="line in selectedTile.bossCta.metaLines"
+                :key="`boss-dialog-cta-${selectedTile.id}-${line}`"
+                class="border border-danger/15 rounded-xs px-2 py-1.5 text-center text-danger"
+              >
+                {{ line }}
               </div>
             </div>
             <div v-if="selectedTile.discovered" class="flex flex-col gap-2">
@@ -287,7 +318,17 @@
                 </span>
               </button>
               <button
-                v-if="selectedTile.actionId"
+                v-if="selectedTile.bossCta"
+                type="button"
+                class="border border-danger/30 rounded-xs px-3 py-2 text-xs text-danger hover:bg-danger/10 disabled:text-muted disabled:border-muted/20 disabled:hover:bg-transparent"
+                :disabled="!selectedTile.bossCta.available"
+                :data-testid="`region-open-world-tile-dialog-boss-action-${selectedTile.bossCta.bossId}`"
+                @click="handleTileDialogBossAction"
+              >
+                {{ selectedTile.bossCta.actionLabel }}
+              </button>
+              <button
+                v-if="selectedTile.actionId && !selectedTile.bossCta"
                 type="button"
                 class="border border-success/30 rounded-xs px-3 py-2 text-xs text-success hover:bg-success/10 disabled:text-muted disabled:border-muted/20 disabled:hover:bg-transparent"
                 :disabled="!selectedTile.canAct"
@@ -299,7 +340,9 @@
                   {{ selectedTile.staminaCost }}体 / {{ selectedTile.timeCostHours }}h
                 </span>
               </button>
-              <p v-if="selectedTile.disabledReason" class="text-[0.625rem] text-muted leading-4">{{ selectedTile.disabledReason }}</p>
+              <p v-if="selectedTile.bossCta?.disabledReason || selectedTile.disabledReason" class="text-[0.625rem] text-muted leading-4">
+                {{ selectedTile.bossCta?.disabledReason || selectedTile.disabledReason }}
+              </p>
             </div>
           </div>
         </section>
@@ -340,6 +383,7 @@
     (event: 'focus-current'): void
     (event: 'move', tileId: string): void
     (event: 'perform-action', tileId: string, actionId: RegionOpenWorldActionId): void
+    (event: 'challenge-boss', tileId: string, bossId: string): void
   }>()
 
   type DragState = {
@@ -590,6 +634,13 @@
     const tile = props.selectedTile
     if (!tile || !tile.actionId || !tile.canAct) return
     emit('perform-action', tile.id, tile.actionId)
+    closeTileDetailDialog()
+  }
+
+  const handleTileDialogBossAction = () => {
+    const tile = props.selectedTile
+    if (!tile?.bossCta?.available) return
+    emit('challenge-boss', tile.id, tile.bossCta.bossId)
     closeTileDetailDialog()
   }
 

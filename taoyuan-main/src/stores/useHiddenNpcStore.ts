@@ -256,7 +256,7 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     if (state.offersThisWeek >= MAX_OFFERS_PER_WEEK) return { success: false, message: '本周供奉次数已满。', affinityChange: 0 }
 
     const inventoryStore = useInventoryStore()
-    if (!inventoryStore.removeItem(itemId, 1, quality)) {
+    if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) {
       return { success: false, message: '背包中没有此物品。', affinityChange: 0 }
     }
 

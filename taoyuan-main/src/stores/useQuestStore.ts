@@ -32,6 +32,8 @@ import {
   getSpecialOrderRewardProfile,
   BREEDING_SPECIAL_ORDER_BASELINE,
   BREEDING_SPECIAL_ORDER_TUNING_CONFIG,
+  CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID,
+  CHILD_SPIRIT_SPECIAL_ORDER_NPC_IDS,
   WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
   WS13_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
   type QuestMarketCategory
@@ -486,6 +488,16 @@ export const useQuestStore = defineStore('quest', () => {
     return Math.max(0, absoluteWeek) >= Math.max(0, Number(specialOrderOperationsConfig.weeklyRefreshStartAbsoluteWeek) || 0)
   }
 
+  const getActivityWindowAllowedSpecialOrderSourceIds = (): string[] | undefined => {
+    if (!currentLimitedTimeQuestCampaign.value) return undefined
+    const activeIds = activityQuestWindowState.value.activeQuestTemplateIds
+    const hasChildSpiritCandidate = CHILD_SPIRIT_SPECIAL_ORDER_NPC_IDS.some(npcId => npcStore.getFriendshipLevel(npcId) === 'bestFriend')
+    return dedupeList([
+      ...activeIds,
+      ...(hasChildSpiritCandidate ? [CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID] : [])
+    ])
+  }
+
   const mergeTicketRewards = (
     left: Partial<Record<RewardTicketType, number>> | undefined,
     right: Partial<Record<RewardTicketType, number>> | undefined
@@ -597,6 +609,30 @@ export const useQuestStore = defineStore('quest', () => {
     )
   }
 
+  const getCoolingSpecialOrderTags = (absoluteWeek?: number): string[] => {
+    if (!specialOrderFeatureFlags.antiRepeatRotationEnabled) return []
+
+    if (!Number.isFinite(Number(absoluteWeek))) {
+      return dedupeList(
+        recentSpecialOrderTagHistory.value
+          .map(entry => parseSpecialOrderHistoryEntry(entry)?.tag ?? '')
+          .filter(Boolean)
+      )
+    }
+
+    const currentAbsoluteWeek = Math.max(0, Math.floor(Number(absoluteWeek) || 0))
+    const defaultCooldownWeeks = Math.max(1, Number(specialOrderOperationsConfig.antiRepeatCooldownWeeks) || 1)
+    return dedupeList(
+      recentSpecialOrderTagHistory.value
+        .map(entry => {
+          const parsedEntry = parseSpecialOrderHistoryEntry(entry)
+          if (!parsedEntry || parsedEntry.absoluteWeek == null) return ''
+          return currentAbsoluteWeek - parsedEntry.absoluteWeek < defaultCooldownWeeks ? parsedEntry.tag : ''
+        })
+        .filter(Boolean)
+    )
+  }
+
   const rememberSpecialOrderRotation = (quest: QuestInstance, payload: { weekId: string; absoluteWeek: number }) => {
     if (!specialOrderFeatureFlags.antiRepeatRotationEnabled) return
 
@@ -649,7 +685,7 @@ export const useQuestStore = defineStore('quest', () => {
       preferredThemeTag: specialOrderFeatureFlags.themeWeekBiasEnabled
         ? (marketQuestBias.preferredSpecialOrderThemeTag ?? goalStore.currentThemeWeek?.preferredQuestThemeTag)
         : undefined,
-      allowedActivitySourceIds: currentLimitedTimeQuestCampaign.value ? [...activityQuestWindowState.value.activeQuestTemplateIds] : undefined,
+      allowedActivitySourceIds: getActivityWindowAllowedSpecialOrderSourceIds(),
       preferredHybridIds: goalStore.currentThemeWeek?.breedingFocusHybridIds ?? [],
       preferredMarketCategories: marketQuestBias.preferredMarketCategories,
       discouragedMarketCategories: marketQuestBias.discouragedMarketCategories,
@@ -664,8 +700,12 @@ export const useQuestStore = defineStore('quest', () => {
       specialOrderFeatureFlags.antiRepeatRotationEnabled ? specialOrderGenerationConfig.antiRepeatGenerationAttempts : 1
     )
     for (let attempt = 0; attempt < generationAttempts; attempt++) {
+      const coolingTags = getCoolingSpecialOrderTags(refreshContext?.absoluteWeek)
       const generatedOrder = finalizeSpecialOrderRewards(
-        _generateSpecialOrder(season, tier, generationOptions, {
+        _generateSpecialOrder(season, tier, {
+          ...generationOptions,
+          blockedAntiRepeatTags: coolingTags
+        }, {
           onTrace: trace => {
             attemptTraces.push({
               ...trace,
