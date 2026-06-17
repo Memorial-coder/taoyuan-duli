@@ -312,7 +312,8 @@ export const useAnimalStore = defineStore('animal', () => {
       friendship: 0,
       mood: 128,
       daysOwned: 0,
-      daysSinceProduct: 0,
+      daysSinceAutoProduct: 0,
+      daysSinceGrazingProduct: 0,
       wasFed: false,
       fedWith: null,
       wasPetted: false,
@@ -460,7 +461,8 @@ export const useAnimalStore = defineStore('animal', () => {
         friendship: 0,
         mood: 200,
         daysOwned: 0,
-        daysSinceProduct: 0,
+        daysSinceAutoProduct: 0,
+        daysSinceGrazingProduct: 0,
         wasFed: false,
         fedWith: null,
         wasPetted: false,
@@ -534,7 +536,8 @@ export const useAnimalStore = defineStore('animal', () => {
         friendship: 0,
         mood: 200,
         daysOwned: 0,
-        daysSinceProduct: 0,
+        daysSinceAutoProduct: 0,
+        daysSinceGrazingProduct: 0,
         wasFed: false,
         fedWith: null,
         wasPetted: false,
@@ -899,13 +902,12 @@ export const useAnimalStore = defineStore('animal', () => {
       animal.friendship = Math.min(1000, animal.friendship + 10)
 
       const def = ANIMAL_DEFS.find(d => d.type === animal.type)
-      if (def && !animal.pastureProducedToday && isAnimalReadyForGrazingProduct(animal, def)) {
+      if (def && isAnimalReadyForGrazingProduct(animal, def)) {
         const product = buildAnimalProductGrant(animal, productContext)
         if (product) {
           inventoryStore.addItem(product.itemId, product.quantity, product.quality)
           products.push(product)
-          animal.pastureProducedToday = true
-          animal.daysSinceProduct = 0
+          animal.daysSinceGrazingProduct = 0
         }
       }
 
@@ -966,9 +968,7 @@ export const useAnimalStore = defineStore('animal', () => {
     const hasShepherd = farmingSkill.perk10 === 'shepherd'
     for (const animal of animals.value) {
       animal.daysOwned++
-      if (!animal.pastureProducedToday) {
-        animal.daysSinceProduct++
-      }
+      animal.daysSinceAutoProduct++
 
       // === 饥饿系统 ===
       if (!animal.wasFed) {
@@ -1074,9 +1074,9 @@ export const useAnimalStore = defineStore('animal', () => {
 
       // 产品检查（跳过马，马无产出；生病时不产出）
       const def = ANIMAL_DEFS.find(d => d.type === animal.type)
-      if (def && def.produceDays > 0 && animal.wasFed && !animal.sick && !animal.pastureProducedToday) {
+      if (def && def.produceDays > 0 && animal.wasFed && !animal.sick) {
         const effectiveDays = getEffectiveAnimalProduceDays(def, animal.fedWith)
-        if (animal.daysSinceProduct >= effectiveDays) {
+        if (animal.daysSinceAutoProduct >= effectiveDays) {
           let quality = getAnimalProductQuality(animal.friendship)
           // 牧羊人专精：品质提升一档
           if (hasShepherd) {
@@ -1108,7 +1108,7 @@ export const useAnimalStore = defineStore('animal', () => {
           if (moodBonusChance > 0 && Math.random() < moodBonusChance) {
             products.push(buildAnimalProductGrantFromDef(def, quality, 1))
           }
-          animal.daysSinceProduct = 0
+          animal.daysSinceAutoProduct = 0
 
           // 草甸田庄：40%概率额外产出1件
           if (gameStore.farmMapType === 'meadowlands' && Math.random() < 0.4) {
@@ -1132,7 +1132,6 @@ export const useAnimalStore = defineStore('animal', () => {
       animal.wasFed = false
       animal.fedWith = null
       animal.wasPetted = false
-      animal.pastureProducedToday = false
     }
 
     // 移除死亡的动物（饿死或病死）
@@ -1310,7 +1309,7 @@ export const useAnimalStore = defineStore('animal', () => {
   const isAnimalReadyForGrazingProduct = (animal: Animal, def: { produceDays: number }): boolean => {
     const effectiveDays = getEffectiveAnimalProduceDays(def, animal.fedWith)
     if (effectiveDays <= 0) return false
-    return animal.daysSinceProduct + 1 >= effectiveDays
+    return animal.daysSinceGrazingProduct + 1 >= effectiveDays
   }
 
   const formatAnimalProductGrant = (grant: AnimalProductGrant): string => {
@@ -1380,12 +1379,11 @@ export const useAnimalStore = defineStore('animal', () => {
       friendship: Number.isFinite(animal?.friendship) ? animal.friendship : 0,
       mood: Number.isFinite(animal?.mood) ? animal.mood : fallbackMood,
       daysOwned: Number.isFinite(animal?.daysOwned) ? animal.daysOwned : 0,
-      daysSinceProduct: Number.isFinite(animal?.daysSinceProduct) ? animal.daysSinceProduct : 0,
+      daysSinceAutoProduct: Number.isFinite(animal?.daysSinceAutoProduct) ? animal.daysSinceAutoProduct : Number.isFinite(animal?.daysSinceProduct) ? animal.daysSinceProduct : 0,
+      daysSinceGrazingProduct: Number.isFinite(animal?.daysSinceGrazingProduct) ? animal.daysSinceGrazingProduct : Number.isFinite(animal?.daysSinceProduct) ? animal.daysSinceProduct : 0,
       wasFed: Boolean(animal?.wasFed),
       fedWith: typeof animal?.fedWith === 'string' ? animal.fedWith : null,
       wasPetted: Boolean(animal?.wasPetted),
-      pastureProducedToday: Boolean(animal?.pastureProducedToday),
-      hunger: Number.isFinite(animal?.hunger) ? animal.hunger : 0,
       sick: Boolean(animal?.sick),
       sickDays: Number.isFinite(animal?.sickDays) ? animal.sickDays : 0
     }

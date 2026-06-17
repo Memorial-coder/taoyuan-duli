@@ -563,7 +563,10 @@
       const def = getAnimalDef(animal.type)
       if (!def || !def.productName || def.produceDays <= 0 || animal.sick) continue
       addGroupedCount(regularProductCounts, def.productName)
-      if (animal.wasFed && animal.daysSinceProduct + 1 >= def.produceDays) {
+      const daysUntilAuto = Math.max(0, def.produceDays - animal.daysSinceAutoProduct)
+      const daysUntilGraze = Math.max(0, def.produceDays - animal.daysSinceGrazingProduct)
+      const minDaysUntil = Math.min(daysUntilAuto, daysUntilGraze)
+      if (animal.wasFed && minDaysUntil <= 1) {
         addGroupedCount(nearProductCounts, def.productName)
       }
     }
