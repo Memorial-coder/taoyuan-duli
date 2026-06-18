@@ -11,6 +11,7 @@ import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useSkillStore } from '@/stores/useSkillStore'
 import { getCropHarvestExperience } from '@/utils/farmingExperience'
+import { getSeedQualityBonus } from './useFarmActions'
 
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 
@@ -139,6 +140,7 @@ export const harvestFarmPlotWithRewards = (
   const cropDef = getCropById(cropId)
   const genetics = plot.seedGenetics
   const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
+  const seedQualityBonus = getSeedQualityBonus(plot.seedQuality)
   const ringCropQualityBonus = inventoryStore.getRingEffectValue('crop_quality_bonus')
   const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
 
@@ -146,7 +148,7 @@ export const harvestFarmPlotWithRewards = (
   if (!quality) {
     const rawFertBonus = fertDef?.qualityBonus ?? 0
     const fertBonus = cropId === 'ancient_fruit' ? rawFertBonus * 0.5 : rawFertBonus
-    quality = skillStore.rollCropQualityWithBonus(fertBonus + ringCropQualityBonus, allSkillsBuff)
+    quality = skillStore.rollCropQualityWithBonus(fertBonus + seedQualityBonus + ringCropQualityBonus, allSkillsBuff)
     quality = applyCropBlessing(quality)
   }
 
@@ -157,7 +159,7 @@ export const harvestFarmPlotWithRewards = (
   const deityDouble =
     !intensiveDouble &&
     !grandmasterDouble &&
-    (farmingSkill.perk20 === 'deity_of_harvest' || farmingSkill.perk20 === 'land_god') &&
+    farmingSkill.perk20 === 'deity_of_harvest' &&
     Math.random() < 0.5
   const yieldDouble = genetics && !intensiveDouble && !grandmasterDouble && !deityDouble && Math.random() < (genetics.yield / 100) * 0.3
   const harvestQty = intensiveDouble || grandmasterDouble || deityDouble || yieldDouble ? 2 : 1
@@ -248,6 +250,7 @@ export const harvestGreenhousePlotWithRewards = (
   const cropDef = getCropById(cropId)
   const genetics = plot.seedGenetics
   const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
+  const seedQualityBonus = getSeedQualityBonus(plot.seedQuality)
   const ringCropQualityBonus = inventoryStore.getRingEffectValue('crop_quality_bonus')
   const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
 
@@ -255,7 +258,7 @@ export const harvestGreenhousePlotWithRewards = (
   if (!quality) {
     const rawFertBonus = fertDef?.qualityBonus ?? 0
     const fertBonus = cropId === 'ancient_fruit' ? rawFertBonus * 0.5 : rawFertBonus
-    quality = skillStore.rollCropQualityWithBonus(fertBonus + ringCropQualityBonus, allSkillsBuff)
+    quality = skillStore.rollCropQualityWithBonus(fertBonus + seedQualityBonus + ringCropQualityBonus, allSkillsBuff)
     quality = applyCropBlessing(quality)
   }
 
@@ -266,7 +269,7 @@ export const harvestGreenhousePlotWithRewards = (
   const deityDouble =
     !intensiveDouble &&
     !grandmasterDouble &&
-    (farmingSkill.perk20 === 'deity_of_harvest' || farmingSkill.perk20 === 'land_god') &&
+    farmingSkill.perk20 === 'deity_of_harvest' &&
     Math.random() < 0.5
   const yieldDouble = genetics && !intensiveDouble && !grandmasterDouble && !deityDouble && Math.random() < (genetics.yield / 100) * 0.3
   const harvestQty = intensiveDouble || grandmasterDouble || deityDouble || yieldDouble ? 2 : 1

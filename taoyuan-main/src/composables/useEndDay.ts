@@ -40,6 +40,7 @@ import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
 import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
+import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
 import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone, Quality, WeeklyBudgetSelection } from '@/types'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import {
@@ -633,7 +634,7 @@ export const handleEndDay = () => {
         if (crop) {
           const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
           const speedup = (fertDef?.growthSpeedup ?? 0) + walletGrowthBonus
-          const effectiveDays = Math.max(1, Math.floor(crop.growthDays * (1 - speedup)))
+          const effectiveDays = getPlotEffectiveGrowthDays(plot, crop, speedup)
           if (plot.growthDays >= effectiveDays) {
             plot.state = 'harvestable'
           }
@@ -651,7 +652,7 @@ export const handleEndDay = () => {
         if (crop) {
           const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
           const speedup = (fertDef?.growthSpeedup ?? 0) + walletGrowthBonus
-          const effectiveDays = Math.max(1, Math.floor(crop.growthDays * (1 - speedup)))
+          const effectiveDays = getPlotEffectiveGrowthDays(plot, crop, speedup)
           if (plot.growthDays >= effectiveDays) {
             plot.state = 'harvestable'
           }

@@ -109,13 +109,13 @@ export const POTENTIAL_EFFECT_VALUES: Record<PotentialEffectKey, PotentialEffect
   },
   potential_low_hp_hint: {
     key: 'potential_low_hp_hint',
-    label: '低血提醒',
-    mode: 'info',
-    valuePerRank: 1,
-    cap: 30,
-    unit: 'flat',
+    label: '护命减伤',
+    mode: 'formula',
+    valuePerRank: 0.004,
+    cap: 0.12,
+    unit: 'percent',
     firstVersionConnected: true,
-    playerSummary: '每阶低血风险感知 +1，最高 +30。'
+    playerSummary: '每阶矿洞受伤 -0.4%，最高 -12%；10/20/30 阶分别强化矿洞失败护包、近身震波和 Boss 压制。'
   },
   potential_processing_speed: {
     key: 'potential_processing_speed',
@@ -141,31 +141,31 @@ export const POTENTIAL_EFFECT_VALUES: Record<PotentialEffectKey, PotentialEffect
     key: 'potential_alchemy_tolerance',
     label: '炼丹容错',
     mode: 'formula',
-    valuePerRank: 1,
-    cap: 30,
-    unit: 'flat',
+    valuePerRank: 0.01,
+    cap: 0.3,
+    unit: 'percent',
     firstVersionConnected: true,
-    playerSummary: '每阶炼丹容错 +1，最高 +30。'
+    playerSummary: '每阶炼丹容错 +1%，最高 +30%，提高成丹/奇丹权重并压低废丹。'
   },
   potential_storage_efficiency: {
     key: 'potential_storage_efficiency',
-    label: '仓储效率',
+    label: '仓库箱位',
     mode: 'formula',
     valuePerRank: 1,
     cap: 30,
     unit: 'flat',
     firstVersionConnected: true,
-    playerSummary: '每阶仓储整理效率 +1，最高 +30。'
+    playerSummary: '每阶仓库箱位 +1，最高 +30。'
   },
   potential_workshop_hint: {
     key: 'potential_workshop_hint',
-    label: '工坊提示',
-    mode: 'info',
-    valuePerRank: 1,
-    cap: 30,
-    unit: 'flat',
+    label: '原料返还',
+    mode: 'formula',
+    valuePerRank: 0.01,
+    cap: 0.3,
+    unit: 'percent',
     firstVersionConnected: true,
-    playerSummary: '每阶工坊排产感知 +1，最高 +30。'
+    playerSummary: '每阶机器完工原料返还 +1%，最高 +30%。'
   },
   potential_journey_hazard_resist: {
     key: 'potential_journey_hazard_resist',
@@ -361,13 +361,13 @@ export const POTENTIAL_NODE_DEFS: readonly PotentialNodeDef[] = [
   {
     id: 'body_low_hp_sense',
     branchId: 'body',
-    label: '危息自觉',
-    summary: '在低血、深矿和高风险远行时强化危险感知。',
+    label: '危息护命',
+    summary: '在深矿战斗中形成护命本能：减伤、护包、震波和首领压制。',
     maxRank: POTENTIAL_NODE_MAX_RANK,
     costsByRank: buildPotentialCosts('spirit_breath', 'deep'),
     unlockConditions: [{ kind: 'branchRank', branchId: 'body', value: 50, label: '根骨总阶达到 50' }],
     effectKey: 'potential_low_hp_hint',
-    surface: '低血风险感知',
+    surface: '矿洞战斗护命',
     firstVersionConnected: true
   },
   {
@@ -398,36 +398,36 @@ export const POTENTIAL_NODE_DEFS: readonly PotentialNodeDef[] = [
     id: 'craft_alchemy_patience',
     branchId: 'craft',
     label: '炉火耐心',
-    summary: '让火候、配比和失败回看更稳定，降低手艺线的波动感。',
+    summary: '提升炼丹稳定度，提高成丹与奇丹权重，并压低废丹结果。',
     maxRank: POTENTIAL_NODE_MAX_RANK,
     costsByRank: buildPotentialCosts('artisan_notes', 'standard'),
     unlockConditions: [{ kind: 'branchRank', branchId: 'craft', value: 18, label: '巧作总阶达到 18' }],
     effectKey: 'potential_alchemy_tolerance',
-    surface: '炼丹容错',
+    surface: '丹炉结果权重',
     firstVersionConnected: true
   },
   {
     id: 'craft_storage_order',
     branchId: 'craft',
     label: '仓中有序',
-    summary: '让批量整理、分类和出入库更可控。',
+    summary: '整理仓库布局，每阶额外开放 1 个箱子位置。',
     maxRank: POTENTIAL_NODE_MAX_RANK,
     costsByRank: buildPotentialCosts('artisan_notes', 'light'),
     unlockConditions: [{ kind: 'totalRank', value: 35, label: '潜能总阶达到 35' }],
     effectKey: 'potential_storage_efficiency',
-    surface: '仓储整理效率',
+    surface: '仓库箱位上限',
     firstVersionConnected: true
   },
   {
     id: 'craft_workshop_hint',
     branchId: 'craft',
     label: '工坊手记',
-    summary: '把加工排产、耗时和材料占用整理成更清楚的工坊判断。',
+    summary: '机器完成加工时概率回收一份真实投入原料，降低高价值配方损耗。',
     maxRank: POTENTIAL_NODE_MAX_RANK,
     costsByRank: buildPotentialCosts('artisan_notes', 'deep'),
     unlockConditions: [{ kind: 'branchRank', branchId: 'craft', value: 50, label: '巧作总阶达到 50' }],
     effectKey: 'potential_workshop_hint',
-    surface: '工坊排产感知',
+    surface: '机器完工原料返还',
     firstVersionConnected: true
   },
   {

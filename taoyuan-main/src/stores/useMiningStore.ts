@@ -70,8 +70,17 @@ const EXCAVATOR_BOMB_REFUND_CHANCE = 0.3
 const DEEP_EXCAVATOR_BOMB_REFUND_CHANCE = 0.5
 const ABYSS_MINER_GUARANTEED_REFUNDS_PER_FLOOR = 1
 const ABYSS_MINER_EXTRA_REFUND_CHANCE = 0.6
+const ROOT_GUARD_NODE_ID = 'body_low_hp_sense'
+const ROOT_GUARD_EFFECT_KEY = 'potential_low_hp_hint'
+const ROOT_GUARD_ITEM_SAFE_RANK = 10
+const ROOT_GUARD_SHOCKWAVE_RANK = 20
+const ROOT_GUARD_BOSS_WEAKEN_RANK = 30
+const ROOT_GUARD_BOSS_STAT_MULTIPLIER = 0.8
 const BOSS_POTENTIAL_REPLAY_MAX_CHANCE = 0.3
 const BOSS_POTENTIAL_REPLAY_FULL_CHANCE_FLOOR = MAX_MINE_FLOOR
+const SPIRIT_SLAYER_MONSTER_KEYWORDS = ['ghost', 'shadow', 'void', 'wraith', 'mummy', 'bone', 'skeleton', 'sovereign']
+const BUG_SLAYER_MONSTER_KEYWORDS = ['worm', 'spider', 'crab', 'bug', 'insect', '蝎', '虫', '蛛', '蟹']
+const EXORCIST_MONSTER_KEYWORDS = ['ghost', 'void', 'wraith', 'mummy', 'bone', 'skeleton', 'skull', '幽', '魂', '亡', '骨', '骷髅', '木乃伊']
 const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
 const getMineBossPotentialReplayChance = (floorNum: number): number => {
   const safeFloor = Math.max(0, Math.floor(floorNum))
@@ -89,6 +98,19 @@ const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
   void_ore: 'iridium_ore'
 }
 const getRareTransmuteOre = (oreId: string): string | null => RARE_TRANSMUTE_ORE_UPGRADES[oreId] ?? null
+const TREASURE_SENSE_REWARDS = [
+  'quartz',
+  'jade',
+  'ruby',
+  'moonstone',
+  'obsidian',
+  'dragon_jade',
+  'trilobite_fossil',
+  'shell_fossil',
+  'ammonite_fossil',
+  'ancient_coin'
+] as const
+const rollTreasureSenseReward = (): string => TREASURE_SENSE_REWARDS[Math.floor(Math.random() * TREASURE_SENSE_REWARDS.length)]!
 const MINING_ITEM_EXP: Record<string, number> = {
   copper_ore: 6,
   iron_ore: 8,
@@ -359,6 +381,50 @@ export const useMiningStore = defineStore('mining', () => {
 
   const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getVeinMarkerMessage()}${getPotentialMineEntryHint(floor)}`
 
+  const getRootGuardRank = (): number => usePotentialStore().getNodeRank(ROOT_GUARD_NODE_ID)
+
+  const getRootGuardDamageReduction = (): number =>
+    usePotentialStore().getPotentialEffectValue(ROOT_GUARD_EFFECT_KEY)
+
+  const applyRootGuardDamageReduction = (damage: number): number => {
+    const reduction = getRootGuardDamageReduction()
+    if (damage <= 0 || reduction <= 0) return damage
+    return Math.max(1, Math.floor(damage * (1 - reduction)))
+  }
+
+  const getRootGuardReductionSuffix = (rawDamage: number, reducedDamage: number): string =>
+    reducedDamage < rawDamage ? `（危息护命减免${rawDamage - reducedDamage}）` : ''
+
+  const applyRootGuardBossWeakening = (monster: MonsterDef): MonsterDef => {
+    if (getRootGuardRank() < ROOT_GUARD_BOSS_WEAKEN_RANK) return { ...monster }
+    return {
+      ...monster,
+      hp: Math.max(1, Math.floor(monster.hp * ROOT_GUARD_BOSS_STAT_MULTIPLIER)),
+      attack: Math.max(1, Math.floor(monster.attack * ROOT_GUARD_BOSS_STAT_MULTIPLIER)),
+      defense: Math.max(0, Math.floor(monster.defense * ROOT_GUARD_BOSS_STAT_MULTIPLIER))
+    }
+  }
+
+  const getRootGuardBossWeakenSuffix = (baseMonster: MonsterDef, runtimeMonster: MonsterDef): string =>
+    runtimeMonster.hp < baseMonster.hp || runtimeMonster.attack < baseMonster.attack || runtimeMonster.defense < baseMonster.defense
+      ? '（危息护命压制）'
+      : ''
+
+  const triggerRootGuardShockwave = (originIndex: number): number => {
+    if (getRootGuardRank() < ROOT_GUARD_SHOCKWAVE_RANK || originIndex < 0) return 0
+    let defeated = 0
+    for (const adjacentIndex of getAdjacentIndices(originIndex)) {
+      const adjacentTile = floorGrid.value[adjacentIndex]
+      if (!adjacentTile || adjacentTile.type !== 'monster' || adjacentTile.state === 'defeated') continue
+      adjacentTile.state = 'defeated'
+      defeated++
+      useAchievementStore().recordMonsterKill()
+      const adjacentMonster = adjacentTile.data?.monster
+      if (adjacentMonster) useGuildStore().recordKill(adjacentMonster.id)
+    }
+    return defeated
+  }
+
   const getBossDossierMessage = (monster: MonsterDef, isFirstKill: boolean): string => {
     if (skillStore.getSkillMasteryEffectValue('boss_dossier') <= 0) return ''
     const weakPoint = monster.defense >= monster.attack ? '优先破防或使用高攻击武器' : '优先稳血，避免长回合换血'
@@ -453,6 +519,7 @@ export const useMiningStore = defineStore('mining', () => {
       if (fractionalOreBonus > 0 && Math.random() < fractionalOreBonus) quantity += 1
     }
     if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
+    if (inventoryStore.getToolEnchantmentId('pickaxe') === 'generous_pick' && Math.random() < 0.15) quantity += 1
     const cookingOreBonusChance = useCookingStore().getActiveMiningOreBonusChance()
     if (cookingOreBonusChance > 0 && Math.random() < cookingOreBonusChance) quantity += 1
     if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
@@ -1005,13 +1072,14 @@ export const useMiningStore = defineStore('mining', () => {
     if (!monster) return { success: false, message: '该格子没有怪物。', startsCombat: false }
 
     _combatTileIndex.value = tile.index
-    combatMonster.value = { ...monster }
-    combatMonsterHp.value = monster.hp
+    const runtimeMonster = tile.type === 'boss' ? applyRootGuardBossWeakening(monster) : { ...monster }
+    combatMonster.value = runtimeMonster
+    combatMonsterHp.value = runtimeMonster.hp
     combatRound.value = 0
 
     if (tile.type === 'boss') {
       const isFirstKill = !defeatedBosses.value.includes(monster.id)
-      combatLog.value = [`BOSS战！再次挑战${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}${getBossDossierMessage(monster, isFirstKill)}`]
+      combatLog.value = [`BOSS战！再次挑战${monster.name}！(HP: ${runtimeMonster.hp})${isFirstKill ? '' : '（弱化版）'}${getRootGuardBossWeakenSuffix(monster, runtimeMonster)}${getBossDossierMessage(monster, isFirstKill)}`]
       combatIsBoss.value = true
     } else {
       combatLog.value = [`再次遭遇${monster.name}！(HP: ${monster.hp})`]
@@ -1115,6 +1183,21 @@ export const useMiningStore = defineStore('mining', () => {
   /** 处理空格子 */
   const _handleEmptyTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     tile.state = 'revealed'
+    const stoneChipsActive = inventoryStore.getToolEnchantmentId('pickaxe') === 'stone_chips'
+    if (stoneChipsActive && Math.random() < 0.2) {
+      const rewards: InventoryRewardEntry[] = [{ itemId: 'stone', quantity: 1 }]
+      if (canGrantRewardEntries(rewards) && grantRewardEntries(rewards, true)) {
+        const rewardDisplays = buildRewardDisplayEntries(rewards)
+        setRecentRewards(rewardDisplays)
+        addMiningExpForRewardEntries(rewards)
+        return {
+          success: true,
+          message: `探索了一个空区域，石屑附魔敲下了${formatRewardLabels(rewardDisplays)}。(${formatMiningStaminaCostTag(staminaCost)})`,
+          startsCombat: false,
+          rewards: rewardDisplays
+        }
+      }
+    }
     return { success: true, message: `探索了一个空区域。(${formatMiningStaminaCostTag(staminaCost)})`, startsCombat: false }
   }
 
@@ -1134,7 +1217,18 @@ export const useMiningStore = defineStore('mining', () => {
     const rareTransmuteChance = skillStore.getSkillMasteryEffectValue('rare_transmute')
     const rareTransmuteOreId = rareTransmuteChance > 0 && Math.random() < rareTransmuteChance ? getRareTransmuteOre(oreId) : null
     const rareTransmuteRewards: InventoryRewardEntry[] = rareTransmuteOreId ? [{ itemId: rareTransmuteOreId, quantity: 1 }] : []
-    const rewardEntries: InventoryRewardEntry[] = [{ itemId: oreId, quantity }, ...herbRewards, ...rareTransmuteRewards]
+    const pickaxeEnchantId = inventoryStore.getToolEnchantmentId('pickaxe')
+    const oreSmelterOreId = pickaxeEnchantId === 'ore_smelter' && Math.random() < 0.1 ? getRareTransmuteOre(oreId) : null
+    const oreSmelterRewards: InventoryRewardEntry[] = oreSmelterOreId ? [{ itemId: oreSmelterOreId, quantity: 1 }] : []
+    const treasureSenseItemId = pickaxeEnchantId === 'treasure_sense' && Math.random() < 0.08 ? rollTreasureSenseReward() : null
+    const treasureSenseRewards: InventoryRewardEntry[] = treasureSenseItemId ? [{ itemId: treasureSenseItemId, quantity: 1 }] : []
+    const rewardEntries: InventoryRewardEntry[] = [
+      { itemId: oreId, quantity },
+      ...herbRewards,
+      ...rareTransmuteRewards,
+      ...oreSmelterRewards,
+      ...treasureSenseRewards
+    ]
     if (!canGrantRewardEntries(rewardEntries) || !grantRewardEntries(rewardEntries, true)) {
       playerStore.restoreStamina(staminaCost)
       return { success: false, message: '背包空间不足，无法收取矿石。', startsCombat: false }
@@ -1150,7 +1244,14 @@ export const useMiningStore = defineStore('mining', () => {
     tile.state = 'collected'
     const windowSuffix = environmentWindow.value.mining.active ? ` ${environmentWindow.value.mining.label}：${environmentWindow.value.mining.summary}` : ''
     const rareTransmuteSuffix = rareTransmuteOreId ? '（稀矿转化）' : ''
-    return { success: true, message: `挖到了${formatRewardLabels(rewards)}！(${formatMiningStaminaCostTag(staminaCost)})${windowSuffix}${rareTransmuteSuffix}`, startsCombat: false, rewards }
+    const oreSmelterSuffix = oreSmelterOreId ? '（炼矿附魔）' : ''
+    const treasureSenseSuffix = treasureSenseItemId ? '（寻宝附魔）' : ''
+    return {
+      success: true,
+      message: `挖到了${formatRewardLabels(rewards)}！(${formatMiningStaminaCostTag(staminaCost)})${windowSuffix}${rareTransmuteSuffix}${oreSmelterSuffix}${treasureSenseSuffix}`,
+      startsCombat: false,
+      rewards
+    }
   }
 
   /** 处理怪物格子 */
@@ -1162,10 +1263,11 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     _combatTileIndex.value = tile.index
-    combatMonster.value = { ...monster }
-    combatMonsterHp.value = monster.hp
+    const runtimeMonster = { ...monster }
+    combatMonster.value = runtimeMonster
+    combatMonsterHp.value = runtimeMonster.hp
     combatRound.value = 0
-    combatLog.value = [`遭遇了${monster.name}！(HP: ${monster.hp})  (${formatMiningStaminaCostTag(staminaCost)})`]
+    combatLog.value = [`遭遇了${monster.name}！(HP: ${runtimeMonster.hp})  (${formatMiningStaminaCostTag(staminaCost)})`]
     combatIsBoss.value = false
     inCombat.value = true
 
@@ -1181,12 +1283,13 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     _combatTileIndex.value = tile.index
-    combatMonster.value = { ...monster }
-    combatMonsterHp.value = monster.hp
+    const runtimeMonster = applyRootGuardBossWeakening(monster)
+    combatMonster.value = runtimeMonster
+    combatMonsterHp.value = runtimeMonster.hp
     combatRound.value = 0
 
     const isFirstKill = !defeatedBosses.value.includes(monster.id)
-    combatLog.value = [`BOSS战！遭遇了${monster.name}！(HP: ${monster.hp})${isFirstKill ? '' : '（弱化版）'}  (${formatMiningStaminaCostTag(staminaCost)})${getBossDossierMessage(monster, isFirstKill)}`]
+    combatLog.value = [`BOSS战！遭遇了${monster.name}！(HP: ${runtimeMonster.hp})${isFirstKill ? '' : '（弱化版）'}${getRootGuardBossWeakenSuffix(monster, runtimeMonster)}  (${formatMiningStaminaCostTag(staminaCost)})${getBossDossierMessage(monster, isFirstKill)}`]
     combatIsBoss.value = true
     inCombat.value = true
 
@@ -1624,6 +1727,29 @@ export const useMiningStore = defineStore('mining', () => {
   const applyBossCombatTimeMinimum = (timeCostHours: number) =>
     combatIsBoss.value ? Math.max(timeCostHours, COMBAT_TIME_NORMAL) : timeCostHours
 
+  const getEquippedWeaponEnchantSpecial = () => {
+    const owned = inventoryStore.getEquippedWeapon()
+    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
+    return enchant?.special ?? null
+  }
+
+  const getWeaponCombatTimeMultiplier = (): number => getEquippedWeaponEnchantSpecial() === 'swift' ? 0.85 : 1
+
+  const isSpiritSlayerTarget = (monster: MonsterDef): boolean => {
+    const key = `${monster.id} ${monster.name}`.toLowerCase()
+    return SPIRIT_SLAYER_MONSTER_KEYWORDS.some(keyword => key.includes(keyword))
+  }
+
+  const isBugSlayerTarget = (monster: MonsterDef): boolean => {
+    const key = `${monster.id} ${monster.name}`.toLowerCase()
+    return BUG_SLAYER_MONSTER_KEYWORDS.some(keyword => key.includes(keyword))
+  }
+
+  const isExorcistTarget = (monster: MonsterDef): boolean => {
+    const key = `${monster.id} ${monster.name}`.toLowerCase()
+    return EXORCIST_MONSTER_KEYWORDS.some(keyword => key.includes(keyword))
+  }
+
   const getAttackCombatTimeCost = (monsterHpBefore: number, totalDamage: number, expectedDamage: number): number => {
     const safeHpBefore = Math.max(1, monsterHpBefore)
     if (totalDamage >= safeHpBefore) {
@@ -1667,15 +1793,16 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     if (action === 'defend') {
-      const timeCostHours = combatIsBoss.value ? COMBAT_TIME_LONG : COMBAT_TIME_NORMAL
-      const damage = calculateIncomingDamage({
+      const timeCostHours = (combatIsBoss.value ? COMBAT_TIME_LONG : COMBAT_TIME_NORMAL) * getWeaponCombatTimeMultiplier()
+      const rawDamage = calculateIncomingDamage({
         incomingAttack: monster.attack,
         flatReduction: runtime.defendDefense.flatReduction,
         modifiers: runtime.defendDefense.damageMultipliers
       })
+      const damage = applyRootGuardDamageReduction(rawDamage)
       const actualDamage = playerStore.takeDamage(damage)
 
-      let defendMsg = `你举盾防御，受到${damage}点伤害。`
+      let defendMsg = `你举盾防御，受到${damage}点伤害${getRootGuardReductionSuffix(rawDamage, damage)}。`
       if (playerStore.hp <= 0) {
         combatLog.value.push(defendMsg)
         return { ...handleDefeat(), timeCostHours, takenDamage: actualDamage }
@@ -1696,7 +1823,22 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     const monsterHpBefore = combatMonsterHp.value
-    const attackOutcome = rollAttackOutcome(runtime.attack, monster.defense)
+    const weaponSpecial = getEquippedWeaponEnchantSpecial()
+    const targetDamageMultiplier =
+      weaponSpecial === 'spirit_slayer' && isSpiritSlayerTarget(monster)
+        ? 1.25
+        : weaponSpecial === 'bug_slayer' && isBugSlayerTarget(monster)
+          ? 1.35
+          : 1
+    const targetCritBonus = weaponSpecial === 'exorcist' && isExorcistTarget(monster) ? 0.15 : 0
+    const attackProfile = targetDamageMultiplier > 1 || targetCritBonus > 0
+      ? {
+          ...runtime.attack,
+          attackMultiplier: (runtime.attack.attackMultiplier ?? 1) * targetDamageMultiplier,
+          critRate: runtime.attack.critRate + targetCritBonus
+        }
+      : runtime.attack
+    const attackOutcome = rollAttackOutcome(attackProfile, monster.defense)
     const effectiveDamage = getEffectiveDamage(monsterHpBefore, attackOutcome.totalDamage)
     const attackDamageResult = {
       dealtDamage: attackOutcome.totalDamage,
@@ -1709,14 +1851,23 @@ export const useMiningStore = defineStore('mining', () => {
     const timeCostHours = getAttackCombatTimeCost(
       monsterHpBefore,
       attackOutcome.totalDamage,
-      getExpectedAttackDamage(runtime.attack, monster.defense)
-    )
+      getExpectedAttackDamage(attackProfile, monster.defense)
+    ) * getWeaponCombatTimeMultiplier()
     combatMonsterHp.value -= attackOutcome.damage
     combatMonsterHp.value -= attackOutcome.extraDamage
 
     let msg = `你攻击${monster.name}，造成${attackOutcome.damage}点伤害。`
     if (attackOutcome.isCrit) {
       msg = `暴击！${msg}`
+    }
+    if (weaponSpecial === 'spirit_slayer' && isSpiritSlayerTarget(monster)) {
+      msg += ' 镇魂附魔压制了目标。'
+    }
+    if (weaponSpecial === 'bug_slayer' && isBugSlayerTarget(monster)) {
+      msg += ' 虫猎附魔命中了弱点。'
+    }
+    if (weaponSpecial === 'exorcist' && isExorcistTarget(monster)) {
+      msg += ' 斩邪附魔撕开了邪祟。'
     }
     if (attackOutcome.didExtraStrike) {
       msg += ` 追击触发，额外造成${attackOutcome.extraDamage}点伤害。`
@@ -1745,13 +1896,14 @@ export const useMiningStore = defineStore('mining', () => {
       return { message: msg, combatOver: false, won: false, timeCostHours, ...attackDamageResult }
     }
 
-    const counterDamage = calculateIncomingDamage({
+    const rawCounterDamage = calculateIncomingDamage({
       incomingAttack: monster.attack,
       flatReduction: runtime.defense.flatReduction,
       modifiers: runtime.defense.damageMultipliers
     })
+    const counterDamage = applyRootGuardDamageReduction(rawCounterDamage)
     const actualCounterDamage = playerStore.takeDamage(counterDamage)
-    msg += ` ${monster.name}反击，你受到${counterDamage}点伤害。`
+    msg += ` ${monster.name}反击，你受到${counterDamage}点伤害${getRootGuardReductionSuffix(rawCounterDamage, counterDamage)}。`
     combatLog.value.push(msg)
 
     if (playerStore.hp <= 0) {
@@ -1932,15 +2084,19 @@ export const useMiningStore = defineStore('mining', () => {
     if (Math.random() < 0.05) {
       useSecretNoteStore().tryCollectNote('monster')
     }
-    combatLog.value.push(msg)
 
     // === 更新格子状态 ===
+    let rootGuardShockwaveDefeats = 0
     if (_combatTileIndex.value >= 0) {
       const tile = floorGrid.value[_combatTileIndex.value]
       if (tile) tile.state = 'defeated'
+      rootGuardShockwaveDefeats = combatIsBoss.value ? 0 : triggerRootGuardShockwave(_combatTileIndex.value)
       _combatTileIndex.value = -1
     }
-    monstersDefeatedCount.value++
+    if (rootGuardShockwaveDefeats > 0) {
+      msg += ` 危息护命震波清退了${rootGuardShockwaveDefeats}只近身怪物。`
+    }
+    monstersDefeatedCount.value += 1 + rootGuardShockwaveDefeats
     useAchievementStore().recordMonsterKill()
     if (combatMonster.value) {
       useGuildStore().recordKill(combatMonster.value.id)
@@ -1965,11 +2121,16 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     combatIsBoss.value = false
+    combatLog.value.push(msg)
     return { message: msg, combatOver: true, won: true, rewards: rewards.length > 0 ? rewards : undefined }
   }
 
   /** 战斗失败处理 */
   const handleDefeat = (): { message: string; combatOver: boolean; won: boolean } => {
+    const wasBossFight = combatIsBoss.value
+    const rootGuardRank = getRootGuardRank()
+    const rootGuardKeepsBackpack = rootGuardRank >= ROOT_GUARD_ITEM_SAFE_RANK
+    const rootGuardBossRetreat = wasBossFight && rootGuardRank >= ROOT_GUARD_BOSS_WEAKEN_RANK
     inCombat.value = false
     combatIsBoss.value = false
     clearRecentRewards()
@@ -1982,25 +2143,31 @@ export const useMiningStore = defineStore('mining', () => {
     floorGrid.value = []
     _combatTileIndex.value = -1
 
-    // 丢失50%本次探索物品
-    const lostCount = Math.ceil(sessionLoot.value.length / 2)
-    for (let i = 0; i < lostCount; i++) {
-      if (sessionLoot.value.length === 0) break
-      const idx = Math.floor(Math.random() * sessionLoot.value.length)
-      const [entry] = sessionLoot.value.splice(idx, 1)
-      if (entry) rollbackLootEntry(entry)
+    // 丢失50%本次探索物品；满阶危息护命在 Boss 战败时保留本次探索战利品。
+    let lostSessionLoot = false
+    if (!rootGuardBossRetreat) {
+      const lostCount = Math.ceil(sessionLoot.value.length / 2)
+      lostSessionLoot = lostCount > 0
+      for (let i = 0; i < lostCount; i++) {
+        if (sessionLoot.value.length === 0) break
+        const idx = Math.floor(Math.random() * sessionLoot.value.length)
+        const [entry] = sessionLoot.value.splice(idx, 1)
+        if (entry) rollbackLootEntry(entry)
+      }
     }
 
     // 随机丢失最多3件背包物品
     const droppedItems: string[] = []
-    const availableItems = inventoryStore.items.filter(i => i.quantity > 0 && !i.locked)
-    const dropCount = Math.min(DEFEAT_MAX_ITEM_LOSS, availableItems.length)
-    for (let i = 0; i < dropCount; i++) {
-      const candidates = inventoryStore.items.filter(i => i.quantity > 0 && !i.locked)
-      if (candidates.length === 0) break
-      const pick = candidates[Math.floor(Math.random() * candidates.length)]!
-      droppedItems.push(pick.itemId)
-      inventoryStore.removeUnlockedItem(pick.itemId, 1, pick.quality)
+    if (!rootGuardKeepsBackpack) {
+      const availableItems = inventoryStore.items.filter(i => i.quantity > 0 && !i.locked)
+      const dropCount = Math.min(DEFEAT_MAX_ITEM_LOSS, availableItems.length)
+      for (let i = 0; i < dropCount; i++) {
+        const candidates = inventoryStore.items.filter(i => i.quantity > 0 && !i.locked)
+        if (candidates.length === 0) break
+        const pick = candidates[Math.floor(Math.random() * candidates.length)]!
+        droppedItems.push(pick.itemId)
+        inventoryStore.removeUnlockedItem(pick.itemId, 1, pick.quality)
+      }
     }
 
     // 扣除铜钱
@@ -2020,12 +2187,21 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     const location = wasInSkullCavern ? '骷髅矿穴' : '矿洞'
-    const parts: string[] = [`你在${location}中倒下了……`]
-    parts.push('丢失了一半战利品')
-    if (droppedItems.length > 0) parts.push(`和${droppedItems.length}件背包物品`)
-    if (moneyLost > 0) parts.push(`及${moneyLost}文`)
-    parts.push('，被送回入口。')
-    const msg = parts.join('')
+    const penaltyParts: string[] = []
+    if (rootGuardBossRetreat) {
+      penaltyParts.push('危息护命触发，保住了本次战利品')
+    } else if (lostSessionLoot) {
+      penaltyParts.push('丢失了一半战利品')
+    } else {
+      penaltyParts.push('没有可掉落的本次战利品')
+    }
+    if (rootGuardKeepsBackpack) {
+      penaltyParts.push('背包物品没有掉落')
+    } else if (droppedItems.length > 0) {
+      penaltyParts.push(`丢失了${droppedItems.length}件背包物品`)
+    }
+    if (moneyLost > 0) penaltyParts.push(`损失${moneyLost}文`)
+    const msg = `你在${location}中倒下了……${penaltyParts.join('，')}，被送回入口。`
     combatLog.value.push(msg)
     return { message: msg, combatOver: true, won: false }
   }

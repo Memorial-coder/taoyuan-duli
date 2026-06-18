@@ -224,12 +224,12 @@
   const PERK20_BRANCHES: Record<SkillType, Perk20Branches> = {
     farming: {
       grandmaster_farmer: [
-        { id: 'deity_of_harvest', name: '丰收之神', description: '作物收获时50%概率双倍，售价再+15%' },
-        { id: 'land_god', name: '土地神', description: '农田自动浇水，体力消耗归零' }
+        { id: 'deity_of_harvest', name: '丰收之神', description: '作物收获时50%概率双倍，作物售价+50%' },
+        { id: 'land_god', name: '土地神', description: '农田自动浇水，农耕体力消耗归零' }
       ],
       estate_owner: [
-        { id: 'deity_of_harvest', name: '丰收之神', description: '作物收获时50%概率双倍，售价再+15%' },
-        { id: 'land_god', name: '土地神', description: '农田自动浇水，体力消耗归零' }
+        { id: 'deity_of_harvest', name: '丰收之神', description: '作物收获时50%概率双倍，作物售价+50%' },
+        { id: 'land_god', name: '土地神', description: '农田自动浇水，农耕体力消耗归零' }
       ],
       livestock_baron: [
         { id: 'beast_sovereign', name: '兽王', description: '动物产品售价+50%，产出数量翻倍' },
@@ -243,11 +243,11 @@
     foraging: {
       ancient_botanist: [
         { id: 'world_tree', name: '世界树', description: '采集物必定极品，数量+3' },
-        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%，料理增益不会因日切而清空' }
+        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%，料理增益强度+25%且持续2天' }
       ],
       grand_alchemist: [
         { id: 'world_tree', name: '世界树', description: '采集物必定极品，数量+3' },
-        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%，料理增益不会因日切而清空' }
+        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%，料理增益强度+25%且持续2天' }
       ],
       forest_guardian: [
         { id: 'forest_spirit', name: '森林精灵', description: '采集额外木材量翻4倍' },

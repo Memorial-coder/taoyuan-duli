@@ -124,7 +124,11 @@ assert(rushResult.tool.tier === 'iron', '水壶加急模型：实际工具等级
 assert(rushResult.pending === null, '水壶加急模型：不应留下 pendingUpgrade。')
 
 const greenhouseHarvestSource = getSourceBetween(farmViewSource, 'const doGhHarvest = () => {', '  const doGhBatchHarvest = () => {')
-const greenhouseBatchHarvestSource = getSourceBetween(farmViewSource, 'const doGhBatchHarvest = () => {', '  const doGhBatchPlant = (cropId: string) => {')
+const greenhouseBatchHarvestSource = getSourceBetween(
+  farmViewSource,
+  'const doGhBatchHarvest = () => {',
+  "  const doGhBatchPlant = (cropId: string, seedQuality: Quality = 'normal') => {"
+)
 for (const [label, block] of [
   ['温室单块收获', greenhouseHarvestSource],
   ['温室一键收获', greenhouseBatchHarvestSource]
@@ -150,6 +154,11 @@ assert(
     farmStoreSource.includes('const currentCropGrowth = getCurrentCropGrowthBonus()') &&
     farmStoreSource.includes('plot.growthDays += 1 + progressBonus'),
   'greenhouse crop daily growth should share global crop speedup and accept extra ring growth progress.'
+)
+assert(
+  farmStoreSource.includes('getPlotEffectiveGrowthDays(plot, crop, speedup)') &&
+    !farmStoreSource.includes('plot.growthDays = crop.growthDays - crop.regrowthDays'),
+  'regrowing crops should restart progress from 0 and mature against regrowthDays, not a prefilled first-growth threshold.'
 )
 assert(
   endDaySource.includes('farmStore.greenhouseDailyUpdate(ringGrowthBonus)'),

@@ -71,6 +71,13 @@ assert.match(combinedInventorySource, /normalizeCombinedItemRequirements/, 'comb
 assert.match(combinedInventorySource, /export const removeCombinedItems/, 'combined inventory should expose atomic grouped removal')
 assert.match(combinedInventorySource, /const inventorySnapshot = inv\.serialize\(\)/, 'grouped removal should snapshot inventory')
 assert.match(combinedInventorySource, /const warehouseSnapshot = wh\.serialize\(\)/, 'grouped removal should snapshot warehouse')
+assert.match(combinedInventorySource, /let combinedItemCountIndex: ComputedRef<CombinedItemCountIndex> \| null = null/, 'combined inventory count queries should share a cached reactive index')
+assert.match(combinedInventorySource, /export const getCombinedItemCountSignature/, 'combined inventory should expose a cached signature for recipe refresh checks')
+assert.doesNotMatch(
+  combinedInventorySource,
+  /for \(const chest of wh\.chests\) \{\s*total \+= wh\.getChestItemCount\(chest\.id, itemId, quality\)/s,
+  'combined inventory count queries should not rescan every warehouse chest per material lookup'
+)
 
 const warehouseSource = readSource('stores', 'useWarehouseStore.ts')
 assert.match(warehouseSource, /const canRemoveFromItemSnapshot = /, 'void chest grouped consumption should simulate removal against one snapshot')
@@ -107,18 +114,21 @@ assert.match(homeViewSource, /playerStore\.earnMoney\(warehouseStore\.UNLOCK_COS
 const processingViewSource = readSource('views', 'game', 'ProcessingView.vue')
 assert.match(processingViewSource, /removeCombinedItems\(JADE_RING_COST\)/, 'jade ring crafting should consume grouped materials')
 assert.match(processingViewSource, /warehouseStore\.deserialize\(warehouseSnapshot\)/, 'jade ring crafting should restore warehouse materials on rollback')
+assert.match(processingViewSource, /const machineCountByType = computed/, 'workshop craft badges should use a lightweight machine count index')
+assert.match(processingViewSource, /return machineCountByType\.value\.get\(type\) \?\? 0/, 'workshop craft badges should not read recipe-building machine groups')
+assert.match(processingViewSource, /getCombinedItemCountSignature\(\)/, 'workshop recipe refresh should reuse the cached combined inventory signature')
 
 const inventoryStoreSource = readSource('stores', 'useInventoryStore.ts')
 assert.match(inventoryStoreSource, /removeItemsWithRollback/, 'equipment crafting should have grouped rollback removal')
 assert.match(inventoryStoreSource, /const recipe = normalizeItemRequirements\(def\.recipe\)/, 'equipment crafting should aggregate duplicate recipe items')
 
 const farmViewSource = readSource('views', 'game', 'FarmView.vue')
-assert.match(farmViewSource, /if \(farmStore\.greenhousePlantCrop\(plot\.id, cropId\)\) \{\s*planted\+\+/s, 'greenhouse batch planting should only count successful plant calls')
-assert.match(farmViewSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(crop\.seedId\)/s, 'greenhouse batch planting should refund failed plant attempts')
+assert.match(farmViewSource, /if \(farmStore\.greenhousePlantCrop\(plot\.id, cropId, seedQuality\)\) \{\s*planted\+\+/s, 'greenhouse batch planting should only count successful plant calls')
+assert.match(farmViewSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(crop\.seedId, 1, seedQuality\)/s, 'greenhouse batch planting should refund failed plant attempts with the consumed seed quality')
 
 const farmActionsSource = readSource('composables', 'useFarmActions.ts')
-assert.match(farmActionsSource, /if \(farmStore\.plantCrop\(plot\.id, cropDef\.id\)\) \{\s*planted\+\+/s, 'field batch planting should only count successful plant calls')
-assert.match(farmActionsSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(cropDef\.seedId\)/s, 'field batch planting should refund failed plant attempts')
+assert.match(farmActionsSource, /if \(farmStore\.plantCrop\(plot\.id, cropDef\.id, currentSeedQuality\)\) \{\s*planted\+\+/s, 'field batch planting should only count successful plant calls')
+assert.match(farmActionsSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(cropDef\.seedId, 1, currentSeedQuality\)/s, 'field batch planting should refund failed plant attempts with the consumed seed quality')
 
 const timeConstantsSource = readSource('data', 'timeConstants.ts')
 assert.match(timeConstantsSource, /fishStart: 0\.5,/, 'fishing action should keep a 30-minute base time before tool and skill reductions')

@@ -599,7 +599,7 @@
   import AnnouncementHistoryDialog from '@/components/game/AnnouncementHistoryDialog.vue'
   import { renderRichContent } from '@/utils/safeMarkdown'
   import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import type { PanelKey } from '@/composables/useNavigation'
   import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
   import { useSaveStore } from '@/stores/useSaveStore'
@@ -624,6 +624,7 @@
   import { openAnnouncementTarget } from '@/utils/announcementApi'
 
   const router = useRouter()
+  const route = useRoute()
   const { startBgm } = useAudio()
   const pkg = _pkg as typeof _pkg & { title: string }
   const isNativePlatform = Capacitor.isNativePlatform()
@@ -707,10 +708,27 @@
     if (adminLogoClickCount.value < ADMIN_ENTRY_UNLOCK_CLICKS) return
     adminEntryUnlocked.value = true
   }
+
+  const resolveSafeGameRedirectRoute = (rawValue: unknown): string | null => {
+    const raw = Array.isArray(rawValue) ? rawValue[0] : rawValue
+    const target = typeof raw === 'string' ? raw.trim() : ''
+    if (!target || !target.startsWith('/') || target.startsWith('//')) return null
+
+    try {
+      const parsed = new URL(target, 'http://taoyuan.local')
+      const normalized = `${parsed.pathname}${parsed.search}${parsed.hash}`
+      return normalized === '/game' || normalized.startsWith('/game/')
+        ? normalized
+        : null
+    } catch {
+      return null
+    }
+  }
   const currentUser = ref<null | { username: string; display_name?: string }>(null)
   let desktopMenuMediaQuery: MediaQueryList | null = null
 
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
+  const pendingRedirectRoute = computed(() => resolveSafeGameRedirectRoute(route.query.redirect))
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
   const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
   const serverSaveFieldAnomaly = computed(() => saveStore.serverSaveFieldAnomaly)
@@ -1088,11 +1106,11 @@
       showFloat(message, savedInitialSlot ? 'accent' : 'danger')
     }
     warnGuestSaveUnavailable()
-    void router.push('/game')
+    void router.push(pendingRedirectRoute.value || '/game')
   }
 
   const loadGameFromSlot = async (slot: number, options: { route?: string; notice?: string } = {}) => {
-    pendingPostLoadRoute.value = options.route ?? null
+    pendingPostLoadRoute.value = options.route ?? pendingRedirectRoute.value
     pendingPostLoadNotice.value = options.notice ?? null
     if (await saveStore.loadFromSlot(slot)) {
       if (playerStore.needsIdentitySetup) {

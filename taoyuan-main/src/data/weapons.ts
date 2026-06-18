@@ -49,16 +49,103 @@ export const ENCHANTMENTS: Record<string, EnchantmentDef> = {
     attackBonus: 0,
     critBonus: 0,
     special: 'lucky'
+  },
+  swift: {
+    id: 'swift',
+    name: '迅捷',
+    description: '矿洞战斗行动时间-15%',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'swift'
+  },
+  armor_breaker: {
+    id: 'armor_breaker',
+    name: '破甲',
+    description: '攻击时无视目标30%防御',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'armor_breaker'
+  },
+  spirit_slayer: {
+    id: 'spirit_slayer',
+    name: '镇魂',
+    description: '对幽魂、暗影、虚空与亡骨类敌人伤害+25%',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'spirit_slayer'
+  },
+  bug_slayer: {
+    id: 'bug_slayer',
+    name: '虫猎',
+    description: '对虫、蛛、蟹类敌人伤害+35%',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'bug_slayer'
+  },
+  exorcist: {
+    id: 'exorcist',
+    name: '斩邪',
+    description: '对不死与虚影类敌人暴击率+15%',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'exorcist'
+  },
+  echo_strike: {
+    id: 'echo_strike',
+    name: '残响',
+    description: '攻击时追击概率+18%，追击至少造成40%伤害',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'echo_strike'
+  },
+  haymaker: {
+    id: 'haymaker',
+    name: '割草',
+    description: '清除农田杂草时，35%概率获得干草×1',
+    attackBonus: 0,
+    critBonus: 0,
+    special: 'haymaker'
   }
 }
 
-/** 可用于随机附魔的 ID 列表 */
-const RANDOM_ENCHANT_IDS = ['sharp', 'fierce', 'precise', 'vampiric', 'sturdy', 'lucky']
+/** 可用于主动附魔与随机掉落附魔的 ID 列表 */
+export const WEAPON_ENCHANTMENT_IDS = [
+  'sharp',
+  'fierce',
+  'precise',
+  'vampiric',
+  'sturdy',
+  'lucky',
+  'swift',
+  'armor_breaker',
+  'spirit_slayer',
+  'bug_slayer',
+  'exorcist',
+  'echo_strike',
+  'haymaker'
+] as const
+/** Lv.7 基础铸魔池 */
+export const BASIC_WEAPON_ENCHANTMENT_IDS = ['sharp', 'fierce', 'precise', 'sturdy'] as const
+const RANDOM_ENCHANT_IDS = [...WEAPON_ENCHANTMENT_IDS]
 
 /** 随机获取一个附魔（30% 概率触发） */
 export const rollRandomEnchantment = (): string | null => {
   if (Math.random() >= 0.3) return null
   return RANDOM_ENCHANT_IDS[Math.floor(Math.random() * RANDOM_ENCHANT_IDS.length)]!
+}
+
+/** 主动铸魔必定获得一个附魔，可排除当前词条 */
+export const rollGuaranteedEnchantment = (excludeId: string | null = null): string => {
+  const pool = RANDOM_ENCHANT_IDS.filter(id => id !== excludeId)
+  const candidates = pool.length > 0 ? pool : RANDOM_ENCHANT_IDS
+  return candidates[Math.floor(Math.random() * candidates.length)]!
+}
+
+/** 从指定附魔池里随机抽取一个结果，可排除当前词条 */
+export const rollEnchantmentFromPool = (pool: readonly string[], excludeId: string | null = null): string => {
+  const candidates = pool.filter(id => id !== excludeId)
+  const source = candidates.length > 0 ? candidates : pool
+  return source[Math.floor(Math.random() * source.length)]!
 }
 
 /** 武器类型中文名 */

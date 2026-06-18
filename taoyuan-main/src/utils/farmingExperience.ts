@@ -1,4 +1,5 @@
 import type { AnimalDef, CropDef, Quality } from '@/types'
+import { getCropCycleDays } from './farmGrowth'
 
 export const FARM_HARVEST_EXP_MIN = 8
 export const FARM_HARVEST_EXP_MAX = 20
@@ -18,10 +19,7 @@ export const getCropHarvestExperienceCycleDays = (
   crop: Pick<CropDef, 'growthDays' | 'regrowth' | 'regrowthDays'> | null | undefined,
   harvestCount = 0
 ): number => {
-  if (!crop) return 4
-  const useRegrowthCycle = harvestCount > 0 && crop.regrowth === true && Number.isFinite(crop.regrowthDays)
-  const days = useRegrowthCycle ? crop.regrowthDays : crop.growthDays
-  return Math.max(1, Math.floor(Number(days) || 1))
+  return getCropCycleDays(crop, harvestCount)
 }
 
 export const getCropHarvestExperience = (

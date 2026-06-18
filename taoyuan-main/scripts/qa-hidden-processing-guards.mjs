@@ -119,28 +119,28 @@ const ancientWine = hiddenById.get('hidden_wine_ancient_fruit')
 assert(!!ancientWine, '缺少远古水果隐藏酿酒配方 hidden_wine_ancient_fruit')
 assert(ancientWine?.machineType === 'wine_workshop', '远古水果隐藏配方必须属于酒坊')
 assert(ancientWine?.inputItemId === 'ancient_fruit', '远古水果隐藏配方输入必须为 ancient_fruit')
-assert(ancientWine?.outputItemId === 'ancient_fruit_wine', '远古水果隐藏配方输出必须为 ancient_fruit_wine')
+assert(ancientWine?.outputItemId === 'celestial_fruit_wine', '远古水果隐藏配方应进入通用果酒顶档 celestial_fruit_wine')
 assert(ancientWine?.hiddenMeta?.gate?.workshopLevel === 2, '远古水果隐藏配方需要工坊 Lv.2 门槛')
 assert(ancientWine?.hiddenMeta?.gate?.requiredItemId === 'ancient_fruit', '远古水果隐藏配方需要持有 ancient_fruit 才出现')
 
 const ancientFruitItem = getItemById('ancient_fruit')
-const ancientWineItem = getItemById('ancient_fruit_wine')
+const ancientWineItem = getItemById(ancientWine?.outputItemId ?? '')
 assert(!!ancientFruitItem, '缺少远古水果物品定义 ancient_fruit')
-assert(!!ancientWineItem, '缺少远古果酒物品定义 ancient_fruit_wine')
+assert(!!ancientWineItem, '缺少远古水果隐藏酿酒产物定义')
 assert(ancientWine?.inputQuantity === 1, 'ancient fruit wine should consume exactly 1 ancient fruit.')
 assert(ancientWine?.outputQuantity === 1, 'ancient fruit wine should produce exactly 1 bottle.')
-assert(ancientWine?.processingDays === 5, 'ancient fruit wine should remain a 5-day slow brew.')
+assert(ancientWine?.processingDays === 4, 'ancient fruit hidden wine should follow valuable crop 4-day brewing.')
 assert(
-  ancientWineItem?.sellPrice === 12000,
-  `ancient fruit wine sell price should stay capped at 12000 after economy cooldown: ${ancientWineItem?.sellPrice ?? 0}`
+  ancientWineItem?.sellPrice === 28000,
+  `ancient fruit hidden wine output should match celestial fruit wine price: ${ancientWineItem?.sellPrice ?? 0}`
 )
 assert(
-  ancientWineItem?.staminaRestore === 180,
-  `ancient fruit wine stamina should stay capped at 180 after economy cooldown: ${ancientWineItem?.staminaRestore ?? 0}`
+  ancientWineItem?.staminaRestore === 720,
+  `ancient fruit hidden wine stamina should match celestial fruit wine: ${ancientWineItem?.staminaRestore ?? 0}`
 )
 assert(
-  ancientWineItem?.healthRestore === 90,
-  `ancient fruit wine health should stay capped at 90 after economy cooldown: ${ancientWineItem?.healthRestore ?? 0}`
+  ancientWineItem?.healthRestore === 360,
+  `ancient fruit hidden wine health should match celestial fruit wine: ${ancientWineItem?.healthRestore ?? 0}`
 )
 
 const ancientProfile = getCropUseProfile('ancient_fruit')
@@ -321,12 +321,18 @@ const processingStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useP
 assert(processingStoreSource.includes('discoveredProcessingRecipeIds'), 'processing store 必须序列化 discoveredProcessingRecipeIds')
 assert(processingStoreSource.includes('normalizeDiscoveredProcessingRecipeIds'), 'processing store 必须清理非法隐藏配方发现 ID')
 assert(processingStoreSource.includes('discoverProcessingRecipe(recipe.id)'), '收取成品时必须发现隐藏配方')
-const workshopUpgradeBlock = processingStoreSource.match(/const WORKSHOP_UPGRADES = \[([\s\S]*?)\]\r?\n\r?\nexport const useProcessingStore/)
-const workshopUpgradeLevels = [...(workshopUpgradeBlock?.[1] ?? '').matchAll(/level:\s*(\d+)/g)].map(match => Number(match[1]))
-const workshopMaterialIds = [...(workshopUpgradeBlock?.[1] ?? '').matchAll(/itemId:\s*'([^']+)'/g)].map(match => match[1])
-assert(workshopUpgradeLevels.join(',') === '1,2,3,4,5,6,7', `工坊扩建等级必须连续到 Lv.7：${workshopUpgradeLevels.join(',')}`)
-assert(processingStoreSource.includes('const maxMachines = computed(() => 15 + workshopLevel.value * 5)'), '工坊机器上限公式必须保持 Lv.7 可达 50 台')
-assert(15 + Math.max(...workshopUpgradeLevels, 0) * 5 === 50, '工坊最高等级必须提供 50 台机器上限')
+const workshopUpgradeStart = processingStoreSource.indexOf('const WORKSHOP_UPGRADES = [')
+const workshopUpgradeEnd = processingStoreSource.indexOf('export const WORKSHOP_MAX_LEVEL')
+const workshopUpgradeBlock = workshopUpgradeStart >= 0 && workshopUpgradeEnd > workshopUpgradeStart
+  ? processingStoreSource.slice(workshopUpgradeStart, workshopUpgradeEnd)
+  : ''
+const workshopUpgradeLevels = [...workshopUpgradeBlock.matchAll(/level:\s*(\d+)/g)].map(match => Number(match[1]))
+const workshopMaterialIds = [...workshopUpgradeBlock.matchAll(/itemId:\s*'([^']+)'/g)].map(match => match[1])
+assert(workshopUpgradeLevels.join(',') === '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15', `工坊扩建等级必须连续到 Lv.15：${workshopUpgradeLevels.join(',')}`)
+assert(processingStoreSource.includes('const maxMachines = computed(() => 15 + workshopLevel.value * 5)'), '工坊机器上限公式必须保持 Lv.15 可达 90 台')
+assert(15 + Math.max(...workshopUpgradeLevels, 0) * 5 === 90, '工坊最高等级必须提供 90 台机器上限')
+assert(workshopMaterialIds.includes('bronze_bar'), 'workshop upgrades should consume bronze_bar')
+assert(workshopMaterialIds.includes('mythril_bar'), 'workshop upgrades should consume mythril_bar')
 for (const itemId of workshopMaterialIds) {
   assert(!!getItemById(itemId), `工坊扩建材料缺少物品定义：${itemId}`)
 }

@@ -41,7 +41,11 @@ const scenarios = [
     recipeGridSelector: '.processing-option-grid',
     expectedRecipeGridColumns: ({ width, mode }) => (mode === 'adaptive' && width >= 1280 && width < 1920 ? 5 : 3),
     slotListSelector: '.processing-machine-slot-list',
-    expectedSlotListColumns: () => 1,
+    expectedSlotListColumns: ({ listWidth }) => (
+      listWidth >= 326
+        ? { min: 2 }
+        : { min: 1, max: 1 }
+    ),
     prepare: async page => {
       await page.waitForFunction(() => typeof window.__TAOYUAN_PROCESSING_DEBUG__?.prepareAlchemySmoke === 'function')
       await page.evaluate(() => window.__TAOYUAN_PROCESSING_DEBUG__.prepareAlchemySmoke())
@@ -251,9 +255,19 @@ const assertLayout = async ({ page, viewport, scenario, mode }) => {
     if (!slotListMetrics.visible) {
       throw new Error(`${scenario.label}-${viewport.label}-${mode}: machine slot list is not visible`)
     }
-    const expectedSlotColumns = scenario.expectedSlotListColumns({ width: viewport.width, mode })
-    if (slotListMetrics.columns !== expectedSlotColumns) {
-      throw new Error(`${scenario.label}-${viewport.label}-${mode}: expected ${expectedSlotColumns} machine-slot columns, got ${slotListMetrics.columns}`)
+    const expectedSlotColumns = scenario.expectedSlotListColumns({ width: viewport.width, mode, listWidth: slotListMetrics.width })
+    const expectedSlotRange = typeof expectedSlotColumns === 'number'
+      ? { min: expectedSlotColumns, max: expectedSlotColumns }
+      : expectedSlotColumns
+    if (slotListMetrics.columns < expectedSlotRange.min || (
+      typeof expectedSlotRange.max === 'number' && slotListMetrics.columns > expectedSlotRange.max
+    )) {
+      const rangeLabel = expectedSlotRange.max === undefined
+        ? `at least ${expectedSlotRange.min}`
+        : expectedSlotRange.min === expectedSlotRange.max
+          ? `${expectedSlotRange.min}`
+          : `${expectedSlotRange.min}-${expectedSlotRange.max}`
+      throw new Error(`${scenario.label}-${viewport.label}-${mode}: expected ${rangeLabel} machine-slot columns, got ${slotListMetrics.columns}`)
     }
   }
 }

@@ -1,5 +1,6 @@
 import type { FertilizerType } from './processing'
 import type { SeedGenetics } from './breeding'
+import type { Quality } from './item'
 import type { Season } from './game'
 
 /** 地块状态 */
@@ -25,6 +26,8 @@ export interface FarmPlot {
   giantCropGroup: number | null
   /** 育种种子的基因属性 */
   seedGenetics: SeedGenetics | null
+  /** 种植时种子品质（用于收获品质加成） */
+  seedQuality: Quality | null
   /** 是否被虫害感染 */
   infested: boolean
   /** 连续虫害天数 */

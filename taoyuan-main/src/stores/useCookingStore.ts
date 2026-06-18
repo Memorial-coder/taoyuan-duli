@@ -23,6 +23,8 @@ import {
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 const QUALITY_MULTIPLIER: Record<Quality, number> = { normal: 1, fine: 1.25, excellent: 1.5, supreme: 2 }
 const QUALITY_LABEL: Record<Quality, string> = { normal: '', fine: '优良', excellent: '精品', supreme: '极品' }
+const PHILOSOPHER_FOOD_BUFF_MULTIPLIER = 1.25
+const PHILOSOPHER_FOOD_BUFF_DURATION_DAYS = 2
 
 const VALID_BUFF_TYPES = new Set<NonNullable<RecipeDef['effect']['buff']>['type']>([
   'fishing',
@@ -54,6 +56,13 @@ const normalizeActiveBuff = (value: unknown): RecipeDef['effect']['buff'] | null
   return normalized
 }
 
+const normalizeActiveBuffRemainingDays = (value: unknown, hasActiveBuff: boolean): number => {
+  if (!hasActiveBuff) return 0
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 1
+  return Math.max(1, Math.min(PHILOSOPHER_FOOD_BUFF_DURATION_DAYS, Math.floor(numericValue)))
+}
+
 const getBuffDescription = (buff: RecipeDef['effect']['buff'] | null | undefined) => buff?.description ?? ''
 const isSkillBonusBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => /技能\+/.test(getBuffDescription(buff))
 const isStaminaReductionBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => getBuffDescription(buff).includes('体力消耗-')
@@ -62,6 +71,29 @@ const isDefenseFlatBuff = (buff: RecipeDef['effect']['buff'] | null | undefined)
 const isInstantStaminaRestoreBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => getBuffDescription(buff).includes('体力全恢复')
 const getTemporaryMaxStaminaBuffAmount = (buff: RecipeDef['effect']['buff'] | null | undefined) =>
   buff?.type === 'stamina' && getBuffDescription(buff).includes('体力上限+') ? Math.max(0, Math.floor(buff.value)) : 0
+
+const roundBuffNumber = (value: number, digits = 2) => Number(value.toFixed(digits))
+
+const enhanceCookingBuffForPhilosopher = (
+  buff: NonNullable<RecipeDef['effect']['buff']>
+): NonNullable<RecipeDef['effect']['buff']> => {
+  if (isInstantStaminaRestoreBuff(buff)) return { ...buff }
+  const enhancedValue = buff.type === 'giftBonus'
+    ? 1 + (buff.value - 1) * PHILOSOPHER_FOOD_BUFF_MULTIPLIER
+    : buff.value * PHILOSOPHER_FOOD_BUFF_MULTIPLIER
+  const baseDescription = buff.description.replace(/（当天）/g, '')
+  const enhancedBuff: NonNullable<RecipeDef['effect']['buff']> = {
+    ...buff,
+    value: roundBuffNumber(enhancedValue),
+    description: buff.description.includes('哲学家')
+      ? buff.description
+      : `${baseDescription}（哲学家：料理增益+25%，持续2天）`
+  }
+  if (buff.oreBonusChance !== undefined) {
+    enhancedBuff.oreBonusChance = Math.min(1, roundBuffNumber(buff.oreBonusChance * PHILOSOPHER_FOOD_BUFF_MULTIPLIER, 4))
+  }
+  return enhancedBuff
+}
 
 type ActiveAlchemyElixir = {
   itemId: string
@@ -224,12 +256,23 @@ export const useCookingStore = defineStore('cooking', () => {
 
   /** 当天生效的食物增益 */
   const activeBuff = ref<RecipeDef['effect']['buff'] | null>(null)
+  const activeBuffRemainingDays = ref(0)
   const activeElixir = ref<ActiveAlchemyElixir | null>(null)
   const storyTriggerRecords = ref<CookingStoryTriggerRecord[]>([])
 
   const syncTemporaryMaxStaminaBuff = (buff: RecipeDef['effect']['buff'] | null | undefined = activeBuff.value) => {
     playerStore.setTemporaryFoodMaxStaminaBonus(getTemporaryMaxStaminaBuffAmount(buff))
   }
+  const buildActiveFoodBuff = (buff: NonNullable<RecipeDef['effect']['buff']>) =>
+    skillStore.getSkill('foraging').perk20 === 'philosopher'
+      ? enhanceCookingBuffForPhilosopher(buff)
+      : { ...buff }
+  const getFoodBuffDurationDays = (buff: RecipeDef['effect']['buff'] | null | undefined) =>
+    buff && skillStore.getSkill('foraging').perk20 === 'philosopher' && !isInstantStaminaRestoreBuff(buff)
+      ? PHILOSOPHER_FOOD_BUFF_DURATION_DAYS
+      : buff
+        ? 1
+        : 0
 
   const getActiveFarmingSkillBonus = () => (activeBuff.value?.type === 'farming' && isSkillBonusBuff(activeBuff.value) ? activeBuff.value.value : 0)
   const getActiveFishingSkillBonus = () => (activeBuff.value?.type === 'fishing' && isSkillBonusBuff(activeBuff.value) ? activeBuff.value.value : 0)
@@ -459,14 +502,16 @@ export const useCookingStore = defineStore('cooking', () => {
     msg += '。'
 
     if (recipe.effect.buff?.type === 'stamina') {
-      const normalizedBuff = { ...recipe.effect.buff }
-      msg += ` ${recipe.effect.buff.description}`
+      const normalizedBuff = buildActiveFoodBuff(recipe.effect.buff)
+      msg += ` ${normalizedBuff.description}`
       syncTemporaryMaxStaminaBuff(null)
       if (isInstantStaminaRestoreBuff(normalizedBuff)) {
         playerStore.restoreStamina(playerStore.maxStamina)
         activeBuff.value = null
+        activeBuffRemainingDays.value = 0
       } else {
         activeBuff.value = normalizedBuff
+        activeBuffRemainingDays.value = getFoodBuffDurationDays(activeBuff.value)
         syncTemporaryMaxStaminaBuff(activeBuff.value)
       }
       return { success: true, message: msg }
@@ -474,9 +519,11 @@ export const useCookingStore = defineStore('cooking', () => {
 
     if (recipe.effect.buff) {
       activeBuff.value = null
+      activeBuffRemainingDays.value = 0
       syncTemporaryMaxStaminaBuff(null)
-      activeBuff.value = { ...recipe.effect.buff }
-      msg += ` ${recipe.effect.buff.description}`
+      activeBuff.value = buildActiveFoodBuff(recipe.effect.buff)
+      activeBuffRemainingDays.value = getFoodBuffDurationDays(activeBuff.value)
+      msg += ` ${activeBuff.value.description}`
       // 「体力全恢复」类buff：立即将体力回满
     }
 
@@ -529,12 +576,15 @@ export const useCookingStore = defineStore('cooking', () => {
     return true
   }
 
-  /** 每日重置增益（哲学家专精：buff永不过期） */
+  /** 每日重置增益：普通料理当天清空，哲学家料理可保留到次日 */
   const dailyReset = () => {
-    const foragingSkill = skillStore.getSkill('foraging')
-    if (foragingSkill.perk20 !== 'philosopher') {
+    if (activeBuff.value && activeBuffRemainingDays.value > 1) {
+      activeBuffRemainingDays.value -= 1
+      syncTemporaryMaxStaminaBuff(activeBuff.value)
+    } else {
       syncTemporaryMaxStaminaBuff(null)
       activeBuff.value = null
+      activeBuffRemainingDays.value = 0
     }
     activeElixir.value = null
   }
@@ -543,6 +593,7 @@ export const useCookingStore = defineStore('cooking', () => {
     return {
       unlockedRecipes: unlockedRecipes.value,
       activeBuff: activeBuff.value,
+      activeBuffRemainingDays: activeBuffRemainingDays.value,
       activeElixir: activeElixir.value,
       storyTriggerRecords: storyTriggerRecords.value
     }
@@ -552,6 +603,7 @@ export const useCookingStore = defineStore('cooking', () => {
     unlockedRecipes.value = Array.isArray(data?.unlockedRecipes) ? data.unlockedRecipes : unlockedRecipes.value
     const nextBuff = normalizeActiveBuff(data?.activeBuff)
     activeBuff.value = nextBuff
+    activeBuffRemainingDays.value = normalizeActiveBuffRemainingDays((data as any)?.activeBuffRemainingDays, !!nextBuff)
     activeElixir.value = normalizeActiveElixir((data as any)?.activeElixir)
     storyTriggerRecords.value = normalizeStoryTriggerRecords((data as any)?.storyTriggerRecords)
     syncTemporaryMaxStaminaBuff(activeBuff.value)
@@ -560,6 +612,7 @@ export const useCookingStore = defineStore('cooking', () => {
   return {
     unlockedRecipes,
     activeBuff,
+    activeBuffRemainingDays,
     activeElixir,
     storyTriggerRecords,
     recentStoryTriggerRecords,

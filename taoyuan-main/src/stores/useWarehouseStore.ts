@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { InventoryItem, Quality, Chest, ChestTier, VoidChestRole } from '@/types'
 import { getItemById, CHEST_DEFS } from '@/data/items'
+import { usePotentialStore } from './usePotentialStore'
 import {
   cloneInventoryItemSlot,
   createInventoryItemSlot,
@@ -12,6 +13,7 @@ import {
 
 const INITIAL_MAX_CHESTS = 3
 const MAX_CHESTS_CAP = 10
+const POTENTIAL_MAX_CHESTS_CAP = MAX_CHESTS_CAP + 30
 const MAX_STACK = 999
 const UNLOCK_COST = 50000
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
@@ -27,9 +29,17 @@ const normalizeChestConsumeQuantity = (quantity: number): number => Math.max(0, 
 export const useWarehouseStore = defineStore('warehouse', () => {
   const unlocked = ref(false)
   const chests = ref<Chest[]>([])
-  const maxChests = ref(INITIAL_MAX_CHESTS)
+  const baseMaxChests = ref(INITIAL_MAX_CHESTS)
 
   const hasVoidChest = computed(() => chests.value.some(c => c.tier === 'void'))
+  const potentialChestBonus = computed(() => Math.floor(usePotentialStore().getPotentialEffectValue('potential_storage_efficiency')))
+  const maxChests = computed({
+    get: () => Math.min(POTENTIAL_MAX_CHESTS_CAP, baseMaxChests.value + potentialChestBonus.value),
+    set: value => {
+      const normalized = Math.max(INITIAL_MAX_CHESTS, Math.floor(Number(value) || INITIAL_MAX_CHESTS))
+      baseMaxChests.value = Math.min(MAX_CHESTS_CAP, normalized)
+    }
+  })
 
   // ---- 箱子管理 ----
 
@@ -339,8 +349,8 @@ export const useWarehouseStore = defineStore('warehouse', () => {
 
   /** 扩容仓库（增加箱子槽位） */
   const expandMaxChests = (): boolean => {
-    if (maxChests.value >= MAX_CHESTS_CAP) return false
-    maxChests.value += 1
+    if (baseMaxChests.value >= MAX_CHESTS_CAP) return false
+    baseMaxChests.value += 1
     return true
   }
 
@@ -387,13 +397,13 @@ export const useWarehouseStore = defineStore('warehouse', () => {
         ...chest,
         items: chest.items.map(item => cloneInventoryItemSlot(item))
       })),
-      maxChests: maxChests.value
+      maxChests: baseMaxChests.value
     }
   }
 
   const deserialize = (data: Record<string, unknown>) => {
     unlocked.value = (data.unlocked as boolean) ?? false
-    maxChests.value = (data.maxChests as number) ?? INITIAL_MAX_CHESTS
+    baseMaxChests.value = Math.min(MAX_CHESTS_CAP, Math.max(INITIAL_MAX_CHESTS, Math.floor(Number(data.maxChests) || INITIAL_MAX_CHESTS)))
 
     const migrateRecipeId = (id: string) => {
       if (id === 'mill_fish_feed' || id === 'recycle_fish_feed') return 'fish_feed'
@@ -431,8 +441,8 @@ export const useWarehouseStore = defineStore('warehouse', () => {
         }
         chests.value = migratedChests
         // 确保箱子槽位足够容纳迁移的箱子
-        if (maxChests.value < migratedChests.length) {
-          maxChests.value = migratedChests.length
+        if (baseMaxChests.value < migratedChests.length) {
+          baseMaxChests.value = Math.min(MAX_CHESTS_CAP, migratedChests.length)
         }
       } else {
         chests.value = []
@@ -451,10 +461,12 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   return {
     unlocked,
     chests,
+    baseMaxChests,
     maxChests,
     hasVoidChest,
     UNLOCK_COST,
     MAX_CHESTS_CAP,
+    POTENTIAL_MAX_CHESTS_CAP,
     addChest,
     removeChest,
     renameChest,

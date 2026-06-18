@@ -13,6 +13,7 @@ import { useShopStore } from '@/stores/useShopStore'
 import { useSkillStore } from '@/stores/useSkillStore'
 import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 import { getCropById, getItemById } from '@/data'
+import { getEnchantmentById } from '@/data/weapons'
 import { getFertilizerById } from '@/data/processing'
 import { ACTION_TIME_COSTS } from '@/data/timeConstants'
 import type { Quality, ItemCategory } from '@/types'
@@ -31,8 +32,29 @@ export const QUALITY_NAMES: Record<Quality, string> = {
 
 /** 仙缘结缘：作物祝福（crop_blessing）概率品质+1 */
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+export const SEED_QUALITY_BONUS: Record<Quality, number> = {
+  normal: 0,
+  fine: 0.06,
+  excellent: 0.12,
+  supreme: 0.2
+}
 const SEED_RECOVERY_EXCLUDED_CROP_IDS = new Set(['ancient_fruit'])
 const SEED_RECOVERY_CHANCE = 0.08
+const HAYMAKER_HAY_CHANCE = 0.35
+
+export const getSeedQualityBonus = (quality: Quality | null | undefined): number => {
+  return quality ? (SEED_QUALITY_BONUS[quality] ?? 0) : 0
+}
+
+export const getFarmingActionStaminaCost = (baseCost: number, multipliers: number[] = []): number => {
+  const skillStore = useSkillStore()
+  if (skillStore.getSkill('farming').perk20 === 'land_god') return 0
+  const rawCost = multipliers.reduce((total, multiplier) => total * Math.max(0, multiplier), Math.max(0, baseCost))
+  return Math.max(1, Math.floor(rawCost * (1 - skillStore.getStaminaReduction('farming'))))
+}
+
+export const getFarmingStaminaCostLabel = (cost: number): string =>
+  cost > 0 ? `(-${cost}体力)` : '（土地神：不消耗体力）'
 
 const canRecoverSeedFromHarvest = (cropId: string, quality: Quality): boolean => {
   if (quality === 'normal') return false
@@ -82,17 +104,12 @@ export const handlePlotClick = (plotId: number) => {
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const ringFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - ringFarmReduction) *
-          (1 - ringGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - farmingBuff,
+      1 - ringFarmReduction,
+      1 - ringGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法开垦。')
       return
@@ -102,8 +119,8 @@ export const handlePlotClick = (plotId: number) => {
       useSecretNoteStore().tryCollectNote('digging')
     }
     sfxDig()
-    showFloat(`-${cost}体力`, 'danger')
-    addLog(`你开垦了一块荒地。(-${cost}体力)`)
+    if (cost > 0) showFloat(`-${cost}体力`, 'danger')
+    addLog(`你开垦了一块荒地。${getFarmingStaminaCostLabel(cost)}`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.till)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) {
@@ -117,35 +134,34 @@ export const handlePlotClick = (plotId: number) => {
       addLog(`没有${cropDef.name}种子了。`)
       return
     }
-    const plantQuality = selectedSeed.value.quality
+    const plantQuality =
+      selectedSeed.value.quality ?? QUALITY_ORDER.find(quality => inventoryStore.getItemCount(cropDef.seedId, quality) > 0) ?? 'normal'
     const cropFarmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const cropRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const cropRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - cropFarmingBuff) *
-          (1 - cropRingFarmReduction) *
-          (1 - cropRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - cropFarmingBuff,
+      1 - cropRingFarmReduction,
+      1 - cropRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法播种。')
       return
     }
-    inventoryStore.removeItem(cropDef.seedId, 1, plantQuality)
-    if (!farmStore.plantCrop(plotId, cropDef.id)) {
-      inventoryStore.addItem(cropDef.seedId, 1, plantQuality ?? 'normal')
+    if (!inventoryStore.removeItem(cropDef.seedId, 1, plantQuality)) {
+      addLog(`没有可用的${QUALITY_NAMES[plantQuality ?? 'normal']}${cropDef.name}种子了。`)
+      return
+    }
+    if (!farmStore.plantCrop(plotId, cropDef.id, plantQuality)) {
+      inventoryStore.addItem(cropDef.seedId, 1, plantQuality)
       addLog('无法在此种植。')
       return
     }
     goalStore.recordWeeklyActivityCounter('farm_seeds_planted', 1)
     sfxPlant()
-    showFloat(`-${cost}体力`, 'danger')
-    addLog(`种下了${cropDef.name}。(-${cost}体力)`)
+    if (cost > 0) showFloat(`-${cost}体力`, 'danger')
+    addLog(`种下了${cropDef.name}。${getFarmingStaminaCostLabel(cost)}`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) {
@@ -166,17 +182,12 @@ export const handlePlotClick = (plotId: number) => {
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const waterRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const waterRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-    const cost = Math.max(
-      1,
-      Math.floor(
-        baseCost *
-          inventoryStore.getToolStaminaMultiplier('wateringCan') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - waterRingFarmReduction) *
-          (1 - waterRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(baseCost, [
+      inventoryStore.getToolStaminaMultiplier('wateringCan'),
+      1 - farmingBuff,
+      1 - waterRingFarmReduction,
+      1 - waterRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法浇水。')
       return
@@ -185,8 +196,8 @@ export const handlePlotClick = (plotId: number) => {
     goalStore.recordWeeklyActivityCounter('farm_watered', 1)
     skillStore.addExp('farming', 2)
     sfxWater()
-    showFloat(`-${cost}体力`, 'water')
-    addLog(`浇水完成。(-${cost}体力)`)
+    if (cost > 0) showFloat(`-${cost}体力`, 'water')
+    addLog(`浇水完成。${getFarmingStaminaCostLabel(cost)}`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.water)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) {
@@ -206,15 +217,19 @@ export const handlePlotClick = (plotId: number) => {
     // 在收获清除前读取肥料信息
     const plotFertilizer = plot.fertilizer
     const fertDef = plotFertilizer ? getFertilizerById(plotFertilizer) : null
+    const seedQualityBonus = getSeedQualityBonus(plot.seedQuality)
     const ringCropQualityBonus = inventoryStore.getRingEffectValue('crop_quality_bonus')
     const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
-    let quality = skillStore.rollCropQualityWithBonus((fertDef?.qualityBonus ?? 0) + ringCropQualityBonus, allSkillsBuff)
+    let quality = skillStore.rollCropQualityWithBonus(
+      (fertDef?.qualityBonus ?? 0) + seedQualityBonus + ringCropQualityBonus,
+      allSkillsBuff
+    )
     quality = applyCropBlessing(quality)
     // 精耕细作天赋：20% 概率双倍收获
     const farmingSkill = skillStore.getSkill('farming')
     const intensiveDouble = farmingSkill.perk10 === 'intensive' && Math.random() < 0.2
     const grandmasterDouble = !intensiveDouble && (farmingSkill.perk15 === 'grandmaster_farmer' || farmingSkill.perk15 === 'estate_owner') && Math.random() < 0.2
-    const deityDouble = !intensiveDouble && !grandmasterDouble && (farmingSkill.perk20 === 'deity_of_harvest' || farmingSkill.perk20 === 'land_god') && Math.random() < 0.5
+    const deityDouble = !intensiveDouble && !grandmasterDouble && farmingSkill.perk20 === 'deity_of_harvest' && Math.random() < 0.5
     // 育种产量加成：yield/100 × 30% 概率双收
     const yieldDouble = genetics && !intensiveDouble && !grandmasterDouble && !deityDouble && Math.random() < (genetics.yield / 100) * 0.3
     const harvestQty = intensiveDouble || grandmasterDouble || deityDouble || yieldDouble ? 2 : 1
@@ -385,18 +400,13 @@ export const handleBatchWater = () => {
     const crop = getCropById(plot.cropId!)
     const baseCost = crop?.deepWatering ? 3 : 2
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
-    const cost = Math.max(
-      1,
-      Math.floor(
-        baseCost *
-          inventoryStore.getToolStaminaMultiplier('wateringCan') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - batchRingFarmReduction) *
-          (1 - batchRingGlobalReduction) *
-          (1 - batchIrrigationReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(baseCost, [
+      inventoryStore.getToolStaminaMultiplier('wateringCan'),
+      1 - farmingBuff,
+      1 - batchRingFarmReduction,
+      1 - batchRingGlobalReduction,
+      1 - batchIrrigationReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.waterPlot(plot.id)
     skillStore.addExp('farming', 2)
@@ -422,7 +432,6 @@ export const handleBatchTill = () => {
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
 
   if (!inventoryStore.isToolAvailable('hoe')) {
@@ -447,17 +456,12 @@ export const handleBatchTill = () => {
   const tillRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
   for (const plot of targets) {
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - tillRingFarmReduction) *
-          (1 - tillRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - farmingBuff,
+      1 - tillRingFarmReduction,
+      1 - tillRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.tillPlot(plot.id)
     if (Math.random() < 0.03) {
@@ -541,14 +545,18 @@ export const handleBatchHarvest = () => {
     const plotFertilizer = plot.fertilizer
     const cropDef = getCropById(cropId)
     const fertDef = plotFertilizer ? getFertilizerById(plotFertilizer) : null
+    const seedQualityBonus = getSeedQualityBonus(plot.seedQuality)
     const batchRingCropQuality = inventoryStore.getRingEffectValue('crop_quality_bonus')
     const batchAllSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
-    let quality = skillStore.rollCropQualityWithBonus((fertDef?.qualityBonus ?? 0) + batchRingCropQuality, batchAllSkillsBuff)
+    let quality = skillStore.rollCropQualityWithBonus(
+      (fertDef?.qualityBonus ?? 0) + seedQualityBonus + batchRingCropQuality,
+      batchAllSkillsBuff
+    )
     quality = applyCropBlessing(quality)
     const batchFarmingSkill = skillStore.getSkill('farming')
     const intensiveDouble = batchFarmingSkill.perk10 === 'intensive' && Math.random() < 0.2
     const grandmasterDouble = !intensiveDouble && (batchFarmingSkill.perk15 === 'grandmaster_farmer' || batchFarmingSkill.perk15 === 'estate_owner') && Math.random() < 0.2
-    const deityDouble = !intensiveDouble && !grandmasterDouble && (batchFarmingSkill.perk20 === 'deity_of_harvest' || batchFarmingSkill.perk20 === 'land_god') && Math.random() < 0.5
+    const deityDouble = !intensiveDouble && !grandmasterDouble && batchFarmingSkill.perk20 === 'deity_of_harvest' && Math.random() < 0.5
     const yieldDouble = genetics && !intensiveDouble && !grandmasterDouble && !deityDouble && Math.random() < (genetics.yield / 100) * 0.3
     const harvestQty = intensiveDouble || grandmasterDouble || deityDouble || yieldDouble ? 2 : 1
     if (!inventoryStore.canAddItem(cropId, harvestQty, quality)) {
@@ -600,12 +608,11 @@ export const handleBatchHarvest = () => {
 }
 
 /** 一键种植（在所有空耕地上种植指定作物） */
-export const handleBatchPlant = (cropId: string) => {
+export const handleBatchPlant = (cropId: string, seedQuality?: Quality) => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
   const goalStore = useGoalStore()
 
@@ -633,26 +640,22 @@ export const handleBatchPlant = (cropId: string) => {
   const plantRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const plantRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
   for (const plot of targets) {
-    if (!inventoryStore.hasItem(cropDef.seedId)) break
+    if (inventoryStore.getItemCount(cropDef.seedId, seedQuality) <= 0) break
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - plantRingFarmReduction) *
-          (1 - plantRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - farmingBuff,
+      1 - plantRingFarmReduction,
+      1 - plantRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
-    if (!inventoryStore.removeItem(cropDef.seedId)) break
-    if (farmStore.plantCrop(plot.id, cropDef.id)) {
+    const currentSeedQuality = seedQuality ?? QUALITY_ORDER.find(quality => inventoryStore.getItemCount(cropDef.seedId, quality) > 0) ?? 'normal'
+    if (!inventoryStore.removeItem(cropDef.seedId, 1, currentSeedQuality)) break
+    if (farmStore.plantCrop(plot.id, cropDef.id, currentSeedQuality)) {
       planted++
     } else {
       playerStore.restoreStamina(cost)
-      inventoryStore.addItem(cropDef.seedId)
+      inventoryStore.addItem(cropDef.seedId, 1, currentSeedQuality)
       break
     }
   }
@@ -720,7 +723,6 @@ export const handleRemoveCrop = (plotId: number) => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
 
@@ -740,12 +742,7 @@ export const handleRemoveCrop = (plotId: number) => {
   const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
   const ringFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-  const cost = Math.max(
-    1,
-    Math.floor(
-      2 * (1 - skillStore.getStaminaReduction('farming')) * (1 - farmingBuff) * (1 - ringFarmReduction) * (1 - ringGlobalReduction)
-    )
-  )
+  const cost = getFarmingActionStaminaCost(2, [1 - farmingBuff, 1 - ringFarmReduction, 1 - ringGlobalReduction])
   if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
     addLog('体力不足，无法铲除。')
     return
@@ -767,7 +764,6 @@ export const handleCurePest = (plotId: number) => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
 
@@ -786,12 +782,7 @@ export const handleCurePest = (plotId: number) => {
   const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
   const ringFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-  const cost = Math.max(
-    1,
-    Math.floor(
-      2 * (1 - skillStore.getStaminaReduction('farming')) * (1 - farmingBuff) * (1 - ringFarmReduction) * (1 - ringGlobalReduction)
-    )
-  )
+  const cost = getFarmingActionStaminaCost(2, [1 - farmingBuff, 1 - ringFarmReduction, 1 - ringGlobalReduction])
   if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
     addLog('体力不足，无法除虫。')
     return
@@ -811,7 +802,6 @@ export const handleBatchCurePest = () => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
 
@@ -832,16 +822,7 @@ export const handleBatchCurePest = () => {
   const batchRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
   for (const plot of targets) {
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
-    const cost = Math.max(
-      1,
-      Math.floor(
-        2 *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - batchRingFarmReduction) *
-          (1 - batchRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(2, [1 - farmingBuff, 1 - batchRingFarmReduction, 1 - batchRingGlobalReduction])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.curePest(plot.id)
     cured++
@@ -863,9 +844,9 @@ export const handleClearWeed = (plotId: number) => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
+  const achievementStore = useAchievementStore()
 
   if (gameStore.isPastBedtime) {
     addLog('已经凌晨2点了，你必须休息。')
@@ -882,12 +863,7 @@ export const handleClearWeed = (plotId: number) => {
   const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
   const ringFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-  const cost = Math.max(
-    1,
-    Math.floor(
-      2 * (1 - skillStore.getStaminaReduction('farming')) * (1 - farmingBuff) * (1 - ringFarmReduction) * (1 - ringGlobalReduction)
-    )
-  )
+  const cost = getFarmingActionStaminaCost(2, [1 - farmingBuff, 1 - ringFarmReduction, 1 - ringGlobalReduction])
   if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
     addLog('体力不足，无法除草。')
     return
@@ -895,7 +871,15 @@ export const handleClearWeed = (plotId: number) => {
 
   if (farmStore.clearWeed(plotId)) {
     sfxDig()
-    addLog('清除了杂草。')
+    let haymakerMessage = ''
+    const weapon = inventoryStore.getEquippedWeapon()
+    const enchant = weapon.enchantmentId ? getEnchantmentById(weapon.enchantmentId) : null
+    if (enchant?.special === 'haymaker' && Math.random() < HAYMAKER_HAY_CHANCE && inventoryStore.canAddItem('hay', 1)) {
+      inventoryStore.addItemExact('hay', 1)
+      achievementStore.discoverItem('hay')
+      haymakerMessage = ' 割草附魔获得干草×1。'
+    }
+    addLog(`清除了杂草。${haymakerMessage}`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.till)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) handleEndDay()
@@ -907,9 +891,9 @@ export const handleBatchClearWeed = () => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
-  const skillStore = useSkillStore()
   const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
+  const achievementStore = useAchievementStore()
 
   if (gameStore.isPastBedtime) {
     addLog('已经凌晨2点了，你必须休息。')
@@ -924,28 +908,28 @@ export const handleBatchClearWeed = () => {
   }
 
   let cleared = 0
+  let haymakerHay = 0
+  const weapon = inventoryStore.getEquippedWeapon()
+  const enchant = weapon.enchantmentId ? getEnchantmentById(weapon.enchantmentId) : null
+  const haymakerActive = enchant?.special === 'haymaker'
   const batchRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const batchRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
   for (const plot of targets) {
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
-    const cost = Math.max(
-      1,
-      Math.floor(
-        2 *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - batchRingFarmReduction) *
-          (1 - batchRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(2, [1 - farmingBuff, 1 - batchRingFarmReduction, 1 - batchRingGlobalReduction])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.clearWeed(plot.id)
+    if (haymakerActive && Math.random() < HAYMAKER_HAY_CHANCE && inventoryStore.addItemExact('hay', 1)) {
+      achievementStore.discoverItem('hay')
+      haymakerHay++
+    }
     cleared++
   }
 
   if (cleared > 0) {
     sfxDig()
-    addLog(`一键除草了${cleared}块地。`)
+    const haymakerSuffix = haymakerHay > 0 ? ` 割草附魔获得干草×${haymakerHay}。` : ''
+    addLog(`一键除草了${cleared}块地。${haymakerSuffix}`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.batchTill)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) handleEndDay()

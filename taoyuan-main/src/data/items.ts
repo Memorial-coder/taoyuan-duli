@@ -1952,7 +1952,7 @@ const INCENSE_ITEMS: ItemDef[] = [
   { id: 'rustic_incense', name: '田园合香', category: 'gift', description: '制香坊把香草花作调成的合香，适合拜访、节会和静心礼。', sellPrice: 850, edible: false },
   { id: 'refined_incense', name: '锦草合香', category: 'gift', description: '优质香草花作调成的进阶合香，适合精致拜访和节会供礼。', sellPrice: 1800, edible: false },
   { id: 'spirit_incense', name: '灵草合香', category: 'gift', description: '灵性香草花作调成的清雅合香，可作高阶赠礼和稀有委托材料。', sellPrice: 6200, edible: false },
-  { id: 'celestial_incense', name: '天成合香', category: 'gift', description: '顶阶香草花作调成的珍贵合香，适合压轴供礼和高价值委托。', sellPrice: 13000, edible: false }
+  { id: 'celestial_incense', name: '天成合香', category: 'gift', description: '顶阶香草花作调成的珍贵合香，适合压轴供礼和高价值委托。', sellPrice: 15000, edible: false }
 ]
 
 /** 武器图鉴物品 */

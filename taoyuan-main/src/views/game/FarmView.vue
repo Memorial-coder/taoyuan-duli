@@ -467,7 +467,7 @@
                 v-for="seed in plantableSeeds"
                 :key="seed.cropId + ':' + seed.quality"
                 class="btn text-xs justify-between shrink-0 farm-seed-option"
-                @click="doBatchPlant(seed.cropId)"
+                @click="doBatchPlant(seed.cropId, seed.quality)"
               >
                 <span class="farm-seed-option__main">
                   <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
@@ -1145,14 +1145,25 @@
           <div class="farm-action-list flex flex-col space-y-1 max-h-60 overflow-y-auto overflow-x-hidden pr-1">
             <button
               v-for="seed in allSeeds"
-              :key="seed.cropId"
+              :key="seed.cropId + ':' + seed.quality"
               class="btn text-xs justify-between shrink-0 farm-seed-option"
-              @click="doGhBatchPlant(seed.cropId)"
+              @click="doGhBatchPlant(seed.cropId, seed.quality)"
             >
               <span class="farm-seed-option__main">
-                <ItemIcon :item="getSeedItem(seed.seedId)" size="xs" :show-badge="false" />
+                <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
                 <span class="farm-seed-option__label">
                   {{ seed.name }}
+                  <span
+                    v-if="seed.quality !== 'normal'"
+                    :class="{
+                      'text-quality-fine': seed.quality === 'fine',
+                      'text-quality-excellent': seed.quality === 'excellent',
+                      'text-quality-supreme': seed.quality === 'supreme'
+                    }"
+                    class="ml-0.5"
+                  >
+                    [{{ QUALITY_NAMES[seed.quality] }}]
+                  </span>
                   <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
                 </span>
               </span>
@@ -1283,13 +1294,24 @@
               <div class="flex flex-wrap gap-1">
                 <button
                   v-for="seed in allSeeds"
-                  :key="seed.cropId"
+                  :key="seed.cropId + ':' + seed.quality"
                   class="btn text-xs farm-seed-chip"
-                  @click="doGhPlant(seed.cropId)"
+                  @click="doGhPlant(seed.cropId, seed.quality)"
                 >
-                  <ItemIcon :item="getSeedItem(seed.seedId)" size="xs" :show-badge="false" />
+                  <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
                   <span class="farm-seed-chip__label">
                     {{ seed.name }}
+                    <span
+                      v-if="seed.quality !== 'normal'"
+                      :class="{
+                        'text-quality-fine': seed.quality === 'fine',
+                        'text-quality-excellent': seed.quality === 'excellent',
+                        'text-quality-supreme': seed.quality === 'supreme'
+                      }"
+                      class="ml-0.5"
+                    >
+                      [{{ QUALITY_NAMES[seed.quality] }}]
+                    </span>
                     <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
                   </span>
                   <span class="text-muted">(×{{ seed.count }})</span>
@@ -1441,6 +1463,7 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import { harvestFarmPlotWithRewards, harvestGreenhousePlotWithRewards } from '@/composables/useFarmHarvest'
   import { getShopById, isShopAvailable, getShopClosedReason } from '@/data/shops'
+  import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
   import {
     handlePlotClick,
     useFarmActions,
@@ -1454,6 +1477,8 @@
     handleBatchCurePest,
     handleClearWeed,
     handleBatchClearWeed,
+    getFarmingActionStaminaCost,
+    getFarmingStaminaCostLabel,
     QUALITY_NAMES
   } from '@/composables/useFarmActions'
   import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality, ItemCategory, ItemDef } from '@/types'
@@ -1741,11 +1766,11 @@
 
   const plotCropGrowthDays = computed(() => {
     if (!activePlot.value?.cropId) return '?'
-    const baseDays = getCropById(activePlot.value.cropId)?.growthDays
-    if (!baseDays) return '?'
+    const crop = getCropById(activePlot.value.cropId)
+    if (!crop) return '?'
     const fertDef = activePlot.value.fertilizer ? getFertilizerById(activePlot.value.fertilizer) : null
     const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-    return speedup > 0 ? Math.max(1, Math.floor(baseDays * (1 - speedup))) : baseDays
+    return getPlotEffectiveGrowthDays(activePlot.value, crop, speedup)
   })
 
   const plotCropRegrowth = computed(() => {
@@ -1760,11 +1785,11 @@
 
   const ghPlotCropGrowthDays = computed(() => {
     if (!activeGhPlot.value?.cropId) return '?'
-    const baseDays = getCropById(activeGhPlot.value.cropId)?.growthDays
-    if (!baseDays) return '?'
+    const crop = getCropById(activeGhPlot.value.cropId)
+    if (!crop) return '?'
     const fertDef = activeGhPlot.value.fertilizer ? getFertilizerById(activeGhPlot.value.fertilizer) : null
     const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-    return speedup > 0 ? Math.max(1, Math.floor(baseDays * (1 - speedup))) : baseDays
+    return getPlotEffectiveGrowthDays(activeGhPlot.value, crop, speedup)
   })
 
   const ghPlotCropRegrowth = computed(() => {
@@ -1944,7 +1969,7 @@
   type PlantSeasonRiskAction =
     | { type: 'single'; plotId: number; cropId: string; quality?: Quality }
     | { type: 'singleBreeding'; plotId: number; seedId: string }
-    | { type: 'batch'; cropId: string }
+    | { type: 'batch'; cropId: string; quality?: Quality }
     | { type: 'batchBreeding'; cropId: string }
 
   type PlantSeasonRiskConfirm = {
@@ -1970,7 +1995,7 @@
     if (!crop) return null
     const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
     const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-    return speedup > 0 ? Math.max(1, Math.floor(crop.growthDays * (1 - speedup))) : crop.growthDays
+    return getPlotEffectiveGrowthDays(plot, crop, speedup)
   }
 
   const requestPlantSeasonRiskConfirm = (
@@ -2018,7 +2043,7 @@
         activePlotId.value = pending.action.plotId
         doPlantGeneticSeed(pending.action.seedId)
       } else if (pending.action.type === 'batch') {
-        doBatchPlant(pending.action.cropId)
+        doBatchPlant(pending.action.cropId, pending.action.quality)
       } else {
         doBatchPlantBreeding(pending.action.cropId)
       }
@@ -2092,13 +2117,13 @@
     return Object.values(groups)
   })
 
-  const doBatchPlant = (cropId: string) => {
+  const doBatchPlant = (cropId: string, quality?: Quality) => {
     const crop = getCropById(cropId)
     const targets = farmStore.plots
       .filter(isPlantableTilledPlot)
-      .slice(0, crop ? inventoryStore.getItemCount(crop.seedId) : 0)
-    if (requestPlantSeasonRiskConfirm(cropId, targets, { type: 'batch', cropId })) return
-    handleBatchPlant(cropId)
+      .slice(0, crop ? inventoryStore.getItemCount(crop.seedId, quality) : 0)
+    if (requestPlantSeasonRiskConfirm(cropId, targets, { type: 'batch', cropId, quality })) return
+    handleBatchPlant(cropId, quality)
     showBatchPlant.value = false
   }
 
@@ -2112,7 +2137,6 @@
       addLog('锄头正在升级中，无法播种。')
       return
     }
-    const skillStore = useSkillStore()
     const cookingStore = useCookingStore()
     const targets = farmStore.plots.filter(isPlantableTilledPlot)
     if (targets.length === 0) {
@@ -2123,31 +2147,28 @@
     const seeds = plantableBreedingSeeds.value.filter(s => s.genetics.cropId === cropId)
     if (requestPlantSeasonRiskConfirm(cropId, targets.slice(0, seeds.length), { type: 'batchBreeding', cropId })) return
     let planted = 0
+    let staminaSpent = 0
     const plantRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const plantRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
     for (const plot of targets) {
       if (seeds.length === 0) break
       const seed = seeds.shift()!
       const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
-      const cost = Math.max(
-        1,
-        Math.floor(
-          3 *
-            inventoryStore.getToolStaminaMultiplier('hoe') *
-            (1 - skillStore.getStaminaReduction('farming')) *
-            (1 - farmingBuff) *
-            (1 - plantRingFarmReduction) *
-            (1 - plantRingGlobalReduction)
-        )
-      )
+      const cost = getFarmingActionStaminaCost(3, [
+        inventoryStore.getToolStaminaMultiplier('hoe'),
+        1 - farmingBuff,
+        1 - plantRingFarmReduction,
+        1 - plantRingGlobalReduction
+      ])
       if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
       if (farmStore.plantGeneticSeed(plot.id, seed.genetics)) {
         breedingStore.removeFromBox(seed.genetics.id)
         planted++
+        staminaSpent += cost
       }
     }
     if (planted > 0) {
-      addLog(`一键种植了${planted}株育种种子（${getCropName(cropId)}）。(-${planted}体力)`)
+      addLog(`一键种植了${planted}株育种种子（${getCropName(cropId)}）。${getFarmingStaminaCostLabel(staminaSpent)}`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant * Math.min(planted, 3))
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
@@ -2211,7 +2232,7 @@
         const crop = getCropById(plot.cropId!)
         const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
         const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-        const effectiveDays = crop ? (speedup > 0 ? Math.max(1, Math.floor(crop.growthDays * (1 - speedup))) : crop.growthDays) : 1
+        const effectiveDays = crop ? getPlotEffectiveGrowthDays(plot, crop, speedup) : 1
         const progress = crop ? Math.floor((plot.growthDays / effectiveDays) * 100) : 0
         return {
           icon: plot.watered ? Droplets : Leaf,
@@ -2237,7 +2258,7 @@
       const crop = getCropById(plot.cropId!)
       const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
       const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-      const effectiveDays = crop ? (speedup > 0 ? Math.max(1, Math.floor(crop.growthDays * (1 - speedup))) : crop.growthDays) : '?'
+      const effectiveDays = crop ? getPlotEffectiveGrowthDays(plot, crop, speedup) : '?'
       tip = `${crop?.name ?? ''} ${plot.growthDays}/${effectiveDays}天 ${plot.watered ? '已浇水' : '需浇水'}`
     }
     if (hasSprinkler(plot.id)) tip += ' [洒水器]'
@@ -2286,29 +2307,23 @@
     const plotId = activePlotId.value
     const plot = farmStore.plots.find(p => p.id === plotId)
     if (plot && requestPlantSeasonRiskConfirm(seed.genetics.cropId, [plot], { type: 'singleBreeding', plotId, seedId })) return
-    const skillStore = useSkillStore()
     const cookingStore = useCookingStore()
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const cropRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const cropRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - cropRingFarmReduction) *
-          (1 - cropRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - farmingBuff,
+      1 - cropRingFarmReduction,
+      1 - cropRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法播种。')
       return
     }
     if (farmStore.plantGeneticSeed(activePlotId.value, seed.genetics)) {
       breedingStore.removeFromBox(seedId)
-      addLog(`种下了育种种子：${getCropName(seed.genetics.cropId)} G${seed.genetics.generation}。(-${cost}体力)`)
+      addLog(`种下了育种种子：${getCropName(seed.genetics.cropId)} G${seed.genetics.generation}。${getFarmingStaminaCostLabel(cost)}`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant)
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
@@ -2659,13 +2674,16 @@
   const nextGhUpgrade = computed(() => GREENHOUSE_UPGRADES[farmStore.greenhouseLevel] ?? null)
 
   const allSeeds = computed(() => {
-    return CROPS.filter(crop => inventoryStore.hasItem(crop.seedId)).map(crop => ({
-      cropId: crop.id,
-      seedId: crop.seedId,
-      name: crop.name,
-      count: inventoryStore.getItemCount(crop.seedId),
-      regrowth: crop.regrowth ?? false
-    }))
+    return CROPS.flatMap(crop =>
+      QUALITY_ORDER.map(quality => ({
+        cropId: crop.id,
+        seedId: crop.seedId,
+        name: crop.name,
+        quality,
+        count: inventoryStore.getItemCount(crop.seedId, quality),
+        regrowth: crop.regrowth ?? false
+      })).filter(seed => seed.count > 0)
+    )
   })
 
   const ghBatchBreedingSeedGroups = computed(() => {
@@ -2764,7 +2782,7 @@
     showGhBatchFertilize.value = false
   }
 
-  const doGhPlant = (cropId: string) => {
+  const doGhPlant = (cropId: string, seedQuality: Quality = 'normal') => {
     if (activeGhPlotId.value === null) return
     if (gameStore.isPastBedtime) {
       addLog('已经凌晨2点了，你必须休息。')
@@ -2777,33 +2795,27 @@
     }
     const crop = getCropById(cropId)
     if (!crop) return
-    if (!inventoryStore.removeItem(crop.seedId)) {
+    if (!inventoryStore.removeItem(crop.seedId, 1, seedQuality)) {
       addLog('背包中没有该种子了。')
       return
     }
-    const skillStore = useSkillStore()
     const cookingStore = useCookingStore()
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const cropRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const cropRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - cropRingFarmReduction) *
-          (1 - cropRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - farmingBuff,
+      1 - cropRingFarmReduction,
+      1 - cropRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
-      inventoryStore.addItem(crop.seedId)
+      inventoryStore.addItem(crop.seedId, 1, seedQuality)
       addLog('体力不足，无法播种。')
       return
     }
-    if (farmStore.greenhousePlantCrop(activeGhPlotId.value, cropId)) {
-      addLog(`在温室中播种了${crop.name}。(-${cost}体力)`)
+    if (farmStore.greenhousePlantCrop(activeGhPlotId.value, cropId, seedQuality)) {
+      addLog(`在温室中播种了${crop.name}。${getFarmingStaminaCostLabel(cost)}`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant)
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
@@ -2813,7 +2825,7 @@
       }
     } else {
       playerStore.restoreStamina(cost)
-      inventoryStore.addItem(crop.seedId)
+      inventoryStore.addItem(crop.seedId, 1, seedQuality)
     }
     activeGhPlotId.value = null
   }
@@ -2831,29 +2843,23 @@
     }
     const seed = breedingStore.breedingBox.find(s => s.genetics.id === seedId)
     if (!seed) return
-    const skillStore = useSkillStore()
     const cookingStore = useCookingStore()
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const cropRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const cropRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
-    const cost = Math.max(
-      1,
-      Math.floor(
-        3 *
-          inventoryStore.getToolStaminaMultiplier('hoe') *
-          (1 - skillStore.getStaminaReduction('farming')) *
-          (1 - farmingBuff) *
-          (1 - cropRingFarmReduction) *
-          (1 - cropRingGlobalReduction)
-      )
-    )
+    const cost = getFarmingActionStaminaCost(3, [
+      inventoryStore.getToolStaminaMultiplier('hoe'),
+      1 - farmingBuff,
+      1 - cropRingFarmReduction,
+      1 - cropRingGlobalReduction
+    ])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) {
       addLog('体力不足，无法播种。')
       return
     }
     if (farmStore.greenhousePlantGeneticSeed(activeGhPlotId.value, seed.genetics)) {
       breedingStore.removeFromBox(seedId)
-      addLog(`在温室中播种了育种种子：${getCropName(seed.genetics.cropId)} G${seed.genetics.generation}。(-${cost}体力)`)
+      addLog(`在温室中播种了育种种子：${getCropName(seed.genetics.cropId)} G${seed.genetics.generation}。${getFarmingStaminaCostLabel(cost)}`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant)
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
@@ -2946,7 +2952,7 @@
     }
   }
 
-  const doGhBatchPlant = (cropId: string) => {
+  const doGhBatchPlant = (cropId: string, seedQuality: Quality = 'normal') => {
     if (gameStore.isPastBedtime) {
       addLog('已经凌晨2点了，你必须休息。')
       handleEndDay()
@@ -2961,38 +2967,34 @@
     const targets = farmStore.greenhousePlots.filter(p => p.state === 'tilled')
     if (targets.length === 0) return
     let planted = 0
-    const skillStore = useSkillStore()
+    let staminaSpent = 0
     const cookingStore = useCookingStore()
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const plantRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
     const plantRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
     for (const plot of targets) {
-      if (!inventoryStore.hasItem(crop.seedId)) break
-      const cost = Math.max(
-        1,
-        Math.floor(
-          3 *
-            inventoryStore.getToolStaminaMultiplier('hoe') *
-            (1 - skillStore.getStaminaReduction('farming')) *
-            (1 - farmingBuff) *
-            (1 - plantRingFarmReduction) *
-            (1 - plantRingGlobalReduction)
-        )
-      )
+      if (inventoryStore.getItemCount(crop.seedId, seedQuality) <= 0) break
+      const cost = getFarmingActionStaminaCost(3, [
+        inventoryStore.getToolStaminaMultiplier('hoe'),
+        1 - farmingBuff,
+        1 - plantRingFarmReduction,
+        1 - plantRingGlobalReduction
+      ])
       if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
-      if (!inventoryStore.removeItem(crop.seedId)) break
-      if (farmStore.greenhousePlantCrop(plot.id, cropId)) {
+      if (!inventoryStore.removeItem(crop.seedId, 1, seedQuality)) break
+      if (farmStore.greenhousePlantCrop(plot.id, cropId, seedQuality)) {
         planted++
+        staminaSpent += cost
       } else {
         playerStore.restoreStamina(cost)
-        inventoryStore.addItem(crop.seedId)
+        inventoryStore.addItem(crop.seedId, 1, seedQuality)
         break
       }
     }
     if (planted > 0) {
       sfxPlant()
       showFloat(`温室种植 ${crop.name} ×${planted}`, 'success')
-      addLog(`在温室一键种植了${planted}株${crop.name}。`)
+      addLog(`在温室一键种植了${planted}株${crop.name}。${getFarmingStaminaCostLabel(staminaSpent)}`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant * Math.min(planted, 3))
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {
@@ -3021,7 +3023,7 @@
 
     const seeds = breedingStore.breedingBox.filter(s => s.genetics.cropId === cropId)
     let planted = 0
-    const skillStore = useSkillStore()
+    let staminaSpent = 0
     const cookingStore = useCookingStore()
     const farmingBuff = cookingStore.activeBuff?.type === 'farming' ? cookingStore.activeBuff.value / 100 : 0
     const plantRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
@@ -3030,28 +3032,24 @@
     for (const plot of targets) {
       if (seeds.length === 0) break
       const seed = seeds.shift()!
-      const cost = Math.max(
-        1,
-        Math.floor(
-          3 *
-            inventoryStore.getToolStaminaMultiplier('hoe') *
-            (1 - skillStore.getStaminaReduction('farming')) *
-            (1 - farmingBuff) *
-            (1 - plantRingFarmReduction) *
-            (1 - plantRingGlobalReduction)
-        )
-      )
+      const cost = getFarmingActionStaminaCost(3, [
+        inventoryStore.getToolStaminaMultiplier('hoe'),
+        1 - farmingBuff,
+        1 - plantRingFarmReduction,
+        1 - plantRingGlobalReduction
+      ])
       if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
       if (farmStore.greenhousePlantGeneticSeed(plot.id, seed.genetics)) {
         breedingStore.removeFromBox(seed.genetics.id)
         planted++
+        staminaSpent += cost
       }
     }
 
     if (planted > 0) {
       sfxPlant()
       showFloat(`温室育种种植 ${getCropName(cropId)} ×${planted}`, 'success')
-      addLog(`在温室一键种植了${planted}株育种种子（${getCropName(cropId)}）。`)
+      addLog(`在温室一键种植了${planted}株育种种子（${getCropName(cropId)}）。${getFarmingStaminaCostLabel(staminaSpent)}`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant * Math.min(planted, 3))
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) {

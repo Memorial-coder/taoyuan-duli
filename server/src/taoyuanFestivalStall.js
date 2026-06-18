@@ -807,6 +807,12 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
   if (!availability.open) {
     canExchange = false
     disabledReason = availability.reason
+  } else if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
+    canExchange = false
+    disabledReason = '本周该摊位已达到个人购买上限'
+  } else if (offer.station_stock > 0 && remainingGlobal <= 0) {
+    canExchange = false
+    disabledReason = '这项节庆商品本周已经售罄'
   } else {
     try {
       marketGovernance.ensureNotSanctioned(username, '节庆摊位')
@@ -829,12 +835,6 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
   if (canExchange && !saveData) {
     canExchange = false
     disabledReason = saveMessage || '当前没有可用的服务端存档'
-  } else if (canExchange && claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
-    canExchange = false
-    disabledReason = '本周该摊位已达到个人购买上限'
-  } else if (canExchange && offer.station_stock > 0 && remainingGlobal <= 0) {
-    canExchange = false
-    disabledReason = '这项节庆商品本周已经售罄'
   } else if (canExchange) {
     const validation = validateOfferAgainstSave(saveData, offer)
     canExchange = validation.can_exchange
@@ -945,6 +945,19 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     }
   }
   throwTransactionReceiptReplay(existingReceipt)
+
+  const userUsage = weekState.user_usage[username] && typeof weekState.user_usage[username] === 'object'
+    ? weekState.user_usage[username]
+    : {}
+  const claimedByUser = countUserOfferClaims(weekState, username, offer.id)
+  const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)
+  if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
+    throw createError('本周该摊位已达到个人购买上限')
+  }
+  if (offer.station_stock > 0 && claimedGlobal >= offer.station_stock) {
+    throw createError('这项节庆商品本周已经售罄')
+  }
+
   const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
   marketGovernance.ensureNotSanctioned(username, '节庆摊位')
   marketGovernance.ensureSourceEnabled('festival_stall', { category: boothCategory })
@@ -958,18 +971,6 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     source_label: '节庆摊位',
     money_volume: clampPositiveInt(offer.price_money, 0),
   })
-
-  const userUsage = weekState.user_usage[username] && typeof weekState.user_usage[username] === 'object'
-    ? weekState.user_usage[username]
-    : {}
-  const claimedByUser = countUserOfferClaims(weekState, username, offer.id)
-  const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)
-  if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
-    throw createError('本周该摊位已达到个人购买上限')
-  }
-  if (offer.station_stock > 0 && claimedGlobal >= offer.station_stock) {
-    throw createError('这项节庆商品本周已经售罄')
-  }
 
   if (Math.max(0, Math.floor(Number(context.data.player.money) || 0)) < offer.price_money) {
     throw createError('铜钱不足，无法购买节庆摊位商品')

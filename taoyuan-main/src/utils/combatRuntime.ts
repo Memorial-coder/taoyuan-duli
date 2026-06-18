@@ -3,6 +3,7 @@ export interface CombatAttackProfile {
   critRate: number
   critMultiplier?: number
   attackMultiplier?: number
+  defenseIgnoreRate?: number
   extraStrikeChance?: number
   extraStrikeMultiplier?: number
   stunChance?: number
@@ -96,9 +97,10 @@ export const rollAttackOutcome = (
   const didCrit = rng() < clampChance(attacker.critRate)
   const critMultiplier = Math.max(1, toFiniteNumber(attacker.critMultiplier, 1.5))
   const attackMultiplier = Math.max(0, toFiniteNumber(attacker.attackMultiplier, 1))
+  const effectiveDefense = Math.floor(targetDefense * (1 - clampChance(attacker.defenseIgnoreRate)))
   const damage = calculateAttackDamage({
     attack: attacker.attack,
-    defense: targetDefense,
+    defense: effectiveDefense,
     modifiers: [attackMultiplier, didCrit ? critMultiplier : 1]
   })
   const didExtraStrike = rng() < clampChance(attacker.extraStrikeChance)
@@ -118,14 +120,15 @@ export const getExpectedAttackDamage = (attacker: CombatAttackProfile, targetDef
   const attackMultiplier = Math.max(0, toFiniteNumber(attacker.attackMultiplier, 1))
   const critRate = clampChance(attacker.critRate)
   const critMultiplier = Math.max(1, toFiniteNumber(attacker.critMultiplier, 1.5))
+  const effectiveDefense = Math.floor(targetDefense * (1 - clampChance(attacker.defenseIgnoreRate)))
   const baseDamage = calculateAttackDamage({
     attack: attacker.attack,
-    defense: targetDefense,
+    defense: effectiveDefense,
     modifiers: [attackMultiplier]
   })
   const critDamage = calculateAttackDamage({
     attack: attacker.attack,
-    defense: targetDefense,
+    defense: effectiveDefense,
     modifiers: [attackMultiplier, critMultiplier]
   })
   const averageMainHit = baseDamage * (1 - critRate) + critDamage * critRate
@@ -183,7 +186,14 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
   const swordArtExtraStrikeChance = perk20 === 'war_god' ? 0.3 : perk15 === 'sword_saint' ? 0.2 : 0
   const weaponExtraStrikeChance = weaponType === 'dagger' ? 0.25 : 0
   const extraStrikeChance = Math.min(1, weaponExtraStrikeChance + swordArtExtraStrikeChance)
-  const extraStrikeMultiplier = Math.max(weaponType === 'dagger' ? 0.5 : 0, perk20 === 'war_god' ? 0.6 : perk15 === 'sword_saint' ? 0.5 : 0)
+  const enchantExtraStrikeChance = enchantSpecial === 'echo_strike' ? 0.18 : 0
+  const enchantExtraStrikeMultiplier = enchantSpecial === 'echo_strike' ? 0.4 : 0
+  const totalExtraStrikeChance = Math.min(1, extraStrikeChance + enchantExtraStrikeChance)
+  const extraStrikeMultiplier = Math.max(
+    weaponType === 'dagger' ? 0.5 : 0,
+    perk20 === 'war_god' ? 0.6 : perk15 === 'sword_saint' ? 0.5 : 0,
+    enchantExtraStrikeMultiplier
+  )
 
   const attackMultiplier =
     perk20 === 'slaughter_king'
@@ -237,7 +247,8 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
       critRate: Math.max(0, input.weaponCritRate + input.ringCritBonus + input.ringLuck * 0.5 + swordArtCritBonus),
       critMultiplier: 1.5,
       attackMultiplier,
-      extraStrikeChance,
+      defenseIgnoreRate: enchantSpecial === 'armor_breaker' ? 0.3 : 0,
+      extraStrikeChance: totalExtraStrikeChance,
       extraStrikeMultiplier,
       stunChance: weaponType === 'club' ? 0.2 : 0,
       lifesteal: (enchantSpecial === 'vampiric' ? 0.15 : 0) + input.ringVampiric

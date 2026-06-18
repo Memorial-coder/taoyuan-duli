@@ -21,6 +21,7 @@ export interface HatDef {
 /** 拥有的帽子实例 */
 export interface OwnedHat {
   defId: string
+  enchantmentId?: string | null
   /** 锁定后禁止出售 */
   locked?: boolean
 }
@@ -46,6 +47,7 @@ export interface ShoeDef {
 /** 拥有的鞋子实例 */
 export interface OwnedShoe {
   defId: string
+  enchantmentId?: string | null
   /** 锁定后禁止出售 */
   locked?: boolean
 }

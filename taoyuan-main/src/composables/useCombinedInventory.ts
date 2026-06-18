@@ -1,3 +1,4 @@
+import { computed, type ComputedRef } from 'vue'
 import { useInventoryStore } from '@/stores/useInventoryStore'
 import { useWarehouseStore } from '@/stores/useWarehouseStore'
 import type { Quality } from '@/types'
@@ -28,17 +29,70 @@ export const normalizeCombinedItemRequirements = (requirements: CombinedItemRequ
   return [...byKey.values()]
 }
 
+interface CombinedItemCountIndex {
+  totalByItemId: Map<string, number>
+  totalByItemAndQuality: Map<string, number>
+  signature: string
+}
+
+const getInventoryQualityKey = (itemId: string, quality: Quality) => `${itemId}::${quality}`
+
+let combinedItemCountIndex: ComputedRef<CombinedItemCountIndex> | null = null
+
+const getCombinedItemCountIndex = (): CombinedItemCountIndex => {
+  if (!combinedItemCountIndex) {
+    combinedItemCountIndex = computed(() => {
+      const inv = useInventoryStore()
+      const wh = useWarehouseStore()
+      const totalByItemId = new Map<string, number>()
+      const totalByItemAndQuality = new Map<string, number>()
+
+      const addItemCount = (itemId: string, quantity: number, quality: Quality = 'normal') => {
+        if (quantity <= 0) return
+        totalByItemId.set(itemId, (totalByItemId.get(itemId) ?? 0) + quantity)
+        const qualityKey = getInventoryQualityKey(itemId, quality)
+        totalByItemAndQuality.set(qualityKey, (totalByItemAndQuality.get(qualityKey) ?? 0) + quantity)
+      }
+
+      for (const item of inv.items) {
+        addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
+      }
+      for (const item of inv.tempItems) {
+        addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
+      }
+      if (wh.unlocked) {
+        for (const chest of wh.chests) {
+          for (const item of chest.items) {
+            addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
+          }
+        }
+      }
+
+      const signature = Array.from(totalByItemAndQuality.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, count]) => `${key}:${count}`)
+        .join('|')
+
+      return {
+        totalByItemId,
+        totalByItemAndQuality,
+        signature
+      }
+    })
+  }
+
+  return combinedItemCountIndex.value
+}
+
+export const getCombinedItemCountSignature = (): string => getCombinedItemCountIndex().signature
+
 /** 合计主背包 + 临时背包 + 仓库所有箱子中的某物品数量 */
 export const getCombinedItemCount = (itemId: string, quality?: Quality): number => {
-  const inv = useInventoryStore()
-  const wh = useWarehouseStore()
-  let total = inv.getTotalItemCount(itemId, quality)
-  if (wh.unlocked) {
-    for (const chest of wh.chests) {
-      total += wh.getChestItemCount(chest.id, itemId, quality)
-    }
+  const index = getCombinedItemCountIndex()
+  if (quality) {
+    return index.totalByItemAndQuality.get(getInventoryQualityKey(itemId, quality)) ?? 0
   }
-  return total
+  return index.totalByItemId.get(itemId) ?? 0
 }
 
 /** 主背包 + 临时背包 + 仓库所有箱子是否合计拥有足够数量 */
@@ -109,16 +163,9 @@ export const removeCombinedItems = (requirements: CombinedItemRequirement[]): bo
 
 /** 查找主背包 + 临时背包 + 仓库所有箱子中某物品的最低品质 */
 export const getLowestCombinedQuality = (itemId: string): Quality => {
-  const inv = useInventoryStore()
-  const wh = useWarehouseStore()
   const order: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
   for (const quality of order) {
-    if (inv.getTotalItemCount(itemId, quality) > 0) return quality
-    if (wh.unlocked) {
-      for (const chest of wh.chests) {
-        if (wh.getChestItemCount(chest.id, itemId, quality) > 0) return quality
-      }
-    }
+    if (getCombinedItemCount(itemId, quality) > 0) return quality
   }
   return 'normal'
 }

@@ -161,6 +161,7 @@ const createPlots = (size: number) =>
     harvestCount: 0,
     giantCropGroup: null,
     seedGenetics: null,
+    seedQuality: null,
     infested: false,
     infestedDays: 0,
     weedy: false,

@@ -46,10 +46,16 @@
         <div v-if="featuredCommissionOverview.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">学者委托</p>
           <div v-for="commission in featuredCommissionOverview" :key="commission.id" class="border border-accent/10 rounded-xs px-2 py-1 mt-1">
-            <div class="flex items-center justify-between text-[0.625rem] gap-2">
+            <div class="flex items-start justify-between text-[0.625rem] gap-2">
               <div class="min-w-0 flex-1">
                 <p class="truncate">{{ commission.title }}</p>
                 <p class="text-[0.625rem] text-muted mt-0.5 truncate">{{ getHallLabel(commission.hallZoneId) }} · {{ commission.summary }}</p>
+                <p
+                  v-if="!commission.isAvailable && !commission.isAccepted && !commission.isRewardPending"
+                  class="mt-0.5 text-[0.625rem] text-muted leading-tight"
+                >
+                  {{ getScholarCommissionUnlockHint(commission) }}
+                </p>
               </div>
               <Button
                 v-if="commission.isRewardPending"
@@ -66,7 +72,7 @@
               >
                 接取
               </Button>
-              <span v-else class="shrink-0" :class="commission.isAccepted ? 'text-accent' : 'text-muted'">
+              <span v-else class="shrink-0 whitespace-nowrap" :class="commission.isAccepted ? 'text-accent' : 'text-muted'">
                 {{ commission.isAccepted ? '进行中' : '未开放' }}
               </span>
             </div>
@@ -350,6 +356,20 @@
     if (!commission.isRewardPending) return '该学者委托尚未达到领奖条件。'
     if (!canClaimScholarCommissionReward(commissionId)) return '请先整理背包，当前空间不足以领取学者委托奖励。'
     return ''
+  }
+
+  const getScholarCommissionUnlockHint = (commission: {
+    isAvailable: boolean
+    isAccepted: boolean
+    isRewardPending: boolean
+    hallZoneId: string
+    hallLevel: number
+    unlockExhibitLevel: number
+    requiredDonationCount: number
+    requiredHallLevel: number
+  }): string => {
+    if (commission.isAvailable || commission.isAccepted || commission.isRewardPending) return ''
+    return `开放条件：展陈等级 ${museumStore.exhibitLevel}/${commission.unlockExhibitLevel}，捐赠 ${museumStore.donatedCount}/${commission.requiredDonationCount}，${getHallLabel(commission.hallZoneId)} Lv.${commission.hallLevel}/${commission.requiredHallLevel}`
   }
 
   const canClaimMilestoneReward = (count: number): boolean => {

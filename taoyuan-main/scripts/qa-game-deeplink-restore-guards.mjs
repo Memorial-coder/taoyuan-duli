@@ -11,6 +11,7 @@ const assert = (condition, message) => {
 }
 
 const gameLayout = read('src/views/GameLayout.vue')
+const mainMenu = read('src/views/MainMenu.vue')
 const router = read('src/router/index.ts')
 
 assert(/data-testid="game-deeplink-restore"/.test(gameLayout), 'GameLayout.vue must render a recovery state for direct /game links.')
@@ -24,6 +25,13 @@ assert(/getSavedAtTimestamp\(right\) - getSavedAtTimestamp\(left\) \|\| left\.sl
 assert(/await saveStore\.loadFromSlot\(recoverySlot\)/.test(gameLayout), 'Deep-link recovery must load the selected slot before rendering the game.')
 assert(/redirect: requestedFullPath/.test(gameLayout), 'Failed deep-link recovery must preserve the requested /game path for menu recovery.')
 assert(/onMounted\(async \(\) => \{\s*if \(!\(await recoverGameDeepLink\(\)\)\) return\s*startGameLayoutRuntime\(\)\s*\}\)/.test(gameLayout), 'GameLayout runtime must start only after recovery succeeds.')
+
+assert(/import \{ useRoute, useRouter \} from 'vue-router'/.test(mainMenu), 'MainMenu.vue must read redirect query state as well as navigate.')
+assert(/const pendingRedirectRoute = computed\(\(\) => resolveSafeGameRedirectRoute\(route\.query\.redirect\)\)/.test(mainMenu), 'MainMenu.vue must normalize a preserved /game redirect query.')
+assert(/!target\.startsWith\('\/'\) \|\| target\.startsWith\('\/\/'\)/.test(mainMenu), 'MainMenu.vue must reject external redirect targets.')
+assert(/normalized === '\/game' \|\| normalized\.startsWith\('\/game\/'\)/.test(mainMenu), 'MainMenu.vue must only accept in-game redirect targets.')
+assert(/pendingPostLoadRoute\.value = options\.route \?\? pendingRedirectRoute\.value/.test(mainMenu), 'Loading a save from a deeplink fallback must continue to the preserved game route.')
+assert(/router\.push\(pendingRedirectRoute\.value \|\| '\/game'\)/.test(mainMenu), 'Starting a new game from a deeplink fallback must continue to the preserved game route.')
 
 assert(/path: 'farm', name: 'farm'/.test(router), 'Router must keep /game/farm as a valid deep link.')
 assert(/redirect: '\/game\/farm'/.test(router), 'Router must keep /game redirecting to farm.')

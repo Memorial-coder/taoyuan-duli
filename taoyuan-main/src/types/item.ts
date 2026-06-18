@@ -100,6 +100,8 @@ export type ToolType = 'wateringCan' | 'hoe' | 'pickaxe' | 'fishingRod' | 'scyth
 export interface Tool {
   type: ToolType
   tier: ToolTier
+  /** 工具附魔 */
+  enchantmentId?: string | null
 }
 
 /** 武器类型 */
@@ -128,7 +130,18 @@ export interface EnchantmentDef {
   description: string
   attackBonus: number
   critBonus: number
-  special: 'vampiric' | 'sturdy' | 'lucky' | null
+  special:
+    | 'vampiric'
+    | 'sturdy'
+    | 'lucky'
+    | 'swift'
+    | 'armor_breaker'
+    | 'spirit_slayer'
+    | 'bug_slayer'
+    | 'exorcist'
+    | 'echo_strike'
+    | 'haymaker'
+    | null
 }
 
 /** 拥有的武器实例 */

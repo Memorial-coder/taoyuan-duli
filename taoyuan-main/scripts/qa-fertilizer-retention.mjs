@@ -79,6 +79,9 @@ const tryResolveFile = candidate => {
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === 'file-saver') {
+      return { url: 'data:text/javascript,export const saveAs = () => {}; export default { saveAs };', shortCircuit: true }
+    }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
       if (!resolved) throw new Error(`Unable to resolve module: ${specifier}`)
@@ -112,6 +115,8 @@ registerHooks({
 })
 
 const { useFarmStore } = await import(pathToFileURL(path.join(srcRoot, 'stores', 'useFarmStore.ts')).href)
+const { getCropById } = await import(pathToFileURL(path.join(srcRoot, 'data', 'index.ts')).href)
+const { getPlotEffectiveGrowthDays } = await import(pathToFileURL(path.join(srcRoot, 'utils', 'farmGrowth.ts')).href)
 
 const createPlot = id => ({
   id,
@@ -190,7 +195,19 @@ assert(farmStore.applyFertilizer(1, 'speed_gro'), 'field active regrowth plot sh
 forceHarvestable(farmStore.plots[1], 'tea')
 farmStore.harvestPlot(1)
 assert(farmStore.plots[1].state === 'growing', 'field active regrowth harvest should keep the crop growing')
+assert(farmStore.plots[1].growthDays === 0, 'field active regrowth harvest should restart the regrowth cycle from 0 days')
 assert(farmStore.plots[1].fertilizer === null, 'field active regrowth harvest should consume fertilizer before the next cycle')
+
+withRandomSequence([0.99], () => {
+  for (let i = 0; i < 3; i++) {
+    farmStore.plots[1].watered = true
+    farmStore.dailyUpdate(false)
+    assert(farmStore.plots[1].state === 'growing', `field tea should not mature before its 4-day regrowth cycle: day ${i + 1}`)
+  }
+  farmStore.plots[1].watered = true
+  farmStore.dailyUpdate(false)
+  assert(farmStore.plots[1].state === 'harvestable', 'field tea should mature on its configured 4-day regrowth cycle')
+})
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(1), 'field final regrowth plot should be tillable')
@@ -200,6 +217,27 @@ forceHarvestable(farmStore.plots[1], 'tea', 2)
 farmStore.harvestPlot(1)
 assert(farmStore.plots[1].state === 'tilled', 'field final regrowth harvest should return the plot to tilled')
 assert(farmStore.plots[1].fertilizer === null, 'field final regrowth harvest should consume fertilizer')
+
+farmStore = createFarmStore()
+assert(farmStore.tillPlot(5), 'field ancient fruit plot should be tillable')
+assert(farmStore.plantCrop(5, 'ancient_fruit'), 'field ancient fruit plot should accept ancient seed')
+forceHarvestable(farmStore.plots[5], 'ancient_fruit')
+farmStore.harvestPlot(5)
+assert(farmStore.plots[5].state === 'growing', 'field ancient fruit first harvest should start regrowth')
+assert(farmStore.plots[5].growthDays === 0, 'field ancient fruit regrowth should restart from 0 days')
+const ancientFruit = getCropById('ancient_fruit')
+const ancientRegrowthDays = getPlotEffectiveGrowthDays(farmStore.plots[5], ancientFruit, 0)
+assert(ancientRegrowthDays > 1, 'field ancient fruit regrowth should not collapse to a next-day harvest')
+withRandomSequence(Array.from({ length: ancientRegrowthDays + 1 }, () => 0.99), () => {
+  for (let i = 0; i < ancientRegrowthDays - 1; i++) {
+    farmStore.plots[5].watered = true
+    farmStore.dailyUpdate(false)
+    assert(farmStore.plots[5].state === 'growing', `field ancient fruit should not mature before its effective regrowth cycle: day ${i + 1}`)
+  }
+  farmStore.plots[5].watered = true
+  farmStore.dailyUpdate(false)
+  assert(farmStore.plots[5].state === 'harvestable', 'field ancient fruit should mature on its effective regrowth cycle')
+})
 
 farmStore = createFarmStore()
 assert(farmStore.tillPlot(2), 'pest-loss plot should be tillable')

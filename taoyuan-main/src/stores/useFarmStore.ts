@@ -11,6 +11,7 @@ import { SPRINKLERS, getFertilizerById } from '@/data/processing'
 import { FRUIT_TREE_DEFS, MAX_FRUIT_TREES, GREENHOUSE_FRUIT_TREE_SLOT_COUNT } from '@/data/fruitTrees'
 import { MAX_WILD_TREES, getWildTreeDef } from '@/data/wildTrees'
 import { GREENHOUSE_PLOT_COUNT } from '@/data/buildings'
+import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
 import { useWalletStore } from './useWalletStore'
 import { useGameStore } from './useGameStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
@@ -36,6 +37,7 @@ const createPlots = (size: FarmSize): FarmPlot[] => {
     harvestCount: 0,
     giantCropGroup: null,
     seedGenetics: null,
+    seedQuality: null,
     infested: false,
     infestedDays: 0,
     weedy: false,
@@ -53,6 +55,7 @@ const resetCropPlotToTilled = (plot: FarmPlot): void => {
   plot.harvestCount = 0
   plot.giantCropGroup = null
   plot.seedGenetics = null
+  plot.seedQuality = null
   plot.infested = false
   plot.infestedDays = 0
   plot.weedy = false
@@ -100,7 +103,7 @@ export const useFarmStore = defineStore('farm', () => {
   }
 
   /** 播种 */
-  const plantCrop = (plotId: number, cropId: string): boolean => {
+  const plantCrop = (plotId: number, cropId: string, seedQuality: Quality | null = null): boolean => {
     const plot = plots.value[plotId]
     if (!plot || plot.state !== 'tilled') return false
     const crop = getCropById(cropId)
@@ -112,6 +115,7 @@ export const useFarmStore = defineStore('farm', () => {
     plot.unwateredDays = 0
     plot.giantCropGroup = null
     plot.seedGenetics = null
+    plot.seedQuality = seedQuality
     plot.infested = false
     plot.infestedDays = 0
     plot.weedy = false
@@ -132,6 +136,7 @@ export const useFarmStore = defineStore('farm', () => {
     plot.unwateredDays = 0
     plot.giantCropGroup = null
     plot.seedGenetics = genetics
+    plot.seedQuality = null
     plot.infested = false
     plot.infestedDays = 0
     plot.weedy = false
@@ -165,12 +170,13 @@ export const useFarmStore = defineStore('farm', () => {
         resetCropPlotToTilled(plot)
       } else {
         plot.state = 'growing'
-        plot.growthDays = crop.growthDays - crop.regrowthDays
+        plot.growthDays = 0
         plot.watered = getAllWateredBySprinklers().has(plotId) || useGameStore().isRainy
         plot.unwateredDays = 0
         plot.fertilizer = null
         plot.giantCropGroup = null
         // seedGenetics 保留（多茬作物继续使用同一基因）
+        plot.seedQuality = null
       }
     } else {
       resetCropPlotToTilled(plot)
@@ -304,7 +310,7 @@ export const useFarmStore = defineStore('farm', () => {
     if (!plot.cropId) return null
     const crop = getCropById(plot.cropId)
     if (!crop) return null
-    return Math.max(1, Math.floor(crop.growthDays * (1 - speedup)))
+    return getPlotEffectiveGrowthDays(plot, crop, speedup)
   }
 
   const markPlotHarvestableIfReady = (plot: FarmPlot, speedup: number): boolean => {
@@ -873,6 +879,7 @@ export const useFarmStore = defineStore('farm', () => {
       harvestCount: 0,
       giantCropGroup: null,
       seedGenetics: null,
+      seedQuality: null,
       infested: false,
       infestedDays: 0,
       weedy: false,
@@ -893,6 +900,7 @@ export const useFarmStore = defineStore('farm', () => {
     plot.unwateredDays = 0
     plot.giantCropGroup = null
     plot.seedGenetics = genetics
+    plot.seedQuality = null
     plot.infested = false
     plot.infestedDays = 0
     plot.weedy = false
@@ -900,7 +908,7 @@ export const useFarmStore = defineStore('farm', () => {
     return true
   }
 
-  const greenhousePlantCrop = (plotId: number, cropId: string): boolean => {
+  const greenhousePlantCrop = (plotId: number, cropId: string, seedQuality: Quality | null = null): boolean => {
     const plot = greenhousePlots.value[plotId]
     if (!plot || plot.state !== 'tilled') return false
     const crop = getCropById(cropId)
@@ -911,6 +919,7 @@ export const useFarmStore = defineStore('farm', () => {
     plot.watered = false
     plot.unwateredDays = 0
     plot.seedGenetics = null
+    plot.seedQuality = seedQuality
     return true
   }
 
@@ -927,10 +936,11 @@ export const useFarmStore = defineStore('farm', () => {
         resetCropPlotToTilled(plot)
       } else {
         plot.state = 'growing'
-        plot.growthDays = crop.growthDays - crop.regrowthDays
+        plot.growthDays = 0
         plot.watered = false
         plot.unwateredDays = 0
         plot.fertilizer = null
+        plot.seedQuality = null
       }
     } else {
       resetCropPlotToTilled(plot)
@@ -970,6 +980,7 @@ export const useFarmStore = defineStore('farm', () => {
         harvestCount: 0,
         giantCropGroup: null,
         seedGenetics: null,
+        seedQuality: null,
         infested: false,
         infestedDays: 0,
         weedy: false,
@@ -1039,6 +1050,7 @@ export const useFarmStore = defineStore('farm', () => {
       harvestCount: (p as any).harvestCount ?? 0,
       giantCropGroup: (p as any).giantCropGroup ?? null,
       seedGenetics: (p as any).seedGenetics ?? null,
+      seedQuality: (p as any).seedQuality ?? null,
       infested: (p as any).infested ?? false,
       infestedDays: (p as any).infestedDays ?? 0,
       weedy: (p as any).weedy ?? false,
@@ -1071,6 +1083,7 @@ export const useFarmStore = defineStore('farm', () => {
       harvestCount: p.harvestCount ?? 0,
       giantCropGroup: p.giantCropGroup ?? null,
       seedGenetics: p.seedGenetics ?? null,
+      seedQuality: p.seedQuality ?? null,
       infested: p.infested ?? false,
       infestedDays: p.infestedDays ?? 0
     }))

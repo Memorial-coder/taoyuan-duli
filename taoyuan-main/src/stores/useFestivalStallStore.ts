@@ -123,6 +123,49 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
   const offers = computed<FestivalStallOffer[]>(() => stall.value?.offers ?? [])
   const records = computed<FestivalStallRecord[]>(() => stall.value?.my_records ?? [])
 
+  const mergePurchaseResultIntoStall = (result: FestivalStallActionResponse) => {
+    const current = stall.value
+    if (!current || current.week_key !== result.week_key || !result.offer?.id) return
+
+    const purchasedOffer = result.offer
+    const purchasedRecord = result.record
+    const offers = current.offers.map(offer => {
+      if (offer.id !== purchasedOffer.id) return offer
+      const stationStock = Math.max(Number(offer.station_stock) || 0, Number(purchasedOffer.station_stock) || 0)
+      const claimedByUser = Math.max(Number(offer.claimed_by_user) || 0, Number(purchasedOffer.claimed_by_user) || 0)
+      const claimedGlobal = Math.max(Number(offer.claimed_global) || 0, Number(purchasedOffer.claimed_global) || 0)
+      const remainingGlobal = stationStock > 0
+        ? Math.max(0, stationStock - claimedGlobal)
+        : Math.min(Number(offer.remaining_global) || 0, Number(purchasedOffer.remaining_global) || 0)
+      const weeklyLimit = Math.max(1, Number(purchasedOffer.weekly_limit_per_user) || Number(offer.weekly_limit_per_user) || 1)
+      const personalLimitExhausted = claimedByUser >= weeklyLimit
+      const globalStockExhausted = stationStock > 0 && remainingGlobal <= 0
+
+      return {
+        ...offer,
+        ...purchasedOffer,
+        claimed_by_user: claimedByUser,
+        claimed_global: claimedGlobal,
+        remaining_global: remainingGlobal,
+        can_exchange: personalLimitExhausted || globalStockExhausted ? false : purchasedOffer.can_exchange,
+        disabled_reason: personalLimitExhausted
+          ? '本周该摊位已达到个人购买上限'
+          : globalStockExhausted
+            ? '这项节庆商品本周已经售罄'
+            : purchasedOffer.disabled_reason
+      }
+    })
+    const myRecords = purchasedRecord?.id
+      ? [purchasedRecord, ...current.my_records.filter(record => record.id !== purchasedRecord.id)].slice(0, 8)
+      : current.my_records
+
+    stall.value = {
+      ...current,
+      offers,
+      my_records: myRecords
+    }
+  }
+
   const syncAfterPurchase = async (result: FestivalStallActionResponse): Promise<FestivalStallSaveSyncState> => {
     const saveStore = useSaveStore()
     const saveSlot = result.save_slot
@@ -274,6 +317,17 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
     return syncCurrentSessionByDelta('节庆摊位结果已合并到当前服务端运行会话。')
   }
 
+  const ensureServerRuntimeSyncedBeforePurchase = async () => {
+    const saveStore = useSaveStore()
+    const currentSessionSlot = saveStore.runtimeSessionSlot >= 0 ? saveStore.runtimeSessionSlot : null
+    if (saveStore.storageMode !== 'server' || saveStore.runtimeSessionMode !== 'server' || currentSessionSlot === null) return
+
+    const saved = await saveStore.saveToSlot(currentSessionSlot).catch(() => false)
+    if (!saved || saveStore.hasPendingServerSave(currentSessionSlot)) {
+      throw new Error(saveStore.lastSaveErrorMessage || '节庆摊位购买前同步当前服务端存档失败，请先处理存档同步状态后再试。')
+    }
+  }
+
   const refreshStall = async (options: { silent?: boolean } = {}) => {
     if (!options.silent) {
       loading.value = true
@@ -299,9 +353,12 @@ export const useFestivalStallStore = defineStore('festivalStall', () => {
     actionRunning.value = true
     errorMessage.value = ''
     try {
+      await ensureServerRuntimeSyncedBeforePurchase()
       const result = await purchaseFestivalStallOffer(offerId)
       const saveSyncState = await syncAfterPurchase(result)
+      mergePurchaseResultIntoStall(result)
       await refreshStall().catch(() => {})
+      mergePurchaseResultIntoStall(result)
       return {
         ...result,
         save_sync_state: saveSyncState

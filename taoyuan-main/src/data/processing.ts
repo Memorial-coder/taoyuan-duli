@@ -3063,7 +3063,7 @@ const HIDDEN_INCENSE_TIERS: HiddenOutputTier[] = [
   { itemId: 'rustic_incense', value: 850, edible: false, stamina: 0, health: 0 },
   { itemId: 'refined_incense', value: 1800, edible: false, stamina: 0, health: 0 },
   { itemId: 'spirit_incense', value: 6200, edible: false, stamina: 0, health: 0 },
-  { itemId: 'celestial_incense', value: 13000, edible: false, stamina: 0, health: 0 }
+  { itemId: 'celestial_incense', value: 15000, edible: false, stamina: 0, health: 0 }
 ]
 
 const HIDDEN_SMOKE_TIERS: HiddenOutputTier[] = [
@@ -3157,7 +3157,7 @@ const getHiddenTieredOutput = (
 ): string => chooseHiddenOutputTier(tiers, getHiddenRequiredOutputEconomy(machineType, inputEconomy, processingDays), preferredItemId)
 
 const getHiddenWineOutput = (
-  cropId: string,
+  _cropId: string,
   profile: CropUseProfile,
   inputEconomy: HiddenInputEconomy,
   processingDays: number

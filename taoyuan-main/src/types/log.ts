@@ -51,5 +51,7 @@ export type GameLogTag =
   | 'guild_season_tick'
   | 'museum_operational_tick'
   | 'processing_seed_bonus'
+  | 'potential_workshop_refund'
+  | 'workshop_double_output'
 
 export type GameLogMeta = Record<string, string | number | boolean | null | undefined>

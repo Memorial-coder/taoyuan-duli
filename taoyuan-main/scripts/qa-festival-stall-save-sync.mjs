@@ -1,3 +1,4 @@
+/* global console */
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -34,6 +35,21 @@ const syncAfterPurchase = extractBetween(
   festivalStallStore,
   'const syncAfterPurchase = async',
   'const refreshStall = async'
+)
+const buyOffer = extractBetween(
+  festivalStallStore,
+  'const buyOffer = async',
+  'return {'
+)
+const buildOfferSummary = extractBetween(
+  festivalStallRuntime,
+  'function buildOfferSummary',
+  'function listFestivalStall'
+)
+const purchaseFestivalStallOffer = extractBetween(
+  festivalStallRuntime,
+  'function purchaseFestivalStallOffer',
+  'module.exports = {'
 )
 
 assert(
@@ -76,6 +92,18 @@ assert(
     syncAfterPurchase.includes('walletStore.deserialize(walletSnapshot)'),
   'festival stall sync must roll back the local delta if the merged save cannot be persisted'
 )
+assert(
+  festivalStallStore.includes('const ensureServerRuntimeSyncedBeforePurchase = async') &&
+    buyOffer.includes('await ensureServerRuntimeSyncedBeforePurchase()') &&
+    buyOffer.indexOf('await ensureServerRuntimeSyncedBeforePurchase()') < buyOffer.indexOf('purchaseFestivalStallOffer(offerId)'),
+  'festival stall purchases must sync the current server runtime before the purchase POST derives the game-week limit window'
+)
+assert(
+  festivalStallStore.includes('const mergePurchaseResultIntoStall = (result: FestivalStallActionResponse) =>') &&
+    buyOffer.includes('mergePurchaseResultIntoStall(result)') &&
+    buyOffer.indexOf('mergePurchaseResultIntoStall(result)') < buyOffer.indexOf('refreshStall().catch(() => {})'),
+  'festival stall purchases must merge the returned purchase receipt into the current stall snapshot before refetching'
+)
 
 assert(
   festivalStallApi.includes('save_revision?: number'),
@@ -99,6 +127,16 @@ assert(
   festivalStallRuntime.includes('const claimedByUser = countUserOfferClaims(weekState, username, offer.id)') &&
     festivalStallRuntime.includes('const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)'),
   'festival stall purchase checks must not rely only on user_usage and offer_claims'
+)
+assert(
+  buildOfferSummary.indexOf('claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)') <
+    buildOfferSummary.indexOf('marketGovernance.ensureUserRateLimit'),
+  'festival stall snapshots must show personal purchase-limit exhaustion before operation cooldown governance'
+)
+assert(
+  purchaseFestivalStallOffer.indexOf('claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)') <
+    purchaseFestivalStallOffer.indexOf('marketGovernance.ensureUserRateLimit'),
+  'festival stall purchase attempts must reject exhausted personal limits before operation cooldown governance'
 )
 assert(
   shopView.includes('const isIdempotencyReplay = result.idempotency_replayed === true') &&

@@ -41,6 +41,7 @@
         >
           <ArrowUpCircle :size="10" class="inline mr-0.5" />
           工坊 Lv.{{ processingStore.workshopLevel }}
+          <span v-if="isWorkshopMaxLevel" class="ml-0.5 text-success">满</span>
         </button>
       </div>
 
@@ -145,6 +146,83 @@
               </div>
             </div>
             <div
+              v-if="group.idleCount > 0 && group.firstIdleSlotIndex !== null"
+              class="processing-machine-recipes rounded-xs border border-accent/15 bg-bg/60 p-2"
+            >
+              <p v-if="group.recipesLoading" class="text-[0.625rem] text-muted mb-1">正在整理配方...</p>
+              <template v-if="group.isSeedMaker">
+                <div v-if="group.seedRecipeOptions.length > 0" class="processing-option-grid grid gap-1.5">
+                  <Button
+                    v-for="option in group.seedRecipeOptions"
+                    :key="option.key"
+                    class="processing-option-card"
+                    :class="{ 'processing-option-card--unavailable': option.disabled }"
+                    :aria-disabled="option.disabled ? 'true' : 'false'"
+                    :data-testid="`processing-recipe-${option.recipeId}`"
+                    @click="openGroupProcessingRecipeDetail(group, option)"
+                  >
+                    <span class="processing-option-card__body">
+                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
+                      <span class="processing-option-card__copy">
+                        <span class="processing-option-card__name">
+                          {{ option.displayName }}
+                          <span
+                            v-if="option.qualityLabel"
+                            :class="{
+                              'text-quality-fine': option.quality === 'fine',
+                              'text-quality-excellent': option.quality === 'excellent',
+                              'text-quality-supreme': option.quality === 'supreme'
+                            }"
+                          >
+                            {{ option.qualityLabel }}
+                          </span>
+                        </span>
+                        <span class="processing-option-card__meta">{{ option.count }}/{{ option.recipe.inputQuantity }}</span>
+                      </span>
+                    </span>
+                  </Button>
+                </div>
+                <p v-else-if="!group.recipesLoading" class="text-xs text-muted">{{ group.emptyMessage }}</p>
+              </template>
+              <template v-else>
+                <div v-if="group.recipeOptions.length > 0" class="processing-option-grid grid gap-1.5">
+                  <Button
+                    v-for="option in group.recipeOptions"
+                    :key="option.key"
+                    class="processing-option-card"
+                    :class="{ 'processing-option-card--unavailable': option.disabled }"
+                    :aria-disabled="option.disabled ? 'true' : 'false'"
+                    :data-testid="`processing-recipe-${option.recipeId}`"
+                    @click="openGroupProcessingRecipeDetail(group, option)"
+                  >
+                    <span class="processing-option-card__body">
+                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
+                      <span class="processing-option-card__copy">
+                        <span class="processing-option-card__name">
+                          {{ option.displayName }}
+                          <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
+                        </span>
+                        <span class="processing-option-card__meta">
+                          <span v-if="option.inputItemName">
+                            {{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }}
+                          </span>
+                          <span v-else>{{ option.recipe.processingDays }}天</span>
+                          <span v-for="extra in option.extraInputs" :key="extra.key">
+                            · {{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
+                          </span>
+                          <span v-if="option.alchemyLimitText"> · {{ option.alchemyLimitText }}</span>
+                          <span v-if="option.alchemyMetaText"> · {{ option.alchemyMetaText }}</span>
+                          <span v-if="option.cropUseText"> · {{ option.cropUseText }}</span>
+                          <span v-if="option.substitutionText" class="text-accent/80"> · {{ option.substitutionText }}</span>
+                        </span>
+                      </span>
+                    </span>
+                  </Button>
+                </div>
+                <p v-else-if="!group.recipesLoading" class="text-xs text-muted">{{ group.emptyMessage }}</p>
+              </template>
+            </div>
+            <div
               v-for="{ slot, originalIndex } in group.slots"
               :key="originalIndex"
               class="processing-machine-slot-card border rounded-xs p-2"
@@ -159,79 +237,7 @@
 
               <!-- 空闲：选择配方 -->
               <div v-if="!slot.recipeId">
-                <!-- 种子制造机：按品质展开 -->
-                <template v-if="group.isSeedMaker">
-                  <div v-if="group.seedRecipeOptions.length > 0" class="processing-option-grid grid gap-1.5">
-                    <Button
-                      v-for="option in group.seedRecipeOptions"
-                      :key="option.key"
-                      class="processing-option-card"
-                      :class="{ 'processing-option-card--unavailable': option.disabled }"
-                      :aria-disabled="option.disabled ? 'true' : 'false'"
-                      :data-testid="`processing-recipe-${option.recipeId}`"
-                      @click="openProcessingRecipeDetail(originalIndex, option)"
-                    >
-                      <span class="processing-option-card__body">
-                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
-                        <span class="processing-option-card__copy">
-                          <span class="processing-option-card__name">
-                            {{ option.displayName }}
-                            <span
-                              v-if="option.qualityLabel"
-                              :class="{
-                                'text-quality-fine': option.quality === 'fine',
-                                'text-quality-excellent': option.quality === 'excellent',
-                                'text-quality-supreme': option.quality === 'supreme'
-                              }"
-                            >
-                              {{ option.qualityLabel }}
-                            </span>
-                          </span>
-                          <span class="processing-option-card__meta">{{ option.count }}/{{ option.recipe.inputQuantity }}</span>
-                        </span>
-                      </span>
-                    </Button>
-                  </div>
-                  <p v-else class="text-xs text-muted">{{ group.emptyMessage }}</p>
-                </template>
-                <!-- 其他机器：普通配方列表 -->
-                <template v-else>
-                  <div v-if="group.recipeOptions.length > 0" class="processing-option-grid grid gap-1.5">
-                    <Button
-                      v-for="option in group.recipeOptions"
-                      :key="option.key"
-                      class="processing-option-card"
-                      :class="{ 'processing-option-card--unavailable': option.disabled }"
-                      :aria-disabled="option.disabled ? 'true' : 'false'"
-                      :data-testid="`processing-recipe-${option.recipeId}`"
-                      @click="openProcessingRecipeDetail(originalIndex, option)"
-                    >
-                      <span class="processing-option-card__body">
-                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
-                        <span class="processing-option-card__copy">
-                          <span class="processing-option-card__name">
-                            {{ option.displayName }}
-                            <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
-                          </span>
-                          <span class="processing-option-card__meta">
-                            <span v-if="option.inputItemName">
-                              {{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }}
-                            </span>
-                            <span v-else>{{ option.recipe.processingDays }}天</span>
-                            <span v-for="extra in option.extraInputs" :key="extra.key">
-                              · {{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
-                            </span>
-                            <span v-if="option.alchemyLimitText"> · {{ option.alchemyLimitText }}</span>
-                            <span v-if="option.alchemyMetaText"> · {{ option.alchemyMetaText }}</span>
-                            <span v-if="option.cropUseText"> · {{ option.cropUseText }}</span>
-                            <span v-if="option.substitutionText" class="text-accent/80"> · {{ option.substitutionText }}</span>
-                          </span>
-                        </span>
-                      </span>
-                    </Button>
-                  </div>
-                  <p v-else class="text-xs text-muted">{{ group.emptyMessage }}</p>
-                </template>
+                <p class="text-xs text-muted">空闲，使用上方配方列表开工。</p>
               </div>
 
               <!-- 加工中 -->
@@ -296,25 +302,322 @@
         <span class="text-xs text-muted">机器 {{ processingStore.machineCount }}/{{ processingStore.maxMachines }}</span>
       </div>
 
-      <div v-for="cat in craftCategories" :key="cat.label" class="mb-3 last:mb-0">
-        <p class="text-xs text-muted mb-1">{{ cat.label }}</p>
-        <div class="processing-craft-grid grid grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1 md:grid-cols-5">
-          <div
-            v-for="item in cat.items"
-            :key="item.id"
-            class="processing-craft-card border border-accent/20 rounded-xs px-2 py-1.5 cursor-pointer hover:bg-accent/5"
-            :data-testid="`processing-craft-${item.id}`"
-            @click="openCraftModal(item)"
-          >
-            <div class="processing-craft-card__body">
-              <ItemIcon :item="getCraftIconItem(item)" size="xs" :show-badge="false" />
-              <span class="processing-craft-card__copy">
-                <span class="processing-craft-card__name">
-                  {{ item.name }}
-                  <span v-if="item.badge" class="text-muted ml-1">[{{ item.badge }}]</span>
-                </span>
-                <span v-if="item.cost > 0" class="processing-craft-card__meta">{{ item.cost }}文</span>
+      <div class="border border-accent/10 rounded-xs p-2 mb-3" data-testid="processing-weapon-enchant-panel">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="flex min-w-0 items-center gap-1.5 text-sm text-accent">
+            <Sparkles :size="14" />
+            <span>武器铸魔</span>
+          </div>
+          <span class="text-[0.625rem]" :class="processingStore.workshopLevel >= 7 ? 'text-success' : 'text-muted'">
+            Lv.7 开放
+          </span>
+        </div>
+
+        <div v-if="processingStore.workshopLevel < 7" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
+          <p class="text-xs text-muted">工坊扩建到 Lv.7 后，可使用合金与矿洞稀材为武器铸魔。</p>
+        </div>
+
+        <div v-else class="grid gap-2">
+          <div class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            <div class="rounded-xs border border-accent/10 p-2">
+              <p class="text-xs text-muted mb-1">选择武器</p>
+              <div class="grid gap-1 max-h-32 overflow-y-auto pr-0.5">
+                <button
+                  v-for="entry in weaponEnchantWeaponOptions"
+                  :key="entry.index"
+                  class="text-left border rounded-xs px-2 py-1.5 transition-colors"
+                  :class="entry.index === selectedEnchantWeaponIndex ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
+                  :data-testid="`processing-weapon-enchant-weapon-${entry.index}`"
+                  @click="selectedEnchantWeaponIndex = entry.index"
+                >
+                  <span class="flex items-center justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block truncate text-xs" :class="entry.locked ? 'text-muted' : 'text-text'">{{ entry.name }}</span>
+                      <span class="block text-[0.625rem] text-muted">
+                        {{ entry.enchantName || '未附魔' }}<template v-if="entry.equipped"> · 当前装备</template><template v-if="entry.locked"> · 已锁定</template>
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="rounded-xs border border-accent/10 p-2">
+              <p class="text-xs text-muted mb-1">铸魔模式</p>
+              <div class="grid gap-1">
+                <button
+                  v-for="mode in weaponEnchantModeOptions"
+                  :key="mode.id"
+                  class="text-left border rounded-xs px-2 py-1.5 transition-colors"
+                  :class="[
+                    selectedEnchantMode === mode.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5',
+                    mode.unlocked ? '' : 'opacity-60'
+                  ]"
+                  :data-testid="`processing-weapon-enchant-mode-${mode.id}`"
+                  @click="selectedEnchantMode = mode.id"
+                >
+                  <span class="flex items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block text-xs" :class="mode.unlocked ? 'text-text' : 'text-muted'">{{ mode.name }}</span>
+                      <span class="block text-[0.625rem] text-muted leading-snug">{{ mode.description }}</span>
+                    </span>
+                    <span class="text-[0.625rem] shrink-0" :class="mode.unlocked ? 'text-success' : 'text-muted'">Lv.{{ mode.minLevel }}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedEnchantMode === 'directed' && processingStore.workshopLevel >= 10" class="rounded-xs border border-accent/10 p-2">
+            <p class="text-xs text-muted mb-1">选择附魔</p>
+            <div class="grid grid-cols-2 gap-1 md:grid-cols-3">
+              <button
+                v-for="option in directedEnchantOptions"
+                :key="option.id"
+                class="border rounded-xs px-2 py-1 text-left transition-colors"
+                :class="selectedDirectedEnchantId === option.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
+                :data-testid="`processing-weapon-enchant-direct-${option.id}`"
+                @click="selectedDirectedEnchantId = option.id"
+              >
+                <span class="block text-xs text-text">{{ option.name }}</span>
+                <span class="block text-[0.625rem] text-muted truncate">{{ option.description }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-xs border border-accent/10 p-2">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs text-muted">所需材料</span>
+              <span class="text-xs" :class="playerStore.money >= selectedEnchantModeDef.cost ? 'text-text' : 'text-danger'">
+                {{ playerStore.money }}/{{ selectedEnchantModeDef.cost }}文
               </span>
+            </div>
+            <div class="grid gap-0.5">
+              <div v-for="mat in selectedEnchantMaterialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ mat.itemName }}</span>
+                </span>
+                <span class="text-xs" :class="mat.count >= mat.quantity ? 'text-text' : 'text-danger'">{{ mat.count }}/{{ mat.quantity }}</span>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            class="w-full justify-center"
+            :class="{ '!bg-accent !text-bg': canConfirmWeaponEnchant }"
+            :icon="Sparkles"
+            :icon-size="12"
+            :disabled="!canConfirmWeaponEnchant"
+            data-testid="processing-weapon-enchant-confirm"
+            @click="handleWeaponEnchant"
+          >
+            {{ weaponEnchantConfirmLabel }}
+          </Button>
+
+          <p v-if="weaponEnchantBlockReason" class="text-[0.625rem] text-muted text-center">{{ weaponEnchantBlockReason }}</p>
+        </div>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 mb-3" data-testid="processing-tool-enchant-panel">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="flex min-w-0 items-center gap-1.5 text-sm text-accent">
+            <Sparkles :size="14" />
+            <span>工具附魔</span>
+          </div>
+          <span class="text-[0.625rem]" :class="processingStore.workshopLevel >= 7 ? 'text-success' : 'text-muted'">
+            Lv.7 开放
+          </span>
+        </div>
+
+        <div v-if="processingStore.workshopLevel < 7" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
+          <p class="text-xs text-muted">工坊扩建到 Lv.7 后，可为镐子附加矿洞探索词条。</p>
+        </div>
+
+        <div v-else class="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div class="rounded-xs border border-accent/10 p-2" data-testid="processing-tool-enchant-pickaxe">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs text-text">{{ pickaxeToolLabel }}</span>
+              <span class="text-[0.625rem]" :class="pickaxeCurrentEnchantName ? 'text-success' : 'text-muted'">
+                {{ pickaxeCurrentEnchantName || '未附魔' }}
+              </span>
+            </div>
+            <div class="mt-1 grid grid-cols-2 gap-1">
+              <button
+                v-for="option in pickaxeEnchantOptions"
+                :key="option.id"
+                class="border rounded-xs px-2 py-1 text-left transition-colors"
+                :class="selectedToolEnchantId === option.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
+                :data-testid="`processing-tool-enchant-option-${option.id}`"
+                @click="selectedToolEnchantId = option.id"
+              >
+                <span class="block text-xs text-text">{{ option.name }}</span>
+                <span class="block text-[0.625rem] text-muted truncate">{{ option.description }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-xs border border-accent/10 p-2">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs text-muted">所需材料</span>
+              <span class="text-xs" :class="playerStore.money >= TOOL_ENCHANT_COST ? 'text-text' : 'text-danger'">
+                {{ playerStore.money }}/{{ TOOL_ENCHANT_COST }}文
+              </span>
+            </div>
+            <div class="grid gap-0.5">
+              <div v-for="mat in toolEnchantMaterialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ mat.itemName }}</span>
+                </span>
+                <span class="text-xs" :class="mat.count >= mat.quantity ? 'text-text' : 'text-danger'">{{ mat.count }}/{{ mat.quantity }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="md:col-span-2">
+            <Button
+              class="w-full justify-center"
+              :class="{ '!bg-accent !text-bg': canConfirmToolEnchant }"
+              :icon="Sparkles"
+              :icon-size="12"
+              :disabled="!canConfirmToolEnchant"
+              data-testid="processing-tool-enchant-confirm"
+              @click="handleToolEnchant"
+            >
+              {{ toolEnchantConfirmLabel }}
+            </Button>
+            <p v-if="toolEnchantBlockReason" class="mt-1 text-[0.625rem] text-muted text-center">{{ toolEnchantBlockReason }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 mb-3" data-testid="processing-equipment-enchant-panel">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="flex min-w-0 items-center gap-1.5 text-sm text-accent">
+            <Sparkles :size="14" />
+            <span>装备附魔</span>
+          </div>
+          <span class="text-[0.625rem]" :class="processingStore.workshopLevel >= EQUIPMENT_ENCHANT_MIN_LEVEL ? 'text-success' : 'text-muted'">
+            Lv.{{ EQUIPMENT_ENCHANT_MIN_LEVEL }} 开放
+          </span>
+        </div>
+
+        <div v-if="processingStore.workshopLevel < EQUIPMENT_ENCHANT_MIN_LEVEL" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
+          <p class="text-xs text-muted">工坊扩建到 Lv.{{ EQUIPMENT_ENCHANT_MIN_LEVEL }} 后，可为戒指、帽子和鞋子附加后期词条。</p>
+        </div>
+
+        <div v-else class="grid gap-2">
+          <div class="grid grid-cols-3 gap-1">
+            <button
+              v-for="slot in equipmentEnchantSlotOptions"
+              :key="slot.id"
+              class="border rounded-xs px-2 py-1.5 text-center transition-colors"
+              :class="selectedEquipmentEnchantSlot === slot.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
+              :data-testid="`processing-equipment-enchant-slot-${slot.id}`"
+              @click="selectedEquipmentEnchantSlot = slot.id"
+            >
+              <span class="block text-xs text-text">{{ slot.label }}</span>
+              <span class="block text-[0.625rem] text-muted">{{ slot.count }}件</span>
+            </button>
+          </div>
+
+          <div v-if="selectedEquipmentEnchantEntries.length <= 0" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
+            <p class="text-xs text-muted">当前没有可附魔的{{ selectedEquipmentSlotLabel }}。</p>
+          </div>
+
+          <div v-else class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            <div class="rounded-xs border border-accent/10 p-2">
+              <p class="text-xs text-muted mb-1">选择{{ selectedEquipmentSlotLabel }}</p>
+              <div class="grid gap-1 max-h-32 overflow-y-auto pr-0.5">
+                <button
+                  v-for="entry in equipmentEnchantTargetOptions"
+                  :key="entry.index"
+                  class="text-left border rounded-xs px-2 py-1.5 transition-colors"
+                  :class="entry.index === selectedEquipmentEnchantIndex ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
+                  :data-testid="`processing-equipment-enchant-target-${entry.index}`"
+                  @click="selectedEquipmentEnchantIndex = entry.index"
+                >
+                  <span class="block truncate text-xs" :class="entry.locked ? 'text-muted' : 'text-text'">{{ entry.name }}</span>
+                  <span class="block text-[0.625rem] text-muted">
+                    {{ entry.enchantName || '未附魔' }}<template v-if="entry.equipped"> · 当前装备</template><template v-if="entry.locked"> · 已锁定</template>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="rounded-xs border border-accent/10 p-2">
+              <p class="text-xs text-muted mb-1">选择附魔</p>
+              <div class="grid grid-cols-2 gap-1">
+                <button
+                  v-for="option in equipmentEnchantOptions"
+                  :key="option.id"
+                  class="border rounded-xs px-2 py-1 text-left transition-colors"
+                  :class="selectedEquipmentEnchantId === option.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
+                  :data-testid="`processing-equipment-enchant-option-${option.id}`"
+                  @click="selectedEquipmentEnchantId = option.id"
+                >
+                  <span class="block text-xs text-text">{{ option.name }}</span>
+                  <span class="block text-[0.625rem] text-muted truncate">{{ option.description }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xs border border-accent/10 p-2">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs text-muted">所需材料</span>
+              <span class="text-xs" :class="playerStore.money >= EQUIPMENT_ENCHANT_COST ? 'text-text' : 'text-danger'">
+                {{ playerStore.money }}/{{ EQUIPMENT_ENCHANT_COST }}文
+              </span>
+            </div>
+            <div class="grid gap-0.5">
+              <div v-for="mat in equipmentEnchantMaterialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ mat.itemName }}</span>
+                </span>
+                <span class="text-xs" :class="mat.count >= mat.quantity ? 'text-text' : 'text-danger'">{{ mat.count }}/{{ mat.quantity }}</span>
+              </div>
+            </div>
+          </div>
+
+          <Button
+            class="w-full justify-center"
+            :class="{ '!bg-accent !text-bg': canConfirmEquipmentEnchant }"
+            :icon="Sparkles"
+            :icon-size="12"
+            :disabled="!canConfirmEquipmentEnchant"
+            data-testid="processing-equipment-enchant-confirm"
+            @click="handleEquipmentEnchant"
+          >
+            {{ equipmentEnchantConfirmLabel }}
+          </Button>
+          <p v-if="equipmentEnchantBlockReason" class="text-[0.625rem] text-muted text-center">{{ equipmentEnchantBlockReason }}</p>
+        </div>
+      </div>
+
+      <div>
+        <div v-for="cat in craftCategories" :key="cat.id" class="mb-3 last:mb-0">
+          <p class="text-xs text-muted mb-1">{{ cat.label }}</p>
+          <div class="processing-craft-grid grid grid-cols-3 gap-1.5 md:grid-cols-5">
+            <div
+              v-for="item in cat.items"
+              :key="item.id"
+              class="processing-craft-card border border-accent/20 rounded-xs px-2 py-1.5 cursor-pointer hover:bg-accent/5"
+              :data-testid="`processing-craft-${item.id}`"
+              @click="openCraftModal(item)"
+            >
+              <div class="processing-craft-card__body">
+                <ItemIcon :item="getCraftIconItem(item)" size="xs" :show-badge="false" />
+                <span class="processing-craft-card__copy">
+                  <span class="processing-craft-card__name">
+                    {{ item.name }}
+                    <span v-if="item.badge" class="text-muted ml-1">[{{ item.badge }}]</span>
+                  </span>
+                  <span v-if="item.cost > 0" class="processing-craft-card__meta">{{ item.cost }}文</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -345,11 +648,34 @@
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">当前等级</span>
-              <span class="text-xs text-accent">Lv.{{ processingStore.workshopLevel }}</span>
+              <span class="text-xs text-accent">
+                Lv.{{ processingStore.workshopLevel }} / {{ WORKSHOP_MAX_LEVEL }}
+                <span v-if="isWorkshopMaxLevel" class="text-[0.625rem] text-success ml-1">满级</span>
+              </span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">机器上限</span>
               <span class="text-xs text-text">{{ processingStore.maxMachines }} 台</span>
+            </div>
+            <div v-if="processingStore.workshopSpeedBonus > 0" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">加工速度</span>
+              <span class="text-xs text-success">+{{ Math.round(processingStore.workshopSpeedBonus * 100) }}%</span>
+            </div>
+            <div v-if="processingStore.workshopDoubleOutputChance > 0" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">双倍产出</span>
+              <span class="text-xs text-success">{{ Math.round(processingStore.workshopDoubleOutputChance * 100) }}%</span>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">里程碑奖励</p>
+            <div v-for="milestone in workshopMilestones" :key="milestone.id" class="flex items-start justify-between gap-2 py-0.5">
+              <span class="text-xs" :class="processingStore.workshopLevel >= milestone.level ? 'text-success' : 'text-muted'">
+                Lv.{{ milestone.level }} · {{ milestone.name }}
+              </span>
+              <span class="text-[0.625rem] text-right" :class="processingStore.workshopLevel >= milestone.level ? 'text-success' : 'text-muted'">
+                {{ milestone.description }}
+              </span>
             </div>
           </div>
 
@@ -408,16 +734,19 @@
             </div>
           </template>
 
-          <p v-else class="text-[0.625rem] text-muted text-center">工坊已达到最高等级。</p>
+          <div v-else class="border border-success/20 rounded-xs p-2 text-center">
+            <p class="text-xs text-success">工坊已达到最高等级 Lv.{{ WORKSHOP_MAX_LEVEL }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">机器上限 {{ processingStore.maxMachines }} 台，里程碑奖励已全部生效。</p>
+          </div>
         </div>
       </div>
     </Transition>
 
     <!-- 制造弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="craftModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="craftModal = null">
+      <div v-if="craftModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="closeCraftModal">
         <div class="game-panel max-w-xs w-full relative">
-          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="craftModal = null">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closeCraftModal">
             <X :size="14" />
           </button>
 
@@ -430,13 +759,13 @@
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="mat in craftModal.materials" :key="mat.itemId" class="flex items-center justify-between gap-2">
+            <div v-for="mat in craftModal.materialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
               <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
-                <span class="truncate">{{ getItemName(mat.itemId) }}</span>
+                <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
+                <span class="truncate">{{ mat.itemName }}</span>
               </span>
-              <span class="text-xs" :class="getIndexedItemCount(mat.itemId) >= mat.quantity * displayQty ? '' : 'text-danger'">
-                {{ getIndexedItemCount(mat.itemId) }}/{{ mat.quantity * displayQty }}
+              <span class="text-xs" :class="mat.count >= mat.quantity * displayQty ? '' : 'text-danger'">
+                {{ mat.count }}/{{ mat.quantity * displayQty }}
               </span>
             </div>
             <div v-if="craftModal.cost > 0" class="flex items-center justify-between mt-0.5">
@@ -486,10 +815,10 @@
 
           <Button
             class="w-full justify-center"
-            :class="{ '!bg-accent !text-bg': craftModal.canCraft() }"
+            :class="{ '!bg-accent !text-bg': canConfirmCraft }"
             :icon="Hammer"
             :icon-size="12"
-            :disabled="!craftModal.canCraft()"
+            :disabled="!canConfirmCraft"
             @click="handleCraftFromModal"
           >
             {{ craftModal.batchable && craftQuantity > 1 ? `制造 ×${craftQuantity}` : '制造' }}
@@ -727,11 +1056,11 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch } from 'vue'
-  import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle, FlaskConical } from 'lucide-vue-next'
+  import { ref, computed, watch, reactive, onBeforeUnmount } from 'vue'
+  import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle, FlaskConical, Sparkles } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
-  import type { ItemDef, MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
+  import type { ItemDef, MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality, OwnedWeapon, OwnedRing, OwnedHat, OwnedShoe } from '@/types'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useCookingStore } from '@/stores/useCookingStore'
@@ -739,10 +1068,10 @@
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import { useProcessingStore } from '@/stores/useProcessingStore'
+  import { WORKSHOP_MAX_LEVEL, WORKSHOP_MILESTONES, useProcessingStore } from '@/stores/useProcessingStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
-  import { getCombinedItemCount, hasCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
+  import { getCombinedItemCount, getCombinedItemCountSignature, hasCombinedItems, removeCombinedItems } from '@/composables/useCombinedInventory'
   import {
     PROCESSING_MACHINES,
     SPRINKLERS,
@@ -763,11 +1092,29 @@
   import { getItemById, CHEST_DEFS, CHEST_TIER_ORDER } from '@/data/items'
   import { getCropUseTagMatches } from '@/data/cropUseProfiles'
   import type { CropUseTag } from '@/data/cropUseProfiles'
+  import { BASIC_WEAPON_ENCHANTMENT_IDS, WEAPON_ENCHANTMENT_IDS, getEnchantmentById, getWeaponById, getWeaponDisplayName, rollEnchantmentFromPool } from '@/data/weapons'
+  import { PICKAXE_ENCHANTMENT_IDS, getToolEnchantmentById } from '@/data/toolEnchantments'
+  import { getRingById } from '@/data/rings'
+  import { getHatById } from '@/data/hats'
+  import { getShoeById } from '@/data/shoes'
+  import {
+    EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT,
+    getEquipmentDisplayName,
+    getEquipmentEnchantmentById,
+    type EquipmentEnchantSlot
+  } from '@/data/equipmentEnchantments'
+  import { TIER_NAMES, TOOL_NAMES } from '@/data/upgrades'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { buildScopedSingleKey, migrateLegacySingleValue } from '@/utils/accountStorage'
+  import {
+    formatCropUseSubstitutionSummary,
+    getCropUseRequirementAvailableCount,
+    type CropUseSubstitutionPlan,
+    type CropUseSubstitutionRequirement
+  } from '@/utils/cropUseSubstitution'
 
   const processingStore = useProcessingStore()
   const cookingStore = useCookingStore()
@@ -807,11 +1154,6 @@
   const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
   const getQualityRank = (quality: Quality) => QUALITY_ORDER.indexOf(quality)
   const getQualitiesAtLeast = (minQuality: Quality): Quality[] => QUALITY_ORDER.slice(Math.max(0, getQualityRank(minQuality)))
-
-  interface CombinedInventoryIndex {
-    totalByItemId: Map<string, number>
-    totalByItemAndQuality: Map<string, number>
-  }
 
   interface RecipeInputViewModel {
     key: string
@@ -853,6 +1195,7 @@
     slotIndex: number
     recipeId: string
     quality?: Quality
+    option: RecipeOptionViewModel
   }
 
   interface MachineSlotViewModel {
@@ -864,6 +1207,7 @@
     machineType: MachineType
     name: string
     slots: MachineSlotViewModel[]
+    firstIdleSlotIndex: number | null
     idleCount: number
     readyCount: number
     processingCount: number
@@ -872,54 +1216,83 @@
     recipeOptions: RecipeOptionViewModel[]
     seedRecipeOptions: RecipeOptionViewModel[]
     recommendationOptions: RecipeOptionViewModel[]
+    recipesLoading: boolean
     isEmpty: boolean
     emptyMessage: string
   }
 
-  const getInventoryQualityKey = (itemId: string, quality: Quality) => `${itemId}::${quality}`
+  type MachineGroupBaseViewModel = Omit<
+    MachineGroupViewModel,
+    'recipeOptions' | 'seedRecipeOptions' | 'recommendationOptions' | 'recipesLoading' | 'isEmpty' | 'emptyMessage'
+  >
 
-  const combinedInventoryIndex = computed<CombinedInventoryIndex>(() => {
-    const totalByItemId = new Map<string, number>()
-    const totalByItemAndQuality = new Map<string, number>()
-    const addItemCount = (itemId: string, quantity: number, quality: Quality = 'normal') => {
-      if (quantity <= 0) return
-      totalByItemId.set(itemId, (totalByItemId.get(itemId) ?? 0) + quantity)
-      const qualityKey = getInventoryQualityKey(itemId, quality)
-      totalByItemAndQuality.set(qualityKey, (totalByItemAndQuality.get(qualityKey) ?? 0) + quantity)
-    }
-
-    for (const item of inventoryStore.items) {
-      addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
-    }
-
-    for (const item of inventoryStore.tempItems) {
-      addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
-    }
-
-    if (warehouseStore.unlocked) {
-      for (const chest of warehouseStore.chests) {
-        for (const item of chest.items) {
-          addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
-        }
-      }
-    }
-
-    return {
-      totalByItemId,
-      totalByItemAndQuality
-    }
-  })
+  interface AsyncRecipeOptionsState {
+    allRecipeOptions: RecipeOptionViewModel[]
+    allSeedRecipeOptions: RecipeOptionViewModel[]
+    loading: boolean
+    token: number
+    signature: string
+    nextRecipeIndex: number
+    completed: boolean
+  }
 
   const getIndexedItemCount = (itemId: string, quality?: Quality): number => {
-    if (quality) {
-      return combinedInventoryIndex.value.totalByItemAndQuality.get(getInventoryQualityKey(itemId, quality)) ?? 0
-    }
-    return combinedInventoryIndex.value.totalByItemId.get(itemId) ?? 0
+    return getCombinedItemCount(itemId, quality)
   }
 
   const hasIndexedItem = (itemId: string, quantity: number = 1, quality?: Quality) => getIndexedItemCount(itemId, quality) >= quantity
   const getIndexedItemCountAtMinQuality = (itemId: string, minQuality: Quality): number =>
     getQualitiesAtLeast(minQuality).reduce((sum, quality) => sum + getIndexedItemCount(itemId, quality), 0)
+
+  const ASYNC_RECIPE_BATCH_SIZE = 8
+  const ASYNC_SEED_RECIPE_BATCH_SIZE = 4
+  const asyncRecipeOptionsByMachine = reactive<Record<string, AsyncRecipeOptionsState>>({})
+  let asyncRecipeToken = 0
+  const pendingAsyncRecipeTimers = new Set<ReturnType<typeof setTimeout>>()
+
+  const clearPendingAsyncRecipeTimer = () => {
+    for (const timer of pendingAsyncRecipeTimers) {
+      clearTimeout(timer)
+    }
+    pendingAsyncRecipeTimers.clear()
+  }
+
+  const scheduleAsyncRecipeStep = (callback: () => void) => {
+    const timer = setTimeout(() => {
+      pendingAsyncRecipeTimers.delete(timer)
+      callback()
+    }, 0)
+    pendingAsyncRecipeTimers.add(timer)
+  }
+
+  const getAsyncRecipeState = (machineType: MachineType): AsyncRecipeOptionsState => {
+    const key = machineType as string
+    asyncRecipeOptionsByMachine[key] ??= {
+      allRecipeOptions: [],
+      allSeedRecipeOptions: [],
+      loading: false,
+      token: 0,
+      signature: '',
+      nextRecipeIndex: 0,
+      completed: false
+    }
+    return asyncRecipeOptionsByMachine[key]!
+  }
+
+  const asyncRecipeSourceSignature = computed(() => {
+    const masterySignature = skillStore.masteryRewards.map(entry => `${entry.id}:${entry.unlocked ? 1 : 0}`).join('|')
+    const discoverySignature = processingStore.discoveredProcessingRecipeIds.join('|')
+    return [
+      getCombinedItemCountSignature(),
+      processingStore.workshopLevel,
+      gameStore.year,
+      gameStore.season,
+      gameStore.day,
+      masterySignature,
+      discoverySignature,
+      processingStore.getAlchemyDailyLimitSignature()
+    ].join('::')
+  })
 
   const uniqueStrings = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)))
 
@@ -997,6 +1370,34 @@
     return inventoryStore.canAddItem(itemId, 1) && canAffordCraft(craftCost, craftMoney)
   }
 
+  const buildAlchemyRequirement = (
+    recipe: ProcessingRecipeDef,
+    itemId: string,
+    quantity: number,
+    quality?: Quality
+  ): CropUseSubstitutionRequirement => {
+    return {
+      itemId,
+      quantity,
+      tags: ['alchemy', 'medicine'],
+      minQuality: itemId === recipe.inputItemId ? recipe.minInputQuality : undefined,
+      quality: itemId === recipe.inputItemId ? quality : undefined
+    }
+  }
+
+  const getAlchemyRequirementTotalCount = (
+    recipe: ProcessingRecipeDef,
+    itemId: string,
+    quantity: number,
+    quality?: Quality
+  ): number => {
+    return getCropUseRequirementAvailableCount(buildAlchemyRequirement(recipe, itemId, quantity, quality), getCombinedItemCount)
+  }
+
+  const formatAlchemyPlanSubstitutionText = (plan: CropUseSubstitutionPlan | null): string => {
+    return plan ? formatCropUseSubstitutionSummary(plan, getItemName) : ''
+  }
+
   const getCarryItemCraftFailureMessage = (
     itemId: string,
     itemName: string,
@@ -1014,7 +1415,7 @@
     const inputItem = recipe.inputItemId ? getItemById(recipe.inputItemId) ?? null : null
     const count = recipe.inputItemId
       ? recipe.alchemy
-        ? processingStore.getAlchemyRequirementAvailableCount(recipe.id, recipe.inputItemId, quality)
+        ? getAlchemyRequirementTotalCount(recipe, recipe.inputItemId, recipe.inputQuantity, quality)
         : quality
         ? getIndexedItemCount(recipe.inputItemId, quality)
         : recipe.minInputQuality
@@ -1035,7 +1436,7 @@
       itemId: extra.itemId,
       item: getItemById(extra.itemId),
       itemName: getItemName(extra.itemId),
-      count: recipe.alchemy ? processingStore.getAlchemyRequirementAvailableCount(recipe.id, extra.itemId, quality) : getIndexedItemCount(extra.itemId),
+      count: recipe.alchemy ? getAlchemyRequirementTotalCount(recipe, extra.itemId, extra.quantity, quality) : getIndexedItemCount(extra.itemId),
       quantity: extra.quantity
     }))
     const available = recipe.alchemy ? !!alchemyPlan?.fulfilled : inputAvailable && extraInputs.every(extra => extra.count >= extra.quantity)
@@ -1048,7 +1449,7 @@
       [recipe.inputItemId, ...(recipe.extraInputs?.map(extra => extra.itemId) ?? [])].filter((itemId): itemId is string => !!itemId),
       getProcessingRecommendationTags(recipe)
     )
-    const substitutionText = recipe.alchemy ? processingStore.getAlchemySubstitutionText(recipe.id, 1, quality) : ''
+    const substitutionText = recipe.alchemy ? formatAlchemyPlanSubstitutionText(alchemyPlan) : ''
     const recommendationText = buildProcessingRecommendationText(recipe, available && !alchemyLimit?.blocked, alchemyMetaText, cropUseText)
     const hiddenUndiscovered = recipe.visibility === 'hidden' && !processingStore.isHiddenProcessingRecipeDiscovered(recipe.id)
 
@@ -1078,36 +1479,8 @@
 
   const machineTypeOrder = new Map(PROCESSING_MACHINES.map((machine, index) => [machine.id as MachineType, index]))
 
-  const getSeedRecipeOptions = (machineType: MachineType): RecipeOptionViewModel[] => {
-    const result: RecipeOptionViewModel[] = []
-
-    for (const recipe of processingStore.getAvailableRecipes(machineType)) {
-      if (!recipe.inputItemId) continue
-
-      let hasAnyQuality = false
-      for (const quality of QUALITY_ORDER) {
-        const option = buildRecipeOption(recipe, quality)
-        if (option.count > 0) {
-          hasAnyQuality = true
-          result.push(option)
-        }
-      }
-
-      if (!hasAnyQuality && !onlyAvailable.value) {
-        result.push(buildRecipeOption(recipe, 'normal'))
-      }
-    }
-
-    return result
-  }
-
-  const getRecipeOptions = (machineType: MachineType): RecipeOptionViewModel[] => {
-    const options = processingStore.getAvailableRecipes(machineType).map(recipe => buildRecipeOption(recipe))
-    return onlyAvailable.value ? options.filter(option => option.available) : options
-  }
-
-  const machineGroupsView = computed((): MachineGroupViewModel[] => {
-    const groupMap = new Map<MachineType, MachineGroupViewModel>()
+  const machineGroupsBaseView = computed((): MachineGroupBaseViewModel[] => {
+    const groupMap = new Map<MachineType, MachineGroupBaseViewModel>()
 
     for (let i = 0; i < processingStore.machines.length; i++) {
       const slot = processingStore.machines[i]!
@@ -1118,16 +1491,12 @@
           machineType: slot.machineType,
           name: getMachineName(slot.machineType),
           slots: [],
+          firstIdleSlotIndex: null,
           idleCount: 0,
           readyCount: 0,
           processingCount: 0,
           hasReady: false,
-          isSeedMaker: slot.machineType === 'seed_maker',
-          recipeOptions: [],
-          seedRecipeOptions: [],
-          recommendationOptions: [],
-          isEmpty: false,
-          emptyMessage: onlyAvailable.value ? '没有材料足够的配方' : '无可用配方'
+          isSeedMaker: slot.machineType === 'seed_maker'
         }
         groupMap.set(slot.machineType, group)
       }
@@ -1135,6 +1504,7 @@
       group.slots.push({ slot, originalIndex: i })
 
       if (!slot.recipeId) {
+        if (group.firstIdleSlotIndex === null) group.firstIdleSlotIndex = i
         group.idleCount++
       } else if (slot.ready) {
         group.readyCount++
@@ -1143,85 +1513,60 @@
       }
     }
 
-    for (const group of groupMap.values()) {
+    const groups = [...groupMap.values()].sort((a, b) => (machineTypeOrder.get(a.machineType) ?? 99) - (machineTypeOrder.get(b.machineType) ?? 99))
+    for (const group of groups) {
       group.hasReady = group.readyCount > 0
-      group.emptyMessage = onlyAvailable.value ? '没有材料足够的配方' : '无可用配方'
-
-      if (group.idleCount <= 0) continue
-
-      if (group.isSeedMaker) {
-        group.seedRecipeOptions = getSeedRecipeOptions(group.machineType)
-        group.isEmpty = group.seedRecipeOptions.length === 0
-      } else {
-        group.recipeOptions = getRecipeOptions(group.machineType)
-        group.isEmpty = group.recipeOptions.length === 0
-      }
-      group.recommendationOptions = [...group.recipeOptions, ...group.seedRecipeOptions]
-        .filter(option => option.recommendationText)
-        .slice(0, 3)
     }
 
-    return [...groupMap.values()].sort((a, b) => (machineTypeOrder.get(a.machineType) ?? 99) - (machineTypeOrder.get(b.machineType) ?? 99))
+    return groups
   })
+
+  const machineGroupsView = computed((): MachineGroupViewModel[] => machineGroupsBaseView.value.map(group => {
+    const asyncRecipeState = getAsyncRecipeState(group.machineType)
+    const seedRecipeOptions = onlyAvailable.value ? asyncRecipeState.allSeedRecipeOptions.filter(option => option.count > 0) : asyncRecipeState.allSeedRecipeOptions
+    const recipeOptions = onlyAvailable.value ? asyncRecipeState.allRecipeOptions.filter(option => option.available) : asyncRecipeState.allRecipeOptions
+    const isEmpty = asyncRecipeState.loading
+      ? false
+      : group.isSeedMaker
+        ? seedRecipeOptions.length === 0
+        : recipeOptions.length === 0
+    return {
+      machineType: group.machineType,
+      name: group.name,
+      slots: group.slots,
+      firstIdleSlotIndex: group.firstIdleSlotIndex,
+      idleCount: group.idleCount,
+      readyCount: group.readyCount,
+      processingCount: group.processingCount,
+      hasReady: group.hasReady,
+      isSeedMaker: group.isSeedMaker,
+      recipeOptions,
+      seedRecipeOptions,
+      recommendationOptions: [...recipeOptions, ...seedRecipeOptions]
+        .filter(option => option.recommendationText)
+        .slice(0, 3),
+      recipesLoading: asyncRecipeState.loading,
+      isEmpty,
+      emptyMessage: asyncRecipeState.loading
+        ? '正在整理配方...'
+        : onlyAvailable.value
+          ? '没有材料足够的配方'
+          : '无可用配方'
+    }
+  }))
 
   const machineGroupsByType = computed(() => new Map(machineGroupsView.value.map(group => [group.machineType, group])))
 
-  /** 种子制造机：按品质展开配方列表 */
-  const getSeedMakerQualityRecipes = (machineType: MachineType) => {
-    const recipes = processingStore.getAvailableRecipes(machineType)
-    const result: { recipe: (typeof recipes)[number]; quality: Quality; count: number; available: boolean }[] = []
-    for (const recipe of recipes) {
-      if (!recipe.inputItemId) continue
-      let hasAny = false
-      for (const q of QUALITY_ORDER) {
-        const count = getCombinedItemCount(recipe.inputItemId, q)
-        if (count > 0) {
-          hasAny = true
-          result.push({ recipe, quality: q, count, available: count >= recipe.inputQuantity })
-        }
-      }
-      // 无任何品质库存时，仅在非筛选模式下显示一条（普通品质，不可用）
-      if (!hasAny && !onlyAvailable.value) {
-        result.push({ recipe, quality: 'normal' as Quality, count: 0, available: false })
-      }
+  const machineCountByType = computed(() => {
+    const counts = new Map<MachineType, number>()
+    for (const slot of processingStore.machines) {
+      counts.set(slot.machineType, (counts.get(slot.machineType) ?? 0) + 1)
     }
-    return result
-  }
-
-  // === 机器分组（相同设备排到一起，可折叠） ===
-
-  interface MachineGroup {
-    machineType: MachineType
-    name: string
-    slots: { slot: (typeof processingStore.machines)[number]; originalIndex: number }[]
-  }
-
-  const machineGroups = computed((): MachineGroup[] => {
-    const groupMap = new Map<MachineType, MachineGroup>()
-    // 按 PROCESSING_MACHINES 定义顺序作为排序基准
-    const typeOrder = new Map(PROCESSING_MACHINES.map((m, i) => [m.id as MachineType, i]))
-    for (let i = 0; i < processingStore.machines.length; i++) {
-      const slot = processingStore.machines[i]!
-      let group = groupMap.get(slot.machineType)
-      if (!group) {
-        group = { machineType: slot.machineType, name: getMachineName(slot.machineType), slots: [] }
-        groupMap.set(slot.machineType, group)
-      }
-      group.slots.push({ slot, originalIndex: i })
-    }
-    return [...groupMap.values()].sort((a, b) => (typeOrder.get(a.machineType) ?? 99) - (typeOrder.get(b.machineType) ?? 99))
+    return counts
   })
 
   /** 折叠状态：存储已折叠的机器类型 */
   const collapsedGroups = ref(new Set<MachineType>())
-
-  const getGroupIdleCount = (machineType: MachineType) => processingStore.machines.filter(slot => slot.machineType === machineType && !slot.recipeId).length
-
-  const getGroupReadyCount = (machineType: MachineType) =>
-    processingStore.machines.filter(slot => slot.machineType === machineType && !!slot.recipeId && slot.ready).length
-
-  const getGroupProcessingCount = (machineType: MachineType) =>
-    processingStore.machines.filter(slot => slot.machineType === machineType && !!slot.recipeId && !slot.ready).length
 
   const toggleGroup = (type: MachineType) => {
     if (collapsedGroups.value.has(type)) {
@@ -1233,14 +1578,112 @@
 
   /** 获取某类型机器的已有数量 */
   const getMachineCountByType = (type: MachineType): number => {
-    return machineGroupsByType.value.get(type)?.slots.length ?? 0
+    return machineCountByType.value.get(type) ?? 0
   }
 
-  const canProcessRecipe = (recipe: ReturnType<typeof processingStore.getAvailableRecipes>[number]) =>
-    (recipe.inputItemId === null || hasCombinedItem(recipe.inputItemId, recipe.inputQuantity)) &&
-    (recipe.extraInputs?.every(e => hasCombinedItem(e.itemId, e.quantity)) ?? true)
+  const getExpandedRecipeMachineTypes = (): MachineType[] =>
+    machineGroupsBaseView.value
+      .filter(group => group.idleCount > 0 && !collapsedGroups.value.has(group.machineType))
+      .map(group => group.machineType)
 
-  void [getSeedMakerQualityRecipes, machineGroups, getGroupIdleCount, getGroupReadyCount, getGroupProcessingCount, canProcessRecipe]
+  const resetAsyncRecipeState = (machineType: MachineType, signature: string) => {
+    const state = getAsyncRecipeState(machineType)
+    state.allRecipeOptions = []
+    state.allSeedRecipeOptions = []
+    state.loading = true
+    state.signature = signature
+    state.token = ++asyncRecipeToken
+    state.nextRecipeIndex = 0
+    state.completed = false
+    return state
+  }
+
+  const stopAsyncRecipeState = (machineType: MachineType) => {
+    const state = getAsyncRecipeState(machineType)
+    state.token = ++asyncRecipeToken
+    state.loading = false
+  }
+
+  const buildAsyncRecipeOptionsForGroup = (machineType: MachineType, signature: string) => {
+    const state = getAsyncRecipeState(machineType)
+    if (state.signature === signature && (state.loading || state.completed)) return
+
+    const group = machineGroupsBaseView.value.find(entry => entry.machineType === machineType)
+    if (!group || group.idleCount <= 0 || collapsedGroups.value.has(machineType)) {
+      stopAsyncRecipeState(machineType)
+      return
+    }
+
+    const nextState = resetAsyncRecipeState(machineType, signature)
+    const token = nextState.token
+    const recipes = processingStore.getAvailableRecipes(machineType)
+
+    const runStep = () => {
+      if (nextState.token !== token || nextState.signature !== signature) return
+      if (collapsedGroups.value.has(machineType)) {
+        nextState.loading = false
+        return
+      }
+
+      let built = 0
+      const batchSize = group.isSeedMaker ? ASYNC_SEED_RECIPE_BATCH_SIZE : ASYNC_RECIPE_BATCH_SIZE
+      while (nextState.nextRecipeIndex < recipes.length && built < batchSize) {
+        const recipe = recipes[nextState.nextRecipeIndex]!
+        if (group.isSeedMaker) {
+          if (recipe.inputItemId) {
+            let pushed = false
+            for (const quality of QUALITY_ORDER) {
+              const option = buildRecipeOption(recipe, quality)
+              if (option.count > 0) {
+                nextState.allSeedRecipeOptions.push(option)
+                pushed = true
+              }
+            }
+            if (!pushed) {
+              nextState.allSeedRecipeOptions.push(buildRecipeOption(recipe, 'normal'))
+            }
+            built++
+          }
+        } else {
+          nextState.allRecipeOptions.push(buildRecipeOption(recipe))
+          built++
+        }
+        nextState.nextRecipeIndex++
+      }
+
+      if (nextState.nextRecipeIndex < recipes.length) {
+        scheduleAsyncRecipeStep(runStep)
+        return
+      }
+
+      nextState.loading = false
+      nextState.completed = true
+    }
+
+    scheduleAsyncRecipeStep(runStep)
+  }
+
+  watch(
+    () => ({
+      signature: asyncRecipeSourceSignature.value,
+      expanded: getExpandedRecipeMachineTypes().join('|')
+    }),
+    ({ signature, expanded }) => {
+      const expandedTypes = new Set(expanded.split('|').filter(Boolean) as MachineType[])
+      for (const machineType of Object.keys(asyncRecipeOptionsByMachine) as MachineType[]) {
+        if (!expandedTypes.has(machineType)) stopAsyncRecipeState(machineType)
+      }
+      for (const machineType of expandedTypes) {
+        buildAsyncRecipeOptionsForGroup(machineType, signature)
+      }
+    },
+    { immediate: true }
+  )
+
+  onBeforeUnmount(() => {
+    asyncRecipeToken++
+    clearPendingAsyncRecipeTimer()
+  })
 
   const summarizeOutputNames = (outputs: string[]) => {
     const counts = new Map<string, number>()
@@ -1421,7 +1864,12 @@
   }
 
   const openProcessingRecipeDetail = (slotIndex: number, option: RecipeOptionViewModel) => {
-    processingRecipeDetail.value = { slotIndex, recipeId: option.recipeId, quality: option.quality }
+    processingRecipeDetail.value = { slotIndex, recipeId: option.recipeId, quality: option.quality, option }
+  }
+
+  const openGroupProcessingRecipeDetail = (group: MachineGroupViewModel, option: RecipeOptionViewModel) => {
+    if (group.firstIdleSlotIndex === null) return
+    openProcessingRecipeDetail(group.firstIdleSlotIndex, option)
   }
 
   const closeProcessingRecipeDetail = () => {
@@ -1440,7 +1888,7 @@
     if (!detail || !slot || slot.recipeId) return null
     const recipe = getProcessingRecipeById(detail.recipeId)
     if (!recipe || recipe.machineType !== slot.machineType) return null
-    return buildRecipeOption(recipe, detail.quality)
+    return detail.option
   })
 
   const currentRecipeDetailMachineName = computed(() => {
@@ -1471,6 +1919,8 @@
   const showUpgradeConfirm = ref(false)
 
   const nextUpgrade = computed(() => processingStore.getNextUpgrade())
+  const isWorkshopMaxLevel = computed(() => processingStore.workshopLevel >= WORKSHOP_MAX_LEVEL)
+  const workshopMilestones = WORKSHOP_MILESTONES
 
   const canUpgrade = computed(() => {
     const u = nextUpgrade.value
@@ -1491,7 +1941,461 @@
     showUpgradeModal.value = false
   }
 
+  // === 武器铸魔 ===
+
+  type WeaponEnchantMode = 'basic' | 'directed' | 'protected'
+
+  interface WeaponEnchantModeDef {
+    id: WeaponEnchantMode
+    name: string
+    description: string
+    minLevel: number
+    cost: number
+    materials: { itemId: string; quantity: number }[]
+  }
+
+  interface WeaponEnchantMaterialLine {
+    itemId: string
+    item: ItemDef | null
+    itemName: string
+    quantity: number
+    count: number
+  }
+
+  const WEAPON_ENCHANT_MODES: WeaponEnchantModeDef[] = [
+    {
+      id: 'basic',
+      name: '随机铸魔',
+      description: '随机获得基础附魔，不会洗成空白。',
+      minLevel: 7,
+      cost: 30000,
+      materials: [
+        { itemId: 'bronze_bar', quantity: 2 },
+        { itemId: 'mythril_bar', quantity: 1 },
+        { itemId: 'shadow_ore', quantity: 4 }
+      ]
+    },
+    {
+      id: 'directed',
+      name: '定向附魔',
+      description: '指定一个附魔词条，适合毕业武器定型。',
+      minLevel: 10,
+      cost: 90000,
+      materials: [
+        { itemId: 'mythril_bar', quantity: 2 },
+        { itemId: 'shadow_ore', quantity: 8 },
+        { itemId: 'prismatic_shard', quantity: 1 },
+        { itemId: 'dragon_jade', quantity: 1 }
+      ]
+    },
+    {
+      id: 'protected',
+      name: '保留重铸',
+      description: '已有附魔重铸为不同词条，不会洗回原附魔。',
+      minLevel: 15,
+      cost: 150000,
+      materials: [
+        { itemId: 'mythril_bar', quantity: 3 },
+        { itemId: 'void_ore', quantity: 10 },
+        { itemId: 'prismatic_shard', quantity: 1 },
+        { itemId: 'dragon_jade', quantity: 2 }
+      ]
+    }
+  ]
+
+  const selectedEnchantWeaponIndex = ref(0)
+  const selectedEnchantMode = ref<WeaponEnchantMode>('basic')
+  const selectedDirectedEnchantId = ref<string>(WEAPON_ENCHANTMENT_IDS[0]!)
+
+  const weaponEnchantModeOptions = computed(() =>
+    WEAPON_ENCHANT_MODES.map(mode => ({
+      ...mode,
+      unlocked: processingStore.workshopLevel >= mode.minLevel
+    }))
+  )
+
+  const selectedEnchantModeDef = computed(() => WEAPON_ENCHANT_MODES.find(mode => mode.id === selectedEnchantMode.value) ?? WEAPON_ENCHANT_MODES[0]!)
+
+  const selectedEnchantWeapon = computed<OwnedWeapon | null>(() => inventoryStore.ownedWeapons[selectedEnchantWeaponIndex.value] ?? null)
+
+  const weaponEnchantWeaponOptions = computed(() =>
+    inventoryStore.ownedWeapons.map((weapon, index) => ({
+      index,
+      name: getWeaponDisplayName(weapon.defId, weapon.enchantmentId),
+      enchantName: weapon.enchantmentId ? getEnchantmentById(weapon.enchantmentId)?.name ?? weapon.enchantmentId : '',
+      equipped: index === inventoryStore.equippedWeaponIndex,
+      locked: !!weapon.locked
+    }))
+  )
+
+  const directedEnchantOptions = computed(() =>
+    WEAPON_ENCHANTMENT_IDS.flatMap(id => {
+      const enchant = getEnchantmentById(id)
+      return enchant
+        ? [{
+            id,
+            name: enchant.name,
+            description: enchant.description
+          }]
+        : []
+    })
+  )
+
+  const selectedEnchantMaterialLines = computed<WeaponEnchantMaterialLine[]>(() =>
+    selectedEnchantModeDef.value.materials.map(mat => ({
+      itemId: mat.itemId,
+      item: getItemById(mat.itemId) ?? null,
+      itemName: getItemName(mat.itemId),
+      quantity: mat.quantity,
+      count: getIndexedItemCount(mat.itemId)
+    }))
+  )
+
+  const weaponEnchantBlockReason = computed(() => {
+    const weapon = selectedEnchantWeapon.value
+    const mode = selectedEnchantModeDef.value
+    if (!weapon) return '请选择一把武器。'
+    if (weapon.locked) return '这件武器已锁定，先解锁才能铸魔。'
+    if (!getWeaponById(weapon.defId)) return '武器定义不存在，无法铸魔。'
+    if (processingStore.workshopLevel < mode.minLevel) return `工坊 Lv.${mode.minLevel} 后开放${mode.name}。`
+    if (mode.id === 'directed') {
+      if (!selectedDirectedEnchantId.value) return '请选择目标附魔。'
+      if (weapon.enchantmentId === selectedDirectedEnchantId.value) return '目标附魔与当前附魔相同。'
+    }
+    if (mode.id === 'protected' && !weapon.enchantmentId) return '保留重铸需要武器已有附魔。'
+    if (playerStore.money < mode.cost) return '铜钱不足。'
+    if (!hasCombinedItems(mode.materials)) return '材料不足。'
+    return ''
+  })
+
+  const canConfirmWeaponEnchant = computed(() => !weaponEnchantBlockReason.value)
+
+  const weaponEnchantConfirmLabel = computed(() => {
+    if (selectedEnchantMode.value === 'directed') return '定向附魔'
+    if (selectedEnchantMode.value === 'protected') return '保留重铸'
+    return '随机铸魔'
+  })
+
+  const resolveWeaponEnchantResultId = (weapon: OwnedWeapon): string => {
+    if (selectedEnchantMode.value === 'directed') return selectedDirectedEnchantId.value
+    if (selectedEnchantMode.value === 'protected') {
+      return rollEnchantmentFromPool(WEAPON_ENCHANTMENT_IDS, weapon.enchantmentId)
+    }
+    return rollEnchantmentFromPool(BASIC_WEAPON_ENCHANTMENT_IDS, weapon.enchantmentId)
+  }
+
+  const handleWeaponEnchant = () => {
+    if (!canConfirmWeaponEnchant.value) {
+      if (weaponEnchantBlockReason.value) addLog(weaponEnchantBlockReason.value)
+      return
+    }
+    const index = selectedEnchantWeaponIndex.value
+    const weapon = selectedEnchantWeapon.value
+    if (!weapon) return
+
+    const mode = selectedEnchantModeDef.value
+    const resultEnchantId = resolveWeaponEnchantResultId(weapon)
+    const beforeName = getWeaponDisplayName(weapon.defId, weapon.enchantmentId)
+    const resultEnchantName = getEnchantmentById(resultEnchantId)?.name ?? resultEnchantId
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
+
+    if (!playerStore.spendMoney(mode.cost)) {
+      addLog('铜钱不足。')
+      return
+    }
+    if (!removeCombinedItems(mode.materials)) {
+      playerStore.earnMoney(mode.cost, { countAsEarned: false })
+      addLog('材料不足。')
+      return
+    }
+
+    const result = inventoryStore.setWeaponEnchantment(index, resultEnchantId)
+    if (!result.success) {
+      playerStore.earnMoney(mode.cost, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      addLog(result.message)
+      return
+    }
+
+    sfxClick()
+    const afterName = getWeaponDisplayName(weapon.defId, resultEnchantId)
+    addLog(`工坊铸魔完成：${beforeName} → ${afterName}（${resultEnchantName}）。`)
+    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
+    if (tr.message) addLog(tr.message)
+    if (tr.passedOut) handleEndDay()
+  }
+
+  // === 工具附魔 ===
+
+  const TOOL_ENCHANT_COST = 20000
+  const TOOL_ENCHANT_MATERIALS = [
+    { itemId: 'bronze_bar', quantity: 1 },
+    { itemId: 'shadow_ore', quantity: 3 },
+    { itemId: 'stone', quantity: 80 }
+  ]
+
+  const selectedToolEnchantId = ref<string>(PICKAXE_ENCHANTMENT_IDS[0]!)
+  const pickaxeEnchantOptions = computed(() =>
+    PICKAXE_ENCHANTMENT_IDS.flatMap(id => {
+      const enchant = getToolEnchantmentById(id)
+      return enchant
+        ? [{
+            id,
+            name: enchant.name,
+            description: enchant.description
+          }]
+        : []
+    })
+  )
+  const pickaxeTool = computed(() => inventoryStore.getTool('pickaxe') ?? null)
+  const pickaxeToolLabel = computed(() => {
+    const tier = pickaxeTool.value?.tier ?? 'basic'
+    return `${TOOL_NAMES.pickaxe} · ${TIER_NAMES[tier]}`
+  })
+  const pickaxeCurrentEnchantName = computed(() => {
+    const enchantmentId = inventoryStore.getToolEnchantmentId('pickaxe')
+    return enchantmentId ? getToolEnchantmentById(enchantmentId)?.name ?? enchantmentId : ''
+  })
+  const toolEnchantMaterialLines = computed<WeaponEnchantMaterialLine[]>(() =>
+    TOOL_ENCHANT_MATERIALS.map(mat => ({
+      itemId: mat.itemId,
+      item: getItemById(mat.itemId) ?? null,
+      itemName: getItemName(mat.itemId),
+      quantity: mat.quantity,
+      count: getIndexedItemCount(mat.itemId)
+    }))
+  )
+  const toolEnchantBlockReason = computed(() => {
+    if (processingStore.workshopLevel < 7) return '工坊 Lv.7 后开放工具附魔。'
+    if (!pickaxeTool.value) return '缺少镐子，无法附魔。'
+    if (inventoryStore.pendingUpgrade?.toolType === 'pickaxe') return '镐子正在升级，完成后才能附魔。'
+    if (!getToolEnchantmentById(selectedToolEnchantId.value)) return '请选择有效的工具附魔。'
+    if (inventoryStore.getToolEnchantmentId('pickaxe') === selectedToolEnchantId.value) return '镐子已经拥有该附魔。'
+    if (playerStore.money < TOOL_ENCHANT_COST) return '铜钱不足。'
+    if (!hasCombinedItems(TOOL_ENCHANT_MATERIALS)) return '材料不足。'
+    return ''
+  })
+  const canConfirmToolEnchant = computed(() => !toolEnchantBlockReason.value)
+  const selectedToolEnchantName = computed(() => getToolEnchantmentById(selectedToolEnchantId.value)?.name ?? selectedToolEnchantId.value)
+  const toolEnchantConfirmLabel = computed(() => pickaxeCurrentEnchantName.value ? `替换为${selectedToolEnchantName.value}` : `附魔${selectedToolEnchantName.value}`)
+
+  const handleToolEnchant = () => {
+    if (!canConfirmToolEnchant.value) {
+      if (toolEnchantBlockReason.value) addLog(toolEnchantBlockReason.value)
+      return
+    }
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
+
+    if (!playerStore.spendMoney(TOOL_ENCHANT_COST)) {
+      addLog('铜钱不足。')
+      return
+    }
+    if (!removeCombinedItems(TOOL_ENCHANT_MATERIALS)) {
+      playerStore.earnMoney(TOOL_ENCHANT_COST, { countAsEarned: false })
+      addLog('材料不足。')
+      return
+    }
+
+    const result = inventoryStore.setToolEnchantment('pickaxe', selectedToolEnchantId.value)
+    if (!result.success) {
+      playerStore.earnMoney(TOOL_ENCHANT_COST, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      addLog(result.message)
+      return
+    }
+
+    sfxClick()
+    addLog(`工具附魔完成：镐子获得${selectedToolEnchantName.value}。`)
+    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
+    if (tr.message) addLog(tr.message)
+    if (tr.passedOut) handleEndDay()
+  }
+
   // === 制造弹窗 ===
+
+  // === 装备附魔 ===
+
+  type EquipmentEnchantTarget = OwnedRing | OwnedHat | OwnedShoe
+
+  interface EquipmentEnchantSlotOption {
+    id: EquipmentEnchantSlot
+    label: string
+  }
+
+  const EQUIPMENT_ENCHANT_MIN_LEVEL = 10
+  const EQUIPMENT_ENCHANT_COST = 50000
+  const EQUIPMENT_ENCHANT_MATERIALS = [
+    { itemId: 'mythril_bar', quantity: 1 },
+    { itemId: 'shadow_ore', quantity: 4 },
+    { itemId: 'void_ore', quantity: 2 },
+    { itemId: 'prismatic_shard', quantity: 1 }
+  ]
+  const EQUIPMENT_ENCHANT_SLOT_OPTIONS: EquipmentEnchantSlotOption[] = [
+    { id: 'shoe', label: '鞋子' },
+    { id: 'ring', label: '戒指' },
+    { id: 'hat', label: '帽子' }
+  ]
+
+  const selectedEquipmentEnchantSlot = ref<EquipmentEnchantSlot>('shoe')
+  const selectedEquipmentEnchantIndex = ref(0)
+  const selectedEquipmentEnchantId = ref<string>(EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT.shoe[0]!)
+
+  const getEquipmentEnchantEntries = (slot: EquipmentEnchantSlot): EquipmentEnchantTarget[] => {
+    if (slot === 'ring') return inventoryStore.ownedRings
+    if (slot === 'hat') return inventoryStore.ownedHats
+    return inventoryStore.ownedShoes
+  }
+
+  const getEquipmentEnchantBaseName = (slot: EquipmentEnchantSlot, defId: string): string => {
+    if (slot === 'ring') return getRingById(defId)?.name ?? defId
+    if (slot === 'hat') return getHatById(defId)?.name ?? defId
+    return getShoeById(defId)?.name ?? defId
+  }
+
+  const equipmentEnchantDefExists = (slot: EquipmentEnchantSlot, defId: string): boolean => {
+    if (slot === 'ring') return !!getRingById(defId)
+    if (slot === 'hat') return !!getHatById(defId)
+    return !!getShoeById(defId)
+  }
+
+  const equipmentEnchantSlotOptions = computed(() =>
+    EQUIPMENT_ENCHANT_SLOT_OPTIONS.map(option => ({
+      ...option,
+      count: getEquipmentEnchantEntries(option.id).length
+    }))
+  )
+
+  const selectedEquipmentEnchantEntries = computed(() => getEquipmentEnchantEntries(selectedEquipmentEnchantSlot.value))
+  const selectedEquipmentEnchantTarget = computed<EquipmentEnchantTarget | null>(() =>
+    selectedEquipmentEnchantEntries.value[selectedEquipmentEnchantIndex.value] ?? null
+  )
+
+  const equipmentEnchantTargetOptions = computed(() =>
+    selectedEquipmentEnchantEntries.value.map((entry, index) => ({
+      index,
+      name: getEquipmentDisplayName(getEquipmentEnchantBaseName(selectedEquipmentEnchantSlot.value, entry.defId), entry.enchantmentId),
+      enchantName: entry.enchantmentId ? getEquipmentEnchantmentById(entry.enchantmentId)?.name ?? entry.enchantmentId : '',
+      equipped:
+        selectedEquipmentEnchantSlot.value === 'ring'
+          ? index === inventoryStore.equippedRingSlot1 || index === inventoryStore.equippedRingSlot2
+          : selectedEquipmentEnchantSlot.value === 'hat'
+            ? index === inventoryStore.equippedHatIndex
+            : index === inventoryStore.equippedShoeIndex,
+      locked: !!entry.locked
+    }))
+  )
+
+  const equipmentEnchantOptions = computed(() =>
+    EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT[selectedEquipmentEnchantSlot.value].flatMap(id => {
+      const enchant = getEquipmentEnchantmentById(id)
+      return enchant
+        ? [{
+            id,
+            name: enchant.name,
+            description: enchant.description
+          }]
+        : []
+    })
+  )
+
+  const equipmentEnchantMaterialLines = computed<WeaponEnchantMaterialLine[]>(() =>
+    EQUIPMENT_ENCHANT_MATERIALS.map(mat => ({
+      itemId: mat.itemId,
+      item: getItemById(mat.itemId) ?? null,
+      itemName: getItemName(mat.itemId),
+      quantity: mat.quantity,
+      count: getIndexedItemCount(mat.itemId)
+    }))
+  )
+
+  const selectedEquipmentEnchantName = computed(() => getEquipmentEnchantmentById(selectedEquipmentEnchantId.value)?.name ?? selectedEquipmentEnchantId.value)
+  const selectedEquipmentSlotLabel = computed(() =>
+    equipmentEnchantSlotOptions.value.find(option => option.id === selectedEquipmentEnchantSlot.value)?.label ?? '装备'
+  )
+
+  watch(selectedEquipmentEnchantSlot, slot => {
+    selectedEquipmentEnchantIndex.value = 0
+    selectedEquipmentEnchantId.value = EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT[slot][0] ?? ''
+  })
+
+  watch(equipmentEnchantTargetOptions, options => {
+    if (options.length <= 0) {
+      selectedEquipmentEnchantIndex.value = 0
+      return
+    }
+    if (!options.some(option => option.index === selectedEquipmentEnchantIndex.value)) {
+      selectedEquipmentEnchantIndex.value = options[0]!.index
+    }
+  })
+
+  const equipmentEnchantBlockReason = computed(() => {
+    if (processingStore.workshopLevel < EQUIPMENT_ENCHANT_MIN_LEVEL) return `工坊 Lv.${EQUIPMENT_ENCHANT_MIN_LEVEL} 后开放装备附魔。`
+    const target = selectedEquipmentEnchantTarget.value
+    if (!target) return `缺少可附魔的${selectedEquipmentSlotLabel.value}。`
+    if (target.locked) return '这件装备已锁定，先解锁才能附魔。'
+    if (!equipmentEnchantDefExists(selectedEquipmentEnchantSlot.value, target.defId)) return '装备定义不存在，无法附魔。'
+    const enchant = getEquipmentEnchantmentById(selectedEquipmentEnchantId.value)
+    if (!enchant || enchant.slot !== selectedEquipmentEnchantSlot.value) return '请选择有效的装备附魔。'
+    if (target.enchantmentId === selectedEquipmentEnchantId.value) return `${selectedEquipmentSlotLabel.value}已经拥有该附魔。`
+    if (playerStore.money < EQUIPMENT_ENCHANT_COST) return '铜钱不足。'
+    if (!hasCombinedItems(EQUIPMENT_ENCHANT_MATERIALS)) return '材料不足。'
+    return ''
+  })
+
+  const canConfirmEquipmentEnchant = computed(() => !equipmentEnchantBlockReason.value)
+  const equipmentEnchantConfirmLabel = computed(() =>
+    selectedEquipmentEnchantTarget.value?.enchantmentId ? `替换为${selectedEquipmentEnchantName.value}` : `附魔${selectedEquipmentEnchantName.value}`
+  )
+
+  const setSelectedEquipmentEnchantment = (index: number, enchantmentId: string) => {
+    if (selectedEquipmentEnchantSlot.value === 'ring') return inventoryStore.setRingEnchantment(index, enchantmentId)
+    if (selectedEquipmentEnchantSlot.value === 'hat') return inventoryStore.setHatEnchantment(index, enchantmentId)
+    return inventoryStore.setShoeEnchantment(index, enchantmentId)
+  }
+
+  const handleEquipmentEnchant = () => {
+    if (!canConfirmEquipmentEnchant.value) {
+      if (equipmentEnchantBlockReason.value) addLog(equipmentEnchantBlockReason.value)
+      return
+    }
+
+    const target = selectedEquipmentEnchantTarget.value
+    if (!target) return
+    const index = selectedEquipmentEnchantIndex.value
+    const beforeName = getEquipmentDisplayName(getEquipmentEnchantBaseName(selectedEquipmentEnchantSlot.value, target.defId), target.enchantmentId)
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
+
+    if (!playerStore.spendMoney(EQUIPMENT_ENCHANT_COST)) {
+      addLog('铜钱不足。')
+      return
+    }
+    if (!removeCombinedItems(EQUIPMENT_ENCHANT_MATERIALS)) {
+      playerStore.earnMoney(EQUIPMENT_ENCHANT_COST, { countAsEarned: false })
+      addLog('材料不足。')
+      return
+    }
+
+    const result = setSelectedEquipmentEnchantment(index, selectedEquipmentEnchantId.value)
+    if (!result.success) {
+      playerStore.earnMoney(EQUIPMENT_ENCHANT_COST, { countAsEarned: false })
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      addLog(result.message)
+      return
+    }
+
+    sfxClick()
+    const afterName = getEquipmentDisplayName(getEquipmentEnchantBaseName(selectedEquipmentEnchantSlot.value, target.defId), selectedEquipmentEnchantId.value)
+    addLog(`装备附魔完成：${beforeName} → ${afterName}（${selectedEquipmentEnchantName.value}）。`)
+    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
+    if (tr.message) addLog(tr.message)
+    if (tr.passedOut) handleEndDay()
+  }
 
   interface CraftableItem {
     id: string
@@ -1507,12 +2411,31 @@
     maxBatch?: () => number
   }
 
-  const craftModal = ref<CraftableItem | null>(null)
+  interface CraftMaterialLine {
+    itemId: string
+    item: ItemDef | null
+    itemName: string
+    quantity: number
+    count: number
+  }
+
+  interface CraftModalView extends CraftableItem {
+    materialLines: CraftMaterialLine[]
+    maxCraftable: number
+    canCraftNow: boolean
+  }
+
+  interface CraftCategoryViewModel {
+    id: string
+    label: string
+    items: CraftableItem[]
+  }
+
+  const craftModal = ref<CraftModalView | null>(null)
   const craftQuantity = ref(1)
 
-  const maxCraftable = computed(() => {
-    const item = craftModal.value
-    if (!item?.batchable) return 1
+  const getCraftMaxBatch = (item: CraftableItem): number => {
+    if (!item.batchable) return 1
     let max = 999
     for (const m of item.materials) {
       max = Math.min(max, Math.floor(getIndexedItemCount(m.itemId) / m.quantity))
@@ -1524,13 +2447,37 @@
       max = Math.min(max, item.maxBatch())
     }
     return Math.max(1, max)
+  }
+
+  const buildCraftModalView = (item: CraftableItem): CraftModalView => ({
+    ...item,
+    materialLines: item.materials.map(mat => ({
+      itemId: mat.itemId,
+      item: getItemById(mat.itemId) ?? null,
+      itemName: getItemName(mat.itemId),
+      quantity: mat.quantity,
+      count: getIndexedItemCount(mat.itemId)
+    })),
+    maxCraftable: getCraftMaxBatch(item),
+    canCraftNow: item.canCraft()
   })
 
+  const maxCraftable = computed(() => craftModal.value?.maxCraftable ?? 1)
+
   const displayQty = computed(() => (craftModal.value?.batchable ? craftQuantity.value : 1))
+  const canConfirmCraft = computed(() => {
+    const item = craftModal.value
+    if (!item?.canCraftNow) return false
+    return !item.batchable || craftQuantity.value <= item.maxCraftable
+  })
 
   const openCraftModal = (item: CraftableItem) => {
-    craftModal.value = item
+    craftModal.value = buildCraftModalView(item)
     craftQuantity.value = 1
+  }
+
+  const closeCraftModal = () => {
+    craftModal.value = null
   }
 
   const getCraftIconItem = (item: CraftableItem): ItemDef => {
@@ -1584,26 +2531,31 @@
       canAffordCraft(STAMINA_FRUIT_COST, STAMINA_FRUIT_MONEY)
   )
 
-  const craftCategories = computed((): { label: string; items: CraftableItem[] }[] => [
-    {
-      label: '加工机器',
-      items: PROCESSING_MACHINES.map(m => ({
-        id: m.id as string,
-        name: m.name,
-        description: m.description,
-        materials: m.craftCost,
-        cost: m.craftMoney,
-        onCraft: () => handleCraftMachine(m.id),
-        canCraft: () =>
-          processingStore.isMachineCraftUnlocked(m.id) &&
-          canAffordCraft(m.craftCost, m.craftMoney) &&
-          processingStore.machineCount < processingStore.maxMachines,
-        badge: processingStore.getMachineCraftLockedReason(m.id) || `已有${getMachineCountByType(m.id)}`,
-        batchable: true,
-        maxBatch: () => processingStore.maxMachines - processingStore.machineCount
-      }))
-    },
-    {
+  const craftCategories = computed((): CraftCategoryViewModel[] => {
+    const categories: CraftCategoryViewModel[] = [
+      {
+        id: 'machines',
+        label: '加工机器',
+        items: PROCESSING_MACHINES.map(m => ({
+          id: m.id as string,
+          name: m.name,
+          description: m.description,
+          materials: m.craftCost,
+          cost: m.craftMoney,
+          onCraft: () => handleCraftMachine(m.id),
+          canCraft: () =>
+            processingStore.isMachineCraftUnlocked(m.id) &&
+            canAffordCraft(m.craftCost, m.craftMoney) &&
+            processingStore.machineCount < processingStore.maxMachines,
+          badge: processingStore.getMachineCraftLockedReason(m.id) || `已有${getMachineCountByType(m.id)}`,
+          batchable: true,
+          maxBatch: () => processingStore.maxMachines - processingStore.machineCount
+        }))
+      }
+    ]
+
+    categories.push({
+      id: 'farm',
       label: '农场设施',
       items: [
         ...SPRINKLERS.map(s => ({
@@ -1691,8 +2643,9 @@
             ]
           : [])
       ]
-    },
-    {
+    })
+    categories.push({
+      id: 'fish',
       label: '渔具',
       items: [
         ...BAITS.map(b => ({
@@ -1726,8 +2679,9 @@
           batchable: true
         }
       ]
-    },
-    {
+    })
+    categories.push({
+      id: 'other',
       label: '其他',
       items: [
         ...BOMBS.map(b => ({
@@ -1765,32 +2719,33 @@
             ]
           : [])
       ]
-    },
-    ...(warehouseStore.unlocked
-      ? [
-          {
-            label: '箱子',
-            items: CHEST_TIER_ORDER.map(tier => {
-              const def = CHEST_DEFS[tier]
-              return {
-                id: `chest_${tier}`,
-                iconItemId: def.id,
-                name: def.name,
-                description: def.description,
-                materials: def.craftCost,
-                cost: def.craftMoney,
-                onCraft: () => handleCraftChest(tier),
-                canCraft: () =>
-                  warehouseStore.chests.length < warehouseStore.maxChests && canAffordCraft(def.craftCost, def.craftMoney),
-                badge: `${warehouseStore.chests.length}/${warehouseStore.maxChests}`,
-                batchable: true,
-                maxBatch: () => warehouseStore.maxChests - warehouseStore.chests.length
-              }
-            })
+    })
+    if (warehouseStore.unlocked) {
+      categories.push({
+        id: 'chest',
+        label: '箱子',
+        items: CHEST_TIER_ORDER.map(tier => {
+          const def = CHEST_DEFS[tier]
+          return {
+            id: `chest_${tier}`,
+            iconItemId: tier === 'wood' ? 'wood' : `${tier}_bar`,
+            name: def.name,
+            description: def.description,
+            materials: def.craftCost,
+            cost: def.craftMoney,
+            onCraft: () => handleCraftChest(tier),
+            canCraft: () =>
+              warehouseStore.chests.length < warehouseStore.maxChests && canAffordCraft(def.craftCost, def.craftMoney),
+            badge: `${warehouseStore.chests.length}/${warehouseStore.maxChests}`,
+            batchable: true,
+            maxBatch: () => warehouseStore.maxChests - warehouseStore.chests.length
           }
-        ]
-      : [])
-  ])
+        })
+      })
+    }
+
+    return categories
+  })
 
   const handleCraftFromModal = () => {
     if (!craftModal.value) return
@@ -1807,42 +2762,42 @@
 
   // === 工具函数 ===
 
-  const getMachineName = (type: MachineType): string => {
+  function getMachineName(type: MachineType): string {
     return PROCESSING_MACHINES.find(m => m.id === type)?.name ?? type
   }
 
-  const getItemName = (id: string): string => {
+  function getItemName(id: string): string {
     return getItemById(id)?.name ?? id
   }
 
-  const getAlchemyHeatResultHint = (heat: NonNullable<ProcessingRecipeDef['alchemy']>['heat']): string => {
+  function getAlchemyHeatResultHint(heat: NonNullable<ProcessingRecipeDef['alchemy']>['heat']): string {
     if (heat === 'gentle') return '稳成丹'
     if (heat === 'strong') return '易出奇丹'
     return '均衡火候'
   }
 
-  const getRecipeName = (recipeId: string): string => {
+  function getRecipeName(recipeId: string): string {
     return processingStore.getProcessingRecipeDisplayName(recipeId)
   }
 
-  const isRecipeHiddenUndiscovered = (recipeId: string): boolean => {
+  function isRecipeHiddenUndiscovered(recipeId: string): boolean {
     const recipe = getProcessingRecipeById(recipeId)
     return recipe?.visibility === 'hidden' && !processingStore.isHiddenProcessingRecipeDiscovered(recipeId)
   }
 
-  const getRecipeOutputName = (recipeId: string): string => {
+  function getRecipeOutputName(recipeId: string): string {
     const recipe = getProcessingRecipeById(recipeId)
     if (!recipe) return recipeId
     if (isRecipeHiddenUndiscovered(recipeId)) return recipe.hiddenMeta?.unknownName ?? '未知加工'
     return getItemById(recipe.outputItemId)?.name ?? recipe.name
   }
 
-  const getRecipeOutputItem = (recipeId: string): ItemDef | null => {
+  function getRecipeOutputItem(recipeId: string): ItemDef | null {
     const recipe = getProcessingRecipeById(recipeId)
     return recipe ? getItemById(recipe.outputItemId) ?? null : null
   }
 
-  const getSlotOutputName = (slot: ProcessingSlot): string => {
+  function getSlotOutputName(slot: ProcessingSlot): string {
     if (slot.alchemyResult) return getItemName(slot.alchemyResult.outputItemId)
     return slot.recipeId ? getRecipeOutputName(slot.recipeId) : ''
   }
@@ -2205,7 +3160,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .processing-machine-recipes {
+    max-height: min(380px, 48vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .processing-machine-group-card,
+  .processing-machine-recipes,
   .processing-machine-recommendations {
     min-width: 0;
   }
@@ -2213,12 +3175,18 @@
   .processing-machine-slot-list {
     display: grid;
     min-width: 0;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
     gap: 0.375rem;
   }
 
+  .processing-machine-recipes,
   .processing-machine-recommendations {
     grid-column: 1 / -1;
+  }
+
+  .processing-machine-slot-card {
+    min-width: 0;
+    min-height: 5.25rem;
   }
 
   .processing-option-card {

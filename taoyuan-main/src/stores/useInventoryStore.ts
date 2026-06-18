@@ -9,9 +9,13 @@ export interface EquipmentPreset {
   weaponDefId: string | null
   weaponEnchantmentId: string | null
   ringSlot1DefId: string | null
+  ringSlot1EnchantmentId: string | null
   ringSlot2DefId: string | null
+  ringSlot2EnchantmentId: string | null
   hatDefId: string | null
+  hatEnchantmentId: string | null
   shoeDefId: string | null
+  shoeEnchantmentId: string | null
   trinketDefId: string | null
 }
 
@@ -44,6 +48,8 @@ import { getWeaponById, getEnchantmentById, getWeaponSellPrice } from '@/data/we
 import { getRingById } from '@/data/rings'
 import { getHatById } from '@/data/hats'
 import { getShoeById } from '@/data/shoes'
+import { getToolEnchantmentById } from '@/data/toolEnchantments'
+import { getEquipmentEnchantmentById, type EquipmentEnchantSlot } from '@/data/equipmentEnchantments'
 import { TRINKETS, getTrinketById, type TrinketDef } from '@/data/trinkets'
 import { EQUIPMENT_SETS } from '@/data/equipmentSets'
 import { usePlayerStore } from './usePlayerStore'
@@ -64,6 +70,7 @@ export const MAX_EQUIPMENT_PRESETS = 10
 const INVENTORY_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
 type LockableEquipmentEntry = { locked?: boolean }
+type EnchantedEquipmentEntry = { defId: string; enchantmentId?: string | null; locked?: boolean }
 export type InventoryItemStackMeta = Pick<InventoryItem, 'origin' | 'purchaseDay' | 'purchaseUnitPrice'>
 type InventoryAddEntry = { itemId: string; quantity: number; quality?: Quality } & InventoryItemStackMeta
 
@@ -220,6 +227,56 @@ export const useInventoryStore = defineStore('inventory', () => {
   const pushEquipmentMigrationLog = (message: string) => {
     equipmentMigrationLogs.value.push(message)
   }
+  const normalizeEquipmentEnchantmentId = (slot: EquipmentEnchantSlot, rawEnchantmentId: unknown, label: string): string | null => {
+    if (typeof rawEnchantmentId !== 'string' || rawEnchantmentId.length <= 0) return null
+    const enchantment = getEquipmentEnchantmentById(rawEnchantmentId)
+    if (!enchantment || enchantment.slot !== slot) {
+      pushEquipmentMigrationLog(`清空${label}的无效装备附魔：${rawEnchantmentId}。`)
+      return null
+    }
+    return rawEnchantmentId
+  }
+
+  const setEquipmentEnchantment = (
+    slot: EquipmentEnchantSlot,
+    index: number,
+    enchantmentId: string | null
+  ): { success: boolean; message: string } => {
+    const sources: Record<EquipmentEnchantSlot, EnchantedEquipmentEntry[]> = {
+      ring: ownedRings.value,
+      hat: ownedHats.value,
+      shoe: ownedShoes.value
+    }
+    const entry = sources[slot][index]
+    if (!entry) return { success: false, message: '无效索引。' }
+    if (entry.locked) return { success: false, message: '这件装备已锁定，先解锁才能附魔。' }
+    if (enchantmentId) {
+      const enchantment = getEquipmentEnchantmentById(enchantmentId)
+      if (!enchantment || enchantment.slot !== slot) return { success: false, message: '无效装备附魔。' }
+    }
+    entry.enchantmentId = enchantmentId
+    clearActivePreset()
+    return { success: true, message: '装备附魔已更新。' }
+  }
+
+  const setRingEnchantment = (index: number, enchantmentId: string | null): { success: boolean; message: string } =>
+    setEquipmentEnchantment('ring', index, enchantmentId)
+  const setHatEnchantment = (index: number, enchantmentId: string | null): { success: boolean; message: string } =>
+    setEquipmentEnchantment('hat', index, enchantmentId)
+  const setShoeEnchantment = (index: number, enchantmentId: string | null): { success: boolean; message: string } =>
+    setEquipmentEnchantment('shoe', index, enchantmentId)
+
+  const addMatchingEquipmentEffects = (
+    total: number,
+    effects: { type: RingEffectType; value: number }[] | undefined,
+    effectType: RingEffectType
+  ): number => {
+    if (!effects) return total
+    for (const eff of effects) {
+      if (eff.type === effectType) total += eff.value
+    }
+    return total
+  }
   const ensureDefaultWeapon = (): number => {
     const existingIndex = ownedWeapons.value.findIndex(weapon => weapon.defId === 'wooden_stick' && weapon.enchantmentId === null)
     if (existingIndex >= 0) return existingIndex
@@ -336,6 +393,17 @@ export const useInventoryStore = defineStore('inventory', () => {
     ownedWeapons.value.push({ defId, enchantmentId })
     useAchievementStore().discoverItem(defId)
     return true
+  }
+
+  /** 设置武器附魔（工坊铸魔 / 重铸使用） */
+  const setWeaponEnchantment = (index: number, enchantmentId: string | null): { success: boolean; message: string } => {
+    if (index < 0 || index >= ownedWeapons.value.length) return { success: false, message: '无效索引。' }
+    const weapon = ownedWeapons.value[index]!
+    if (weapon.locked) return { success: false, message: '这件装备已锁定，先解锁才能铸魔。' }
+    if (enchantmentId && !getEnchantmentById(enchantmentId)) return { success: false, message: '无效附魔。' }
+    weapon.enchantmentId = enchantmentId
+    clearActivePreset()
+    return { success: true, message: '武器附魔已更新。' }
   }
 
   /** 检查是否已拥有某武器（不含附魔区分） */
@@ -892,6 +960,21 @@ export const useInventoryStore = defineStore('inventory', () => {
     return tools.value.find(t => t.type === type)
   }
 
+  const normalizeToolEntry = (entry: unknown): Tool | null => {
+    if (!entry || typeof entry !== 'object') return null
+    const raw = entry as Partial<Tool>
+    if (typeof raw.type !== 'string' || !TOOL_TYPES.includes(raw.type as ToolType)) return null
+    const type = raw.type as ToolType
+    const tier = TOOL_TIER_ORDER.includes(raw.tier as ToolTier) ? (raw.tier as ToolTier) : 'basic'
+    const rawEnchantmentId = typeof raw.enchantmentId === 'string' ? raw.enchantmentId : null
+    const enchantment = rawEnchantmentId ? getToolEnchantmentById(rawEnchantmentId) : null
+    const enchantmentId = enchantment && enchantment.toolType === type ? rawEnchantmentId : null
+    if (rawEnchantmentId && !enchantmentId) {
+      pushEquipmentMigrationLog(`清空${type}的无效工具附魔：${rawEnchantmentId}。`)
+    }
+    return { type, tier, enchantmentId }
+  }
+
   const getNextToolTier = (tier: ToolTier): ToolTier | null => {
     const currentIndex = TOOL_TIER_ORDER.indexOf(tier)
     if (currentIndex < 0 || currentIndex >= TOOL_TIER_ORDER.length - 1) return null
@@ -924,7 +1007,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     const tool = getTool(type)
     if (!tool) return 1
     const multipliers: Record<ToolTier, number> = { basic: 1.0, iron: 0.8, steel: 0.6, iridium: 0.4 }
-    return multipliers[tool.tier]
+    const enchantMultiplier = tool.enchantmentId === 'efficient' ? 0.85 : 1
+    return multipliers[tool.tier] * enchantMultiplier
   }
 
   /** 获取工具等级对应的工作耗时倍率 */
@@ -932,7 +1016,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     const tool = getTool(type)
     if (!tool) return 1
     const multipliers: Record<ToolTier, number> = { basic: 1.0, iron: 0.9, steel: 0.8, iridium: 0.7 }
-    return multipliers[tool.tier]
+    const enchantMultiplier = tool.enchantmentId === 'swift_pick' ? 0.85 : 1
+    return multipliers[tool.tier] * enchantMultiplier
   }
 
   /** 获取工具等级对应的批量操作数量（蓄力机制） */
@@ -951,6 +1036,21 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (!nextTier) return false
     tool.tier = nextTier
     return true
+  }
+
+  const setToolEnchantment = (type: ToolType, enchantmentId: string | null): { success: boolean; message: string } => {
+    const tool = getTool(type)
+    if (!tool) return { success: false, message: '工具不存在。' }
+    if (enchantmentId) {
+      const enchantment = getToolEnchantmentById(enchantmentId)
+      if (!enchantment || enchantment.toolType !== type) return { success: false, message: '无效工具附魔。' }
+    }
+    tool.enchantmentId = enchantmentId
+    return { success: true, message: '工具附魔已更新。' }
+  }
+
+  const getToolEnchantmentId = (type: ToolType): string | null => {
+    return getTool(type)?.enchantmentId ?? null
   }
 
   /** 检查工具是否可用（未在升级中） */
@@ -991,8 +1091,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   // ============================================================
 
   /** 添加戒指到收藏 */
-  const addRing = (defId: string): boolean => {
-    ownedRings.value.push({ defId })
+  const addRing = (defId: string, enchantmentId: string | null = null): boolean => {
+    ownedRings.value.push({ defId, enchantmentId })
     useAchievementStore().discoverItem(defId)
     return true
   }
@@ -1082,9 +1182,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       const ring = ownedRings.value[idx]!
       const def = getRingById(ring.defId)
       if (def) {
-        for (const eff of def.effects) {
-          if (eff.type === effectType) total += eff.value
-        }
+        total = addMatchingEquipmentEffects(total, def.effects, effectType)
+      }
+      if (ring.enchantmentId) {
+        total = addMatchingEquipmentEffects(total, getEquipmentEnchantmentById(ring.enchantmentId)?.effects, effectType)
       }
     }
     // 帽子（1槽位）
@@ -1092,9 +1193,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       const hat = ownedHats.value[equippedHatIndex.value]!
       const def = getHatById(hat.defId)
       if (def) {
-        for (const eff of def.effects) {
-          if (eff.type === effectType) total += eff.value
-        }
+        total = addMatchingEquipmentEffects(total, def.effects, effectType)
+      }
+      if (hat.enchantmentId) {
+        total = addMatchingEquipmentEffects(total, getEquipmentEnchantmentById(hat.enchantmentId)?.effects, effectType)
       }
     }
     // 鞋子（1槽位）
@@ -1102,9 +1204,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       const shoe = ownedShoes.value[equippedShoeIndex.value]!
       const def = getShoeById(shoe.defId)
       if (def) {
-        for (const eff of def.effects) {
-          if (eff.type === effectType) total += eff.value
-        }
+        total = addMatchingEquipmentEffects(total, def.effects, effectType)
+      }
+      if (shoe.enchantmentId) {
+        total = addMatchingEquipmentEffects(total, getEquipmentEnchantmentById(shoe.enchantmentId)?.effects, effectType)
       }
     }
     if (equippedTrinket.value) {
@@ -1230,8 +1333,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   // ============================================================
 
   /** 添加帽子到收藏 */
-  const addHat = (defId: string): boolean => {
-    ownedHats.value.push({ defId })
+  const addHat = (defId: string, enchantmentId: string | null = null): boolean => {
+    ownedHats.value.push({ defId, enchantmentId })
     useAchievementStore().discoverItem(defId)
     return true
   }
@@ -1318,8 +1421,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   // ============================================================
 
   /** 添加鞋子到收藏 */
-  const addShoe = (defId: string): boolean => {
-    ownedShoes.value.push({ defId })
+  const addShoe = (defId: string, enchantmentId: string | null = null): boolean => {
+    ownedShoes.value.push({ defId, enchantmentId })
     useAchievementStore().discoverItem(defId)
     return true
   }
@@ -1499,9 +1602,13 @@ export const useInventoryStore = defineStore('inventory', () => {
       weaponDefId: null,
       weaponEnchantmentId: null,
       ringSlot1DefId: null,
+      ringSlot1EnchantmentId: null,
       ringSlot2DefId: null,
+      ringSlot2EnchantmentId: null,
       hatDefId: null,
+      hatEnchantmentId: null,
       shoeDefId: null,
+      shoeEnchantmentId: null,
       trinketDefId: null
     })
     return true
@@ -1527,9 +1634,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     preset.weaponDefId = ownedWeapons.value[equippedWeaponIndex.value]?.defId ?? null
     preset.weaponEnchantmentId = ownedWeapons.value[equippedWeaponIndex.value]?.enchantmentId ?? null
     preset.ringSlot1DefId = equippedRingSlot1.value >= 0 ? (ownedRings.value[equippedRingSlot1.value]?.defId ?? null) : null
+    preset.ringSlot1EnchantmentId = equippedRingSlot1.value >= 0 ? (ownedRings.value[equippedRingSlot1.value]?.enchantmentId ?? null) : null
     preset.ringSlot2DefId = equippedRingSlot2.value >= 0 ? (ownedRings.value[equippedRingSlot2.value]?.defId ?? null) : null
+    preset.ringSlot2EnchantmentId = equippedRingSlot2.value >= 0 ? (ownedRings.value[equippedRingSlot2.value]?.enchantmentId ?? null) : null
     preset.hatDefId = equippedHatIndex.value >= 0 ? (ownedHats.value[equippedHatIndex.value]?.defId ?? null) : null
+    preset.hatEnchantmentId = equippedHatIndex.value >= 0 ? (ownedHats.value[equippedHatIndex.value]?.enchantmentId ?? null) : null
     preset.shoeDefId = equippedShoeIndex.value >= 0 ? (ownedShoes.value[equippedShoeIndex.value]?.defId ?? null) : null
+    preset.shoeEnchantmentId = equippedShoeIndex.value >= 0 ? (ownedShoes.value[equippedShoeIndex.value]?.enchantmentId ?? null) : null
     preset.trinketDefId = equippedTrinketId.value
   }
 
@@ -1539,23 +1650,30 @@ export const useInventoryStore = defineStore('inventory', () => {
     return !!weapon && weapon.defId === preset.weaponDefId && (preset.weaponEnchantmentId == null || weapon.enchantmentId === preset.weaponEnchantmentId)
   }
 
-  const doesRingSlotMatchPreset = (slotIndex: number, defId: string | null): boolean => {
+  const doesRingSlotMatchPreset = (slotIndex: number, defId: string | null, enchantmentId: string | null): boolean => {
     if (!defId) return slotIndex < 0
-    return slotIndex >= 0 && slotIndex < ownedRings.value.length && ownedRings.value[slotIndex]?.defId === defId
+    const ring = slotIndex >= 0 && slotIndex < ownedRings.value.length ? ownedRings.value[slotIndex] : null
+    return !!ring && ring.defId === defId && (ring.enchantmentId ?? null) === enchantmentId
   }
 
-  const doesSingleSlotMatchPreset = <T extends { defId: string }>(entries: T[], slotIndex: number, defId: string | null): boolean => {
+  const doesSingleSlotMatchPreset = <T extends EnchantedEquipmentEntry>(
+    entries: T[],
+    slotIndex: number,
+    defId: string | null,
+    enchantmentId: string | null
+  ): boolean => {
     if (!defId) return slotIndex < 0
-    return slotIndex >= 0 && slotIndex < entries.length && entries[slotIndex]?.defId === defId
+    const entry = slotIndex >= 0 && slotIndex < entries.length ? entries[slotIndex] : null
+    return !!entry && entry.defId === defId && (entry.enchantmentId ?? null) === enchantmentId
   }
 
   const doesCurrentEquipmentMatchPreset = (preset: EquipmentPreset): boolean => {
     return (
       doesWeaponMatchPreset(preset) &&
-      doesRingSlotMatchPreset(equippedRingSlot1.value, preset.ringSlot1DefId) &&
-      doesRingSlotMatchPreset(equippedRingSlot2.value, preset.ringSlot2DefId) &&
-      doesSingleSlotMatchPreset(ownedHats.value, equippedHatIndex.value, preset.hatDefId) &&
-      doesSingleSlotMatchPreset(ownedShoes.value, equippedShoeIndex.value, preset.shoeDefId) &&
+      doesRingSlotMatchPreset(equippedRingSlot1.value, preset.ringSlot1DefId, preset.ringSlot1EnchantmentId ?? null) &&
+      doesRingSlotMatchPreset(equippedRingSlot2.value, preset.ringSlot2DefId, preset.ringSlot2EnchantmentId ?? null) &&
+      doesSingleSlotMatchPreset(ownedHats.value, equippedHatIndex.value, preset.hatDefId, preset.hatEnchantmentId ?? null) &&
+      doesSingleSlotMatchPreset(ownedShoes.value, equippedShoeIndex.value, preset.shoeDefId, preset.shoeEnchantmentId ?? null) &&
       (equippedTrinketId.value ?? null) === (preset.trinketDefId ?? null)
     )
   }
@@ -1595,7 +1713,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 戒指槽1
     let ring1Idx = -1
     if (preset.ringSlot1DefId) {
-      ring1Idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot1DefId)
+      ring1Idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot1DefId && (r.enchantmentId ?? null) === (preset.ringSlot1EnchantmentId ?? null))
       if (ring1Idx >= 0) {
         if (!equipRing(ring1Idx, 0)) {
           unequipRing(0)
@@ -1616,7 +1734,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         unequipRing(1)
         missing.push('戒指2（不可与槽1相同）')
       } else {
-        const idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot2DefId)
+        const idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot2DefId && (r.enchantmentId ?? null) === (preset.ringSlot2EnchantmentId ?? null))
         if (idx >= 0) {
           if (!equipRing(idx, 1)) {
             unequipRing(1)
@@ -1633,7 +1751,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // 帽子
     if (preset.hatDefId) {
-      const idx = ownedHats.value.findIndex(h => h.defId === preset.hatDefId)
+      const idx = ownedHats.value.findIndex(h => h.defId === preset.hatDefId && (h.enchantmentId ?? null) === (preset.hatEnchantmentId ?? null))
       if (idx >= 0) equipHat(idx)
       else {
         unequipHat()
@@ -1645,7 +1763,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // 鞋子
     if (preset.shoeDefId) {
-      const idx = ownedShoes.value.findIndex(s => s.defId === preset.shoeDefId)
+      const idx = ownedShoes.value.findIndex(s => s.defId === preset.shoeDefId && (s.enchantmentId ?? null) === (preset.shoeEnchantmentId ?? null))
       if (idx >= 0) equipShoe(idx)
       else {
         unequipShoe()
@@ -1765,7 +1883,8 @@ export const useInventoryStore = defineStore('inventory', () => {
           pushEquipmentMigrationLog(`移除无效戒指：${defId || `#${rawIndex}`}。`)
           return
         }
-        validRings.push({ defId, locked: readLockedFlag(entry as { locked?: unknown }), rawIndex })
+        const enchantmentId = normalizeEquipmentEnchantmentId('ring', (entry as { enchantmentId?: unknown }).enchantmentId, `戒指 ${defId}`)
+        validRings.push({ defId, enchantmentId, locked: readLockedFlag(entry as { locked?: unknown }), rawIndex })
       })
 
       const remapRingSlot = (slotValue: unknown, label: string) => {
@@ -1793,11 +1912,12 @@ export const useInventoryStore = defineStore('inventory', () => {
       value: unknown,
       equippedIndexValue: unknown,
       resolveDef: (defId: string) => unknown,
+      slot: EquipmentEnchantSlot,
       label: string
-    ): { entries: Array<{ defId: string; locked?: boolean }>; equippedIndex: number } => {
+    ): { entries: EnchantedEquipmentEntry[]; equippedIndex: number } => {
       const rawEntries = Array.isArray(value) ? value : []
       const equippedRawIndex = normalizeSlotIndex(equippedIndexValue)
-      const validEntries: Array<{ defId: string; locked?: boolean; rawIndex: number }> = []
+      const validEntries: Array<EnchantedEquipmentEntry & { rawIndex: number }> = []
       rawEntries.forEach((entry, rawIndex) => {
         if (!entry || typeof entry !== 'object') return
         const defId = typeof (entry as { defId?: unknown }).defId === 'string' ? (entry as { defId: string }).defId : ''
@@ -1805,7 +1925,8 @@ export const useInventoryStore = defineStore('inventory', () => {
           pushEquipmentMigrationLog(`移除无效${label}：${defId || `#${rawIndex}`}。`)
           return
         }
-        validEntries.push({ defId, locked: readLockedFlag(entry as { locked?: unknown }), rawIndex })
+        const enchantmentId = normalizeEquipmentEnchantmentId(slot, (entry as { enchantmentId?: unknown }).enchantmentId, `${label} ${defId}`)
+        validEntries.push({ defId, enchantmentId, locked: readLockedFlag(entry as { locked?: unknown }), rawIndex })
       })
       const remappedIndex = validEntries.findIndex(entry => entry.rawIndex === equippedRawIndex)
       if (equippedRawIndex >= 0 && remappedIndex < 0) {
@@ -1820,15 +1941,17 @@ export const useInventoryStore = defineStore('inventory', () => {
     items.value = ((data.items ?? []) as unknown[]).map(normalizeInventorySlot).filter((i): i is InventoryItem => !!i)
     capacity.value = data.capacity ?? INITIAL_CAPACITY
     tempItems.value = (((data as any).tempItems ?? []) as unknown[]).map(normalizeInventorySlot).filter((i): i is InventoryItem => !!i)
-    tools.value = data.tools ?? [
-      { type: 'wateringCan', tier: 'basic' },
-      { type: 'hoe', tier: 'basic' },
-      { type: 'pickaxe', tier: 'basic' },
-      { type: 'fishingRod', tier: 'basic' },
-      { type: 'scythe', tier: 'basic' },
-      { type: 'axe', tier: 'basic' },
-      { type: 'pan', tier: 'basic' }
-    ]
+    tools.value = Array.isArray((data as Record<string, unknown>).tools)
+      ? ((data as Record<string, unknown>).tools as unknown[]).map(normalizeToolEntry).filter((tool): tool is Tool => !!tool)
+      : [
+          { type: 'wateringCan', tier: 'basic' },
+          { type: 'hoe', tier: 'basic' },
+          { type: 'pickaxe', tier: 'basic' },
+          { type: 'fishingRod', tier: 'basic' },
+          { type: 'scythe', tier: 'basic' },
+          { type: 'axe', tier: 'basic' },
+          { type: 'pan', tier: 'basic' }
+        ]
     // 向后兼容：旧存档可能缺少新工具
     const requiredTools: ToolType[] = ['wateringCan', 'hoe', 'pickaxe', 'fishingRod', 'scythe', 'axe', 'pan']
     for (const rt of requiredTools) {
@@ -1871,6 +1994,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       (data as Record<string, unknown>).ownedHats,
       (data as Record<string, unknown>).equippedHatIndex,
       getHatById,
+      'hat',
       '帽子'
     )
     ownedHats.value = normalizedHats.entries
@@ -1881,6 +2005,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       (data as Record<string, unknown>).ownedShoes,
       (data as Record<string, unknown>).equippedShoeIndex,
       getShoeById,
+      'shoe',
       '鞋子'
     )
     ownedShoes.value = normalizedShoes.entries
@@ -1897,11 +2022,32 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // 装备方案（向后兼容旧存档）
     equipmentPresets.value = ((data as Record<string, unknown>).equipmentPresets as EquipmentPreset[] | undefined) ?? []
-    equipmentPresets.value = equipmentPresets.value.map(preset => ({
-      ...preset,
-      weaponEnchantmentId: (preset as EquipmentPreset & { weaponEnchantmentId?: string | null }).weaponEnchantmentId ?? null,
-      trinketDefId: (preset as EquipmentPreset & { trinketDefId?: string | null }).trinketDefId ?? null
-    }))
+    equipmentPresets.value = equipmentPresets.value.map(preset => {
+      const rawPreset = preset as EquipmentPreset & {
+        ringSlot1EnchantmentId?: unknown
+        ringSlot2EnchantmentId?: unknown
+        hatEnchantmentId?: unknown
+        shoeEnchantmentId?: unknown
+        trinketDefId?: string | null
+      }
+      const ringSlot1DefId = typeof rawPreset.ringSlot1DefId === 'string' ? rawPreset.ringSlot1DefId : null
+      const ringSlot2DefId = typeof rawPreset.ringSlot2DefId === 'string' ? rawPreset.ringSlot2DefId : null
+      const hatDefId = typeof rawPreset.hatDefId === 'string' ? rawPreset.hatDefId : null
+      const shoeDefId = typeof rawPreset.shoeDefId === 'string' ? rawPreset.shoeDefId : null
+      return {
+        ...preset,
+        ringSlot1DefId,
+        ringSlot2DefId,
+        hatDefId,
+        shoeDefId,
+        weaponEnchantmentId: (preset as EquipmentPreset & { weaponEnchantmentId?: string | null }).weaponEnchantmentId ?? null,
+        ringSlot1EnchantmentId: ringSlot1DefId ? normalizeEquipmentEnchantmentId('ring', rawPreset.ringSlot1EnchantmentId, `方案 ${preset.name} 戒指1`) : null,
+        ringSlot2EnchantmentId: ringSlot2DefId ? normalizeEquipmentEnchantmentId('ring', rawPreset.ringSlot2EnchantmentId, `方案 ${preset.name} 戒指2`) : null,
+        hatEnchantmentId: hatDefId ? normalizeEquipmentEnchantmentId('hat', rawPreset.hatEnchantmentId, `方案 ${preset.name} 帽子`) : null,
+        shoeEnchantmentId: shoeDefId ? normalizeEquipmentEnchantmentId('shoe', rawPreset.shoeEnchantmentId, `方案 ${preset.name} 鞋子`) : null,
+        trinketDefId: rawPreset.trinketDefId ?? null
+      }
+    })
     activePresetId.value = ((data as Record<string, unknown>).activePresetId as string | null | undefined) ?? null
     if (activePresetId.value && !equipmentPresets.value.some(preset => preset.id === activePresetId.value)) {
       pushEquipmentMigrationLog(`当前装备方案 ${activePresetId.value} 不存在，已清空激活状态。`)
@@ -1958,6 +2104,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     getToolStaminaMultiplier,
     getToolWorkTimeMultiplier,
     getToolBatchCount,
+    setToolEnchantment,
+    getToolEnchantmentId,
     upgradeTool,
     isToolAvailable,
     startUpgrade,
@@ -1966,6 +2114,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     getWeaponCritRate,
     getEquippedWeapon,
     addWeapon,
+    setWeaponEnchantment,
     hasWeapon,
     equipWeapon,
     sellWeapon,
@@ -1977,6 +2126,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     hasRing,
     equipRing,
     unequipRing,
+    setRingEnchantment,
     sellRing,
     removeRing,
     getRingEffectValue,
@@ -1990,6 +2140,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     hasHat,
     equipHat,
     unequipHat,
+    setHatEnchantment,
     sellHat,
     removeHat,
     craftHat,
@@ -2002,6 +2153,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     hasShoe,
     equipShoe,
     unequipShoe,
+    setShoeEnchantment,
     sellShoe,
     removeShoe,
     craftShoe,

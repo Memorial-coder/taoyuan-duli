@@ -39,6 +39,7 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
       if (!resolved) throw new Error(`无法解析模块：${specifier}`)
@@ -74,6 +75,13 @@ registerHooks({
           }
           export default router
         `,
+        shortCircuit: true
+      }
+    }
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {}; export default { saveAs };',
         shortCircuit: true
       }
     }
@@ -161,9 +169,14 @@ installBrowserShims()
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const equipmentEnchantmentsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/equipmentEnchantments.ts')).href)
 const inventoryStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useInventoryStore.ts'), 'utf8')
 const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
 const miningViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/MiningView.vue'), 'utf8')
+const processingViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ProcessingView.vue'), 'utf8')
+const equipmentEnchantmentsSource = fs.readFileSync(path.join(projectRoot, 'src/data/equipmentEnchantments.ts'), 'utf8')
+const ringTypesSource = fs.readFileSync(path.join(projectRoot, 'src/types/ring.ts'), 'utf8')
+const equipmentTypesSource = fs.readFileSync(path.join(projectRoot, 'src/types/equipment.ts'), 'utf8')
 
 const freshInventoryStore = () => {
   setActivePinia(createPinia())
@@ -184,6 +197,85 @@ assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test
 assert(inventoryStoreSource.includes('doesCurrentEquipmentMatchPreset') && inventoryStoreSource.includes('isEquipmentPresetActive'), 'Equipment presets should expose a real current-equipment match guard.')
 assert(inventoryViewSource.includes('isPresetActive(preset.id)') && inventoryViewSource.includes('activeEquipmentPresetName'), 'Inventory preset UI should use real equipment matches instead of stale activePresetId flags.')
 assert(miningViewSource.includes('inventoryStore.isEquipmentPresetActive(preset.id)') && miningViewSource.includes('inventoryStore.activeEquipmentPresetName'), 'Mining preset UI should use real equipment matches instead of stale activePresetId flags.')
+assert(ringTypesSource.includes('enchantmentId?: string | null'), 'OwnedRing should persist optional equipment enchantment ids.')
+assert((equipmentTypesSource.match(/enchantmentId\?: string \| null/g) ?? []).length >= 2, 'OwnedHat and OwnedShoe should persist optional equipment enchantment ids.')
+assert(equipmentEnchantmentsSource.includes('shoe_swift') && equipmentEnchantmentsSource.includes("type: 'travel_speed'"), 'Equipment enchantment data should include a shoe movement-speed enchantment.')
+for (const id of ['ring_focus', 'ring_fortune', 'ring_treasure', 'hat_guard', 'hat_clear_mind', 'hat_herbal', 'shoe_swift', 'shoe_surefoot', 'shoe_mine_step']) {
+  assert(equipmentEnchantmentsSource.includes(id), `Equipment enchantment data should include ${id}.`)
+}
+for (const marker of [
+  'getEquipmentEnchantmentById',
+  'setRingEnchantment',
+  'setHatEnchantment',
+  'setShoeEnchantment',
+  'addMatchingEquipmentEffects',
+  'ringSlot1EnchantmentId',
+  'shoeEnchantmentId'
+]) {
+  assert(inventoryStoreSource.includes(marker), `Inventory store should wire equipment enchantment marker ${marker}.`)
+}
+for (const marker of [
+  'processing-equipment-enchant-panel',
+  'processing-equipment-enchant-slot-${slot.id}',
+  'processing-equipment-enchant-option-${option.id}',
+  'processing-equipment-enchant-confirm',
+  'EQUIPMENT_ENCHANT_MIN_LEVEL = 10',
+  'EQUIPMENT_ENCHANT_COST = 50000',
+  "itemId: 'void_ore'",
+  "itemId: 'prismatic_shard'"
+]) {
+  assert(processingViewSource.includes(marker), `Processing view should expose equipment enchantment marker ${marker}.`)
+}
+
+{
+  const swift = equipmentEnchantmentsModule.getEquipmentEnchantmentById('shoe_swift')
+  const ringFocus = equipmentEnchantmentsModule.getEquipmentEnchantmentById('ring_focus')
+  assert(swift?.slot === 'shoe' && swift.effects.some(effect => effect.type === 'travel_speed' && effect.value === 0.12), 'shoe_swift should be a shoe enchantment that grants +12% travel speed.')
+  assert(ringFocus?.slot === 'ring' && ringFocus.effects.some(effect => effect.type === 'exp_bonus'), 'ring_focus should be a ring enchantment with an exp bonus.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedRings = [{ defId: 'miners_ring' }]
+  inventoryStore.ownedHats = [{ defId: 'miner_helmet' }]
+  inventoryStore.ownedShoes = [{ defId: 'leather_boots' }]
+  inventoryStore.equippedRingSlot1 = 0
+  inventoryStore.equippedHatIndex = 0
+  inventoryStore.equippedShoeIndex = 0
+
+  const baseTravelSpeed = inventoryStore.getEquipmentBonus('travel_speed')
+  const shoeResult = inventoryStore.setShoeEnchantment(0, 'shoe_swift')
+  assert(shoeResult.success === true, 'Shoes should accept a matching shoe enchantment.')
+  assert(Math.abs(inventoryStore.getEquipmentBonus('travel_speed') - (baseTravelSpeed + 0.12)) < 0.0001, 'shoe_swift should add +12% travel speed to equipped shoes.')
+  assert(inventoryStore.setShoeEnchantment(0, 'ring_focus').success === false, 'Shoes must reject ring-only enchantments.')
+  assert(inventoryStore.setRingEnchantment(0, 'ring_focus').success === true, 'Rings should accept matching ring enchantments.')
+  assert(inventoryStore.setHatEnchantment(0, 'hat_guard').success === true, 'Hats should accept matching hat enchantments.')
+  assert(inventoryStore.getEquipmentBonus('exp_bonus') >= 0.06, 'ring_focus should contribute to equipment exp bonuses.')
+  assert(inventoryStore.getEquipmentBonus('defense_bonus') > 0, 'hat_guard should contribute to equipment defense bonuses.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedWeapons = [{ defId: 'wooden_stick', enchantmentId: null }]
+  inventoryStore.equippedWeaponIndex = 0
+  inventoryStore.ownedShoes = [
+    { defId: 'leather_boots', enchantmentId: 'shoe_swift' },
+    { defId: 'leather_boots', enchantmentId: null }
+  ]
+  inventoryStore.equippedShoeIndex = 0
+  inventoryStore.createEquipmentPreset('qa-enchanted-shoe')
+  const preset = inventoryStore.equipmentPresets[inventoryStore.equipmentPresets.length - 1]
+  inventoryStore.saveCurrentToPreset(preset.id)
+  assert(preset.shoeEnchantmentId === 'shoe_swift', 'Equipment presets should save shoe enchantment ids.')
+
+  assert(inventoryStore.equipShoe(1), 'QA setup should switch to a same-def unenchanted shoe.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === false, 'A preset should not match a same-def shoe with a different enchantment.')
+
+  const applyResult = inventoryStore.applyEquipmentPreset(preset.id)
+  assert(applyResult.success === true, 'Applying an enchanted shoe preset should succeed.')
+  assert(inventoryStore.equippedShoeIndex === 0, 'Applying a preset should restore the same-def shoe with the saved enchantment.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === true, 'A restored enchanted shoe preset should be active only after exact enchantment match.')
+}
 
 {
   const inventoryStore = freshInventoryStore()

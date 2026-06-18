@@ -131,6 +131,7 @@ const SELL_PRICE_PERK_LABELS: Partial<Record<SkillPerk15 | SkillPerk20, string>>
   animal_whisperer: '动物语者',
   aquatic_merchant: '水产巨商',
   legendary_angler: '传说垂钓者',
+  deity_of_harvest: '丰收之神',
   beast_sovereign: '兽王',
   nature_bond: '自然契约',
   ocean_trader: '海洋贸易商',
@@ -413,26 +414,26 @@ export const useShopStore = defineStore('shop', () => {
   }
 
   const syncWarehouseServiceCapacity = (state: ShopCatalogExpansionState = catalogExpansionState.value) => {
-    warehouseStore.maxChests = Math.min(warehouseStore.MAX_CHESTS_CAP, Math.max(warehouseStore.maxChests, getWarehouseServiceCapacityTarget(state)))
+    warehouseStore.maxChests = Math.min(warehouseStore.MAX_CHESTS_CAP, Math.max(warehouseStore.baseMaxChests, getWarehouseServiceCapacityTarget(state)))
   }
 
   const getGrantChestCapacityTarget = (offer: ShopCatalogOfferDef): number => {
     const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
-    return Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.maxChests + capacityDelta)
+    return Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.baseMaxChests + capacityDelta)
   }
 
   const canGrantCatalogChest = (offer: ShopCatalogOfferDef): boolean => {
     const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
     const target = getGrantChestCapacityTarget(offer)
-    if (capacityDelta > 0 && target <= warehouseStore.maxChests) return false
+    if (capacityDelta > 0 && target <= warehouseStore.baseMaxChests) return false
     return warehouseStore.chests.length < target
   }
 
   const prepareGrantCatalogChestSlot = (offer: ShopCatalogOfferDef): boolean => {
     const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
     const target = getGrantChestCapacityTarget(offer)
-    if (capacityDelta > 0 && target <= warehouseStore.maxChests) return false
-    if (target > warehouseStore.maxChests) warehouseStore.maxChests = target
+    if (capacityDelta > 0 && target <= warehouseStore.baseMaxChests) return false
+    if (target > warehouseStore.baseMaxChests) warehouseStore.maxChests = target
     return warehouseStore.chests.length < warehouseStore.maxChests
   }
 
@@ -744,7 +745,7 @@ export const useShopStore = defineStore('shop', () => {
         if (!offer.decorationUnlockId) return '当前目录陈设配置不完整，暂时无法购买。'
         return decorationStore.hasReachedMaxCount(offer.decorationUnlockId) ? '该陈设已达到拥有上限，无法重复解锁。' : ''
       case 'expand_warehouse':
-        if (warehouseStore.maxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
+        if (warehouseStore.baseMaxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
           return '剩余仓库箱位不足，无法完整扩建该商品提供的容量。'
         }
         return ''
@@ -1924,7 +1925,7 @@ export const useShopStore = defineStore('shop', () => {
       case 'expand_inventory_extra':
         return !offer.onceOnly || !isCatalogOwned(offerId)
       case 'expand_warehouse':
-        return warehouseStore.maxChests + offer.effect.amount <= warehouseStore.MAX_CHESTS_CAP
+        return warehouseStore.baseMaxChests + offer.effect.amount <= warehouseStore.MAX_CHESTS_CAP
       case 'unlock_greenhouse':
         return !homeStore.greenhouseUnlocked
       case 'grant_chest':
@@ -2017,7 +2018,7 @@ export const useShopStore = defineStore('shop', () => {
           break
         }
         case 'expand_warehouse': {
-          if (warehouseStore.maxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
+          if (warehouseStore.baseMaxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
             break
           }
           for (let i = 0; i < offer.effect.amount; i++) {
@@ -2348,8 +2349,7 @@ export const useShopStore = defineStore('shop', () => {
     if (itemDef.category === 'fish' && (fishSkill.perk15 === 'legendary_angler' || fishSkill.perk15 === 'aquatic_merchant')) bonus *= 1.3
     if (itemDef.category === 'ore' && (mineSkill.perk15 === 'vein_seeker' || mineSkill.perk15 === 'master_smith')) bonus *= 1.3
     // perk20 售价加成
-    if (itemDef.category === 'crop' && (farmSkill.perk20 === 'deity_of_harvest' || farmSkill.perk20 === 'land_god')) bonus *= 1.5
-    if (itemDef.category === 'processed' && (farmSkill.perk20 === 'deity_of_harvest' || farmSkill.perk20 === 'land_god')) bonus *= 1.5
+    if (itemDef.category === 'crop' && farmSkill.perk20 === 'deity_of_harvest') bonus *= 1.5
     if (itemDef.category === 'animal_product' && (farmSkill.perk20 === 'beast_sovereign' || farmSkill.perk20 === 'nature_bond')) bonus *= 1.5
     if (itemDef.category === 'fish' && fishSkill.perk20 === 'ocean_trader') bonus *= 2.0
     else if (itemDef.category === 'fish' && fishSkill.perk20 === 'fish_god') bonus *= 1.5
@@ -2422,11 +2422,14 @@ export const useShopStore = defineStore('shop', () => {
     if (itemDef.category === 'ore' && (mineSkill.perk15 === 'vein_seeker' || mineSkill.perk15 === 'master_smith')) {
       pushStep({ id: 'mining_perk15', label: '技能：高阶矿业', category: 'skill', multiplier: 1.3, description: '矿石售价额外 +30%' })
     }
-    if (itemDef.category === 'crop' && (farmSkill.perk20 === 'deity_of_harvest' || farmSkill.perk20 === 'land_god')) {
-      pushStep({ id: 'farming_perk20_crop', label: '技能：终阶农耕', category: 'skill', multiplier: 1.5, description: '作物售价额外 +50%' })
-    }
-    if (itemDef.category === 'processed' && (farmSkill.perk20 === 'deity_of_harvest' || farmSkill.perk20 === 'land_god')) {
-      pushStep({ id: 'farming_perk20_processed', label: '技能：终阶加工', category: 'skill', multiplier: 1.5, description: '加工品售价额外 +50%' })
+    if (itemDef.category === 'crop' && farmSkill.perk20 === 'deity_of_harvest') {
+      pushStep({
+        id: 'farming_perk20_crop',
+        label: `技能：${sellPricePerkLabel(farmSkill.perk20, '农耕20级')}`,
+        category: 'skill',
+        multiplier: 1.5,
+        description: '作物售价 +50%'
+      })
     }
     if (itemDef.category === 'animal_product' && (farmSkill.perk20 === 'beast_sovereign' || farmSkill.perk20 === 'nature_bond')) {
       pushStep({ id: 'farming_perk20_animal', label: `技能：${sellPricePerkLabel(farmSkill.perk20, '农耕20级')}`, category: 'skill', multiplier: 1.5, description: '动物产品售价 +50%' })

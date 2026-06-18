@@ -43,68 +43,47 @@ import {
 
 /** 工坊升级定义 */
 const WORKSHOP_UPGRADES = [
-  {
-    level: 1,
-    cost: 10000,
-    materials: [
-      { itemId: 'iron_bar', quantity: 15 },
-      { itemId: 'wood', quantity: 50 }
-    ]
-  },
-  {
-    level: 2,
-    cost: 25000,
-    materials: [
-      { itemId: 'gold_bar', quantity: 10 },
-      { itemId: 'wood', quantity: 80 }
-    ]
-  },
-  {
-    level: 3,
-    cost: 50000,
-    materials: [
-      { itemId: 'gold_bar', quantity: 20 },
-      { itemId: 'iridium_bar', quantity: 5 },
-      { itemId: 'wood', quantity: 120 }
-    ]
-  },
-  {
-    level: 4,
-    cost: 90000,
-    materials: [
-      { itemId: 'iridium_bar', quantity: 12 },
-      { itemId: 'refined_quartz', quantity: 20 },
-      { itemId: 'stone', quantity: 150 }
-    ]
-  },
-  {
-    level: 5,
-    cost: 140000,
-    materials: [
-      { itemId: 'iridium_bar', quantity: 20 },
-      { itemId: 'refined_quartz', quantity: 35 },
-      { itemId: 'stone', quantity: 220 }
-    ]
-  },
-  {
-    level: 6,
-    cost: 200000,
-    materials: [
-      { itemId: 'iridium_bar', quantity: 30 },
-      { itemId: 'refined_quartz', quantity: 50 },
-      { itemId: 'wood', quantity: 220 }
-    ]
-  },
-  {
-    level: 7,
-    cost: 280000,
-    materials: [
-      { itemId: 'iridium_bar', quantity: 45 },
-      { itemId: 'refined_quartz', quantity: 80 },
-      { itemId: 'stone', quantity: 300 }
-    ]
-  }
+  { level: 1, cost: 10000, materials: [{ itemId: 'iron_bar', quantity: 15 }, { itemId: 'wood', quantity: 50 }] },
+  { level: 2, cost: 25000, materials: [{ itemId: 'gold_bar', quantity: 10 }, { itemId: 'wood', quantity: 80 }] },
+  { level: 3, cost: 50000, materials: [{ itemId: 'gold_bar', quantity: 20 }, { itemId: 'iridium_bar', quantity: 5 }, { itemId: 'wood', quantity: 120 }] },
+  { level: 4, cost: 90000, materials: [{ itemId: 'iridium_bar', quantity: 12 }, { itemId: 'refined_quartz', quantity: 20 }, { itemId: 'stone', quantity: 150 }] },
+  { level: 5, cost: 140000, materials: [{ itemId: 'iridium_bar', quantity: 20 }, { itemId: 'refined_quartz', quantity: 35 }, { itemId: 'stone', quantity: 220 }] },
+  { level: 6, cost: 200000, materials: [{ itemId: 'iridium_bar', quantity: 30 }, { itemId: 'refined_quartz', quantity: 50 }, { itemId: 'wood', quantity: 220 }] },
+  { level: 7, cost: 280000, materials: [{ itemId: 'iridium_bar', quantity: 45 }, { itemId: 'refined_quartz', quantity: 80 }, { itemId: 'bronze_bar', quantity: 6 }, { itemId: 'stone', quantity: 300 }] },
+  { level: 8, cost: 380000, materials: [{ itemId: 'iridium_bar', quantity: 60 }, { itemId: 'refined_quartz', quantity: 100 }, { itemId: 'bronze_bar', quantity: 8 }, { itemId: 'stone', quantity: 400 }] },
+  { level: 9, cost: 520000, materials: [{ itemId: 'iridium_bar', quantity: 80 }, { itemId: 'refined_quartz', quantity: 130 }, { itemId: 'bronze_bar', quantity: 10 }, { itemId: 'mythril_bar', quantity: 3 }, { itemId: 'wood', quantity: 400 }] },
+  { level: 10, cost: 700000, materials: [{ itemId: 'iridium_bar', quantity: 100 }, { itemId: 'refined_quartz', quantity: 160 }, { itemId: 'bronze_bar', quantity: 12 }, { itemId: 'mythril_bar', quantity: 5 }, { itemId: 'stone', quantity: 500 }] },
+  { level: 11, cost: 950000, materials: [{ itemId: 'iridium_bar', quantity: 120 }, { itemId: 'refined_quartz', quantity: 200 }, { itemId: 'bronze_bar', quantity: 16 }, { itemId: 'mythril_bar', quantity: 7 }, { itemId: 'stone', quantity: 600 }] },
+  { level: 12, cost: 1300000, materials: [{ itemId: 'iridium_bar', quantity: 150 }, { itemId: 'refined_quartz', quantity: 250 }, { itemId: 'bronze_bar', quantity: 20 }, { itemId: 'mythril_bar', quantity: 10 }, { itemId: 'wood', quantity: 500 }] },
+  { level: 13, cost: 1800000, materials: [{ itemId: 'iridium_bar', quantity: 190 }, { itemId: 'refined_quartz', quantity: 300 }, { itemId: 'bronze_bar', quantity: 26 }, { itemId: 'mythril_bar', quantity: 14 }, { itemId: 'stone', quantity: 700 }] },
+  { level: 14, cost: 2500000, materials: [{ itemId: 'iridium_bar', quantity: 240 }, { itemId: 'refined_quartz', quantity: 370 }, { itemId: 'bronze_bar', quantity: 34 }, { itemId: 'mythril_bar', quantity: 18 }, { itemId: 'wood', quantity: 600 }] },
+  { level: 15, cost: 3500000, materials: [{ itemId: 'iridium_bar', quantity: 300 }, { itemId: 'refined_quartz', quantity: 450 }, { itemId: 'bronze_bar', quantity: 45 }, { itemId: 'mythril_bar', quantity: 25 }, { itemId: 'stone', quantity: 800 }] }
 ]
+
+/** 工坊最高等级 */
+export const WORKSHOP_MAX_LEVEL = WORKSHOP_UPGRADES[WORKSHOP_UPGRADES.length - 1]!.level
+
+/** 工坊里程碑被动奖励定义 */
+export const WORKSHOP_MILESTONES = [
+  { level: 7, id: 'weapon_enchant_basic', name: '武器铸魔', description: '开放随机铸魔' },
+  { level: 10, id: 'weapon_enchant_directed', name: '定向铸魔', description: '开放定向附魔' },
+  { level: 10, id: 'workshop_speed', name: '加工加速', description: '加工时间缩短 15%' },
+  { level: 15, id: 'weapon_enchant_protected', name: '保留重铸', description: '开放保留原附魔重铸' },
+  { level: 15, id: 'workshop_double_output', name: '双倍产出', description: '加工完成时 10% 概率双倍产出' }
+]
+
+/** 获取工坊等级对应的被动加工速度加成（0~1） */
+const getWorkshopSpeedBonus = (level: number): number => {
+  if (level >= 15) return 0.15
+  if (level >= 10) return 0.15
+  return 0
+}
+
+/** 获取工坊等级对应的双倍产出概率（0~1） */
+const getWorkshopDoubleOutputChance = (level: number): number => {
+  if (level >= 15) return 0.10
+  return 0
+}
 
 export const useProcessingStore = defineStore('processing', () => {
   const inventoryStore = useInventoryStore()
@@ -206,6 +185,11 @@ export const useProcessingStore = defineStore('processing', () => {
       remaining,
       blocked: remaining <= 0
     }
+  }
+
+  const getAlchemyDailyLimitSignature = () => {
+    refreshAlchemyDailyLimitState()
+    return `${alchemyDailyLimitState.value.dayTag}:${alchemyDailyLimitState.value.mainStarted}:${alchemyDailyLimitState.value.supportStarted}`
   }
 
   const incrementAlchemyDailyUse = (recipeId: string) => {
@@ -339,6 +323,11 @@ export const useProcessingStore = defineStore('processing', () => {
     if (potentialProcessingBonus > 0) {
       totalDays = Math.max(1, Math.ceil(totalDays * (1 - potentialProcessingBonus)))
     }
+    // 工坊里程碑：Lv.10 加工速度 +15%
+    const workshopSpeedBonus = getWorkshopSpeedBonus(workshopLevel.value)
+    if (workshopSpeedBonus > 0) {
+      totalDays = Math.max(1, Math.ceil(totalDays * (1 - workshopSpeedBonus)))
+    }
     // 仙缘能力：织速（gui_nv_1）织布机加工时间-30%
     if (machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {
       totalDays = Math.max(1, Math.ceil(totalDays * 0.7))
@@ -369,6 +358,12 @@ export const useProcessingStore = defineStore('processing', () => {
     steady: { success: 2, partial: -1, failed: -1, rare: 1 },
     strong: { success: -3, partial: -2, failed: 3, rare: 5 }
   }
+  const ALCHEMY_TOLERANCE_WEIGHT_BONUS: Record<AlchemyResultKind, number> = {
+    success: 16,
+    partial: -4,
+    failed: -24,
+    rare: 8
+  }
 
   const sanitizeAlchemyResult = (recipe: ProcessingRecipeDef | null, raw: unknown): ProcessingSlot['alchemyResult'] | undefined => {
     if (!recipe?.alchemy?.results?.length || !raw || typeof raw !== 'object') return undefined
@@ -394,6 +389,7 @@ export const useProcessingStore = defineStore('processing', () => {
 
   const resolveAlchemyResult = (recipe: ProcessingRecipeDef, inputQuality: Quality): ProcessingSlot['alchemyResult'] | undefined => {
     if (!recipe.alchemy?.results?.length) return undefined
+    const potentialAlchemyTolerance = usePotentialStore().getPotentialEffectValue('potential_alchemy_tolerance')
 
     const weightedRules = recipe.alchemy.results.map(rule => ({
       rule,
@@ -401,7 +397,8 @@ export const useProcessingStore = defineStore('processing', () => {
         0.1,
         rule.weight +
           (ALCHEMY_QUALITY_WEIGHT_BONUS[inputQuality][rule.kind] ?? 0) +
-          (ALCHEMY_HEAT_WEIGHT_BONUS[recipe.alchemy!.heat][rule.kind] ?? 0)
+          (ALCHEMY_HEAT_WEIGHT_BONUS[recipe.alchemy!.heat][rule.kind] ?? 0) +
+          potentialAlchemyTolerance * ALCHEMY_TOLERANCE_WEIGHT_BONUS[rule.kind]
       )
     }))
     const totalWeight = weightedRules.reduce((sum, entry) => sum + entry.weight, 0)
@@ -454,6 +451,53 @@ export const useProcessingStore = defineStore('processing', () => {
     const output = getSlotOutput(slot, recipe)
     const outputName = getItemById(output.itemId)?.name ?? output.itemId
     return slot.alchemyResult ? `${slot.alchemyResult.label}：${outputName}` : getProcessingRecipeDisplayName(recipe.id)
+  }
+
+  const storeProcessingOutput = (itemId: string, quantity: number, quality: Quality): boolean => {
+    const warehouseStore = useWarehouseStore()
+    const voidOutput = warehouseStore.getVoidOutputChest()
+    if (voidOutput && warehouseStore.addItemToChest(voidOutput.id, itemId, quantity, quality)) return true
+    return inventoryStore.addItemExact(itemId, quantity, quality)
+  }
+
+  const getProcessingRawMaterialReturnEntries = (
+    slot: ProcessingSlot,
+    recipe: ProcessingRecipeDef
+  ): { itemId: string; quantity: number; quality?: Quality }[] => {
+    const sourceEntries = getSlotInputRefundEntries(slot, recipe)
+    if (sourceEntries.length <= 0) return []
+    const mainEntryIndex = recipe.inputItemId
+      ? sourceEntries.findIndex(entry => entry.itemId === recipe.inputItemId && entry.quantity > 0)
+      : -1
+    const selectedIndex = mainEntryIndex >= 0 ? mainEntryIndex : sourceEntries.findIndex(entry => entry.quantity > 0)
+    const selected = sourceEntries[selectedIndex]
+    return selected ? [{ itemId: selected.itemId, quantity: 1, quality: selected.quality }] : []
+  }
+
+  const tryPotentialRawMaterialReturn = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): boolean => {
+    const chance = usePotentialStore().getPotentialEffectValue('potential_workshop_hint')
+    if (chance <= 0 || Math.random() >= chance) return false
+    const entries = getProcessingRawMaterialReturnEntries(slot, recipe)
+    if (entries.length <= 0 || !entries.every(entry => storeProcessingOutput(entry.itemId, entry.quantity, entry.quality ?? 'normal'))) return false
+    addLog(`工坊手记触发：${getSlotCompletionName(slot, recipe)}返还了${getItemName(entries[0]!.itemId)}×1。`, {
+      category: 'processing',
+      tags: ['potential_workshop_refund'],
+      meta: { machineType: slot.machineType, recipeId: recipe.id, itemId: entries[0]!.itemId }
+    })
+    return true
+  }
+
+  const tryWorkshopDoubleOutput = (slot: ProcessingSlot, recipe: ProcessingRecipeDef, quality: Quality): boolean => {
+    const chance = workshopDoubleOutputChance.value
+    if (chance <= 0 || Math.random() >= chance) return false
+    const output = getSlotOutput(slot, recipe)
+    if (!storeProcessingOutput(output.itemId, output.quantity, quality)) return false
+    addLog(`工坊精研触发：${getSlotCompletionName(slot, recipe)}额外产出一份。`, {
+      category: 'processing',
+      tags: ['workshop_double_output'],
+      meta: { machineType: slot.machineType, recipeId: recipe.id, outputItemId: output.itemId }
+    })
+    return true
   }
 
   const getIdleMachineIndicesByType = (machineType: MachineType) =>
@@ -525,6 +569,18 @@ export const useProcessingStore = defineStore('processing', () => {
 
   /** 最大放置机器数 */
   const maxMachines = computed(() => 15 + workshopLevel.value * 5)
+
+  /** 当前工坊速度加成（0~1） */
+  const workshopSpeedBonus = computed(() => getWorkshopSpeedBonus(workshopLevel.value))
+
+  /** 当前工坊双倍产出概率（0~1） */
+  const workshopDoubleOutputChance = computed(() => getWorkshopDoubleOutputChance(workshopLevel.value))
+
+  /** 已激活的工坊里程碑列表 */
+  const activeMilestones = computed(() => WORKSHOP_MILESTONES.filter(m => workshopLevel.value >= m.level))
+
+  /** 即将达到的下一个里程碑 */
+  const nextMilestone = computed(() => WORKSHOP_MILESTONES.find(m => workshopLevel.value < m.level) ?? null)
 
   /** 当前放置数量 */
   const machineCount = computed(() => machines.value.length)
@@ -814,6 +870,9 @@ export const useProcessingStore = defineStore('processing', () => {
       if (!inventoryStore.addItemExact(output.itemId, output.quantity, outputQuality)) return null
     }
 
+    tryWorkshopDoubleOutput(slot, recipe, outputQuality)
+    tryPotentialRawMaterialReturn(slot, recipe)
+
     // 种子制造机额外触发育种种子生成
     if (slot.machineType === 'seed_maker' && slot.inputItemId) {
       const breedingStore = useBreedingStore()
@@ -962,7 +1021,6 @@ export const useProcessingStore = defineStore('processing', () => {
     const collected: string[] = []
     const readyNames: string[] = []
     const warehouseStore = useWarehouseStore()
-    const voidOutput = warehouseStore.getVoidOutputChest()
     const resetSlotToIdle = (slot: ProcessingSlot) => {
       slot.recipeId = null
       slot.inputItemId = null
@@ -1003,10 +1061,7 @@ export const useProcessingStore = defineStore('processing', () => {
       if (slot.daysProcessed >= slot.totalDays) {
         const recipe = getProcessingRecipeById(slot.recipeId)
         if (recipe) {
-          const canStoreOutput = (itemId: string, quantity: number, quality: Quality) => {
-            if (voidOutput && warehouseStore.addItemToChest(voidOutput.id, itemId, quantity, quality)) return true
-            return inventoryStore.addItemExact(itemId, quantity, quality)
-          }
+          const canStoreOutput = (itemId: string, quantity: number, quality: Quality) => storeProcessingOutput(itemId, quantity, quality)
 
           // 仙缘能力：梦织（gui_nv_2）织布机8%概率额外产出梦丝
           if (slot.machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_2') && Math.random() < 0.08) {
@@ -1027,6 +1082,8 @@ export const useProcessingStore = defineStore('processing', () => {
             }
             collected.push(getSlotCompletionName(slot, recipe))
             // 无需原料的机器自动重启，有原料的机器回到空闲
+            if (tryWorkshopDoubleOutput(slot, recipe, outputQuality)) collected.push(getSlotCompletionName(slot, recipe))
+            tryPotentialRawMaterialReturn(slot, recipe)
             if (recipe.inputItemId === null) {
               slot.daysProcessed = 0
               slot.inputQuality = undefined
@@ -1059,6 +1116,8 @@ export const useProcessingStore = defineStore('processing', () => {
               collected.push(getSlotCompletionName(slot, recipe))
 
               // 种子制造机额外触发育种种子生成
+              if (tryWorkshopDoubleOutput(slot, recipe, outputQuality)) collected.push(getSlotCompletionName(slot, recipe))
+              tryPotentialRawMaterialReturn(slot, recipe)
               if (slot.machineType === 'seed_maker' && slot.inputItemId) {
                 const breedingStore = useBreedingStore()
                 const farmingLevel = skillStore.farmingLevel
@@ -1131,7 +1190,11 @@ export const useProcessingStore = defineStore('processing', () => {
     if (!upgrade) return { success: false, message: '工坊已达到最高等级。' }
     if (!consumeCraftMaterials(upgrade.materials, upgrade.cost)) return { success: false, message: '材料或铜钱不足。' }
     workshopLevel.value = next
-    return { success: true, message: `工坊扩建完成！机器上限提升至${maxMachines.value}台。` }
+    const milestones = WORKSHOP_MILESTONES.filter(m => m.level === next)
+    const milestoneText = milestones.length > 0
+      ? `解锁里程碑：${milestones.map(m => `${m.name}（${m.description}）`).join('、')}。`
+      : ''
+    return { success: true, message: `工坊扩建完成！机器上限提升至${maxMachines.value}台。${milestoneText}` }
   }
 
   /** 获取下一级升级信息 */
@@ -1174,6 +1237,10 @@ export const useProcessingStore = defineStore('processing', () => {
     machineCount,
     maxMachines,
     workshopLevel,
+    workshopSpeedBonus,
+    workshopDoubleOutputChance,
+    activeMilestones,
+    nextMilestone,
     canCraft,
     consumeCraftMaterials,
     craftMachine,
@@ -1186,6 +1253,7 @@ export const useProcessingStore = defineStore('processing', () => {
     craftBomb,
     getBatchProcessLimit,
     getAlchemyDailyLimitStatus,
+    getAlchemyDailyLimitSignature,
     getAlchemyMaterialPlan,
     getAlchemyRequirementAvailableCount,
     getAlchemySubstitutionText,

@@ -323,6 +323,9 @@
         </p>
         <span v-if="warehouseStore.unlocked" class="text-xs text-muted">
           箱子 {{ warehouseStore.chests.length }}/{{ warehouseStore.maxChests }}
+          <template v-if="warehouseStore.maxChests > warehouseStore.baseMaxChests">
+            （基础 {{ warehouseStore.baseMaxChests }} + 潜能 {{ warehouseStore.maxChests - warehouseStore.baseMaxChests }}）
+          </template>
         </span>
       </div>
 

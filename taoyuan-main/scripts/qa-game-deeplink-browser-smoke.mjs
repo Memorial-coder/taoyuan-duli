@@ -15,9 +15,27 @@ const configuredBaseURL = process.env.TAOYUAN_BASE_URL?.trim() || ''
 const port = configuredBaseURL ? preferredPort : await findAvailablePort(host, preferredPort)
 const baseURL = configuredBaseURL || `http://${host}:${port}`
 const shouldStartDevServer = process.env.TAOYUAN_SKIP_DEV_SERVER !== '1' && !configuredBaseURL
+const navigationTimeoutMs = 90_000
 
 let devServer = null
 let browser = null
+
+const launchChromiumBrowser = async () => {
+  try {
+    return await chromium.launch({ headless: true })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (
+      !message.includes('Executable doesn\'t exist') &&
+      !message.includes('Invalid file descriptor to ICU data received') &&
+      !isPlaywrightEnvironmentError(error)
+    ) {
+      throw error
+    }
+    console.warn('qa-game-deeplink-browser-smoke: bundled Chromium unavailable, falling back to system Chrome')
+    return await chromium.launch({ channel: 'chrome', headless: true })
+  }
+}
 
 const waitForTestIdOrDump = async (page, testId, label) => {
   try {
@@ -97,20 +115,29 @@ const createLocalSave = async page => {
 
 try {
   await startDevServer()
-  browser = await chromium.launch({ headless: true })
+  browser = await launchChromiumBrowser()
 
   const emptyContext = await browser.newContext()
   const emptyPage = await emptyContext.newPage()
-  await emptyPage.goto(`${baseURL}/#/game/farm`, { waitUntil: 'domcontentloaded' })
+  emptyPage.setDefaultNavigationTimeout(navigationTimeoutMs)
+  await emptyPage.goto(`${baseURL}/#/game/farm`, { waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
   await waitForTestIdOrDump(emptyPage, 'main-menu', 'empty-deeplink')
   expect(emptyPage.url()).toContain('redirect=')
   await emptyContext.close()
 
   const restoreContext = await browser.newContext()
   const restorePage = await restoreContext.newPage()
+  restorePage.setDefaultNavigationTimeout(navigationTimeoutMs)
   await createLocalSave(restorePage)
-  await restorePage.goto(`${baseURL}/#/game/farm`, { waitUntil: 'domcontentloaded' })
-  await restorePage.reload({ waitUntil: 'domcontentloaded' })
+
+  await restorePage.goto(`${baseURL}/#/?redirect=/game/workshop`, { waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
+  await waitForTestIdOrDump(restorePage, 'main-menu', 'menu-redirect-fallback')
+  await restorePage.getByRole('button', { name: /存档 1/ }).first().click()
+  await waitForTestIdOrDump(restorePage, 'processing-view', 'menu-redirect-workshop')
+  expect(restorePage.url()).toContain('#/game/workshop')
+
+  await restorePage.goto(`${baseURL}/#/game/farm`, { waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
+  await restorePage.reload({ waitUntil: 'domcontentloaded', timeout: navigationTimeoutMs })
   await waitForTestIdOrDump(restorePage, 'game-layout', 'restore-deeplink')
   expect(restorePage.url()).toContain('#/game/farm')
   await restoreContext.close()

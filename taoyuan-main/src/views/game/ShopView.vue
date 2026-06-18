@@ -863,12 +863,12 @@
             </div>
 
             <div
-              v-if="warehouseStore.unlocked && warehouseStore.maxChests < warehouseStore.MAX_CHESTS_CAP"
+              v-if="warehouseStore.unlocked && warehouseStore.baseMaxChests < warehouseStore.MAX_CHESTS_CAP"
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
               @click="
                 openBuyModal(
                   '仓库扩建',
-                  `箱子槽位 ${warehouseStore.maxChests} → ${warehouseStore.maxChests + 1}`,
+                  `基础箱位 ${warehouseStore.baseMaxChests} → ${warehouseStore.baseMaxChests + 1}，当前总箱位 ${warehouseStore.maxChests}`,
                   discounted(warehouseExpandPrice),
                   handleBuyWarehouseExpand,
                   () => playerStore.money >= discounted(warehouseExpandPrice)
@@ -877,7 +877,7 @@
             >
               <div>
                 <p class="text-sm">仓库扩建</p>
-                <p class="text-muted text-xs">箱子槽位 {{ warehouseStore.maxChests }} → {{ warehouseStore.maxChests + 1 }}</p>
+                <p class="text-muted text-xs">基础箱位 {{ warehouseStore.baseMaxChests }} → {{ warehouseStore.baseMaxChests + 1 }} · 当前总箱位 {{ warehouseStore.maxChests }}</p>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(warehouseExpandPrice) }}文</span>
             </div>
@@ -2550,20 +2550,20 @@
       return `购买后永久背包容量：${inventoryStore.capacity}格 → ${inventoryStore.capacity + eff.amount}格`
     }
     if (eff.type === 'expand_warehouse') {
-      if (warehouseStore.maxChests >= warehouseStore.MAX_CHESTS_CAP) return '仓库箱位已达上限'
-      const nextMax = Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.maxChests + eff.amount)
-      return `购买后永久仓库箱位：${warehouseStore.maxChests} → ${nextMax}`
+      if (warehouseStore.baseMaxChests >= warehouseStore.MAX_CHESTS_CAP) return '仓库基础箱位已达上限'
+      const nextMax = Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.baseMaxChests + eff.amount)
+      return `购买后永久基础箱位：${warehouseStore.baseMaxChests} → ${nextMax}，当前总箱位 ${warehouseStore.maxChests}`
     }
     if (eff.type === 'unlock_greenhouse') {
       return homeStore.greenhouseUnlocked ? '温室已解锁' : '解锁后可在农舍界面使用温室地块'
     }
     if (eff.type === 'grant_chest') {
       const capacityDelta = Math.max(0, offer.warehouseServiceConfig?.capacityDelta ?? 0)
-      const nextMax = Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.maxChests + capacityDelta)
-      const capacityText = capacityDelta > 0 && nextMax > warehouseStore.maxChests
-        ? `，并开放永久仓库箱位：${warehouseStore.maxChests} → ${nextMax}`
+      const nextMax = Math.min(warehouseStore.MAX_CHESTS_CAP, warehouseStore.baseMaxChests + capacityDelta)
+      const capacityText = capacityDelta > 0 && nextMax > warehouseStore.baseMaxChests
+        ? `，并开放永久基础箱位：${warehouseStore.baseMaxChests} → ${nextMax}，当前总箱位 ${warehouseStore.maxChests}`
         : capacityDelta > 0
-          ? '，永久仓库箱位已达上限'
+          ? '，永久仓库基础箱位已达上限'
           : ''
       return `将新增一个「${eff.label ?? offer.name}」到仓库${capacityText}`
     }
@@ -3454,7 +3454,7 @@
   }
 
   const warehouseExpandPrice = computed(() => {
-    const level = warehouseStore.maxChests - 3
+    const level = warehouseStore.baseMaxChests - 3
     return 2000 + level * 2000
   })
 
@@ -3465,7 +3465,7 @@
       return
     }
     if (warehouseStore.expandMaxChests()) {
-      addLog(`仓库扩建至${warehouseStore.maxChests}个箱子槽位！(-${actualPrice}文)`)
+      addLog(`仓库基础箱位扩建至${warehouseStore.baseMaxChests}个，总箱位 ${warehouseStore.maxChests}。(-${actualPrice}文)`)
     } else {
       playerStore.earnMoney(actualPrice, { countAsEarned: false })
       addLog('仓库已满级。')
