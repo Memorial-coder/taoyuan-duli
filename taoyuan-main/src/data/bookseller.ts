@@ -1,15 +1,35 @@
-import type { Season } from '@/types'
+import type { RewardTicketLedger, Season } from '@/types'
 import { BOOKS, type BooksellerBookDef } from './books'
 
 export const BOOKSELLER_VISITOR_ID = 'bookseller'
+export const WANDERING_ARTIST_VISITOR_ID = 'wandering_artist'
+export const RARE_VISITOR_SEASON_VISIT_LEDGER_PREFIX = 'rare_visitor_season_visit'
 
 export type RareVisitorKind = 'merchant' | 'performer' | 'wanderer'
+
+export type RareVisitorVisitReward =
+  | {
+    type: 'tickets'
+    label: string
+    summary: string
+    ticketRewards: RewardTicketLedger
+  }
+  | {
+    type: 'action_speed'
+    label: string
+    summary: string
+    value: number
+    clueId: string
+    clueSummary: string
+  }
 
 export interface RareVisitorDef {
   id: string
   name: string
   stallName: string
   kind: RareVisitorKind
+  personalityTags: string[]
+  visitReward: RareVisitorVisitReward
   schedule: Partial<Record<Season, number[]>>
   description: string
   teaser: string
@@ -29,6 +49,9 @@ export interface BooksellerStockEntry extends BooksellerBookDef {
 }
 
 const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
+
+export const buildRareVisitorSeasonVisitLedgerId = (visitorId: string, year: number, season: Season): string =>
+  `${RARE_VISITOR_SEASON_VISIT_LEDGER_PREFIX}:${visitorId}:${year}-${season}`
 
 const seededRandom = (seed: number): (() => number) => {
   let state = seed
@@ -61,6 +84,13 @@ export const RARE_VISITORS: RareVisitorDef[] = [
     name: '行脚书生',
     stallName: '游学书肆',
     kind: 'merchant',
+    personalityTags: ['研究', '见闻', '书卷'],
+    visitReward: {
+      type: 'tickets',
+      label: '研究券×1',
+      summary: '向行脚书生请教本季见闻，获得研究券×1。',
+      ticketRewards: { research: 1 }
+    },
     schedule: {
       spring: [11],
       summer: [11],
@@ -76,6 +106,13 @@ export const RARE_VISITORS: RareVisitorDef[] = [
     name: '节庆商人',
     stallName: '节令流摊',
     kind: 'merchant',
+    personalityTags: ['节令', '人情', '陈设'],
+    visitReward: {
+      type: 'tickets',
+      label: '展陈券×1',
+      summary: '跟节庆商人交换节令陈设门路，获得展陈券×1。',
+      ticketRewards: { exhibit: 1 }
+    },
     schedule: {
       spring: [21],
       summer: [21],
@@ -87,10 +124,19 @@ export const RARE_VISITORS: RareVisitorDef[] = [
     prepHints: ['预留送礼物资与节庆食材预算', '看一眼近期节日需要什么', '优先补稀有但不常卖的节庆材料']
   },
   {
-    id: 'wandering_artist',
+    id: WANDERING_ARTIST_VISITOR_ID,
     name: '巡回艺人',
     stallName: '河岸戏棚',
     kind: 'performer',
+    personalityTags: ['戏棚', '传闻', '气氛'],
+    visitReward: {
+      type: 'action_speed',
+      label: '戏棚余韵',
+      summary: '今日行动耗时 -5%',
+      value: 0.05,
+      clueId: 'rare_visitor:wandering_artist:theater_echo',
+      clueSummary: '巡回艺人的唱词里藏着下一位来客与秘密地点的传闻。'
+    },
     schedule: {
       spring: [20],
       summer: [24],
@@ -106,6 +152,13 @@ export const RARE_VISITORS: RareVisitorDef[] = [
     name: '异乡客',
     stallName: '陌路驿座',
     kind: 'wanderer',
+    personalityTags: ['商路', '天气', '远行'],
+    visitReward: {
+      type: 'tickets',
+      label: '商路票×1',
+      summary: '听异乡客讲远路和天气窗口，获得商路票×1。',
+      ticketRewards: { caravan: 1 }
+    },
     schedule: {
       spring: [26],
       summer: [9],

@@ -493,6 +493,22 @@
               游学书肆 · 行脚书生
             </h4>
             <p class="text-muted text-xs mb-2">书生每季只来一次，今天能买的书这季只有今天能拿到。</p>
+            <div
+              v-if="booksellerRareVisitor"
+              class="flex items-center justify-between gap-3 border border-accent/10 rounded-xs px-3 py-2 mb-2"
+            >
+              <div class="min-w-0">
+                <p class="text-xs text-text">拜访 / 请教</p>
+                <p class="text-[0.625rem] text-accent mt-0.5">{{ rareVisitorVisitRewardText(booksellerRareVisitor) }}</p>
+              </div>
+              <Button
+                class="shrink-0 px-2 py-1 text-[0.625rem]"
+                :disabled="hasClaimedRareVisitorThisSeason(booksellerRareVisitor.id)"
+                @click="handleRecordRareVisitor(booksellerRareVisitor)"
+              >
+                {{ rareVisitorVisitButtonLabel(booksellerRareVisitor) }}
+              </Button>
+            </div>
             <div class="flex flex-col space-y-2">
               <p
                 v-if="shopStore.booksellerStock.length === 0"
@@ -545,13 +561,14 @@
                     <p class="text-sm text-text">{{ visitor.name }} · {{ visitor.stallName }}</p>
                     <p class="text-muted text-xs mt-0.5">{{ visitor.teaser }}</p>
                     <p class="text-[0.625rem] text-muted mt-1">{{ visitor.prepHints.slice(0, 2).join(' / ') }}</p>
+                    <p class="text-[0.625rem] text-accent mt-1">{{ rareVisitorVisitRewardText(visitor) }}</p>
                   </div>
                   <Button
                     class="shrink-0 px-2 py-1 text-[0.625rem]"
-                    :disabled="hasRecordedRareVisitor(visitor.id)"
-                    @click="handleRecordRareVisitor(visitor.id, visitor.name)"
+                    :disabled="hasClaimedRareVisitorThisSeason(visitor.id)"
+                    @click="handleRecordRareVisitor(visitor)"
                   >
-                    {{ hasRecordedRareVisitor(visitor.id) ? '已拜访' : '拜访' }}
+                    {{ rareVisitorVisitButtonLabel(visitor) }}
                   </Button>
                 </div>
               </div>
@@ -1914,7 +1931,12 @@
   import { useHomeStore } from '@/stores/useHomeStore'
   import { getItemById, getNpcById } from '@/data'
   import { BOOKS, BOOK_TYPE_LABELS } from '@/data/books'
-  import { BOOKSELLER_VISITOR_ID, getRareVisitorsForDay } from '@/data/bookseller'
+  import {
+    BOOKSELLER_VISITOR_ID,
+    buildRareVisitorSeasonVisitLedgerId,
+    getRareVisitorsForDay,
+    type RareVisitorDef
+  } from '@/data/bookseller'
   import { getCropBySeedId } from '@/data/crops'
   import { SHOP_NPC_RELATION_MAP } from '@/data/npcWorld'
   import { SHOPS, isShopAvailable, getShopClosedReason } from '@/data/shops'
@@ -2003,6 +2025,9 @@
     shopActiveTab.value = 'trade'
   }
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
+  const booksellerRareVisitor = computed(() =>
+    getRareVisitorsForDay(gameStore.season, gameStore.day).find(visitor => visitor.id === BOOKSELLER_VISITOR_ID) ?? null
+  )
   const todayAmbientRareVisitors = computed(() =>
     getRareVisitorsForDay(gameStore.season, gameStore.day).filter(visitor => visitor.id !== BOOKSELLER_VISITOR_ID)
   )
@@ -2011,11 +2036,53 @@
     if (ownedBookCount >= BOOKS.length) return `本档 ${ownedBookCount} 本藏书已收齐，行脚书生今天没有新的书可卖。`
     return '今日书单暂未整理出来，下次来访会重新摆出可买藏书。'
   })
+  const rareVisitorSeasonVisitLedgerId = (visitorId: string): string =>
+    buildRareVisitorSeasonVisitLedgerId(visitorId, gameStore.year, gameStore.season)
+  const getRareVisitorSeasonVisitEntry = (visitorId: string) =>
+    playerStore.getLifestyleDiscoverySnapshot().lifestyleUnlocks[rareVisitorSeasonVisitLedgerId(visitorId)]
+  const hasClaimedRareVisitorThisSeason = (visitorId: string) => !!getRareVisitorSeasonVisitEntry(visitorId)
+  const hasClaimedRareVisitorToday = (visitorId: string) =>
+    getRareVisitorSeasonVisitEntry(visitorId)?.lastSeenDayTag === currentDayTag.value
   const hasRecordedRareVisitor = (visitorId: string) => playerStore.hasLifestyleDiscovery('rareVisitors', visitorId)
-  const handleRecordRareVisitor = (visitorId: string, visitorName: string) => {
-    if (hasRecordedRareVisitor(visitorId)) return
-    playerStore.recordRareVisitorVisit(visitorId, currentDayTag.value)
-    addLog(`【稀有来访】你在村口拜访了${visitorName}，这次来访已写入长期记录。`)
+  const rareVisitorVisitButtonLabel = (visitor: RareVisitorDef) => {
+    if (hasClaimedRareVisitorToday(visitor.id)) return '今日已拜访'
+    if (hasClaimedRareVisitorThisSeason(visitor.id)) return '本季已拜访'
+    return hasRecordedRareVisitor(visitor.id) ? '再访' : '拜访'
+  }
+  const rareVisitorVisitRewardText = (visitor: RareVisitorDef) =>
+    visitor.visitReward.type === 'tickets'
+      ? `拜访奖励：${visitor.visitReward.label}`
+      : `拜访奖励：${visitor.visitReward.label} · ${visitor.visitReward.summary}`
+  const formatRareVisitorTicketRewards = (ticketRewards: RewardTicketLedger): string =>
+    Object.entries(ticketRewards)
+      .filter(([, amount]) => Number(amount) > 0)
+      .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${amount}`)
+      .join('、')
+  const handleRecordRareVisitor = (visitor: RareVisitorDef) => {
+    const seasonVisitLedgerId = rareVisitorSeasonVisitLedgerId(visitor.id)
+    if (hasClaimedRareVisitorThisSeason(visitor.id)) {
+      const status = hasClaimedRareVisitorToday(visitor.id) ? '今日已经拜访过' : '本季已经领取过来访奖励'
+      addLog(`【稀有来访】${visitor.name}${status}，下季可再次领取。`)
+      return
+    }
+
+    playerStore.recordRareVisitorVisit(visitor.id, currentDayTag.value)
+    playerStore.markLifestyleUnlock(seasonVisitLedgerId, currentDayTag.value)
+
+    let rewardSummary = visitor.visitReward.summary
+    let floatMessage = visitor.visitReward.label
+    if (visitor.visitReward.type === 'tickets') {
+      const grantedTickets = walletStore.addRewardTickets(visitor.visitReward.ticketRewards, { applyMultiplier: false, source: 'rare_visitor_visit' })
+      const ticketSummary = formatRareVisitorTicketRewards(grantedTickets)
+      rewardSummary = ticketSummary ? `获得${ticketSummary}` : visitor.visitReward.summary
+      floatMessage = ticketSummary ? `+${ticketSummary}` : visitor.visitReward.label
+    } else {
+      playerStore.markSecretLeadUnlocked(visitor.visitReward.clueId, currentDayTag.value)
+      rewardSummary = `${visitor.visitReward.summary}，${visitor.visitReward.clueSummary}`
+    }
+
+    showFloat(floatMessage, 'success')
+    addLog(`【稀有来访】你拜访了${visitor.name}，${rewardSummary}。本季来访奖励已记录。`)
   }
 
   const ancientRoadShopHandoff = computed(() => {

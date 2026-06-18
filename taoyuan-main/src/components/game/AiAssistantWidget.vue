@@ -4,18 +4,21 @@
       ref="fabButton"
       type="button"
       class="ai-fab"
-      :class="{ 'ai-fab--open': store.isOpen }"
+      :class="{ 'ai-fab--open': store.isOpen, 'ai-fab--dragging': !!fabDragState }"
+      :style="fabButtonStyle"
+      data-testid="ai-assistant-fab"
       :aria-expanded="store.isOpen"
       aria-controls="ai-assistant-panel"
       :aria-label="store.isOpen ? '关闭桃源小助理面板' : '打开桃源小助理面板'"
-      @click="void store.togglePanel()"
+      @pointerdown="handleFabPointerDown"
+      @click="handleFabClick"
     >
       <Bot :size="18" />
       <span>{{ store.publicConfig.assistantName }}</span>
     </button>
 
     <Transition name="panel-fade">
-      <div v-if="store.isOpen" class="ai-panel-wrap">
+      <div v-if="store.isOpen" class="ai-panel-wrap" :style="panelWrapStyle">
         <div
           id="ai-assistant-panel"
           ref="panelElement"
@@ -223,6 +226,7 @@
 
 <script setup lang="ts">
   import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+  import type { CSSProperties } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { Bot, CircleStop, Copy, MoreHorizontal, RotateCcw, Send, Shield, Sparkles, Trash2, X } from 'lucide-vue-next'
   import { buildAiAssistantContextSnapshotV2, useAiAssistantStore } from '@/stores/useAiAssistantStore'
@@ -304,12 +308,237 @@
   const pendingStageNow = ref(Date.now())
   let pendingStageTimer: ReturnType<typeof setInterval> | undefined
 
+  type AiAssistantFabPosition = { x: number; y: number }
+  type AiAssistantFabSize = { width: number; height: number }
+  type AiAssistantViewportSize = { width: number; height: number }
+  type AiAssistantFabDragState = {
+    pointerId: number
+    startClientX: number
+    startClientY: number
+    originX: number
+    originY: number
+    width: number
+    height: number
+    moved: boolean
+    dragTarget: HTMLElement | null
+  }
+
+  const AI_ASSISTANT_FAB_DRAG_THRESHOLD_PX = 6
+  const AI_ASSISTANT_FAB_VIEWPORT_MARGIN = 8
+  const AI_ASSISTANT_PANEL_VIEWPORT_MARGIN = 8
+  const AI_ASSISTANT_PANEL_GAP = 10
+  const AI_ASSISTANT_PANEL_MIN_HEIGHT = 120
+  const AI_ASSISTANT_PANEL_PREFERRED_HEIGHT = 280
+  const AI_ASSISTANT_PANEL_MAX_WIDTH = 420
+
+  const fabPosition = ref<AiAssistantFabPosition | null>(null)
+  const fabSize = ref<AiAssistantFabSize>({ width: 44, height: 44 })
+  const fabDragState = ref<AiAssistantFabDragState | null>(null)
+  const suppressNextFabClick = ref(false)
+  const assistantViewport = ref<AiAssistantViewportSize>({ width: 0, height: 0 })
+
   const currentRouteName = computed(() => (typeof route.name === 'string' ? route.name : ''))
   const currentContextLabel = computed(() => getAiAssistantRouteLabel(currentRouteName.value))
 
   const getDefaultQuickQuestions = () => (
     getConfiguredAiQuickQuestions(currentRouteName.value)
   )
+
+  const getAssistantViewportSize = (): AiAssistantViewportSize => {
+    if (typeof window === 'undefined') return { width: 0, height: 0 }
+    return { width: window.innerWidth, height: window.innerHeight }
+  }
+
+  const syncAssistantViewport = () => {
+    assistantViewport.value = getAssistantViewportSize()
+  }
+
+  const clampAssistantFabPosition = (
+    position: AiAssistantFabPosition,
+    size: AiAssistantFabSize = fabSize.value
+  ): AiAssistantFabPosition => {
+    const viewport = assistantViewport.value.width > 0
+      ? assistantViewport.value
+      : getAssistantViewportSize()
+    if (viewport.width <= 0 || viewport.height <= 0) return position
+
+    const margin = AI_ASSISTANT_FAB_VIEWPORT_MARGIN
+    const maxX = Math.max(margin, viewport.width - margin - size.width)
+    const maxY = Math.max(margin, viewport.height - margin - size.height)
+    return {
+      x: Math.min(maxX, Math.max(margin, position.x)),
+      y: Math.min(maxY, Math.max(margin, position.y))
+    }
+  }
+
+  const syncAssistantFabSize = () => {
+    const rect = fabButton.value?.getBoundingClientRect()
+    if (!rect) return
+    fabSize.value = {
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height)
+    }
+    if (fabPosition.value) {
+      fabPosition.value = clampAssistantFabPosition(fabPosition.value, fabSize.value)
+    }
+  }
+
+  const fabButtonStyle = computed<CSSProperties | undefined>(() => {
+    if (!fabPosition.value) return undefined
+    return {
+      left: `${fabPosition.value.x}px`,
+      top: `${fabPosition.value.y}px`,
+      bottom: 'auto'
+    }
+  })
+
+  const panelWrapStyle = computed<CSSProperties | undefined>(() => {
+    if (!fabPosition.value) return undefined
+
+    const viewport = assistantViewport.value.width > 0
+      ? assistantViewport.value
+      : getAssistantViewportSize()
+    if (viewport.width <= 0 || viewport.height <= 0) return undefined
+
+    const margin = AI_ASSISTANT_PANEL_VIEWPORT_MARGIN
+    const panelWidth = Math.min(AI_ASSISTANT_PANEL_MAX_WIDTH, Math.max(0, viewport.width - margin * 2))
+    const panelLeft = Math.min(
+      Math.max(margin, viewport.width - margin - panelWidth),
+      Math.max(margin, fabPosition.value.x)
+    )
+    const aboveSpace = fabPosition.value.y - margin
+    const belowSpace = viewport.height - (fabPosition.value.y + fabSize.value.height) - margin
+    const preferAbove = aboveSpace >= AI_ASSISTANT_PANEL_PREFERRED_HEIGHT || aboveSpace >= belowSpace
+    const availableSpace = Math.max(0, (preferAbove ? aboveSpace : belowSpace) - AI_ASSISTANT_PANEL_GAP)
+    const panelMaxHeight = Math.max(
+      AI_ASSISTANT_PANEL_MIN_HEIGHT,
+      Math.min(availableSpace, viewport.height - margin * 2)
+    )
+    const baseStyle = {
+      left: `${panelLeft}px`,
+      right: 'auto',
+      width: `${panelWidth}px`,
+      '--ai-panel-drag-max-height': `${panelMaxHeight}px`
+    } as CSSProperties
+
+    if (preferAbove) {
+      return {
+        ...baseStyle,
+        top: 'auto',
+        bottom: `${Math.max(margin, viewport.height - fabPosition.value.y + AI_ASSISTANT_PANEL_GAP)}px`
+      }
+    }
+
+    return {
+      ...baseStyle,
+      top: `${Math.min(
+        viewport.height - margin - AI_ASSISTANT_PANEL_MIN_HEIGHT,
+        fabPosition.value.y + fabSize.value.height + AI_ASSISTANT_PANEL_GAP
+      )}px`,
+      bottom: 'auto'
+    }
+  })
+
+  const clearFabDrag = () => {
+    const state = fabDragState.value
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pointermove', handleFabPointerMove)
+      window.removeEventListener('pointerup', handleFabPointerEnd)
+      window.removeEventListener('pointercancel', handleFabPointerEnd)
+    }
+    if (state?.dragTarget?.hasPointerCapture(state.pointerId)) {
+      try {
+        state.dragTarget.releasePointerCapture(state.pointerId)
+      } catch {
+        // Pointer capture can already be released by the browser.
+      }
+    }
+    fabDragState.value = null
+  }
+
+  const handleFabPointerMove = (event: PointerEvent) => {
+    const state = fabDragState.value
+    if (!state || event.pointerId !== state.pointerId) return
+
+    const deltaX = event.clientX - state.startClientX
+    const deltaY = event.clientY - state.startClientY
+    const movedEnough = state.moved || Math.hypot(deltaX, deltaY) >= AI_ASSISTANT_FAB_DRAG_THRESHOLD_PX
+    if (!movedEnough) return
+
+    event.preventDefault()
+    if (!state.moved) {
+      fabDragState.value = { ...state, moved: true }
+      suppressNextFabClick.value = true
+    }
+    fabPosition.value = clampAssistantFabPosition(
+      {
+        x: state.originX + deltaX,
+        y: state.originY + deltaY
+      },
+      { width: state.width, height: state.height }
+    )
+  }
+
+  const handleFabPointerEnd = (event: PointerEvent) => {
+    const state = fabDragState.value
+    if (state && event.pointerId !== state.pointerId) return
+    if (state?.moved) suppressNextFabClick.value = true
+    clearFabDrag()
+  }
+
+  const handleFabPointerDown = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+
+    const dragTarget = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+    if (!dragTarget) return
+
+    syncAssistantViewport()
+    const rect = dragTarget.getBoundingClientRect()
+    const size = {
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height)
+    }
+    fabSize.value = size
+    fabDragState.value = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      originX: rect.left,
+      originY: rect.top,
+      width: size.width,
+      height: size.height,
+      moved: false,
+      dragTarget
+    }
+    dragTarget.setPointerCapture(event.pointerId)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', handleFabPointerMove)
+      window.addEventListener('pointerup', handleFabPointerEnd)
+      window.addEventListener('pointercancel', handleFabPointerEnd)
+    }
+  }
+
+  const handleFabClick = () => {
+    if (suppressNextFabClick.value) {
+      suppressNextFabClick.value = false
+      return
+    }
+    void store.togglePanel()
+  }
+
+  const clampVisibleAssistantFab = () => {
+    syncAssistantViewport()
+    syncAssistantFabSize()
+  }
+
+  const scheduleAssistantFabClamp = () => {
+    if (typeof window === 'undefined') return
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(clampVisibleAssistantFab)
+      return
+    }
+    window.setTimeout(clampVisibleAssistantFab, 0)
+  }
 
   const seasonOrder: Season[] = ['spring', 'summer', 'autumn', 'winter']
   const toolLabels: Record<string, string> = {
@@ -1243,15 +1472,28 @@
   )
 
   onMounted(() => {
+    syncAssistantViewport()
     goalStore.ensureInitialized()
     void store.loadConfig({ appendWelcome: false })
     void store.verifyAdminAccess()
     pendingStageTimer = setInterval(() => {
       pendingStageNow.value = Date.now()
     }, 1000)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', scheduleAssistantFabClamp)
+      window.addEventListener('orientationchange', scheduleAssistantFabClamp)
+    }
+    void nextTick(() => {
+      syncAssistantFabSize()
+    })
   })
 
   onUnmounted(() => {
+    clearFabDrag()
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', scheduleAssistantFabClamp)
+      window.removeEventListener('orientationchange', scheduleAssistantFabClamp)
+    }
     if (pendingStageTimer) clearInterval(pendingStageTimer)
   })
 </script>
@@ -1274,11 +1516,18 @@
     background: rgb(var(--color-panel));
     color: var(--color-accent);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
   }
 
   .ai-fab--open {
     background: var(--color-accent);
     color: rgb(var(--color-bg));
+  }
+
+  .ai-fab--dragging {
+    cursor: grabbing;
   }
 
   .ai-panel-wrap {
@@ -1300,6 +1549,7 @@
     gap: 12px;
     pointer-events: auto;
     max-height: min(78dvh, 760px);
+    max-height: var(--ai-panel-drag-max-height, min(78dvh, 760px));
     box-sizing: border-box;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -2207,6 +2457,7 @@
     .ai-panel {
       width: 100%;
       max-height: min(100%, calc(100dvh - 76px - env(safe-area-inset-bottom, 0px)));
+      max-height: var(--ai-panel-drag-max-height, min(100%, calc(100dvh - 76px - env(safe-area-inset-bottom, 0px))));
       gap: 8px;
       padding-bottom: calc(var(--spacing-3) + env(safe-area-inset-bottom, 0px));
     }

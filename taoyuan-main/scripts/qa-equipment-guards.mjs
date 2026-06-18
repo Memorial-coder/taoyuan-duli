@@ -169,12 +169,13 @@ installBrowserShims()
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
-const equipmentEnchantmentsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/equipmentEnchantments.ts')).href)
+const forgeAffixesModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/forgeAffixes.ts')).href)
 const inventoryStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useInventoryStore.ts'), 'utf8')
 const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
 const miningViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/MiningView.vue'), 'utf8')
 const processingViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ProcessingView.vue'), 'utf8')
-const equipmentEnchantmentsSource = fs.readFileSync(path.join(projectRoot, 'src/data/equipmentEnchantments.ts'), 'utf8')
+const forgeAffixesSource = fs.readFileSync(path.join(projectRoot, 'src/data/forgeAffixes.ts'), 'utf8')
+const itemTypesSource = fs.readFileSync(path.join(projectRoot, 'src/types/item.ts'), 'utf8')
 const ringTypesSource = fs.readFileSync(path.join(projectRoot, 'src/types/ring.ts'), 'utf8')
 const equipmentTypesSource = fs.readFileSync(path.join(projectRoot, 'src/types/equipment.ts'), 'utf8')
 
@@ -197,42 +198,64 @@ assert(/data-testid="mining-equipment-preset-grid"[\s\S]{0,180}grid-cols-2/.test
 assert(inventoryStoreSource.includes('doesCurrentEquipmentMatchPreset') && inventoryStoreSource.includes('isEquipmentPresetActive'), 'Equipment presets should expose a real current-equipment match guard.')
 assert(inventoryViewSource.includes('isPresetActive(preset.id)') && inventoryViewSource.includes('activeEquipmentPresetName'), 'Inventory preset UI should use real equipment matches instead of stale activePresetId flags.')
 assert(miningViewSource.includes('inventoryStore.isEquipmentPresetActive(preset.id)') && miningViewSource.includes('inventoryStore.activeEquipmentPresetName'), 'Mining preset UI should use real equipment matches instead of stale activePresetId flags.')
-assert(ringTypesSource.includes('enchantmentId?: string | null'), 'OwnedRing should persist optional equipment enchantment ids.')
-assert((equipmentTypesSource.match(/enchantmentId\?: string \| null/g) ?? []).length >= 2, 'OwnedHat and OwnedShoe should persist optional equipment enchantment ids.')
-assert(equipmentEnchantmentsSource.includes('shoe_swift') && equipmentEnchantmentsSource.includes("type: 'travel_speed'"), 'Equipment enchantment data should include a shoe movement-speed enchantment.')
-for (const id of ['ring_focus', 'ring_fortune', 'ring_treasure', 'hat_guard', 'hat_clear_mind', 'hat_herbal', 'shoe_swift', 'shoe_surefoot', 'shoe_mine_step']) {
-  assert(equipmentEnchantmentsSource.includes(id), `Equipment enchantment data should include ${id}.`)
+assert(ringTypesSource.includes('enchantmentId?: string | null'), 'OwnedRing should retain optional legacy equipment enchantment ids.')
+assert(ringTypesSource.includes('affixes?: ForgeAffixRoll[]'), 'OwnedRing should persist rolled affixes.')
+assert((equipmentTypesSource.match(/enchantmentId\?: string \| null/g) ?? []).length >= 2, 'OwnedHat and OwnedShoe should retain optional legacy equipment enchantment ids.')
+assert((equipmentTypesSource.match(/affixes\?: ForgeAffixRoll\[\]/g) ?? []).length >= 2, 'OwnedHat and OwnedShoe should persist rolled affixes.')
+assert(itemTypesSource.includes('export interface Tool') && itemTypesSource.includes('affixes?: ForgeAffixRoll[]'), 'Tool and weapon save shape should persist rolled affixes.')
+for (const field of [
+  'weaponAffixSignature',
+  'ringSlot1AffixSignature',
+  'ringSlot2AffixSignature',
+  'hatAffixSignature',
+  'shoeAffixSignature'
+]) {
+  assert(inventoryStoreSource.includes(field), `Equipment presets should persist ${field}.`)
 }
 for (const marker of [
-  'getEquipmentEnchantmentById',
-  'setRingEnchantment',
-  'setHatEnchantment',
-  'setShoeEnchantment',
+  'sanitizeForgeAffixes',
+  'migrateLegacyEnchantmentToAffixes',
+  'getForgeAffixSignature',
+  'getLegacyAffixSignature',
+  'normalizePresetAffixSignature',
+  'getEntryAffixSignature',
+  'setWeaponAffixes',
+  'setToolAffixes',
+  'setRingAffixes',
+  'setHatAffixes',
+  'setShoeAffixes',
   'addMatchingEquipmentEffects',
-  'ringSlot1EnchantmentId',
-  'shoeEnchantmentId'
+  'getForgeAffixEquipmentEffects',
+  'getForgeAffixEffectValue'
 ]) {
-  assert(inventoryStoreSource.includes(marker), `Inventory store should wire equipment enchantment marker ${marker}.`)
+  assert(inventoryStoreSource.includes(marker), `Inventory store should wire forge affix marker ${marker}.`)
 }
-for (const marker of [
-  'processing-equipment-enchant-panel',
-  'processing-equipment-enchant-slot-${slot.id}',
-  'processing-equipment-enchant-option-${option.id}',
-  'processing-equipment-enchant-confirm',
-  'EQUIPMENT_ENCHANT_MIN_LEVEL = 10',
-  'EQUIPMENT_ENCHANT_COST = 50000',
-  "itemId: 'void_ore'",
-  "itemId: 'prismatic_shard'"
+for (const id of [
+  'ring_focus',
+  'ring_fortune',
+  'ring_treasure',
+  'ring_battle',
+  'ring_vampiric',
+  'ring_luck',
+  'hat_guard',
+  'hat_herbal',
+  'hat_clear_mind',
+  'hat_resolve',
+  'hat_growth',
+  'hat_scholar',
+  'shoe_swift',
+  'shoe_fleet',
+  'shoe_surefoot',
+  'shoe_breath',
+  'shoe_mine_step',
+  'shoe_cavern_grip'
 ]) {
-  assert(processingViewSource.includes(marker), `Processing view should expose equipment enchantment marker ${marker}.`)
+  assert(forgeAffixesSource.includes(id), `Forge affix data should include ${id}.`)
 }
-
-{
-  const swift = equipmentEnchantmentsModule.getEquipmentEnchantmentById('shoe_swift')
-  const ringFocus = equipmentEnchantmentsModule.getEquipmentEnchantmentById('ring_focus')
-  assert(swift?.slot === 'shoe' && swift.effects.some(effect => effect.type === 'travel_speed' && effect.value === 0.12), 'shoe_swift should be a shoe enchantment that grants +12% travel speed.')
-  assert(ringFocus?.slot === 'ring' && ringFocus.effects.some(effect => effect.type === 'exp_bonus'), 'ring_focus should be a ring enchantment with an exp bonus.')
-}
+assert(processingViewSource.includes('processing-enchanting-forge-modal'), 'Processing view should expose the enchanting forge modal.')
+assert(!processingViewSource.includes('processing-equipment-enchant-panel'), 'Processing view should remove the old direct equipment enchant panel.')
+assert(!processingViewSource.includes('processing-weapon-enchant-panel'), 'Processing view should remove the old direct weapon enchant panel.')
+assert(!processingViewSource.includes('processing-tool-enchant-panel'), 'Processing view should remove the old direct tool enchant panel.')
 
 {
   const inventoryStore = freshInventoryStore()
@@ -244,37 +267,102 @@ for (const marker of [
   inventoryStore.equippedShoeIndex = 0
 
   const baseTravelSpeed = inventoryStore.getEquipmentBonus('travel_speed')
-  const shoeResult = inventoryStore.setShoeEnchantment(0, 'shoe_swift')
-  assert(shoeResult.success === true, 'Shoes should accept a matching shoe enchantment.')
-  assert(Math.abs(inventoryStore.getEquipmentBonus('travel_speed') - (baseTravelSpeed + 0.12)) < 0.0001, 'shoe_swift should add +12% travel speed to equipped shoes.')
-  assert(inventoryStore.setShoeEnchantment(0, 'ring_focus').success === false, 'Shoes must reject ring-only enchantments.')
-  assert(inventoryStore.setRingEnchantment(0, 'ring_focus').success === true, 'Rings should accept matching ring enchantments.')
-  assert(inventoryStore.setHatEnchantment(0, 'hat_guard').success === true, 'Hats should accept matching hat enchantments.')
-  assert(inventoryStore.getEquipmentBonus('exp_bonus') >= 0.06, 'ring_focus should contribute to equipment exp bonuses.')
-  assert(inventoryStore.getEquipmentBonus('defense_bonus') > 0, 'hat_guard should contribute to equipment defense bonuses.')
+  const shoeSwift = forgeAffixesModule.createForgeAffixRoll('shoe_swift', 0.14)
+  const ringFocus = forgeAffixesModule.createForgeAffixRoll('ring_focus', 0.1)
+  const hatGuard = forgeAffixesModule.createForgeAffixRoll('hat_guard', 0.08)
+  const wrongSlot = forgeAffixesModule.createForgeAffixRoll('ring_focus', 0.1)
+  assert(shoeSwift && ringFocus && hatGuard && wrongSlot, 'QA forge affix setup should create equipment rolls.')
+  const shoeResult = inventoryStore.setShoeAffixes(0, [shoeSwift])
+  assert(shoeResult.success === true, 'Shoes should accept matching shoe affixes.')
+  assert(inventoryStore.ownedShoes[0].enchantmentId === null, 'Writing new shoe affixes should clear legacy enchantmentId.')
+  assert(Math.abs(inventoryStore.getEquipmentBonus('travel_speed') - (baseTravelSpeed + 0.14)) < 0.0001, 'shoe_swift should apply its rolled travel speed value.')
+  assert(inventoryStore.setShoeAffixes(0, [wrongSlot]).success === false, 'Shoes must reject ring-only affixes.')
+  assert(inventoryStore.setRingAffixes(0, [ringFocus]).success === true, 'Rings should accept matching ring affixes.')
+  assert(inventoryStore.setHatAffixes(0, [hatGuard]).success === true, 'Hats should accept matching hat affixes.')
+  assert(inventoryStore.getEquipmentBonus('exp_bonus') >= 0.1, 'ring_focus should contribute its rolled exp bonus.')
+  assert(inventoryStore.getEquipmentBonus('defense_bonus') >= 0.08, 'hat_guard should contribute its rolled defense bonus.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedShoes = [{ defId: 'leather_boots', enchantmentId: null }]
+  inventoryStore.equippedShoeIndex = 0
+  const legacyResult = inventoryStore.setShoeEnchantment(0, 'shoe_swift')
+  assert(legacyResult.success === true, 'Legacy shoe enchantment writes should remain accepted.')
+  assert(inventoryStore.ownedShoes[0].enchantmentId === null, 'Legacy shoe enchantment writes should migrate away from enchantmentId.')
+  assert(inventoryStore.ownedShoes[0].affixes?.[0]?.id === 'shoe_swift', 'Legacy shoe enchantment writes should migrate to a single matching affix.')
+  assert(inventoryStore.getEquipmentBonus('travel_speed') > 0, 'Migrated legacy shoe affixes should affect equipment bonuses.')
 }
 
 {
   const inventoryStore = freshInventoryStore()
   inventoryStore.ownedWeapons = [{ defId: 'wooden_stick', enchantmentId: null }]
   inventoryStore.equippedWeaponIndex = 0
+  const supremeShoe = forgeAffixesModule.createForgeAffixRoll('shoe_swift', 0.14)
+  const normalShoe = forgeAffixesModule.createForgeAffixRoll('shoe_swift', 0.05)
+  assert(supremeShoe && normalShoe, 'QA setup should create exact shoe affix rolls.')
   inventoryStore.ownedShoes = [
-    { defId: 'leather_boots', enchantmentId: 'shoe_swift' },
-    { defId: 'leather_boots', enchantmentId: null }
+    { defId: 'leather_boots', enchantmentId: null, affixes: [supremeShoe] },
+    { defId: 'leather_boots', enchantmentId: null, affixes: [normalShoe] }
   ]
   inventoryStore.equippedShoeIndex = 0
   inventoryStore.createEquipmentPreset('qa-enchanted-shoe')
   const preset = inventoryStore.equipmentPresets[inventoryStore.equipmentPresets.length - 1]
   inventoryStore.saveCurrentToPreset(preset.id)
-  assert(preset.shoeEnchantmentId === 'shoe_swift', 'Equipment presets should save shoe enchantment ids.')
+  assert(preset.shoeEnchantmentId === null, 'Equipment presets should stop saving new shoe enchantment ids.')
+  assert(preset.shoeAffixSignature === forgeAffixesModule.getForgeAffixSignature([supremeShoe]), 'Equipment presets should save exact shoe affix signatures.')
 
-  assert(inventoryStore.equipShoe(1), 'QA setup should switch to a same-def unenchanted shoe.')
-  assert(inventoryStore.isEquipmentPresetActive(preset.id) === false, 'A preset should not match a same-def shoe with a different enchantment.')
+  assert(inventoryStore.equipShoe(1), 'QA setup should switch to a same-def shoe with a different roll.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === false, 'A preset should not match a same-def shoe with a different affix value or quality.')
 
   const applyResult = inventoryStore.applyEquipmentPreset(preset.id)
   assert(applyResult.success === true, 'Applying an enchanted shoe preset should succeed.')
-  assert(inventoryStore.equippedShoeIndex === 0, 'Applying a preset should restore the same-def shoe with the saved enchantment.')
-  assert(inventoryStore.isEquipmentPresetActive(preset.id) === true, 'A restored enchanted shoe preset should be active only after exact enchantment match.')
+  assert(inventoryStore.equippedShoeIndex === 0, 'Applying a preset should restore the same-def shoe with the saved affix signature.')
+  assert(inventoryStore.isEquipmentPresetActive(preset.id) === true, 'A restored enchanted shoe preset should be active only after exact affix signature match.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  const save = inventoryStore.serialize()
+  inventoryStore.deserialize({
+    ...save,
+    ownedWeapons: [{ defId: 'wooden_stick', enchantmentId: 'sharp' }],
+    equippedWeaponIndex: 0,
+    equipmentPresets: [
+      {
+        id: 'legacy-affix-preset',
+        name: 'legacy affix preset',
+        weaponDefId: 'wooden_stick',
+        weaponEnchantmentId: 'sharp',
+        ringSlot1DefId: null,
+        ringSlot1EnchantmentId: null,
+        ringSlot2DefId: null,
+        ringSlot2EnchantmentId: null,
+        hatDefId: null,
+        hatEnchantmentId: null,
+        shoeDefId: 'leather_boots',
+        shoeEnchantmentId: 'shoe_swift',
+        trinketDefId: null
+      }
+    ]
+  })
+  assert(inventoryStore.ownedWeapons[0].enchantmentId === null, 'Legacy weapon enchantmentId should migrate out of the owned weapon save shape.')
+  assert(inventoryStore.ownedWeapons[0].affixes?.[0]?.id === 'sharp', 'Legacy weapon enchantmentId should migrate to a matching weapon affix.')
+  const preset = inventoryStore.equipmentPresets.find(entry => entry.id === 'legacy-affix-preset')
+  assert(preset?.weaponEnchantmentId === null, 'Legacy preset weaponEnchantmentId should migrate away from the active preset shape.')
+  assert(preset?.weaponAffixSignature === forgeAffixesModule.getLegacyAffixSignature('weapon', 'sharp'), 'Legacy preset weapon enchantment should migrate to a weapon affix signature.')
+  assert(preset?.shoeEnchantmentId === null, 'Legacy preset shoeEnchantmentId should migrate away from the active preset shape.')
+  assert(preset?.shoeAffixSignature === forgeAffixesModule.getLegacyAffixSignature('shoe', 'shoe_swift'), 'Legacy preset shoe enchantment should migrate to a shoe affix signature.')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  const sharp = forgeAffixesModule.createForgeAffixRoll('sharp', 6)
+  assert(sharp, 'QA setup should create a sharp weapon affix.')
+  inventoryStore.ownedWeapons = [{ defId: 'wooden_stick', enchantmentId: null, affixes: [sharp] }]
+  const serialized = inventoryStore.serialize()
+  serialized.ownedWeapons[0].affixes[0].value = 2
+  assert(inventoryStore.ownedWeapons[0].affixes?.[0]?.value === 6, 'Serializing inventory should deep-clone weapon affixes.')
 }
 
 {
@@ -510,14 +598,19 @@ for (const marker of [
 
 {
   const inventoryStore = freshInventoryStore()
+  const sharp = forgeAffixesModule.createForgeAffixRoll('sharp', 6)
+  const ringFocus = forgeAffixesModule.createForgeAffixRoll('ring_focus', 0.1)
+  const hatGuard = forgeAffixesModule.createForgeAffixRoll('hat_guard', 0.08)
+  const shoeSwift = forgeAffixesModule.createForgeAffixRoll('shoe_swift', 0.14)
+  assert(sharp && ringFocus && hatGuard && shoeSwift, 'QA setup should create locked equipment affixes.')
   inventoryStore.ownedWeapons = [
     { defId: 'wooden_stick', enchantmentId: null },
-    { defId: 'copper_sword', enchantmentId: null, locked: true }
+    { defId: 'copper_sword', enchantmentId: null, affixes: sharp ? [sharp] : [], locked: true }
   ]
   inventoryStore.equippedWeaponIndex = 0
-  inventoryStore.ownedRings = [{ defId: 'miners_ring', locked: true }]
-  inventoryStore.ownedHats = [{ defId: 'miner_helmet', locked: true }]
-  inventoryStore.ownedShoes = [{ defId: 'miner_boots', locked: true }]
+  inventoryStore.ownedRings = [{ defId: 'miners_ring', affixes: ringFocus ? [ringFocus] : [], locked: true }]
+  inventoryStore.ownedHats = [{ defId: 'miner_helmet', affixes: hatGuard ? [hatGuard] : [], locked: true }]
+  inventoryStore.ownedShoes = [{ defId: 'miner_boots', affixes: shoeSwift ? [shoeSwift] : [], locked: true }]
 
   const lockedWeaponSell = inventoryStore.sellWeapon(1)
   const lockedRingSell = inventoryStore.sellRing(0)
@@ -531,6 +624,10 @@ for (const marker of [
   assert(inventoryStore.ownedRings.length === 1, '锁定戒指卖出失败时不得从列表移除。')
   assert(inventoryStore.ownedHats.length === 1, '锁定帽子卖出失败时不得从列表移除。')
   assert(inventoryStore.ownedShoes.length === 1, '锁定鞋子卖出失败时不得从列表移除。')
+  assert(inventoryStore.ownedWeapons[1]?.affixes?.[0]?.id === 'sharp', '锁定武器卖出失败时不得丢失词条。')
+  assert(inventoryStore.ownedRings[0]?.affixes?.[0]?.id === 'ring_focus', '锁定戒指卖出失败时不得丢失词条。')
+  assert(inventoryStore.ownedHats[0]?.affixes?.[0]?.id === 'hat_guard', '锁定帽子卖出失败时不得丢失词条。')
+  assert(inventoryStore.ownedShoes[0]?.affixes?.[0]?.id === 'shoe_swift', '锁定鞋子卖出失败时不得丢失词条。')
 
   assert(inventoryStore.toggleEquipmentLock('weapon', 1), '武器锁定开关应返回成功。')
   assert(inventoryStore.toggleEquipmentLock('ring', 0), '戒指锁定开关应返回成功。')
@@ -544,10 +641,15 @@ for (const marker of [
 
 {
   const inventoryStore = freshInventoryStore()
-  inventoryStore.ownedWeapons = [{ defId: 'wooden_stick', enchantmentId: null, locked: true }]
-  inventoryStore.ownedRings = [{ defId: 'miners_ring', locked: true }]
-  inventoryStore.ownedHats = [{ defId: 'miner_helmet', locked: true }]
-  inventoryStore.ownedShoes = [{ defId: 'miner_boots', locked: true }]
+  const sharp = forgeAffixesModule.createForgeAffixRoll('sharp', 6)
+  const ringFocus = forgeAffixesModule.createForgeAffixRoll('ring_focus', 0.1)
+  const hatGuard = forgeAffixesModule.createForgeAffixRoll('hat_guard', 0.08)
+  const shoeSwift = forgeAffixesModule.createForgeAffixRoll('shoe_swift', 0.14)
+  assert(sharp && ringFocus && hatGuard && shoeSwift, 'QA setup should create serialized equipment affixes.')
+  inventoryStore.ownedWeapons = [{ defId: 'wooden_stick', enchantmentId: null, affixes: sharp ? [sharp] : [], locked: true }]
+  inventoryStore.ownedRings = [{ defId: 'miners_ring', affixes: ringFocus ? [ringFocus] : [], locked: true }]
+  inventoryStore.ownedHats = [{ defId: 'miner_helmet', affixes: hatGuard ? [hatGuard] : [], locked: true }]
+  inventoryStore.ownedShoes = [{ defId: 'miner_boots', affixes: shoeSwift ? [shoeSwift] : [], locked: true }]
   const save = inventoryStore.serialize()
 
   const restoredStore = freshInventoryStore()
@@ -556,6 +658,10 @@ for (const marker of [
   assert(restoredStore.ownedRings[0]?.locked === true, '戒指锁定状态应随存档保留。')
   assert(restoredStore.ownedHats[0]?.locked === true, '帽子锁定状态应随存档保留。')
   assert(restoredStore.ownedShoes[0]?.locked === true, '鞋子锁定状态应随存档保留。')
+  assert(restoredStore.ownedWeapons[0]?.affixes?.[0]?.id === 'sharp', '武器词条应随存档保留。')
+  assert(restoredStore.ownedRings[0]?.affixes?.[0]?.id === 'ring_focus', '戒指词条应随存档保留。')
+  assert(restoredStore.ownedHats[0]?.affixes?.[0]?.id === 'hat_guard', '帽子词条应随存档保留。')
+  assert(restoredStore.ownedShoes[0]?.affixes?.[0]?.id === 'shoe_swift', '鞋子词条应随存档保留。')
 }
 
 if (errors.length > 0) {

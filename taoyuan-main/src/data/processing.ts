@@ -339,6 +339,21 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     craftMoney: 200
   },
   {
+    id: 'enchanting_forge',
+    name: '铸魔炉',
+    description: '为武器、镐子、戒指、帽子和鞋子随机铸入可波动词条。',
+    workshopLevelRequired: 7,
+    craftCost: [
+      { itemId: 'bronze_bar', quantity: 8 },
+      { itemId: 'mythril_bar', quantity: 4 },
+      { itemId: 'shadow_ore', quantity: 8 },
+      { itemId: 'void_ore', quantity: 4 },
+      { itemId: 'prismatic_shard', quantity: 1 },
+      { itemId: 'dragon_jade', quantity: 1 }
+    ],
+    craftMoney: 180000
+  },
+  {
     id: 'spirit_forge',
     name: '仙灵炉',
     description: '炼制仙灵信物的神秘炉台，可制作求缘与结缘信物。',

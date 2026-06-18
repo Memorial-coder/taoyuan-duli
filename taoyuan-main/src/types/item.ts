@@ -1,3 +1,5 @@
+import type { ForgeAffixRoll } from './forgeAffix'
+
 /** 物品分类 */
 export type ItemCategory =
   | 'seed'
@@ -102,6 +104,7 @@ export interface Tool {
   tier: ToolTier
   /** 工具附魔 */
   enchantmentId?: string | null
+  affixes?: ForgeAffixRoll[]
 }
 
 /** 武器类型 */
@@ -148,6 +151,7 @@ export interface EnchantmentDef {
 export interface OwnedWeapon {
   defId: string
   enchantmentId: string | null
+  affixes?: ForgeAffixRoll[]
   /** 锁定后禁止出售 */
   locked?: boolean
 }

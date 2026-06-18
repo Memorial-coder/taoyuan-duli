@@ -27,6 +27,7 @@ export type MachineType =
   | 'alchemy_furnace'
   | 'incense_maker'
   | 'spirit_forge'
+  | 'enchanting_forge'
 
 /** 加工机器定义 */
 export interface ProcessingMachineDef {
@@ -36,6 +37,7 @@ export interface ProcessingMachineDef {
   craftCost: { itemId: string; quantity: number }[]
   craftMoney: number
   masteryRewardId?: string
+  workshopLevelRequired?: number
   /** 完成后自动收取产物（默认 false，需手动收取） */
   autoCollect?: boolean
 }

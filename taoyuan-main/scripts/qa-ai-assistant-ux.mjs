@@ -62,18 +62,33 @@ for (const scriptName of [
 assertContains(widgetSource, /id="ai-assistant-panel"/, 'assistant panel should expose a stable id');
 assertContains(widgetSource, /role="dialog"/, 'assistant panel should use dialog semantics');
 assertContains(widgetSource, /data-testid="ai-assistant-input"/, 'input area should expose a stable test id');
+assertContains(widgetSource, /data-testid="ai-assistant-fab"/, 'assistant FAB should expose a stable test id');
 assertContains(widgetSource, /aria-label="向桃源小助理提问"/, 'textarea should keep an accessible label');
 assertContains(widgetSource, /aria-label="发送问题给桃源小助理"/, 'send button should keep an accessible label');
 assertContains(widgetSource, /@keydown\.esc\.stop\.prevent="handlePanelEscape"/, 'panel should support Escape close');
+assertContains(widgetSource, /@pointerdown="handleFabPointerDown"/, 'assistant FAB should start drag with pointer events');
+assertContains(widgetSource, /@click="handleFabClick"/, 'assistant FAB clicks should route through drag-aware handler');
+assertContains(widgetSource, /const AI_ASSISTANT_FAB_DRAG_THRESHOLD_PX = 6/, 'assistant FAB drag should use the approved movement threshold');
+assertContains(widgetSource, /const fabPosition = ref<AiAssistantFabPosition \| null>\(null\)/, 'assistant FAB position should stay in component session state');
+assertContains(widgetSource, /const suppressNextFabClick = ref\(false\)/, 'assistant FAB drag should suppress the trailing click');
+assertContains(widgetSource, /handleFabPointerMove/, 'assistant FAB should handle pointer movement');
+assertContains(widgetSource, /setPointerCapture\(event\.pointerId\)/, 'assistant FAB should capture the active pointer while dragging');
+assertContains(widgetSource, /releasePointerCapture\(state\.pointerId\)/, 'assistant FAB should release pointer capture on drag end');
+assertContains(widgetSource, /window\.addEventListener\('resize', scheduleAssistantFabClamp\)/, 'assistant FAB should reclamp on viewport resize');
+assertContains(widgetSource, /window\.addEventListener\('orientationchange', scheduleAssistantFabClamp\)/, 'assistant FAB should reclamp after device rotation');
+assertContains(widgetSource, /panelWrapStyle/, 'assistant panel wrapper should derive its dragged placement from the FAB');
+assert.doesNotMatch(widgetSource, /localStorage|sessionStorage/, 'assistant FAB drag position should not be persisted beyond this page session');
 
 const panelWrapCss = cssBlock('.ai-panel-wrap');
 assertContains(panelWrapCss, /position:\s*fixed/, 'assistant panel wrapper should be fixed');
 assertContains(panelWrapCss, /env\(safe-area-inset-bottom/, 'panel wrapper should respect bottom safe area');
+assertContains(widgetSource, /:style="panelWrapStyle"/, 'assistant panel wrapper should accept drag-derived placement');
 
 const panelCss = cssBlock('.ai-panel');
 assertContains(panelCss, /display:\s*flex/, 'assistant panel should use a flex column layout');
 assertContains(panelCss, /flex-direction:\s*column/, 'assistant panel should stack header, messages, quick questions, and input');
 assertContains(panelCss, /max-height:\s*min\(78dvh,\s*760px\)/, 'desktop panel should use dynamic viewport height');
+assertContains(panelCss, /--ai-panel-drag-max-height/, 'desktop panel should honor drag-derived max height');
 assertContains(panelCss, /overflow-y:\s*auto/, 'panel should scroll vertically instead of covering input');
 assertContains(panelCss, /overscroll-behavior:\s*contain/, 'panel scroll should be contained');
 

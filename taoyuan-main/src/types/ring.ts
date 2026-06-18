@@ -1,3 +1,5 @@
+import type { ForgeAffixRoll } from './forgeAffix'
+
 /** 装备效果类型（戒指、帽子、鞋子通用） */
 export type EquipmentEffectType =
   | 'attack_bonus'
@@ -63,6 +65,7 @@ export interface RingDef {
 export interface OwnedRing {
   defId: string
   enchantmentId?: string | null
+  affixes?: ForgeAffixRoll[]
   /** 锁定后禁止出售 */
   locked?: boolean
 }

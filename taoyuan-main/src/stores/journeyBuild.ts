@@ -1,4 +1,4 @@
-import { getEnchantmentById, getWeaponById } from '@/data/weapons'
+import { getWeaponById } from '@/data/weapons'
 import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_ROUTE_PERMITS } from '@/data/journeyHub'
 import type {
   EquipmentEffectType,
@@ -165,7 +165,6 @@ export const buildJourneyBuildSnapshot = (
 
   const ownedWeapon = inventoryStore.getEquippedWeapon()
   const weaponDef = getWeaponById(ownedWeapon.defId)
-  const enchantment = ownedWeapon.enchantmentId ? getEnchantmentById(ownedWeapon.enchantmentId) : null
   const weaponType = weaponDef?.type ?? 'club'
   const matchedWeaponBias = target.weaponBias.includes(weaponType)
   const equipmentBonuses = buildEquipmentBonuses()
@@ -293,12 +292,27 @@ export const buildJourneyBuildSnapshot = (
     experienceMultiplier: equipmentBonuses.exp_bonus ?? 0
   })
 
-  if (enchantment?.special === 'lucky') {
-    outcome = addOutcome(outcome, { eventBonus: 0.05, resourceFindBonus: 0.08, scoutBonus: 4 })
-  } else if (enchantment?.special === 'sturdy') {
-    outcome = addOutcome(outcome, { hazardResist: 4, bossPressureResist: 0.04 })
-  } else if (enchantment?.special === 'vampiric') {
-    outcome = addOutcome(outcome, { campRecoveryBonus: 10, bossPressureResist: 0.03 })
+  const weaponDropBonus = inventoryStore.getWeaponAffixEffectValue('monster_drop_bonus')
+  const weaponDamageReduction = inventoryStore.getWeaponAffixEffectValue('weapon_damage_reduction')
+  const weaponVampiric = inventoryStore.getWeaponAffixEffectValue('vampiric')
+  if (weaponDropBonus > 0) {
+    outcome = addOutcome(outcome, {
+      eventBonus: weaponDropBonus * 0.25,
+      resourceFindBonus: weaponDropBonus * 0.4,
+      scoutBonus: Math.round(weaponDropBonus * 20)
+    })
+  }
+  if (weaponDamageReduction > 0) {
+    outcome = addOutcome(outcome, {
+      hazardResist: Math.round(weaponDamageReduction * 27),
+      bossPressureResist: weaponDamageReduction * 0.27
+    })
+  }
+  if (weaponVampiric > 0) {
+    outcome = addOutcome(outcome, {
+      campRecoveryBonus: Math.round(weaponVampiric * 67),
+      bossPressureResist: weaponVampiric * 0.2
+    })
   }
 
   if (cookingStore.activeBuff?.type === 'all_skills') {

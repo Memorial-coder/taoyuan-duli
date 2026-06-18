@@ -55,9 +55,9 @@
           <span class="text-xs">类型 · 暴击</span>
           <span class="text-xs text-muted">{{ weaponTypeName }} · {{ critRateDisplay }}</span>
         </div>
-        <div v-if="weaponEnchantName" class="flex items-center justify-between border border-accent/10 rounded-xs px-3 py-1.5">
-          <span class="text-xs">附魔</span>
-          <span class="text-xs text-success">{{ weaponEnchantName }}</span>
+        <div v-if="weaponAffixSummary" class="flex items-center justify-between gap-2 border border-accent/10 rounded-xs px-3 py-1.5">
+          <span class="text-xs shrink-0">词条</span>
+          <span class="text-xs text-success text-right">{{ weaponAffixSummary }}</span>
         </div>
         <div class="flex items-center justify-between border border-accent/10 rounded-xs px-3 py-1.5">
           <span class="text-xs">HP</span>
@@ -297,7 +297,7 @@
               <Swords :size="12" class="inline" />
               {{ weaponDisplayName }}（{{ weaponTypeName }} · 攻击 {{ weaponAttack }} · 暴击 {{ critRateDisplay }}）
             </p>
-            <p v-if="weaponEnchantName" class="text-success">附魔：{{ weaponEnchantName }}</p>
+            <p v-if="weaponAffixSummary" class="text-success">词条：{{ weaponAffixSummary }}</p>
           </div>
 
           <!-- 感染层提示 -->
@@ -790,6 +790,7 @@
               <span class="text-xs text-muted">武器</span>
               <span class="text-xs" :class="detailPreset.weaponDefId ? 'text-accent' : 'text-muted/40'">
                 {{ detailPreset.weaponDefId ? getWeaponDisplayName(detailPreset.weaponDefId, detailPreset.weaponEnchantmentId ?? null) : '无' }}
+                <template v-if="formatForgeAffixSignature(detailPreset.weaponAffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.weaponAffixSignature) }}</template>
               </span>
             </div>
             <div
@@ -800,6 +801,7 @@
               <span class="text-xs text-muted">戒指1</span>
               <span class="text-xs" :class="detailPreset.ringSlot1DefId ? 'text-accent' : 'text-muted/40'">
                 {{ detailPreset.ringSlot1DefId ? (getRingById(detailPreset.ringSlot1DefId)?.name ?? '未知') : '无' }}
+                <template v-if="formatForgeAffixSignature(detailPreset.ringSlot1AffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.ringSlot1AffixSignature) }}</template>
               </span>
             </div>
             <div
@@ -810,6 +812,7 @@
               <span class="text-xs text-muted">戒指2</span>
               <span class="text-xs" :class="detailPreset.ringSlot2DefId ? 'text-accent' : 'text-muted/40'">
                 {{ detailPreset.ringSlot2DefId ? (getRingById(detailPreset.ringSlot2DefId)?.name ?? '未知') : '无' }}
+                <template v-if="formatForgeAffixSignature(detailPreset.ringSlot2AffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.ringSlot2AffixSignature) }}</template>
               </span>
             </div>
             <div
@@ -820,6 +823,7 @@
               <span class="text-xs text-muted">帽子</span>
               <span class="text-xs" :class="detailPreset.hatDefId ? 'text-accent' : 'text-muted/40'">
                 {{ detailPreset.hatDefId ? (getHatById(detailPreset.hatDefId)?.name ?? '未知') : '无' }}
+                <template v-if="formatForgeAffixSignature(detailPreset.hatAffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.hatAffixSignature) }}</template>
               </span>
             </div>
             <div
@@ -830,6 +834,7 @@
               <span class="text-xs text-muted">鞋子</span>
               <span class="text-xs" :class="detailPreset.shoeDefId ? 'text-accent' : 'text-muted/40'">
                 {{ detailPreset.shoeDefId ? (getShoeById(detailPreset.shoeDefId)?.name ?? '未知') : '无' }}
+                <template v-if="formatForgeAffixSignature(detailPreset.shoeAffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.shoeAffixSignature) }}</template>
               </span>
             </div>
           </div>
@@ -900,7 +905,8 @@
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { ZONE_NAMES, getFloor, BOSS_MONSTERS, MAX_MINE_FLOOR, getSkullCavernDepthLootProfile } from '@/data'
-  import { getWeaponById, getEnchantmentById, getWeaponDisplayName, WEAPON_TYPE_NAMES } from '@/data/weapons'
+  import { getWeaponById, getWeaponDisplayName, WEAPON_TYPE_NAMES } from '@/data/weapons'
+  import { formatForgeAffixSignature, formatForgeAffixSummary } from '@/data/forgeAffixes'
   import { getRingById, getHatById, getShoeById } from '@/data'
   import type { EquipmentEffectType } from '@/types'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
@@ -1451,7 +1457,7 @@
   /** 武器信息 */
   const weaponDisplayName = computed(() => {
     const owned = inventoryStore.getEquippedWeapon()
-    return getWeaponDisplayName(owned.defId, owned.enchantmentId)
+    return getWeaponDisplayName(owned.defId, owned.enchantmentId, owned.affixes)
   })
   const weaponTypeName = computed(() => {
     const owned = inventoryStore.getEquippedWeapon()
@@ -1468,11 +1474,9 @@
   const critRateDisplay = computed(
     () => `${Math.round((inventoryStore.getWeaponCritRate() + inventoryStore.getRingEffectValue('crit_rate_bonus')) * 100)}%`
   )
-  const weaponEnchantName = computed(() => {
+  const weaponAffixSummary = computed(() => {
     const owned = inventoryStore.getEquippedWeapon()
-    if (!owned.enchantmentId) return ''
-    const enchant = getEnchantmentById(owned.enchantmentId)
-    return enchant ? `${enchant.name} - ${enchant.description}` : ''
+    return formatForgeAffixSummary(owned.affixes)
   })
 
   /** 电梯楼层按区域分组 */

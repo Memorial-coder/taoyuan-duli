@@ -21,6 +21,10 @@ export interface PlayerCombatBuildInput {
   weaponCritRate: number
   weaponType?: string | null
   enchantSpecial?: string | null
+  weaponDamageReduction?: number
+  weaponDefenseIgnore?: number
+  weaponExtraStrikeChance?: number
+  weaponLifesteal?: number
   combatLevel: number
   allSkillsBuff: number
   ringAttackBonus: number
@@ -172,6 +176,10 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
   const perk20 = input.perk20 ?? ''
   const enchantSpecial = input.enchantSpecial ?? ''
   const weaponType = input.weaponType ?? ''
+  const weaponDamageReduction = input.weaponDamageReduction ?? (enchantSpecial === 'sturdy' ? 0.15 : 0)
+  const weaponDefenseIgnore = input.weaponDefenseIgnore ?? (enchantSpecial === 'armor_breaker' ? 0.3 : 0)
+  const weaponExtraStrikeAffixChance = input.weaponExtraStrikeChance ?? (enchantSpecial === 'echo_strike' ? 0.18 : 0)
+  const weaponLifesteal = input.weaponLifesteal ?? (enchantSpecial === 'vampiric' ? 0.15 : 0)
 
   const attack = Math.max(
     0,
@@ -186,8 +194,8 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
   const swordArtExtraStrikeChance = perk20 === 'war_god' ? 0.3 : perk15 === 'sword_saint' ? 0.2 : 0
   const weaponExtraStrikeChance = weaponType === 'dagger' ? 0.25 : 0
   const extraStrikeChance = Math.min(1, weaponExtraStrikeChance + swordArtExtraStrikeChance)
-  const enchantExtraStrikeChance = enchantSpecial === 'echo_strike' ? 0.18 : 0
-  const enchantExtraStrikeMultiplier = enchantSpecial === 'echo_strike' ? 0.4 : 0
+  const enchantExtraStrikeChance = weaponExtraStrikeAffixChance
+  const enchantExtraStrikeMultiplier = enchantExtraStrikeChance > 0 ? 0.4 : 0
   const totalExtraStrikeChance = Math.min(1, extraStrikeChance + enchantExtraStrikeChance)
   const extraStrikeMultiplier = Math.max(
     weaponType === 'dagger' ? 0.5 : 0,
@@ -217,7 +225,7 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
           ? 0.25
           : 0
 
-  const sturdyMultiplier = enchantSpecial === 'sturdy' ? 0.85 : 1
+  const sturdyMultiplier = 1 - clampChance(weaponDamageReduction)
   const baseDefenseMultipliers = [
     1 - input.cookingDefenseReduction,
     sturdyMultiplier,
@@ -247,11 +255,11 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
       critRate: Math.max(0, input.weaponCritRate + input.ringCritBonus + input.ringLuck * 0.5 + swordArtCritBonus),
       critMultiplier: 1.5,
       attackMultiplier,
-      defenseIgnoreRate: enchantSpecial === 'armor_breaker' ? 0.3 : 0,
+      defenseIgnoreRate: weaponDefenseIgnore,
       extraStrikeChance: totalExtraStrikeChance,
       extraStrikeMultiplier,
       stunChance: weaponType === 'club' ? 0.2 : 0,
-      lifesteal: (enchantSpecial === 'vampiric' ? 0.15 : 0) + input.ringVampiric
+      lifesteal: weaponLifesteal + input.ringVampiric
     },
     defense: {
       flatReduction: input.cookingDefenseFlatBonus,

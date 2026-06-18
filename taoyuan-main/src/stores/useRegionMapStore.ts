@@ -19,7 +19,8 @@ import {
 } from '@/data/regions'
 import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from '@/data/journeyHub'
 import { addLog, showFloat } from '@/composables/useGameLog'
-import { getEnchantmentById, getWeaponById } from '@/data/weapons'
+import { getWeaponById } from '@/data/weapons'
+import { getForgeAffixSignature, getLegacyAffixSignature } from '@/data/forgeAffixes'
 import { getNpcById } from '@/data'
 import type {
   ExpeditionRuntimeState,
@@ -789,7 +790,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       crafted:
         recipe.reward.kind === 'weapon'
           ? useInventoryStore().ownedWeapons.some(
-              weapon => weapon.defId === recipe.reward.defId && (recipe.reward.enchantmentId == null || weapon.enchantmentId === recipe.reward.enchantmentId)
+              weapon =>
+                weapon.defId === recipe.reward.defId &&
+                getForgeAffixSignature(weapon.affixes) === getLegacyAffixSignature('weapon', recipe.reward.enchantmentId)
             )
           : recipe.reward.kind === 'ring'
             ? useInventoryStore().hasRing(recipe.reward.defId)
@@ -3005,7 +3008,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
     if (recipe.reward.kind === 'weapon') {
       const duplicated = inventoryStore.ownedWeapons.some(
-        weapon => weapon.defId === recipe.reward.defId && (recipe.reward.enchantmentId == null || weapon.enchantmentId === recipe.reward.enchantmentId)
+        weapon =>
+          weapon.defId === recipe.reward.defId &&
+          getForgeAffixSignature(weapon.affixes) === getLegacyAffixSignature('weapon', recipe.reward.enchantmentId)
       )
       if (duplicated) return { ok: false, reason: '这把武器已经锻造过了。' }
     }
@@ -5276,7 +5281,6 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const miningStore = useMiningStore()
     const ownedWeapon = inventoryStore.getEquippedWeapon()
     const weaponDef = getWeaponById(ownedWeapon.defId)
-    const enchant = ownedWeapon.enchantmentId ? getEnchantmentById(ownedWeapon.enchantmentId) : null
     const combatSkill = skillStore.getSkill('combat')
     const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
 
@@ -5288,7 +5292,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         weaponAttack: inventoryStore.getWeaponAttack(),
         weaponCritRate: inventoryStore.getWeaponCritRate(),
         weaponType: weaponDef?.type ?? null,
-        enchantSpecial: enchant?.special ?? null,
+        weaponDamageReduction: inventoryStore.getWeaponAffixEffectValue('weapon_damage_reduction'),
+        weaponDefenseIgnore: inventoryStore.getWeaponAffixEffectValue('weapon_defense_ignore'),
+        weaponExtraStrikeChance: inventoryStore.getWeaponAffixEffectValue('weapon_extra_strike_chance'),
+        weaponLifesteal: inventoryStore.getWeaponAffixEffectValue('vampiric'),
         combatLevel: skillStore.combatLevel,
         allSkillsBuff,
         ringAttackBonus: inventoryStore.getRingEffectValue('attack_bonus'),

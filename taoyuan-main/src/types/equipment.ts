@@ -1,4 +1,5 @@
 import type { EquipmentEffect } from './ring'
+import type { ForgeAffixRoll } from './forgeAffix'
 
 /** 帽子定义 */
 export interface HatDef {
@@ -22,6 +23,7 @@ export interface HatDef {
 export interface OwnedHat {
   defId: string
   enchantmentId?: string | null
+  affixes?: ForgeAffixRoll[]
   /** 锁定后禁止出售 */
   locked?: boolean
 }
@@ -48,6 +50,7 @@ export interface ShoeDef {
 export interface OwnedShoe {
   defId: string
   enchantmentId?: string | null
+  affixes?: ForgeAffixRoll[]
   /** 锁定后禁止出售 */
   locked?: boolean
 }

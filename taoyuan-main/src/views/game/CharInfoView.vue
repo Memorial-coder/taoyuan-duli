@@ -143,11 +143,11 @@
               >
                 <div class="min-w-0">
                   <span class="text-xs" :class="index === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
-                    {{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId) }}
+                    {{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}
                   </span>
                   <p class="text-[0.625rem] text-muted truncate">
                     攻{{ getWeaponStats(weapon).attack }} · 暴击{{ Math.round(getWeaponStats(weapon).critRate * 100) }}%
-                    <template v-if="weapon.enchantmentId">· {{ getEnchantName(weapon.enchantmentId) }}</template>
+                    <template v-if="formatAffixSummary(weapon.affixes)">· {{ formatAffixSummary(weapon.affixes) }}</template>
                   </p>
                 </div>
                 <span v-if="index === inventoryStore.equippedWeaponIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
@@ -386,7 +386,8 @@
   import { usePotentialStore } from '@/stores/usePotentialStore'
   import { TOOL_NAMES, TIER_NAMES, getNpcById } from '@/data'
   import { formatPotentialEffectValue } from '@/data/potential'
-  import { getWeaponById, getEnchantmentById, getWeaponDisplayName } from '@/data/weapons'
+  import { getWeaponById, getWeaponDisplayName } from '@/data/weapons'
+  import { formatForgeAffixSummary, getForgeAffixEffectValue, getForgeAffixEquipmentEffects } from '@/data/forgeAffixes'
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
@@ -424,22 +425,18 @@
   const equippedWeaponName = computed(() => {
     const weapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
     if (!weapon) return '无'
-    return getWeaponDisplayName(weapon.defId, weapon.enchantmentId)
+    return getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes)
   })
+
+  const formatAffixSummary = (affixes?: OwnedWeapon['affixes']): string => formatForgeAffixSummary(affixes)
 
   const getWeaponStats = (weapon: OwnedWeapon): { attack: number; critRate: number } => {
     const def = getWeaponById(weapon.defId)
     if (!def) return { attack: 0, critRate: 0 }
-    let attack = def.attack
-    let critRate = def.critRate
-    if (weapon.enchantmentId) {
-      const enchant = getEnchantmentById(weapon.enchantmentId)
-      if (enchant) {
-        attack += enchant.attackBonus
-        critRate += enchant.critBonus
-      }
+    return {
+      attack: def.attack + getForgeAffixEffectValue(weapon.affixes, 'attack_bonus'),
+      critRate: def.critRate + getForgeAffixEffectValue(weapon.affixes, 'crit_rate_bonus')
     }
-    return { attack, critRate }
   }
 
   const clampRatio = (value: number | null | undefined): number => {
@@ -461,7 +458,6 @@
   const currentCombatRuntime = computed(() => {
     const owned = inventoryStore.getEquippedWeapon()
     const weaponDef = getWeaponById(owned.defId)
-    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
     const combatSkill = skillStore.getSkill('combat')
     const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
 
@@ -469,7 +465,10 @@
       weaponAttack: inventoryStore.getWeaponAttack(),
       weaponCritRate: inventoryStore.getWeaponCritRate(),
       weaponType: weaponDef?.type ?? null,
-      enchantSpecial: enchant?.special ?? null,
+      weaponDamageReduction: inventoryStore.getWeaponAffixEffectValue('weapon_damage_reduction'),
+      weaponDefenseIgnore: inventoryStore.getWeaponAffixEffectValue('weapon_defense_ignore'),
+      weaponExtraStrikeChance: inventoryStore.getWeaponAffixEffectValue('weapon_extra_strike_chance'),
+      weaponLifesteal: inventoryStore.getWeaponAffixEffectValue('vampiric'),
       combatLevel: skillStore.combatLevel,
       allSkillsBuff,
       ringAttackBonus: inventoryStore.getRingEffectValue('attack_bonus'),
@@ -490,11 +489,9 @@
   })
 
   const currentMonsterDropBonus = computed(() => {
-    const owned = inventoryStore.getEquippedWeapon()
-    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
     return Math.max(
       0,
-      (enchant?.special === 'lucky' ? 0.2 : 0) +
+      inventoryStore.getWeaponAffixEffectValue('monster_drop_bonus') +
         inventoryStore.getRingEffectValue('monster_drop_bonus') +
         inventoryStore.getRingEffectValue('luck') * 0.5 +
         skillStore.getBlessingEffectValue('luck') * 0.5 +
@@ -529,14 +526,10 @@
     { label: '矿石加成', value: formatFlatOrPercentBonus(inventoryStore.getRingEffectValue('ore_bonus')) }
   ])
 
-  const getEnchantName = (enchantmentId: string): string => {
-    return getEnchantmentById(enchantmentId)?.name ?? ''
-  }
-
   const handleEquipWeapon = (index: number) => {
     if (inventoryStore.equipWeapon(index)) {
       const weapon = inventoryStore.ownedWeapons[index]!
-      const name = getWeaponDisplayName(weapon.defId, weapon.enchantmentId)
+      const name = getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes)
       addLog(`装备了${name}。`)
     }
   }
@@ -576,10 +569,10 @@
     resource_find_bonus: '资源回收'
   }
 
-  const formatRingEffects = (defId: string): string => {
+  const formatRingEffects = (defId: string, affixes?: OwnedWeapon['affixes']): string => {
     const def = getRingById(defId)
     if (!def) return ''
-    return def.effects
+    return [...def.effects, ...getForgeAffixEquipmentEffects(affixes)]
       .map(e => {
         const label = RING_EFFECT_SHORT[e.type]
         return e.value > 0 && e.value < 1 ? `${label}${Math.round(e.value * 100)}%` : `${label}+${e.value}`
@@ -592,7 +585,7 @@
     const ring = inventoryStore.ownedRings[index]!
     const def = getRingById(ring.defId)
     if (!def) return null
-    return { name: def.name, effectText: formatRingEffects(ring.defId) }
+    return { name: def.name, effectText: formatRingEffects(ring.defId, ring.affixes) }
   }
 
   const equippedRing1 = computed(() => getRingInfo(inventoryStore.equippedRingSlot1))
@@ -602,7 +595,7 @@
     inventoryStore.ownedRings.map((ring, index) => ({
       index,
       name: getRingById(ring.defId)?.name ?? ring.defId,
-      effectText: formatRingEffects(ring.defId)
+      effectText: formatRingEffects(ring.defId, ring.affixes)
     }))
   )
 
@@ -643,8 +636,8 @@
     return getHatById(hat.defId)?.name ?? null
   })
 
-  const formatEquipEffects = (effects: { type: EquipmentEffectType; value: number }[]): string => {
-    return effects
+  const formatEquipEffects = (effects: { type: EquipmentEffectType; value: number }[], affixes?: OwnedWeapon['affixes']): string => {
+    return [...effects, ...getForgeAffixEquipmentEffects(affixes)]
       .map(e => {
         const label = RING_EFFECT_SHORT[e.type]
         return e.value > 0 && e.value < 1 ? `${label}${Math.round(e.value * 100)}%` : `${label}+${e.value}`
@@ -658,7 +651,7 @@
       return {
         index,
         name: def?.name ?? hat.defId,
-        effectText: def ? formatEquipEffects(def.effects) : ''
+        effectText: def ? formatEquipEffects(def.effects, hat.affixes) : ''
       }
     })
   )
@@ -694,7 +687,7 @@
       return {
         index,
         name: def?.name ?? shoe.defId,
-        effectText: def ? formatEquipEffects(def.effects) : ''
+        effectText: def ? formatEquipEffects(def.effects, shoe.affixes) : ''
       }
     })
   )

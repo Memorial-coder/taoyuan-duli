@@ -14,9 +14,20 @@ const appCssSource = fs.readFileSync(appCssFile, 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(packageFile, 'utf8'));
 
 assert.match(widgetSource, /ref="fabButton"/, 'FAB should keep a ref for focus restoration');
+assert.match(widgetSource, /data-testid="ai-assistant-fab"/, 'FAB should expose a stable test id');
 assert.match(widgetSource, /aria-label="打开桃源小助理面板"|:aria-label="store\.isOpen \? '关闭桃源小助理面板' : '打开桃源小助理面板'"/, 'FAB should expose an accessible label');
 assert.match(widgetSource, /:aria-expanded="store\.isOpen"/, 'FAB should expose expanded state');
 assert.match(widgetSource, /aria-controls="ai-assistant-panel"/, 'FAB should point to the assistant panel');
+assert.match(widgetSource, /@pointerdown="handleFabPointerDown"/, 'FAB should support pointer drag input');
+assert.match(widgetSource, /@click="handleFabClick"/, 'FAB click should be drag-aware');
+assert.match(widgetSource, /const AI_ASSISTANT_FAB_DRAG_THRESHOLD_PX = 6/, 'FAB should require a short movement before treating input as drag');
+assert.match(widgetSource, /const fabPosition = ref<AiAssistantFabPosition \| null>\(null\)/, 'FAB drag position should be component-local');
+assert.match(widgetSource, /const suppressNextFabClick = ref\(false\)/, 'FAB drag should suppress the click released after moving');
+assert.match(widgetSource, /touch-action:\s*none/, 'FAB should disable browser panning while dragging');
+assert.match(widgetSource, /cursor:\s*grab/, 'FAB should advertise draggable affordance on pointer devices');
+assert.match(widgetSource, /window\.addEventListener\('resize', scheduleAssistantFabClamp\)/, 'FAB position should reclamp on viewport resize');
+assert.match(widgetSource, /window\.addEventListener\('orientationchange', scheduleAssistantFabClamp\)/, 'FAB position should reclamp after rotation');
+assert.doesNotMatch(widgetSource, /localStorage|sessionStorage/, 'FAB drag position should not be persisted beyond this page session');
 
 assert.match(widgetSource, /id="ai-assistant-panel"/, 'assistant panel should have a stable id');
 assert.match(widgetSource, /role="dialog"/, 'assistant panel should use dialog semantics');

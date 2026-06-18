@@ -95,7 +95,7 @@
 
           <div v-if="!collapsedGroups.has(group.machineType)" class="flex flex-wrap gap-1 px-2 pb-2">
             <Button
-              v-if="group.idleCount > 0"
+              v-if="group.idleCount > 0 && !group.isEnchantingForge"
               class="text-[0.625rem]"
               :icon="Boxes"
               :icon-size="10"
@@ -126,7 +126,7 @@
           <!-- 展开的机器明细 -->
           <div v-if="!collapsedGroups.has(group.machineType)" class="processing-machine-slot-list px-2 pb-2">
             <div
-              v-if="group.recommendationOptions.length > 0"
+              v-if="!group.isEnchantingForge && group.recommendationOptions.length > 0"
               class="processing-machine-recommendations rounded-xs border border-accent/15 bg-accent/5 px-2 py-1.5"
             >
               <p class="text-[0.625rem] text-accent mb-1">用途推荐</p>
@@ -146,7 +146,7 @@
               </div>
             </div>
             <div
-              v-if="group.idleCount > 0 && group.firstIdleSlotIndex !== null"
+              v-if="!group.isEnchantingForge && group.idleCount > 0 && group.firstIdleSlotIndex !== null"
               class="processing-machine-recipes rounded-xs border border-accent/15 bg-bg/60 p-2"
             >
               <p v-if="group.recipesLoading" class="text-[0.625rem] text-muted mb-1">正在整理配方...</p>
@@ -237,7 +237,17 @@
 
               <!-- 空闲：选择配方 -->
               <div v-if="!slot.recipeId">
-                <p class="text-xs text-muted">空闲，使用上方配方列表开工。</p>
+                <Button
+                  v-if="group.isEnchantingForge"
+                  class="w-full justify-center"
+                  :icon="Sparkles"
+                  :icon-size="12"
+                  data-testid="processing-enchanting-forge-open"
+                  @click="openEnchantingForgeModal"
+                >
+                  打开铸魔炉
+                </Button>
+                <p v-else class="text-xs text-muted">空闲，使用上方配方列表开工。</p>
               </div>
 
               <!-- 加工中 -->
@@ -300,301 +310,6 @@
           <span>制造</span>
         </div>
         <span class="text-xs text-muted">机器 {{ processingStore.machineCount }}/{{ processingStore.maxMachines }}</span>
-      </div>
-
-      <div class="border border-accent/10 rounded-xs p-2 mb-3" data-testid="processing-weapon-enchant-panel">
-        <div class="flex items-center justify-between gap-2 mb-2">
-          <div class="flex min-w-0 items-center gap-1.5 text-sm text-accent">
-            <Sparkles :size="14" />
-            <span>武器铸魔</span>
-          </div>
-          <span class="text-[0.625rem]" :class="processingStore.workshopLevel >= 7 ? 'text-success' : 'text-muted'">
-            Lv.7 开放
-          </span>
-        </div>
-
-        <div v-if="processingStore.workshopLevel < 7" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
-          <p class="text-xs text-muted">工坊扩建到 Lv.7 后，可使用合金与矿洞稀材为武器铸魔。</p>
-        </div>
-
-        <div v-else class="grid gap-2">
-          <div class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-            <div class="rounded-xs border border-accent/10 p-2">
-              <p class="text-xs text-muted mb-1">选择武器</p>
-              <div class="grid gap-1 max-h-32 overflow-y-auto pr-0.5">
-                <button
-                  v-for="entry in weaponEnchantWeaponOptions"
-                  :key="entry.index"
-                  class="text-left border rounded-xs px-2 py-1.5 transition-colors"
-                  :class="entry.index === selectedEnchantWeaponIndex ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
-                  :data-testid="`processing-weapon-enchant-weapon-${entry.index}`"
-                  @click="selectedEnchantWeaponIndex = entry.index"
-                >
-                  <span class="flex items-center justify-between gap-2">
-                    <span class="min-w-0">
-                      <span class="block truncate text-xs" :class="entry.locked ? 'text-muted' : 'text-text'">{{ entry.name }}</span>
-                      <span class="block text-[0.625rem] text-muted">
-                        {{ entry.enchantName || '未附魔' }}<template v-if="entry.equipped"> · 当前装备</template><template v-if="entry.locked"> · 已锁定</template>
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div class="rounded-xs border border-accent/10 p-2">
-              <p class="text-xs text-muted mb-1">铸魔模式</p>
-              <div class="grid gap-1">
-                <button
-                  v-for="mode in weaponEnchantModeOptions"
-                  :key="mode.id"
-                  class="text-left border rounded-xs px-2 py-1.5 transition-colors"
-                  :class="[
-                    selectedEnchantMode === mode.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5',
-                    mode.unlocked ? '' : 'opacity-60'
-                  ]"
-                  :data-testid="`processing-weapon-enchant-mode-${mode.id}`"
-                  @click="selectedEnchantMode = mode.id"
-                >
-                  <span class="flex items-start justify-between gap-2">
-                    <span class="min-w-0">
-                      <span class="block text-xs" :class="mode.unlocked ? 'text-text' : 'text-muted'">{{ mode.name }}</span>
-                      <span class="block text-[0.625rem] text-muted leading-snug">{{ mode.description }}</span>
-                    </span>
-                    <span class="text-[0.625rem] shrink-0" :class="mode.unlocked ? 'text-success' : 'text-muted'">Lv.{{ mode.minLevel }}</span>
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="selectedEnchantMode === 'directed' && processingStore.workshopLevel >= 10" class="rounded-xs border border-accent/10 p-2">
-            <p class="text-xs text-muted mb-1">选择附魔</p>
-            <div class="grid grid-cols-2 gap-1 md:grid-cols-3">
-              <button
-                v-for="option in directedEnchantOptions"
-                :key="option.id"
-                class="border rounded-xs px-2 py-1 text-left transition-colors"
-                :class="selectedDirectedEnchantId === option.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
-                :data-testid="`processing-weapon-enchant-direct-${option.id}`"
-                @click="selectedDirectedEnchantId = option.id"
-              >
-                <span class="block text-xs text-text">{{ option.name }}</span>
-                <span class="block text-[0.625rem] text-muted truncate">{{ option.description }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="rounded-xs border border-accent/10 p-2">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="text-xs text-muted">所需材料</span>
-              <span class="text-xs" :class="playerStore.money >= selectedEnchantModeDef.cost ? 'text-text' : 'text-danger'">
-                {{ playerStore.money }}/{{ selectedEnchantModeDef.cost }}文
-              </span>
-            </div>
-            <div class="grid gap-0.5">
-              <div v-for="mat in selectedEnchantMaterialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
-                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
-                  <span class="truncate">{{ mat.itemName }}</span>
-                </span>
-                <span class="text-xs" :class="mat.count >= mat.quantity ? 'text-text' : 'text-danger'">{{ mat.count }}/{{ mat.quantity }}</span>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            class="w-full justify-center"
-            :class="{ '!bg-accent !text-bg': canConfirmWeaponEnchant }"
-            :icon="Sparkles"
-            :icon-size="12"
-            :disabled="!canConfirmWeaponEnchant"
-            data-testid="processing-weapon-enchant-confirm"
-            @click="handleWeaponEnchant"
-          >
-            {{ weaponEnchantConfirmLabel }}
-          </Button>
-
-          <p v-if="weaponEnchantBlockReason" class="text-[0.625rem] text-muted text-center">{{ weaponEnchantBlockReason }}</p>
-        </div>
-      </div>
-
-      <div class="border border-accent/10 rounded-xs p-2 mb-3" data-testid="processing-tool-enchant-panel">
-        <div class="flex items-center justify-between gap-2 mb-2">
-          <div class="flex min-w-0 items-center gap-1.5 text-sm text-accent">
-            <Sparkles :size="14" />
-            <span>工具附魔</span>
-          </div>
-          <span class="text-[0.625rem]" :class="processingStore.workshopLevel >= 7 ? 'text-success' : 'text-muted'">
-            Lv.7 开放
-          </span>
-        </div>
-
-        <div v-if="processingStore.workshopLevel < 7" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
-          <p class="text-xs text-muted">工坊扩建到 Lv.7 后，可为镐子附加矿洞探索词条。</p>
-        </div>
-
-        <div v-else class="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div class="rounded-xs border border-accent/10 p-2" data-testid="processing-tool-enchant-pickaxe">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs text-text">{{ pickaxeToolLabel }}</span>
-              <span class="text-[0.625rem]" :class="pickaxeCurrentEnchantName ? 'text-success' : 'text-muted'">
-                {{ pickaxeCurrentEnchantName || '未附魔' }}
-              </span>
-            </div>
-            <div class="mt-1 grid grid-cols-2 gap-1">
-              <button
-                v-for="option in pickaxeEnchantOptions"
-                :key="option.id"
-                class="border rounded-xs px-2 py-1 text-left transition-colors"
-                :class="selectedToolEnchantId === option.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
-                :data-testid="`processing-tool-enchant-option-${option.id}`"
-                @click="selectedToolEnchantId = option.id"
-              >
-                <span class="block text-xs text-text">{{ option.name }}</span>
-                <span class="block text-[0.625rem] text-muted truncate">{{ option.description }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="rounded-xs border border-accent/10 p-2">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="text-xs text-muted">所需材料</span>
-              <span class="text-xs" :class="playerStore.money >= TOOL_ENCHANT_COST ? 'text-text' : 'text-danger'">
-                {{ playerStore.money }}/{{ TOOL_ENCHANT_COST }}文
-              </span>
-            </div>
-            <div class="grid gap-0.5">
-              <div v-for="mat in toolEnchantMaterialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
-                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
-                  <span class="truncate">{{ mat.itemName }}</span>
-                </span>
-                <span class="text-xs" :class="mat.count >= mat.quantity ? 'text-text' : 'text-danger'">{{ mat.count }}/{{ mat.quantity }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="md:col-span-2">
-            <Button
-              class="w-full justify-center"
-              :class="{ '!bg-accent !text-bg': canConfirmToolEnchant }"
-              :icon="Sparkles"
-              :icon-size="12"
-              :disabled="!canConfirmToolEnchant"
-              data-testid="processing-tool-enchant-confirm"
-              @click="handleToolEnchant"
-            >
-              {{ toolEnchantConfirmLabel }}
-            </Button>
-            <p v-if="toolEnchantBlockReason" class="mt-1 text-[0.625rem] text-muted text-center">{{ toolEnchantBlockReason }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="border border-accent/10 rounded-xs p-2 mb-3" data-testid="processing-equipment-enchant-panel">
-        <div class="flex items-center justify-between gap-2 mb-2">
-          <div class="flex min-w-0 items-center gap-1.5 text-sm text-accent">
-            <Sparkles :size="14" />
-            <span>装备附魔</span>
-          </div>
-          <span class="text-[0.625rem]" :class="processingStore.workshopLevel >= EQUIPMENT_ENCHANT_MIN_LEVEL ? 'text-success' : 'text-muted'">
-            Lv.{{ EQUIPMENT_ENCHANT_MIN_LEVEL }} 开放
-          </span>
-        </div>
-
-        <div v-if="processingStore.workshopLevel < EQUIPMENT_ENCHANT_MIN_LEVEL" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
-          <p class="text-xs text-muted">工坊扩建到 Lv.{{ EQUIPMENT_ENCHANT_MIN_LEVEL }} 后，可为戒指、帽子和鞋子附加后期词条。</p>
-        </div>
-
-        <div v-else class="grid gap-2">
-          <div class="grid grid-cols-3 gap-1">
-            <button
-              v-for="slot in equipmentEnchantSlotOptions"
-              :key="slot.id"
-              class="border rounded-xs px-2 py-1.5 text-center transition-colors"
-              :class="selectedEquipmentEnchantSlot === slot.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
-              :data-testid="`processing-equipment-enchant-slot-${slot.id}`"
-              @click="selectedEquipmentEnchantSlot = slot.id"
-            >
-              <span class="block text-xs text-text">{{ slot.label }}</span>
-              <span class="block text-[0.625rem] text-muted">{{ slot.count }}件</span>
-            </button>
-          </div>
-
-          <div v-if="selectedEquipmentEnchantEntries.length <= 0" class="rounded-xs border border-accent/10 bg-bg/40 px-2 py-1.5">
-            <p class="text-xs text-muted">当前没有可附魔的{{ selectedEquipmentSlotLabel }}。</p>
-          </div>
-
-          <div v-else class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-            <div class="rounded-xs border border-accent/10 p-2">
-              <p class="text-xs text-muted mb-1">选择{{ selectedEquipmentSlotLabel }}</p>
-              <div class="grid gap-1 max-h-32 overflow-y-auto pr-0.5">
-                <button
-                  v-for="entry in equipmentEnchantTargetOptions"
-                  :key="entry.index"
-                  class="text-left border rounded-xs px-2 py-1.5 transition-colors"
-                  :class="entry.index === selectedEquipmentEnchantIndex ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
-                  :data-testid="`processing-equipment-enchant-target-${entry.index}`"
-                  @click="selectedEquipmentEnchantIndex = entry.index"
-                >
-                  <span class="block truncate text-xs" :class="entry.locked ? 'text-muted' : 'text-text'">{{ entry.name }}</span>
-                  <span class="block text-[0.625rem] text-muted">
-                    {{ entry.enchantName || '未附魔' }}<template v-if="entry.equipped"> · 当前装备</template><template v-if="entry.locked"> · 已锁定</template>
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div class="rounded-xs border border-accent/10 p-2">
-              <p class="text-xs text-muted mb-1">选择附魔</p>
-              <div class="grid grid-cols-2 gap-1">
-                <button
-                  v-for="option in equipmentEnchantOptions"
-                  :key="option.id"
-                  class="border rounded-xs px-2 py-1 text-left transition-colors"
-                  :class="selectedEquipmentEnchantId === option.id ? 'border-accent/50 bg-accent/10' : 'border-accent/10 hover:bg-accent/5'"
-                  :data-testid="`processing-equipment-enchant-option-${option.id}`"
-                  @click="selectedEquipmentEnchantId = option.id"
-                >
-                  <span class="block text-xs text-text">{{ option.name }}</span>
-                  <span class="block text-[0.625rem] text-muted truncate">{{ option.description }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="rounded-xs border border-accent/10 p-2">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="text-xs text-muted">所需材料</span>
-              <span class="text-xs" :class="playerStore.money >= EQUIPMENT_ENCHANT_COST ? 'text-text' : 'text-danger'">
-                {{ playerStore.money }}/{{ EQUIPMENT_ENCHANT_COST }}文
-              </span>
-            </div>
-            <div class="grid gap-0.5">
-              <div v-for="mat in equipmentEnchantMaterialLines" :key="mat.itemId" class="flex items-center justify-between gap-2">
-                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
-                  <span class="truncate">{{ mat.itemName }}</span>
-                </span>
-                <span class="text-xs" :class="mat.count >= mat.quantity ? 'text-text' : 'text-danger'">{{ mat.count }}/{{ mat.quantity }}</span>
-              </div>
-            </div>
-          </div>
-
-          <Button
-            class="w-full justify-center"
-            :class="{ '!bg-accent !text-bg': canConfirmEquipmentEnchant }"
-            :icon="Sparkles"
-            :icon-size="12"
-            :disabled="!canConfirmEquipmentEnchant"
-            data-testid="processing-equipment-enchant-confirm"
-            @click="handleEquipmentEnchant"
-          >
-            {{ equipmentEnchantConfirmLabel }}
-          </Button>
-          <p v-if="equipmentEnchantBlockReason" class="text-[0.625rem] text-muted text-center">{{ equipmentEnchantBlockReason }}</p>
-        </div>
       </div>
 
       <div>
@@ -738,6 +453,207 @@
             <p class="text-xs text-success">工坊已达到最高等级 Lv.{{ WORKSHOP_MAX_LEVEL }}</p>
             <p class="text-[0.625rem] text-muted mt-0.5">机器上限 {{ processingStore.maxMachines }} 台，里程碑奖励已全部生效。</p>
           </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- 铸魔炉弹窗 -->
+    <Transition name="panel-fade">
+      <div
+        v-if="showEnchantingForgeModal"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        data-testid="processing-enchanting-forge-modal"
+        @click.self="closeEnchantingForgeModal"
+      >
+        <div class="game-panel max-w-lg w-full max-h-[88dvh] overflow-y-auto relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closeEnchantingForgeModal">
+            <X :size="14" />
+          </button>
+
+          <p class="text-sm text-accent mb-2">
+            <Sparkles :size="14" class="inline mr-0.5" />
+            铸魔炉
+          </p>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">选择类型</p>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-1">
+              <button
+                v-for="option in enchantingForgeTargetTypeOptions"
+                :key="option.id"
+                class="btn text-xs justify-between"
+                :class="{ '!bg-accent !text-bg': selectedEnchantingForgeTarget === option.id }"
+                :data-testid="`processing-enchanting-forge-target-${option.id}`"
+                @click="selectedEnchantingForgeTarget = option.id"
+              >
+                <span>{{ option.label }}</span>
+                <span class="text-[0.625rem] opacity-70">{{ option.count }}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">选择装备</p>
+            <div v-if="enchantingForgeItemOptions.length > 0" class="flex flex-col space-y-1 max-h-36 overflow-y-auto">
+              <div
+                v-for="option in enchantingForgeItemOptions"
+                :key="option.key"
+                class="flex items-stretch gap-1 mr-1"
+              >
+                <button
+                  class="btn min-w-0 flex-1 text-xs items-start justify-between gap-2"
+                  :class="{ '!bg-accent !text-bg': selectedEnchantingForgeItemIndex === option.index }"
+                  :data-testid="`processing-enchanting-forge-item-${option.key}`"
+                  @click="selectedEnchantingForgeItemIndex = option.index"
+                >
+                  <span class="min-w-0 text-left">
+                    <span class="block truncate">
+                      {{ option.name }}
+                      <span v-if="option.equipped" class="text-[0.625rem] opacity-70 ml-1">已装备</span>
+                      <span v-if="option.locked" class="text-[0.625rem] opacity-70 ml-1">已锁定</span>
+                    </span>
+                    <span class="block text-[0.625rem] opacity-70 truncate">{{ option.affixSummary || '无词条' }}</span>
+                  </span>
+                  <span v-if="option.disabledReason" class="text-[0.625rem] text-danger shrink-0">{{ option.disabledReason }}</span>
+                </button>
+                <Button
+                  v-if="option.locked && option.lockTarget"
+                  class="shrink-0 px-2 py-1 text-[0.625rem]"
+                  :data-testid="`processing-enchanting-forge-unlock-${option.key}`"
+                  @click.stop="handleUnlockEnchantingForgeTarget(option)"
+                >
+                  解锁
+                </Button>
+              </div>
+            </div>
+            <p v-else class="text-xs text-muted">暂无可选目标。</p>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">选择模式</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-1">
+              <button
+                v-for="mode in enchantingForgeModeOptions"
+                :key="mode.id"
+                class="btn text-xs flex-col items-start"
+                :class="{ '!bg-accent !text-bg': selectedEnchantingForgeMode === mode.id }"
+                :data-testid="`processing-enchanting-forge-mode-${mode.id}`"
+                @click="selectedEnchantingForgeMode = mode.id"
+              >
+                <span>{{ mode.label }}</span>
+                <span class="text-[0.625rem] opacity-70">Lv.{{ mode.minLevel }} · {{ mode.cost }}文</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="selectedEnchantingForgeMode === 'directed'" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">选择方向</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-1">
+              <button
+                v-for="direction in enchantingForgeDirectionOptions"
+                :key="direction.id"
+                class="btn text-xs flex-col items-start"
+                :class="{ '!bg-accent !text-bg': selectedEnchantingForgeDirectionId === direction.id }"
+                :data-testid="`processing-enchanting-forge-direction-${direction.id}`"
+                @click="selectedEnchantingForgeDirectionId = direction.id"
+              >
+                <span>{{ direction.label }}</span>
+                <span class="text-[0.625rem] opacity-70">{{ direction.description }}</span>
+              </button>
+            </div>
+            <p v-if="enchantingForgeDirectedTopUpHint" class="text-[0.625rem] text-muted mt-1">
+              {{ enchantingForgeDirectedTopUpHint }}
+            </p>
+          </div>
+
+          <div v-if="selectedEnchantingForgeMode === 'protected'" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">保留词条</p>
+            <div v-if="enchantingForgePreserveOptions.length > 0" class="flex flex-col space-y-1">
+              <button
+                v-for="option in enchantingForgePreserveOptions"
+                :key="option.id"
+                class="btn text-xs justify-start"
+                :class="{ '!bg-accent !text-bg': selectedEnchantingForgePreserveId === option.id }"
+                :data-testid="`processing-enchanting-forge-preserve-${option.id}`"
+                @click="selectedEnchantingForgePreserveId = option.id"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+            <p v-else class="text-xs text-muted">目标暂无可保留词条。</p>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <p class="text-xs text-muted">范围与消耗</p>
+              <span class="text-[0.625rem] text-accent">{{ enchantingForgeCountHint }}</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-1 max-h-28 overflow-y-auto mb-2">
+              <div
+                v-for="line in enchantingForgeRangeLines"
+                :key="line.id"
+                class="rounded-xs border border-accent/10 px-2 py-1"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-text">{{ line.name }}</span>
+                  <span class="text-xs text-accent">{{ line.range }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted truncate">{{ line.description }}</p>
+              </div>
+            </div>
+            <div class="space-y-0.5">
+              <div
+                v-for="mat in enchantingForgeMaterialLines"
+                :key="mat.itemId"
+                class="flex items-center justify-between gap-2"
+              >
+                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <ItemIcon :item="mat.item" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ mat.itemName }}</span>
+                </span>
+                <span class="text-xs" :class="mat.count >= mat.quantity ? '' : 'text-danger'">
+                  {{ mat.count }}/{{ mat.quantity }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted">铜钱</span>
+                <span class="text-xs" :class="playerStore.money >= selectedEnchantingForgeModeDef.cost ? '' : 'text-danger'">
+                  {{ selectedEnchantingForgeModeDef.cost }}文
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="enchantingForgeResultLines.length > 0" class="border border-success/20 rounded-xs p-2 mb-2">
+            <p class="text-xs text-success mb-1">本次结果 · {{ enchantingForgeResultLines.length }} 条</p>
+            <p
+              v-for="line in enchantingForgeResultLines"
+              :key="line"
+              class="text-xs text-text leading-5"
+            >
+              {{ line }}
+            </p>
+          </div>
+
+          <p
+            v-if="enchantingForgeBlockReason"
+            class="text-[0.625rem] text-danger mb-2"
+            data-testid="processing-enchanting-forge-block-reason"
+          >
+            {{ enchantingForgeBlockReason }}
+          </p>
+
+          <Button
+            class="w-full justify-center"
+            :class="{ '!bg-accent !text-bg': canConfirmEnchantingForge }"
+            :icon="Sparkles"
+            :icon-size="12"
+            :disabled="!canConfirmEnchantingForge"
+            data-testid="processing-enchanting-forge-confirm"
+            @click="handleConfirmEnchantingForge"
+          >
+            确认铸魔
+          </Button>
         </div>
       </div>
     </Transition>
@@ -1060,7 +976,7 @@
   import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle, FlaskConical, Sparkles } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
-  import type { ItemDef, MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality, OwnedWeapon, OwnedRing, OwnedHat, OwnedShoe } from '@/types'
+  import type { ItemDef, MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality, OwnedRing, OwnedHat, OwnedShoe, Tool, ForgeAffixRoll } from '@/types'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useCookingStore } from '@/stores/useCookingStore'
@@ -1092,17 +1008,25 @@
   import { getItemById, CHEST_DEFS, CHEST_TIER_ORDER } from '@/data/items'
   import { getCropUseTagMatches } from '@/data/cropUseProfiles'
   import type { CropUseTag } from '@/data/cropUseProfiles'
-  import { BASIC_WEAPON_ENCHANTMENT_IDS, WEAPON_ENCHANTMENT_IDS, getEnchantmentById, getWeaponById, getWeaponDisplayName, rollEnchantmentFromPool } from '@/data/weapons'
-  import { PICKAXE_ENCHANTMENT_IDS, getToolEnchantmentById } from '@/data/toolEnchantments'
+  import { getWeaponById, getWeaponDisplayName } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
   import {
-    EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT,
-    getEquipmentDisplayName,
-    getEquipmentEnchantmentById,
-    type EquipmentEnchantSlot
-  } from '@/data/equipmentEnchantments'
+    FORGE_AFFIX_MODE_DEFS,
+    FORGE_AFFIX_TARGET_LABELS,
+    formatForgeAffixRange,
+    formatForgeAffixRoll,
+    formatForgeAffixSummary,
+    getForgeAffixById,
+    getForgeAffixesForTarget,
+    getForgeAffixModeById,
+    getForgeDirectionsForTarget,
+    rollForgeAffixes,
+    type ForgeAffixDirectionId,
+    type ForgeAffixMode,
+    type ForgeAffixTarget
+  } from '@/data/forgeAffixes'
   import { TIER_NAMES, TOOL_NAMES } from '@/data/upgrades'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { sfxClick } from '@/composables/useAudio'
@@ -1213,6 +1137,7 @@
     processingCount: number
     hasReady: boolean
     isSeedMaker: boolean
+    isEnchantingForge: boolean
     recipeOptions: RecipeOptionViewModel[]
     seedRecipeOptions: RecipeOptionViewModel[]
     recommendationOptions: RecipeOptionViewModel[]
@@ -1496,7 +1421,8 @@
           readyCount: 0,
           processingCount: 0,
           hasReady: false,
-          isSeedMaker: slot.machineType === 'seed_maker'
+          isSeedMaker: slot.machineType === 'seed_maker',
+          isEnchantingForge: slot.machineType === 'enchanting_forge'
         }
         groupMap.set(slot.machineType, group)
       }
@@ -1513,7 +1439,10 @@
       }
     }
 
-    const groups = [...groupMap.values()].sort((a, b) => (machineTypeOrder.get(a.machineType) ?? 99) - (machineTypeOrder.get(b.machineType) ?? 99))
+    const groups = [...groupMap.values()].sort((a, b) => {
+      if (a.isEnchantingForge !== b.isEnchantingForge) return a.isEnchantingForge ? -1 : 1
+      return (machineTypeOrder.get(a.machineType) ?? 99) - (machineTypeOrder.get(b.machineType) ?? 99)
+    })
     for (const group of groups) {
       group.hasReady = group.readyCount > 0
     }
@@ -1540,6 +1469,7 @@
       processingCount: group.processingCount,
       hasReady: group.hasReady,
       isSeedMaker: group.isSeedMaker,
+      isEnchantingForge: group.isEnchantingForge,
       recipeOptions,
       seedRecipeOptions,
       recommendationOptions: [...recipeOptions, ...seedRecipeOptions]
@@ -1583,7 +1513,7 @@
 
   const getExpandedRecipeMachineTypes = (): MachineType[] =>
     machineGroupsBaseView.value
-      .filter(group => group.idleCount > 0 && !collapsedGroups.value.has(group.machineType))
+      .filter(group => group.idleCount > 0 && !group.isEnchantingForge && !collapsedGroups.value.has(group.machineType))
       .map(group => group.machineType)
 
   const resetAsyncRecipeState = (machineType: MachineType, signature: string) => {
@@ -1943,18 +1873,31 @@
 
   // === 武器铸魔 ===
 
-  type WeaponEnchantMode = 'basic' | 'directed' | 'protected'
+  // === 铸魔炉 ===
 
-  interface WeaponEnchantModeDef {
-    id: WeaponEnchantMode
-    name: string
-    description: string
-    minLevel: number
-    cost: number
-    materials: { itemId: string; quantity: number }[]
+  interface EnchantingForgeTargetTypeOption {
+    id: ForgeAffixTarget
+    label: string
+    count: number
   }
 
-  interface WeaponEnchantMaterialLine {
+  type EnchantingForgeLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
+
+  interface EnchantingForgeTargetOption {
+    key: string
+    target: ForgeAffixTarget
+    index: number
+    name: string
+    affixSummary: string
+    affixes: ForgeAffixRoll[]
+    equipped: boolean
+    locked: boolean
+    lockTarget: EnchantingForgeLockTarget | null
+    disabled: boolean
+    disabledReason: string
+  }
+
+  interface EnchantingForgeMaterialLine {
     itemId: string
     item: ItemDef | null
     itemName: string
@@ -1962,87 +1905,164 @@
     count: number
   }
 
-  const WEAPON_ENCHANT_MODES: WeaponEnchantModeDef[] = [
-    {
-      id: 'basic',
-      name: '随机铸魔',
-      description: '随机获得基础附魔，不会洗成空白。',
-      minLevel: 7,
-      cost: 30000,
-      materials: [
-        { itemId: 'bronze_bar', quantity: 2 },
-        { itemId: 'mythril_bar', quantity: 1 },
-        { itemId: 'shadow_ore', quantity: 4 }
-      ]
-    },
-    {
-      id: 'directed',
-      name: '定向附魔',
-      description: '指定一个附魔词条，适合毕业武器定型。',
-      minLevel: 10,
-      cost: 90000,
-      materials: [
-        { itemId: 'mythril_bar', quantity: 2 },
-        { itemId: 'shadow_ore', quantity: 8 },
-        { itemId: 'prismatic_shard', quantity: 1 },
-        { itemId: 'dragon_jade', quantity: 1 }
-      ]
-    },
-    {
-      id: 'protected',
-      name: '保留重铸',
-      description: '已有附魔重铸为不同词条，不会洗回原附魔。',
-      minLevel: 15,
-      cost: 150000,
-      materials: [
-        { itemId: 'mythril_bar', quantity: 3 },
-        { itemId: 'void_ore', quantity: 10 },
-        { itemId: 'prismatic_shard', quantity: 1 },
-        { itemId: 'dragon_jade', quantity: 2 }
-      ]
+  interface EnchantingForgeRangeLine {
+    id: string
+    name: string
+    range: string
+    description: string
+  }
+
+  const ENCHANTING_FORGE_TARGETS: ForgeAffixTarget[] = ['weapon', 'pickaxe', 'ring', 'hat', 'shoe']
+  const showEnchantingForgeModal = ref(false)
+  const selectedEnchantingForgeTarget = ref<ForgeAffixTarget>('weapon')
+  const selectedEnchantingForgeItemIndex = ref(0)
+  const selectedEnchantingForgeMode = ref<ForgeAffixMode>('random')
+  const selectedEnchantingForgeDirectionId = ref<ForgeAffixDirectionId | ''>(getForgeDirectionsForTarget('weapon')[0]?.id ?? '')
+  const selectedEnchantingForgePreserveId = ref('')
+  const enchantingForgeResult = ref<ForgeAffixRoll[]>([])
+
+  const cloneForgeAffixRolls = (affixes?: ForgeAffixRoll[] | null): ForgeAffixRoll[] =>
+    (affixes ?? []).map(roll => ({ id: roll.id, value: roll.value, quality: roll.quality }))
+
+  const hasBuiltEnchantingForge = computed(() => processingStore.machines.some(slot => slot.machineType === 'enchanting_forge'))
+
+  const getEnchantingForgeTargetCount = (target: ForgeAffixTarget): number => {
+    if (target === 'weapon') return inventoryStore.ownedWeapons.length
+    if (target === 'pickaxe') return inventoryStore.getTool('pickaxe') ? 1 : 0
+    if (target === 'ring') return inventoryStore.ownedRings.length
+    if (target === 'hat') return inventoryStore.ownedHats.length
+    return inventoryStore.ownedShoes.length
+  }
+
+  const enchantingForgeTargetTypeOptions = computed<EnchantingForgeTargetTypeOption[]>(() =>
+    ENCHANTING_FORGE_TARGETS.map(id => ({
+      id,
+      label: FORGE_AFFIX_TARGET_LABELS[id],
+      count: getEnchantingForgeTargetCount(id)
+    }))
+  )
+
+  const getDefaultForgeDirectionId = (target: ForgeAffixTarget): ForgeAffixDirectionId | '' =>
+    getForgeDirectionsForTarget(target)[0]?.id ?? ''
+
+  const getEquipmentForgeBaseName = (target: ForgeAffixTarget, defId: string): string => {
+    if (target === 'ring') return getRingById(defId)?.name ?? defId
+    if (target === 'hat') return getHatById(defId)?.name ?? defId
+    if (target === 'shoe') return getShoeById(defId)?.name ?? defId
+    return defId
+  }
+
+  const equipmentForgeDefExists = (target: ForgeAffixTarget, defId: string): boolean => {
+    if (target === 'ring') return !!getRingById(defId)
+    if (target === 'hat') return !!getHatById(defId)
+    if (target === 'shoe') return !!getShoeById(defId)
+    return false
+  }
+
+  const buildEquipmentForgeOptions = (
+    target: 'ring' | 'hat' | 'shoe',
+    entries: (OwnedRing | OwnedHat | OwnedShoe)[]
+  ): EnchantingForgeTargetOption[] =>
+    entries.map((entry, index) => {
+      const affixes = cloneForgeAffixRolls(entry.affixes)
+      const equipped = target === 'ring'
+        ? index === inventoryStore.equippedRingSlot1 || index === inventoryStore.equippedRingSlot2
+        : target === 'hat'
+          ? index === inventoryStore.equippedHatIndex
+          : index === inventoryStore.equippedShoeIndex
+      return {
+        key: `${target}-${index}`,
+        target,
+        index,
+        name: getEquipmentForgeBaseName(target, entry.defId),
+        affixSummary: formatForgeAffixSummary(affixes),
+        affixes,
+        equipped,
+        locked: !!entry.locked,
+        lockTarget: target,
+        disabled: !!entry.locked || !equipmentForgeDefExists(target, entry.defId),
+        disabledReason: entry.locked ? '已锁定' : equipmentForgeDefExists(target, entry.defId) ? '' : '定义缺失'
+      }
+    })
+
+  const buildPickaxeForgeOption = (tool: Tool): EnchantingForgeTargetOption => {
+    const affixes = inventoryStore.getToolAffixes('pickaxe')
+    const upgrading = !inventoryStore.isToolAvailable('pickaxe')
+    return {
+      key: 'pickaxe-0',
+      target: 'pickaxe',
+      index: 0,
+      name: `${TOOL_NAMES.pickaxe} · ${TIER_NAMES[tool.tier]}`,
+      affixSummary: formatForgeAffixSummary(affixes),
+      affixes,
+      equipped: true,
+      locked: false,
+      lockTarget: null,
+      disabled: upgrading,
+      disabledReason: upgrading ? '升级中' : ''
     }
-  ]
+  }
 
-  const selectedEnchantWeaponIndex = ref(0)
-  const selectedEnchantMode = ref<WeaponEnchantMode>('basic')
-  const selectedDirectedEnchantId = ref<string>(WEAPON_ENCHANTMENT_IDS[0]!)
+  const enchantingForgeItemOptions = computed<EnchantingForgeTargetOption[]>(() => {
+    if (selectedEnchantingForgeTarget.value === 'weapon') {
+      return inventoryStore.ownedWeapons.map((weapon, index) => {
+        const affixes = cloneForgeAffixRolls(weapon.affixes)
+        const def = getWeaponById(weapon.defId)
+        return {
+          key: `weapon-${index}`,
+          target: 'weapon',
+          index,
+          name: def ? getWeaponDisplayName(weapon.defId, weapon.enchantmentId, affixes) : weapon.defId,
+          affixSummary: formatForgeAffixSummary(affixes),
+          affixes,
+          equipped: index === inventoryStore.equippedWeaponIndex,
+          locked: !!weapon.locked,
+          lockTarget: 'weapon',
+          disabled: !!weapon.locked || !def,
+          disabledReason: weapon.locked ? '已锁定' : def ? '' : '定义缺失'
+        }
+      })
+    }
+    if (selectedEnchantingForgeTarget.value === 'pickaxe') {
+      const tool = inventoryStore.getTool('pickaxe')
+      return tool ? [buildPickaxeForgeOption(tool)] : []
+    }
+    if (selectedEnchantingForgeTarget.value === 'ring') return buildEquipmentForgeOptions('ring', inventoryStore.ownedRings)
+    if (selectedEnchantingForgeTarget.value === 'hat') return buildEquipmentForgeOptions('hat', inventoryStore.ownedHats)
+    return buildEquipmentForgeOptions('shoe', inventoryStore.ownedShoes)
+  })
 
-  const weaponEnchantModeOptions = computed(() =>
-    WEAPON_ENCHANT_MODES.map(mode => ({
+  const selectedEnchantingForgeItem = computed<EnchantingForgeTargetOption | null>(() =>
+    enchantingForgeItemOptions.value.find(option => option.index === selectedEnchantingForgeItemIndex.value) ?? null
+  )
+
+  const enchantingForgeModeOptions = computed(() =>
+    FORGE_AFFIX_MODE_DEFS.map(mode => ({
       ...mode,
       unlocked: processingStore.workshopLevel >= mode.minLevel
     }))
   )
 
-  const selectedEnchantModeDef = computed(() => WEAPON_ENCHANT_MODES.find(mode => mode.id === selectedEnchantMode.value) ?? WEAPON_ENCHANT_MODES[0]!)
-
-  const selectedEnchantWeapon = computed<OwnedWeapon | null>(() => inventoryStore.ownedWeapons[selectedEnchantWeaponIndex.value] ?? null)
-
-  const weaponEnchantWeaponOptions = computed(() =>
-    inventoryStore.ownedWeapons.map((weapon, index) => ({
-      index,
-      name: getWeaponDisplayName(weapon.defId, weapon.enchantmentId),
-      enchantName: weapon.enchantmentId ? getEnchantmentById(weapon.enchantmentId)?.name ?? weapon.enchantmentId : '',
-      equipped: index === inventoryStore.equippedWeaponIndex,
-      locked: !!weapon.locked
-    }))
+  const selectedEnchantingForgeModeDef = computed(() => getForgeAffixModeById(selectedEnchantingForgeMode.value))
+  const enchantingForgeDirectionOptions = computed(() => getForgeDirectionsForTarget(selectedEnchantingForgeTarget.value))
+  const selectedEnchantingForgeDirection = computed(() =>
+    enchantingForgeDirectionOptions.value.find(direction => direction.id === selectedEnchantingForgeDirectionId.value) ?? null
   )
-
-  const directedEnchantOptions = computed(() =>
-    WEAPON_ENCHANTMENT_IDS.flatMap(id => {
-      const enchant = getEnchantmentById(id)
-      return enchant
+  const enchantingForgePreserveOptions = computed(() =>
+    (selectedEnchantingForgeItem.value?.affixes ?? []).flatMap(roll => {
+      const def = getForgeAffixById(roll.id)
+      return def
         ? [{
-            id,
-            name: enchant.name,
-            description: enchant.description
+            id: roll.id,
+            label: formatForgeAffixRoll(roll),
+            name: def.name
           }]
         : []
     })
   )
 
-  const selectedEnchantMaterialLines = computed<WeaponEnchantMaterialLine[]>(() =>
-    selectedEnchantModeDef.value.materials.map(mat => ({
+  const enchantingForgeMaterialLines = computed<EnchantingForgeMaterialLine[]>(() =>
+    selectedEnchantingForgeModeDef.value.materials.map(mat => ({
       itemId: mat.itemId,
       item: getItemById(mat.itemId) ?? null,
       itemName: getItemName(mat.itemId),
@@ -2051,52 +2071,173 @@
     }))
   )
 
-  const weaponEnchantBlockReason = computed(() => {
-    const weapon = selectedEnchantWeapon.value
-    const mode = selectedEnchantModeDef.value
-    if (!weapon) return '请选择一把武器。'
-    if (weapon.locked) return '这件武器已锁定，先解锁才能铸魔。'
-    if (!getWeaponById(weapon.defId)) return '武器定义不存在，无法铸魔。'
-    if (processingStore.workshopLevel < mode.minLevel) return `工坊 Lv.${mode.minLevel} 后开放${mode.name}。`
-    if (mode.id === 'directed') {
-      if (!selectedDirectedEnchantId.value) return '请选择目标附魔。'
-      if (weapon.enchantmentId === selectedDirectedEnchantId.value) return '目标附魔与当前附魔相同。'
+  const enchantingForgeRangeLines = computed<EnchantingForgeRangeLine[]>(() => {
+    const target = selectedEnchantingForgeTarget.value
+    const directionIds = selectedEnchantingForgeMode.value === 'directed' && selectedEnchantingForgeDirection.value
+      ? selectedEnchantingForgeDirection.value.affixIds
+      : []
+    const ids = directionIds.length > 0
+      ? [...directionIds, ...getForgeAffixesForTarget(target).map(affix => affix.id)]
+      : getForgeAffixesForTarget(target).map(affix => affix.id)
+    const seen = new Set<string>()
+    return ids.flatMap(id => {
+      if (seen.has(id)) return []
+      seen.add(id)
+      const def = getForgeAffixById(id)
+      return def && def.target === target
+        ? [{
+            id,
+            name: def.name,
+            range: formatForgeAffixRange(def),
+            description: def.description
+          }]
+        : []
+    })
+  })
+
+  const enchantingForgeCountHint = computed(() => {
+    if (processingStore.workshopLevel >= 15) return '最终词条数：1/2/3（50%/38%/12%）'
+    if (processingStore.workshopLevel >= 10) return '最终词条数：1/2（70%/30%）'
+    return '最终词条数：1'
+  })
+
+  const enchantingForgeDirectedTopUpHint = computed(() => {
+    if (selectedEnchantingForgeMode.value !== 'directed') return ''
+    const directionSize = selectedEnchantingForgeDirection.value?.affixIds.length ?? 0
+    return processingStore.workshopLevel >= 15 && directionSize < 3
+      ? '若最终条数超过方向池容量，额外词条从同类型池补足。'
+      : ''
+  })
+
+  const enchantingForgeResultLines = computed(() => enchantingForgeResult.value.map(formatForgeAffixRoll))
+
+  const enchantingForgeBlockReason = computed(() => {
+    if (!hasBuiltEnchantingForge.value) return '需要先建造铸魔炉。'
+    const target = selectedEnchantingForgeTarget.value
+    const item = selectedEnchantingForgeItem.value
+    const mode = selectedEnchantingForgeModeDef.value
+    if (!item) return `缺少可铸魔的${FORGE_AFFIX_TARGET_LABELS[target]}。`
+    if (item.locked && target === 'weapon') return '这件武器已锁定，先解锁才能铸魔。'
+    if (item.locked) return '这件装备已锁定，先解锁才能铸魔。'
+    if (target === 'pickaxe' && item.disabledReason === '升级中') return '镐子正在升级，完成后才能铸魔。'
+    if (item.disabled) return item.disabledReason ? `${item.name}${item.disabledReason}，无法铸魔。` : `${item.name}无法铸魔。`
+    if (processingStore.workshopLevel < mode.minLevel) return `工坊 Lv.${mode.minLevel} 后开放${mode.label}。`
+    if (mode.id === 'directed' && !selectedEnchantingForgeDirection.value) return '请选择定向方向。'
+    if (mode.id === 'protected') {
+      if (item.affixes.length <= 0) return '保留重铸需要目标已有词条。'
+      if (!enchantingForgePreserveOptions.value.some(option => option.id === selectedEnchantingForgePreserveId.value)) return '请选择要保留的词条。'
     }
-    if (mode.id === 'protected' && !weapon.enchantmentId) return '保留重铸需要武器已有附魔。'
     if (playerStore.money < mode.cost) return '铜钱不足。'
     if (!hasCombinedItems(mode.materials)) return '材料不足。'
     return ''
   })
 
-  const canConfirmWeaponEnchant = computed(() => !weaponEnchantBlockReason.value)
+  const canConfirmEnchantingForge = computed(() => !enchantingForgeBlockReason.value)
 
-  const weaponEnchantConfirmLabel = computed(() => {
-    if (selectedEnchantMode.value === 'directed') return '定向附魔'
-    if (selectedEnchantMode.value === 'protected') return '保留重铸'
-    return '随机铸魔'
+  watch(selectedEnchantingForgeTarget, target => {
+    selectedEnchantingForgeItemIndex.value = 0
+    selectedEnchantingForgeDirectionId.value = getDefaultForgeDirectionId(target)
+    selectedEnchantingForgePreserveId.value = ''
+    enchantingForgeResult.value = []
   })
 
-  const resolveWeaponEnchantResultId = (weapon: OwnedWeapon): string => {
-    if (selectedEnchantMode.value === 'directed') return selectedDirectedEnchantId.value
-    if (selectedEnchantMode.value === 'protected') {
-      return rollEnchantmentFromPool(WEAPON_ENCHANTMENT_IDS, weapon.enchantmentId)
-    }
-    return rollEnchantmentFromPool(BASIC_WEAPON_ENCHANTMENT_IDS, weapon.enchantmentId)
-  }
-
-  const handleWeaponEnchant = () => {
-    if (!canConfirmWeaponEnchant.value) {
-      if (weaponEnchantBlockReason.value) addLog(weaponEnchantBlockReason.value)
+  watch(enchantingForgeItemOptions, options => {
+    if (options.length <= 0) {
+      selectedEnchantingForgeItemIndex.value = 0
+      selectedEnchantingForgePreserveId.value = ''
       return
     }
-    const index = selectedEnchantWeaponIndex.value
-    const weapon = selectedEnchantWeapon.value
-    if (!weapon) return
+    if (!options.some(option => option.index === selectedEnchantingForgeItemIndex.value)) {
+      selectedEnchantingForgeItemIndex.value = options[0]!.index
+    }
+  })
 
-    const mode = selectedEnchantModeDef.value
-    const resultEnchantId = resolveWeaponEnchantResultId(weapon)
-    const beforeName = getWeaponDisplayName(weapon.defId, weapon.enchantmentId)
-    const resultEnchantName = getEnchantmentById(resultEnchantId)?.name ?? resultEnchantId
+  watch(selectedEnchantingForgeMode, () => {
+    enchantingForgeResult.value = []
+  })
+
+  watch(enchantingForgeDirectionOptions, options => {
+    if (options.length <= 0) {
+      selectedEnchantingForgeDirectionId.value = ''
+      return
+    }
+    if (!options.some(option => option.id === selectedEnchantingForgeDirectionId.value)) {
+      selectedEnchantingForgeDirectionId.value = options[0]!.id
+    }
+  })
+
+  watch(enchantingForgePreserveOptions, options => {
+    if (options.length <= 0) {
+      selectedEnchantingForgePreserveId.value = ''
+      return
+    }
+    if (!options.some(option => option.id === selectedEnchantingForgePreserveId.value)) {
+      selectedEnchantingForgePreserveId.value = options[0]!.id
+    }
+  })
+
+  const openEnchantingForgeModal = () => {
+    if (!hasBuiltEnchantingForge.value) {
+      addLog('需要先建造铸魔炉。')
+      return
+    }
+    enchantingForgeResult.value = []
+    showEnchantingForgeModal.value = true
+  }
+
+  const closeEnchantingForgeModal = () => {
+    showEnchantingForgeModal.value = false
+  }
+
+  const handleUnlockEnchantingForgeTarget = (option: EnchantingForgeTargetOption) => {
+    if (!option.lockTarget) return
+    selectedEnchantingForgeItemIndex.value = option.index
+    if (inventoryStore.toggleEquipmentLock(option.lockTarget, option.index)) {
+      enchantingForgeResult.value = []
+      addLog(`已解锁${option.name}，可以在铸魔炉内继续铸魔。`)
+    } else {
+      addLog('解锁失败，目标不存在。')
+    }
+  }
+
+  const setEnchantingForgeAffixes = (
+    target: ForgeAffixTarget,
+    index: number,
+    affixes: ForgeAffixRoll[]
+  ): { success: boolean; message: string } => {
+    if (target === 'weapon') return inventoryStore.setWeaponAffixes(index, affixes)
+    if (target === 'pickaxe') return inventoryStore.setToolAffixes('pickaxe', affixes)
+    if (target === 'ring') return inventoryStore.setRingAffixes(index, affixes)
+    if (target === 'hat') return inventoryStore.setHatAffixes(index, affixes)
+    return inventoryStore.setShoeAffixes(index, affixes)
+  }
+
+  const handleConfirmEnchantingForge = () => {
+    if (!canConfirmEnchantingForge.value) {
+      if (enchantingForgeBlockReason.value) addLog(enchantingForgeBlockReason.value)
+      return
+    }
+
+    const item = selectedEnchantingForgeItem.value
+    if (!item) return
+    const mode = selectedEnchantingForgeModeDef.value
+    const directionId: ForgeAffixDirectionId | null =
+      selectedEnchantingForgeMode.value === 'directed' && selectedEnchantingForgeDirectionId.value
+        ? selectedEnchantingForgeDirectionId.value
+        : null
+    const preserveId = selectedEnchantingForgeMode.value === 'protected' ? selectedEnchantingForgePreserveId.value : null
+    const resultAffixes = rollForgeAffixes({
+      target: item.target,
+      workshopLevel: processingStore.workshopLevel,
+      directionId,
+      preserveId
+    })
+
+    if (resultAffixes.length <= 0) {
+      addLog('铸魔失败：没有可用词条。')
+      return
+    }
+
     const inventorySnapshot = inventoryStore.serialize()
     const warehouseSnapshot = warehouseStore.serialize()
 
@@ -2110,7 +2251,7 @@
       return
     }
 
-    const result = inventoryStore.setWeaponEnchantment(index, resultEnchantId)
+    const result = setEnchantingForgeAffixes(item.target, item.index, resultAffixes)
     if (!result.success) {
       playerStore.earnMoney(mode.cost, { countAsEarned: false })
       inventoryStore.deserialize(inventorySnapshot)
@@ -2119,279 +2260,10 @@
       return
     }
 
+    const resultSummary = formatForgeAffixSummary(resultAffixes)
+    enchantingForgeResult.value = cloneForgeAffixRolls(resultAffixes)
     sfxClick()
-    const afterName = getWeaponDisplayName(weapon.defId, resultEnchantId)
-    addLog(`工坊铸魔完成：${beforeName} → ${afterName}（${resultEnchantName}）。`)
-    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
-    if (tr.message) addLog(tr.message)
-    if (tr.passedOut) handleEndDay()
-  }
-
-  // === 工具附魔 ===
-
-  const TOOL_ENCHANT_COST = 20000
-  const TOOL_ENCHANT_MATERIALS = [
-    { itemId: 'bronze_bar', quantity: 1 },
-    { itemId: 'shadow_ore', quantity: 3 },
-    { itemId: 'stone', quantity: 80 }
-  ]
-
-  const selectedToolEnchantId = ref<string>(PICKAXE_ENCHANTMENT_IDS[0]!)
-  const pickaxeEnchantOptions = computed(() =>
-    PICKAXE_ENCHANTMENT_IDS.flatMap(id => {
-      const enchant = getToolEnchantmentById(id)
-      return enchant
-        ? [{
-            id,
-            name: enchant.name,
-            description: enchant.description
-          }]
-        : []
-    })
-  )
-  const pickaxeTool = computed(() => inventoryStore.getTool('pickaxe') ?? null)
-  const pickaxeToolLabel = computed(() => {
-    const tier = pickaxeTool.value?.tier ?? 'basic'
-    return `${TOOL_NAMES.pickaxe} · ${TIER_NAMES[tier]}`
-  })
-  const pickaxeCurrentEnchantName = computed(() => {
-    const enchantmentId = inventoryStore.getToolEnchantmentId('pickaxe')
-    return enchantmentId ? getToolEnchantmentById(enchantmentId)?.name ?? enchantmentId : ''
-  })
-  const toolEnchantMaterialLines = computed<WeaponEnchantMaterialLine[]>(() =>
-    TOOL_ENCHANT_MATERIALS.map(mat => ({
-      itemId: mat.itemId,
-      item: getItemById(mat.itemId) ?? null,
-      itemName: getItemName(mat.itemId),
-      quantity: mat.quantity,
-      count: getIndexedItemCount(mat.itemId)
-    }))
-  )
-  const toolEnchantBlockReason = computed(() => {
-    if (processingStore.workshopLevel < 7) return '工坊 Lv.7 后开放工具附魔。'
-    if (!pickaxeTool.value) return '缺少镐子，无法附魔。'
-    if (inventoryStore.pendingUpgrade?.toolType === 'pickaxe') return '镐子正在升级，完成后才能附魔。'
-    if (!getToolEnchantmentById(selectedToolEnchantId.value)) return '请选择有效的工具附魔。'
-    if (inventoryStore.getToolEnchantmentId('pickaxe') === selectedToolEnchantId.value) return '镐子已经拥有该附魔。'
-    if (playerStore.money < TOOL_ENCHANT_COST) return '铜钱不足。'
-    if (!hasCombinedItems(TOOL_ENCHANT_MATERIALS)) return '材料不足。'
-    return ''
-  })
-  const canConfirmToolEnchant = computed(() => !toolEnchantBlockReason.value)
-  const selectedToolEnchantName = computed(() => getToolEnchantmentById(selectedToolEnchantId.value)?.name ?? selectedToolEnchantId.value)
-  const toolEnchantConfirmLabel = computed(() => pickaxeCurrentEnchantName.value ? `替换为${selectedToolEnchantName.value}` : `附魔${selectedToolEnchantName.value}`)
-
-  const handleToolEnchant = () => {
-    if (!canConfirmToolEnchant.value) {
-      if (toolEnchantBlockReason.value) addLog(toolEnchantBlockReason.value)
-      return
-    }
-    const inventorySnapshot = inventoryStore.serialize()
-    const warehouseSnapshot = warehouseStore.serialize()
-
-    if (!playerStore.spendMoney(TOOL_ENCHANT_COST)) {
-      addLog('铜钱不足。')
-      return
-    }
-    if (!removeCombinedItems(TOOL_ENCHANT_MATERIALS)) {
-      playerStore.earnMoney(TOOL_ENCHANT_COST, { countAsEarned: false })
-      addLog('材料不足。')
-      return
-    }
-
-    const result = inventoryStore.setToolEnchantment('pickaxe', selectedToolEnchantId.value)
-    if (!result.success) {
-      playerStore.earnMoney(TOOL_ENCHANT_COST, { countAsEarned: false })
-      inventoryStore.deserialize(inventorySnapshot)
-      warehouseStore.deserialize(warehouseSnapshot)
-      addLog(result.message)
-      return
-    }
-
-    sfxClick()
-    addLog(`工具附魔完成：镐子获得${selectedToolEnchantName.value}。`)
-    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
-    if (tr.message) addLog(tr.message)
-    if (tr.passedOut) handleEndDay()
-  }
-
-  // === 制造弹窗 ===
-
-  // === 装备附魔 ===
-
-  type EquipmentEnchantTarget = OwnedRing | OwnedHat | OwnedShoe
-
-  interface EquipmentEnchantSlotOption {
-    id: EquipmentEnchantSlot
-    label: string
-  }
-
-  const EQUIPMENT_ENCHANT_MIN_LEVEL = 10
-  const EQUIPMENT_ENCHANT_COST = 50000
-  const EQUIPMENT_ENCHANT_MATERIALS = [
-    { itemId: 'mythril_bar', quantity: 1 },
-    { itemId: 'shadow_ore', quantity: 4 },
-    { itemId: 'void_ore', quantity: 2 },
-    { itemId: 'prismatic_shard', quantity: 1 }
-  ]
-  const EQUIPMENT_ENCHANT_SLOT_OPTIONS: EquipmentEnchantSlotOption[] = [
-    { id: 'shoe', label: '鞋子' },
-    { id: 'ring', label: '戒指' },
-    { id: 'hat', label: '帽子' }
-  ]
-
-  const selectedEquipmentEnchantSlot = ref<EquipmentEnchantSlot>('shoe')
-  const selectedEquipmentEnchantIndex = ref(0)
-  const selectedEquipmentEnchantId = ref<string>(EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT.shoe[0]!)
-
-  const getEquipmentEnchantEntries = (slot: EquipmentEnchantSlot): EquipmentEnchantTarget[] => {
-    if (slot === 'ring') return inventoryStore.ownedRings
-    if (slot === 'hat') return inventoryStore.ownedHats
-    return inventoryStore.ownedShoes
-  }
-
-  const getEquipmentEnchantBaseName = (slot: EquipmentEnchantSlot, defId: string): string => {
-    if (slot === 'ring') return getRingById(defId)?.name ?? defId
-    if (slot === 'hat') return getHatById(defId)?.name ?? defId
-    return getShoeById(defId)?.name ?? defId
-  }
-
-  const equipmentEnchantDefExists = (slot: EquipmentEnchantSlot, defId: string): boolean => {
-    if (slot === 'ring') return !!getRingById(defId)
-    if (slot === 'hat') return !!getHatById(defId)
-    return !!getShoeById(defId)
-  }
-
-  const equipmentEnchantSlotOptions = computed(() =>
-    EQUIPMENT_ENCHANT_SLOT_OPTIONS.map(option => ({
-      ...option,
-      count: getEquipmentEnchantEntries(option.id).length
-    }))
-  )
-
-  const selectedEquipmentEnchantEntries = computed(() => getEquipmentEnchantEntries(selectedEquipmentEnchantSlot.value))
-  const selectedEquipmentEnchantTarget = computed<EquipmentEnchantTarget | null>(() =>
-    selectedEquipmentEnchantEntries.value[selectedEquipmentEnchantIndex.value] ?? null
-  )
-
-  const equipmentEnchantTargetOptions = computed(() =>
-    selectedEquipmentEnchantEntries.value.map((entry, index) => ({
-      index,
-      name: getEquipmentDisplayName(getEquipmentEnchantBaseName(selectedEquipmentEnchantSlot.value, entry.defId), entry.enchantmentId),
-      enchantName: entry.enchantmentId ? getEquipmentEnchantmentById(entry.enchantmentId)?.name ?? entry.enchantmentId : '',
-      equipped:
-        selectedEquipmentEnchantSlot.value === 'ring'
-          ? index === inventoryStore.equippedRingSlot1 || index === inventoryStore.equippedRingSlot2
-          : selectedEquipmentEnchantSlot.value === 'hat'
-            ? index === inventoryStore.equippedHatIndex
-            : index === inventoryStore.equippedShoeIndex,
-      locked: !!entry.locked
-    }))
-  )
-
-  const equipmentEnchantOptions = computed(() =>
-    EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT[selectedEquipmentEnchantSlot.value].flatMap(id => {
-      const enchant = getEquipmentEnchantmentById(id)
-      return enchant
-        ? [{
-            id,
-            name: enchant.name,
-            description: enchant.description
-          }]
-        : []
-    })
-  )
-
-  const equipmentEnchantMaterialLines = computed<WeaponEnchantMaterialLine[]>(() =>
-    EQUIPMENT_ENCHANT_MATERIALS.map(mat => ({
-      itemId: mat.itemId,
-      item: getItemById(mat.itemId) ?? null,
-      itemName: getItemName(mat.itemId),
-      quantity: mat.quantity,
-      count: getIndexedItemCount(mat.itemId)
-    }))
-  )
-
-  const selectedEquipmentEnchantName = computed(() => getEquipmentEnchantmentById(selectedEquipmentEnchantId.value)?.name ?? selectedEquipmentEnchantId.value)
-  const selectedEquipmentSlotLabel = computed(() =>
-    equipmentEnchantSlotOptions.value.find(option => option.id === selectedEquipmentEnchantSlot.value)?.label ?? '装备'
-  )
-
-  watch(selectedEquipmentEnchantSlot, slot => {
-    selectedEquipmentEnchantIndex.value = 0
-    selectedEquipmentEnchantId.value = EQUIPMENT_ENCHANTMENT_IDS_BY_SLOT[slot][0] ?? ''
-  })
-
-  watch(equipmentEnchantTargetOptions, options => {
-    if (options.length <= 0) {
-      selectedEquipmentEnchantIndex.value = 0
-      return
-    }
-    if (!options.some(option => option.index === selectedEquipmentEnchantIndex.value)) {
-      selectedEquipmentEnchantIndex.value = options[0]!.index
-    }
-  })
-
-  const equipmentEnchantBlockReason = computed(() => {
-    if (processingStore.workshopLevel < EQUIPMENT_ENCHANT_MIN_LEVEL) return `工坊 Lv.${EQUIPMENT_ENCHANT_MIN_LEVEL} 后开放装备附魔。`
-    const target = selectedEquipmentEnchantTarget.value
-    if (!target) return `缺少可附魔的${selectedEquipmentSlotLabel.value}。`
-    if (target.locked) return '这件装备已锁定，先解锁才能附魔。'
-    if (!equipmentEnchantDefExists(selectedEquipmentEnchantSlot.value, target.defId)) return '装备定义不存在，无法附魔。'
-    const enchant = getEquipmentEnchantmentById(selectedEquipmentEnchantId.value)
-    if (!enchant || enchant.slot !== selectedEquipmentEnchantSlot.value) return '请选择有效的装备附魔。'
-    if (target.enchantmentId === selectedEquipmentEnchantId.value) return `${selectedEquipmentSlotLabel.value}已经拥有该附魔。`
-    if (playerStore.money < EQUIPMENT_ENCHANT_COST) return '铜钱不足。'
-    if (!hasCombinedItems(EQUIPMENT_ENCHANT_MATERIALS)) return '材料不足。'
-    return ''
-  })
-
-  const canConfirmEquipmentEnchant = computed(() => !equipmentEnchantBlockReason.value)
-  const equipmentEnchantConfirmLabel = computed(() =>
-    selectedEquipmentEnchantTarget.value?.enchantmentId ? `替换为${selectedEquipmentEnchantName.value}` : `附魔${selectedEquipmentEnchantName.value}`
-  )
-
-  const setSelectedEquipmentEnchantment = (index: number, enchantmentId: string) => {
-    if (selectedEquipmentEnchantSlot.value === 'ring') return inventoryStore.setRingEnchantment(index, enchantmentId)
-    if (selectedEquipmentEnchantSlot.value === 'hat') return inventoryStore.setHatEnchantment(index, enchantmentId)
-    return inventoryStore.setShoeEnchantment(index, enchantmentId)
-  }
-
-  const handleEquipmentEnchant = () => {
-    if (!canConfirmEquipmentEnchant.value) {
-      if (equipmentEnchantBlockReason.value) addLog(equipmentEnchantBlockReason.value)
-      return
-    }
-
-    const target = selectedEquipmentEnchantTarget.value
-    if (!target) return
-    const index = selectedEquipmentEnchantIndex.value
-    const beforeName = getEquipmentDisplayName(getEquipmentEnchantBaseName(selectedEquipmentEnchantSlot.value, target.defId), target.enchantmentId)
-    const inventorySnapshot = inventoryStore.serialize()
-    const warehouseSnapshot = warehouseStore.serialize()
-
-    if (!playerStore.spendMoney(EQUIPMENT_ENCHANT_COST)) {
-      addLog('铜钱不足。')
-      return
-    }
-    if (!removeCombinedItems(EQUIPMENT_ENCHANT_MATERIALS)) {
-      playerStore.earnMoney(EQUIPMENT_ENCHANT_COST, { countAsEarned: false })
-      addLog('材料不足。')
-      return
-    }
-
-    const result = setSelectedEquipmentEnchantment(index, selectedEquipmentEnchantId.value)
-    if (!result.success) {
-      playerStore.earnMoney(EQUIPMENT_ENCHANT_COST, { countAsEarned: false })
-      inventoryStore.deserialize(inventorySnapshot)
-      warehouseStore.deserialize(warehouseSnapshot)
-      addLog(result.message)
-      return
-    }
-
-    sfxClick()
-    const afterName = getEquipmentDisplayName(getEquipmentEnchantBaseName(selectedEquipmentEnchantSlot.value, target.defId), selectedEquipmentEnchantId.value)
-    addLog(`装备附魔完成：${beforeName} → ${afterName}（${selectedEquipmentEnchantName.value}）。`)
+    addLog(`铸魔炉完成：${item.name} 获得 ${resultSummary}。`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) handleEndDay()

@@ -141,11 +141,11 @@
           >
             <span class="flex items-center gap-1 min-w-0 text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
               <Lock v-if="weapon.locked" :size="11" class="shrink-0 text-accent/70" />
-              <span class="truncate">{{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId) }}</span>
+              <span class="truncate">{{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}</span>
             </span>
             <span v-if="idx === inventoryStore.equippedWeaponIndex" class="text-xs text-accent">装备中</span>
             <span v-else-if="weapon.locked" class="text-xs text-accent">已锁定</span>
-            <span v-else class="text-xs text-muted">{{ getWeaponSellPrice(weapon.defId, weapon.enchantmentId) }}文</span>
+            <span v-else class="text-xs text-muted">{{ getWeaponSellPrice(weapon.defId, weapon.enchantmentId, weapon.affixes) }}文</span>
           </div>
         </div>
       </div>
@@ -175,7 +175,10 @@
                   <Lock v-if="hat.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getHatById(hat.defId)?.name ?? hat.defId }}</span>
                 </span>
-                <p class="text-[0.625rem] text-muted truncate">{{ getHatById(hat.defId)?.description }}</p>
+                <p class="text-[0.625rem] text-muted truncate">
+                  {{ getHatById(hat.defId)?.description }}
+                  <template v-if="formatForgeAffixSummary(hat.affixes)"> · {{ formatForgeAffixSummary(hat.affixes) }}</template>
+                </p>
               </div>
               <Button
                 class="py-0 px-1.5 shrink-0 ml-2"
@@ -215,7 +218,10 @@
                   <Lock v-if="shoe.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getShoeById(shoe.defId)?.name ?? shoe.defId }}</span>
                 </span>
-                <p class="text-[0.625rem] text-muted truncate">{{ getShoeById(shoe.defId)?.description }}</p>
+                <p class="text-[0.625rem] text-muted truncate">
+                  {{ getShoeById(shoe.defId)?.description }}
+                  <template v-if="formatForgeAffixSummary(shoe.affixes)"> · {{ formatForgeAffixSummary(shoe.affixes) }}</template>
+                </p>
               </div>
               <Button
                 class="py-0 px-1.5 shrink-0 ml-2"
@@ -263,7 +269,10 @@
                   <Lock v-if="ring.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getRingById(ring.defId)?.name ?? ring.defId }}</span>
                 </span>
-                <p class="text-[0.625rem] text-muted truncate">{{ getRingById(ring.defId)?.description }}</p>
+                <p class="text-[0.625rem] text-muted truncate">
+                  {{ getRingById(ring.defId)?.description }}
+                  <template v-if="formatForgeAffixSummary(ring.affixes)"> · {{ formatForgeAffixSummary(ring.affixes) }}</template>
+                </p>
               </div>
               <div class="flex space-x-1 shrink-0 ml-2">
                 <Button
@@ -796,15 +805,15 @@
             </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">攻击力</span>
-              <span class="text-xs">{{ activeWeaponDef.attack }}</span>
+              <span class="text-xs">{{ activeWeaponStats.attack }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">暴击率</span>
-              <span class="text-xs">{{ Math.round(activeWeaponDef.critRate * 100) }}%</span>
+              <span class="text-xs">{{ Math.round(activeWeaponStats.critRate * 100) }}%</span>
             </div>
-            <div v-if="activeWeaponEnchant" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs text-muted">附魔</span>
-              <span class="text-xs text-accent">{{ activeWeaponEnchant.name }}：{{ activeWeaponEnchant.description }}</span>
+            <div v-if="activeWeaponAffixSummary" class="flex items-start justify-between gap-2 mt-0.5">
+              <span class="text-xs text-muted shrink-0">词条</span>
+              <span class="text-xs text-accent text-right">{{ activeWeaponAffixSummary }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">售价</span>
@@ -858,7 +867,7 @@
             <p class="text-xs text-muted">{{ activeRingDef.description }}</p>
           </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div v-for="eff in activeRingDef.effects" :key="eff.type" class="flex items-center justify-between mt-0.5 first:mt-0">
+            <div v-for="(eff, effIdx) in activeRingEffects" :key="`${eff.type}:${effIdx}`" class="flex items-center justify-between mt-0.5 first:mt-0">
               <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] }}</span>
               <span class="text-xs text-success">+{{ formatEffectValue(eff) }}</span>
             </div>
@@ -921,7 +930,7 @@
             <p class="text-xs text-muted">{{ activeHatDef.description }}</p>
           </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div v-for="eff in activeHatDef.effects" :key="eff.type" class="flex items-center justify-between mt-0.5 first:mt-0">
+            <div v-for="(eff, effIdx) in activeHatEffects" :key="`${eff.type}:${effIdx}`" class="flex items-center justify-between mt-0.5 first:mt-0">
               <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] }}</span>
               <span class="text-xs text-success">+{{ formatEffectValue(eff) }}</span>
             </div>
@@ -969,7 +978,7 @@
             <p class="text-xs text-muted">{{ activeShoeDef.description }}</p>
           </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div v-for="eff in activeShoeDef.effects" :key="eff.type" class="flex items-center justify-between mt-0.5 first:mt-0">
+            <div v-for="(eff, effIdx) in activeShoeEffects" :key="`${eff.type}:${effIdx}`" class="flex items-center justify-between mt-0.5 first:mt-0">
               <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] }}</span>
               <span class="text-xs text-success">+{{ formatEffectValue(eff) }}</span>
             </div>
@@ -1019,7 +1028,8 @@
   import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
   import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
   import { getRecipeById } from '@/data/recipes'
-  import { getWeaponById, getWeaponDisplayName, getWeaponSellPrice, getEnchantmentById, WEAPON_TYPE_NAMES } from '@/data/weapons'
+  import { getWeaponById, getWeaponDisplayName, getWeaponSellPrice, WEAPON_TYPE_NAMES } from '@/data/weapons'
+  import { formatForgeAffixSummary, getForgeAffixEffectValue, getForgeAffixEquipmentEffects } from '@/data/forgeAffixes'
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
@@ -1435,21 +1445,32 @@
     if (activeWeaponIdx.value === null) return ''
     const weapon = inventoryStore.ownedWeapons[activeWeaponIdx.value]
     if (!weapon) return ''
-    return getWeaponDisplayName(weapon.defId, weapon.enchantmentId)
+    return getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes)
   })
 
-  const activeWeaponEnchant = computed(() => {
+  const activeWeaponAffixSummary = computed(() => {
     if (activeWeaponIdx.value === null) return null
     const weapon = inventoryStore.ownedWeapons[activeWeaponIdx.value]
-    if (!weapon?.enchantmentId) return null
-    return getEnchantmentById(weapon.enchantmentId) ?? null
+    if (!weapon) return null
+    return formatForgeAffixSummary(weapon.affixes) || null
+  })
+
+  const activeWeaponStats = computed(() => {
+    if (activeWeaponIdx.value === null) return { attack: 0, critRate: 0 }
+    const weapon = inventoryStore.ownedWeapons[activeWeaponIdx.value]
+    const def = weapon ? getWeaponById(weapon.defId) : null
+    if (!weapon || !def) return { attack: 0, critRate: 0 }
+    return {
+      attack: def.attack + getForgeAffixEffectValue(weapon.affixes, 'attack_bonus'),
+      critRate: def.critRate + getForgeAffixEffectValue(weapon.affixes, 'crit_rate_bonus')
+    }
   })
 
   const activeWeaponPrice = computed(() => {
     if (activeWeaponIdx.value === null) return 0
     const weapon = inventoryStore.ownedWeapons[activeWeaponIdx.value]
     if (!weapon) return 0
-    return getWeaponSellPrice(weapon.defId, weapon.enchantmentId)
+    return getWeaponSellPrice(weapon.defId, weapon.enchantmentId, weapon.affixes)
   })
 
   const activeWeaponLocked = computed(() => {
@@ -1484,6 +1505,12 @@
     const ring = inventoryStore.ownedRings[activeRingIdx.value]
     if (!ring) return null
     return getRingById(ring.defId) ?? null
+  })
+
+  const activeRingEffects = computed(() => {
+    if (activeRingIdx.value === null || !activeRingDef.value) return []
+    const ring = inventoryStore.ownedRings[activeRingIdx.value]
+    return [...activeRingDef.value.effects, ...getForgeAffixEquipmentEffects(ring?.affixes)]
   })
 
   const activeRingLocked = computed(() => {
@@ -1542,6 +1569,12 @@
     return getHatById(hat.defId) ?? null
   })
 
+  const activeHatEffects = computed(() => {
+    if (activeHatIdx.value === null || !activeHatDef.value) return []
+    const hat = inventoryStore.ownedHats[activeHatIdx.value]
+    return [...activeHatDef.value.effects, ...getForgeAffixEquipmentEffects(hat?.affixes)]
+  })
+
   const activeHatLocked = computed(() => {
     if (activeHatIdx.value === null) return false
     return !!inventoryStore.ownedHats[activeHatIdx.value]?.locked
@@ -1590,6 +1623,12 @@
     const shoe = inventoryStore.ownedShoes[activeShoeIdx.value]
     if (!shoe) return null
     return getShoeById(shoe.defId) ?? null
+  })
+
+  const activeShoeEffects = computed(() => {
+    if (activeShoeIdx.value === null || !activeShoeDef.value) return []
+    const shoe = inventoryStore.ownedShoes[activeShoeIdx.value]
+    return [...activeShoeDef.value.effects, ...getForgeAffixEquipmentEffects(shoe?.affixes)]
   })
 
   const activeShoeLocked = computed(() => {

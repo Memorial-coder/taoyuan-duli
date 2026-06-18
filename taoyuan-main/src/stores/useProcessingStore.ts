@@ -139,11 +139,15 @@ export const useProcessingStore = defineStore('processing', () => {
 
   const isMachineCraftUnlocked = (machineType: MachineType): boolean => {
     const def = PROCESSING_MACHINES.find(machine => machine.id === machineType)
+    if (def?.workshopLevelRequired !== undefined && workshopLevel.value < def.workshopLevelRequired) return false
     return !def?.masteryRewardId || skillStore.isMasteryRewardUnlocked(def.masteryRewardId)
   }
 
   const getMachineCraftLockedReason = (machineType: MachineType): string => {
     const def = PROCESSING_MACHINES.find(machine => machine.id === machineType)
+    if (def?.workshopLevelRequired !== undefined && workshopLevel.value < def.workshopLevelRequired) {
+      return `需要工坊 Lv.${def.workshopLevelRequired}`
+    }
     if (!def?.masteryRewardId || skillStore.isMasteryRewardUnlocked(def.masteryRewardId)) return ''
     return `需要解锁「${getMasteryRewardLabel(def.masteryRewardId)}」。`
   }

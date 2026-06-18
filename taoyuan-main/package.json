@@ -86,6 +86,7 @@
     "qa:weekly-board-activity-guards": "node scripts/qa-weekly-board-activity-guards.mjs",
     "qa:mayor-ticket-conversion": "node scripts/qa-mayor-ticket-conversion.mjs",
     "qa:reward-ticket-copy": "node scripts/qa-reward-ticket-copy.mjs",
+    "qa:rare-visitor-rewards": "node scripts/qa-rare-visitor-rewards.mjs",
     "qa:reward-ticket-potential-exchange": "node scripts/qa-reward-ticket-potential-exchange.mjs",
     "qa:glossary-coverage": "node scripts/qa-glossary-coverage.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",

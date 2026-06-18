@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import type { MonsterDef, CombatAction, MineFloorDef, MineTile, Quality } from '@/types'
+import type { ForgeAffixRoll, MonsterDef, CombatAction, MineFloorDef, MineTile, Quality } from '@/types'
 import {
   getFloor,
   getRewardNames,
@@ -25,9 +25,13 @@ import {
   MONSTER_DROP_WEAPONS,
   BOSS_DROP_WEAPONS,
   TREASURE_DROP_WEAPONS,
-  rollRandomEnchantment,
   getWeaponDisplayName
 } from '@/data/weapons'
+import {
+  migrateLegacyEnchantmentToAffixes,
+  rollForgeAffixes,
+  sanitizeForgeAffixes
+} from '@/data/forgeAffixes'
 import { getRingById, MONSTER_DROP_RINGS, BOSS_DROP_RINGS, TREASURE_DROP_RINGS } from '@/data/rings'
 import { getHatById, MONSTER_DROP_HATS, BOSS_DROP_HATS, TREASURE_DROP_HATS } from '@/data/hats'
 import { getShoeById, MONSTER_DROP_SHOES, BOSS_DROP_SHOES, TREASURE_DROP_SHOES } from '@/data/shoes'
@@ -111,6 +115,10 @@ const TREASURE_SENSE_REWARDS = [
   'ancient_coin'
 ] as const
 const rollTreasureSenseReward = (): string => TREASURE_SENSE_REWARDS[Math.floor(Math.random() * TREASURE_SENSE_REWARDS.length)]!
+const cloneForgeAffixes = (affixes?: ForgeAffixRoll[] | null): ForgeAffixRoll[] =>
+  (affixes ?? []).map(affix => ({ ...affix }))
+const rollDroppedWeaponAffixes = (): ForgeAffixRoll[] =>
+  Math.random() < 0.3 ? rollForgeAffixes({ target: 'weapon', workshopLevel: 7 }) : []
 const MINING_ITEM_EXP: Record<string, number> = {
   copper_ore: 6,
   iron_ore: 8,
@@ -171,7 +179,7 @@ type CombatActionResult = {
 type SessionLootEntry =
   | { kind: 'item'; itemId: string; quantity: number }
   | { kind: 'money'; amount: number }
-  | { kind: 'weapon'; defId: string; enchantmentId: string | null }
+  | { kind: 'weapon'; defId: string; enchantmentId: string | null; affixes?: ForgeAffixRoll[] }
   | { kind: 'ring'; defId: string }
   | { kind: 'hat'; defId: string }
   | { kind: 'shoe'; defId: string }
@@ -192,7 +200,7 @@ interface PendingMineRewardEntry {
   floorNum: number
   itemRewards: InventoryRewardEntry[]
   money: number
-  weaponReward: { defId: string; enchantmentId: string | null } | null
+  weaponReward: { defId: string; enchantmentId: string | null; affixes?: ForgeAffixRoll[] } | null
   ringRewardId: string | null
   hatRewardId: string | null
   shoeRewardId: string | null
@@ -519,7 +527,8 @@ export const useMiningStore = defineStore('mining', () => {
       if (fractionalOreBonus > 0 && Math.random() < fractionalOreBonus) quantity += 1
     }
     if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
-    if (inventoryStore.getToolEnchantmentId('pickaxe') === 'generous_pick' && Math.random() < 0.15) quantity += 1
+    const generousPickChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_ore_bonus_chance')
+    if (generousPickChance > 0 && Math.random() < generousPickChance) quantity += 1
     const cookingOreBonusChance = useCookingStore().getActiveMiningOreBonusChance()
     if (cookingOreBonusChance > 0 && Math.random() < cookingOreBonusChance) quantity += 1
     if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
@@ -556,8 +565,8 @@ export const useMiningStore = defineStore('mining', () => {
     sessionLoot.value.push({ kind: 'money', amount })
   }
 
-  const recordWeaponLoot = (defId: string, enchantmentId: string | null) => {
-    sessionLoot.value.push({ kind: 'weapon', defId, enchantmentId })
+  const recordWeaponLoot = (defId: string, enchantmentId: string | null, affixes?: ForgeAffixRoll[] | null) => {
+    sessionLoot.value.push({ kind: 'weapon', defId, enchantmentId, affixes: cloneForgeAffixes(affixes) })
   }
 
   const recordRingLoot = (defId: string) => {
@@ -581,7 +590,7 @@ export const useMiningStore = defineStore('mining', () => {
         playerStore.spendMoney(Math.min(playerStore.money, entry.amount))
         break
       case 'weapon':
-        inventoryStore.removeWeapon(entry.defId, entry.enchantmentId)
+        inventoryStore.removeWeapon(entry.defId, entry.enchantmentId, entry.affixes)
         break
       case 'ring':
         inventoryStore.removeRing(entry.defId)
@@ -619,8 +628,8 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     if (reward.weaponReward) {
-      inventoryStore.addWeapon(reward.weaponReward.defId, reward.weaponReward.enchantmentId)
-      recordWeaponLoot(reward.weaponReward.defId, reward.weaponReward.enchantmentId)
+      inventoryStore.addWeapon(reward.weaponReward.defId, reward.weaponReward.enchantmentId, reward.weaponReward.affixes)
+      recordWeaponLoot(reward.weaponReward.defId, reward.weaponReward.enchantmentId, reward.weaponReward.affixes)
     }
     if (reward.ringRewardId) {
       inventoryStore.addRing(reward.ringRewardId)
@@ -831,17 +840,19 @@ export const useMiningStore = defineStore('mining', () => {
     let oreRewardMessage = ''
     if (oreRewards) oreRewardMessage = ` 获得了${getRewardNames(oreRewards)}！`
 
+    const fixedEnchantmentId = weaponId ? (getWeaponById(weaponId)?.fixedEnchantment ?? null) : null
     const weaponReward =
       shouldGrantFirstKill && weaponId
         ? {
             defId: weaponId,
-            enchantmentId: getWeaponById(weaponId)?.fixedEnchantment ?? null
+            enchantmentId: null,
+            affixes: migrateLegacyEnchantmentToAffixes('weapon', fixedEnchantmentId)
           }
         : null
 
     if (shouldGrantFirstKill && bossId) {
       if (weaponId) {
-        const displayName = getWeaponDisplayName(weaponId, weaponReward?.enchantmentId ?? null)
+        const displayName = getWeaponDisplayName(weaponId, null, weaponReward?.affixes)
         message += ` 首次击败BOSS！获得了传说武器：${displayName}！`
       }
     }
@@ -1183,8 +1194,8 @@ export const useMiningStore = defineStore('mining', () => {
   /** 处理空格子 */
   const _handleEmptyTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     tile.state = 'revealed'
-    const stoneChipsActive = inventoryStore.getToolEnchantmentId('pickaxe') === 'stone_chips'
-    if (stoneChipsActive && Math.random() < 0.2) {
+    const stoneChipsChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_stone_chips_chance')
+    if (stoneChipsChance > 0 && Math.random() < stoneChipsChance) {
       const rewards: InventoryRewardEntry[] = [{ itemId: 'stone', quantity: 1 }]
       if (canGrantRewardEntries(rewards) && grantRewardEntries(rewards, true)) {
         const rewardDisplays = buildRewardDisplayEntries(rewards)
@@ -1217,10 +1228,11 @@ export const useMiningStore = defineStore('mining', () => {
     const rareTransmuteChance = skillStore.getSkillMasteryEffectValue('rare_transmute')
     const rareTransmuteOreId = rareTransmuteChance > 0 && Math.random() < rareTransmuteChance ? getRareTransmuteOre(oreId) : null
     const rareTransmuteRewards: InventoryRewardEntry[] = rareTransmuteOreId ? [{ itemId: rareTransmuteOreId, quantity: 1 }] : []
-    const pickaxeEnchantId = inventoryStore.getToolEnchantmentId('pickaxe')
-    const oreSmelterOreId = pickaxeEnchantId === 'ore_smelter' && Math.random() < 0.1 ? getRareTransmuteOre(oreId) : null
+    const oreSmelterChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_ore_smelter_chance')
+    const treasureSenseChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_treasure_sense_chance')
+    const oreSmelterOreId = oreSmelterChance > 0 && Math.random() < oreSmelterChance ? getRareTransmuteOre(oreId) : null
     const oreSmelterRewards: InventoryRewardEntry[] = oreSmelterOreId ? [{ itemId: oreSmelterOreId, quantity: 1 }] : []
-    const treasureSenseItemId = pickaxeEnchantId === 'treasure_sense' && Math.random() < 0.08 ? rollTreasureSenseReward() : null
+    const treasureSenseItemId = treasureSenseChance > 0 && Math.random() < treasureSenseChance ? rollTreasureSenseReward() : null
     const treasureSenseRewards: InventoryRewardEntry[] = treasureSenseItemId ? [{ itemId: treasureSenseItemId, quantity: 1 }] : []
     const rewardEntries: InventoryRewardEntry[] = [
       { itemId: oreId, quantity },
@@ -1404,9 +1416,9 @@ export const useMiningStore = defineStore('mining', () => {
       const treasureBonus = inventoryStore.getRingEffectValue('treasure_find') + skillStore.getBlessingEffectValue('treasure_find')
       for (const tw of treasureWeapons) {
         if (Math.random() < Math.min(tw.chance + treasureBonus * tw.chance, 1)) {
-          const enchantId = rollRandomEnchantment()
-          inventoryStore.addWeapon(tw.weaponId, enchantId)
-          recordWeaponLoot(tw.weaponId, enchantId)
+          const affixes = rollDroppedWeaponAffixes()
+          inventoryStore.addWeapon(tw.weaponId, null, affixes)
+          recordWeaponLoot(tw.weaponId, null, affixes)
           items.push({ itemId: tw.weaponId, quantity: 1 })
         }
       }
@@ -1693,7 +1705,6 @@ export const useMiningStore = defineStore('mining', () => {
     const guildStore = useGuildStore()
     const owned = inventoryStore.getEquippedWeapon()
     const weaponDef = getWeaponById(owned.defId)
-    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
     const combatSkill = skillStore.getSkill('combat')
     const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
 
@@ -1703,7 +1714,10 @@ export const useMiningStore = defineStore('mining', () => {
         weaponAttack: inventoryStore.getWeaponAttack(),
         weaponCritRate: inventoryStore.getWeaponCritRate(),
         weaponType: weaponDef?.type ?? null,
-        enchantSpecial: enchant?.special ?? null,
+        weaponDamageReduction: inventoryStore.getWeaponAffixEffectValue('weapon_damage_reduction'),
+        weaponDefenseIgnore: inventoryStore.getWeaponAffixEffectValue('weapon_defense_ignore'),
+        weaponExtraStrikeChance: inventoryStore.getWeaponAffixEffectValue('weapon_extra_strike_chance'),
+        weaponLifesteal: inventoryStore.getWeaponAffixEffectValue('vampiric'),
         combatLevel: skillStore.combatLevel,
         allSkillsBuff,
         ringAttackBonus: inventoryStore.getRingEffectValue('attack_bonus'),
@@ -1727,13 +1741,8 @@ export const useMiningStore = defineStore('mining', () => {
   const applyBossCombatTimeMinimum = (timeCostHours: number) =>
     combatIsBoss.value ? Math.max(timeCostHours, COMBAT_TIME_NORMAL) : timeCostHours
 
-  const getEquippedWeaponEnchantSpecial = () => {
-    const owned = inventoryStore.getEquippedWeapon()
-    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
-    return enchant?.special ?? null
-  }
-
-  const getWeaponCombatTimeMultiplier = (): number => getEquippedWeaponEnchantSpecial() === 'swift' ? 0.85 : 1
+  const getWeaponCombatTimeMultiplier = (): number =>
+    Math.max(0.1, 1 - inventoryStore.getWeaponAffixEffectValue('weapon_combat_time_reduction'))
 
   const isSpiritSlayerTarget = (monster: MonsterDef): boolean => {
     const key = `${monster.id} ${monster.name}`.toLowerCase()
@@ -1823,14 +1832,11 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     const monsterHpBefore = combatMonsterHp.value
-    const weaponSpecial = getEquippedWeaponEnchantSpecial()
-    const targetDamageMultiplier =
-      weaponSpecial === 'spirit_slayer' && isSpiritSlayerTarget(monster)
-        ? 1.25
-        : weaponSpecial === 'bug_slayer' && isBugSlayerTarget(monster)
-          ? 1.35
-          : 1
-    const targetCritBonus = weaponSpecial === 'exorcist' && isExorcistTarget(monster) ? 0.15 : 0
+    const spiritSlayerBonus = isSpiritSlayerTarget(monster) ? inventoryStore.getWeaponAffixEffectValue('weapon_spirit_damage') : 0
+    const bugSlayerBonus = isBugSlayerTarget(monster) ? inventoryStore.getWeaponAffixEffectValue('weapon_bug_damage') : 0
+    const exorcistCritBonus = isExorcistTarget(monster) ? inventoryStore.getWeaponAffixEffectValue('weapon_exorcist_crit') : 0
+    const targetDamageMultiplier = 1 + Math.max(spiritSlayerBonus, bugSlayerBonus)
+    const targetCritBonus = exorcistCritBonus
     const attackProfile = targetDamageMultiplier > 1 || targetCritBonus > 0
       ? {
           ...runtime.attack,
@@ -1860,13 +1866,13 @@ export const useMiningStore = defineStore('mining', () => {
     if (attackOutcome.isCrit) {
       msg = `暴击！${msg}`
     }
-    if (weaponSpecial === 'spirit_slayer' && isSpiritSlayerTarget(monster)) {
+    if (spiritSlayerBonus > 0) {
       msg += ' 镇魂附魔压制了目标。'
     }
-    if (weaponSpecial === 'bug_slayer' && isBugSlayerTarget(monster)) {
+    if (bugSlayerBonus > 0) {
       msg += ' 虫猎附魔命中了弱点。'
     }
-    if (weaponSpecial === 'exorcist' && isExorcistTarget(monster)) {
+    if (exorcistCritBonus > 0) {
       msg += ' 斩邪附魔撕开了邪祟。'
     }
     if (attackOutcome.didExtraStrike) {
@@ -1934,14 +1940,12 @@ export const useMiningStore = defineStore('mining', () => {
     const combatExpGain = applySkillMasteryBonus(Math.floor(monster.expReward * wildernessXpBonus * infestedXpBonus), bossPressureBonus)
     skillStore.addExp('combat', combatExpGain)
 
-    // 幸运附魔 + 戒指增加掉落率
-    const owned = inventoryStore.getEquippedWeapon()
-    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
+    // 武器词条 + 戒指增加掉落率
     const ringDropBonus = inventoryStore.getRingEffectValue('monster_drop_bonus')
     const ringLuckBonus = inventoryStore.getRingEffectValue('luck')
     const blessingLuckBonus = skillStore.getBlessingEffectValue('luck')
     const luckyBonus =
-      (enchant?.special === 'lucky' ? 0.2 : 0) +
+      inventoryStore.getWeaponAffixEffectValue('monster_drop_bonus') +
       ringDropBonus +
       ringLuckBonus * 0.5 +
       blessingLuckBonus * 0.5 +
@@ -1990,10 +1994,10 @@ export const useMiningStore = defineStore('mining', () => {
         for (const wd of weaponDrops) {
           const dropChance = wd.chance + luckyBonus * wd.chance
           if (Math.random() < dropChance) {
-            const enchantId = rollRandomEnchantment()
-            inventoryStore.addWeapon(wd.weaponId, enchantId)
-            recordWeaponLoot(wd.weaponId, enchantId)
-            const displayName = getWeaponDisplayName(wd.weaponId, enchantId)
+            const affixes = rollDroppedWeaponAffixes()
+            inventoryStore.addWeapon(wd.weaponId, null, affixes)
+            recordWeaponLoot(wd.weaponId, null, affixes)
+            const displayName = getWeaponDisplayName(wd.weaponId, null, affixes)
             msg += ` 获得了武器：${displayName}！`
             addCombatRewardDisplay({ itemId: wd.weaponId, quantity: 1, label: `武器：${displayName}×1` })
           }
@@ -2540,7 +2544,9 @@ export const useMiningStore = defineStore('mining', () => {
       pendingMineRewards: pendingMineRewards.value.map(reward => ({
         ...reward,
         itemRewards: reward.itemRewards.map(entry => ({ ...entry })),
-        weaponReward: reward.weaponReward ? { ...reward.weaponReward } : null
+        weaponReward: reward.weaponReward
+          ? { ...reward.weaponReward, affixes: cloneForgeAffixes(reward.weaponReward.affixes) }
+          : null
       })),
       isInSkullCavern: isInSkullCavern.value,
       skullCavernFloor: skullCavernFloor.value,
@@ -2600,9 +2606,14 @@ export const useMiningStore = defineStore('mining', () => {
         : null
       const weaponDefId = typeof rawWeaponReward?.defId === 'string' ? rawWeaponReward.defId : ''
       const weaponEnchantId = typeof rawWeaponReward?.enchantmentId === 'string' ? rawWeaponReward.enchantmentId : null
+      const validWeaponEnchantId = weaponEnchantId && getEnchantmentById(weaponEnchantId) ? weaponEnchantId : null
       const weaponReward =
-        weaponDefId && getWeaponById(weaponDefId) && (!weaponEnchantId || getEnchantmentById(weaponEnchantId))
-          ? { defId: weaponDefId, enchantmentId: weaponEnchantId }
+        weaponDefId && getWeaponById(weaponDefId) && (!weaponEnchantId || validWeaponEnchantId)
+          ? {
+              defId: weaponDefId,
+              enchantmentId: null,
+              affixes: sanitizeForgeAffixes('weapon', rawWeaponReward?.affixes, validWeaponEnchantId)
+            }
           : null
       const ringRewardId = typeof raw.ringRewardId === 'string' && getRingById(raw.ringRewardId) ? raw.ringRewardId : null
       const hatRewardId = typeof raw.hatRewardId === 'string' && getHatById(raw.hatRewardId) ? raw.hatRewardId : null

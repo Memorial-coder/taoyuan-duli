@@ -13,7 +13,6 @@ import { useShopStore } from '@/stores/useShopStore'
 import { useSkillStore } from '@/stores/useSkillStore'
 import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 import { getCropById, getItemById } from '@/data'
-import { getEnchantmentById } from '@/data/weapons'
 import { getFertilizerById } from '@/data/processing'
 import { ACTION_TIME_COSTS } from '@/data/timeConstants'
 import type { Quality, ItemCategory } from '@/types'
@@ -40,7 +39,6 @@ export const SEED_QUALITY_BONUS: Record<Quality, number> = {
 }
 const SEED_RECOVERY_EXCLUDED_CROP_IDS = new Set(['ancient_fruit'])
 const SEED_RECOVERY_CHANCE = 0.08
-const HAYMAKER_HAY_CHANCE = 0.35
 
 export const getSeedQualityBonus = (quality: Quality | null | undefined): number => {
   return quality ? (SEED_QUALITY_BONUS[quality] ?? 0) : 0
@@ -872,9 +870,8 @@ export const handleClearWeed = (plotId: number) => {
   if (farmStore.clearWeed(plotId)) {
     sfxDig()
     let haymakerMessage = ''
-    const weapon = inventoryStore.getEquippedWeapon()
-    const enchant = weapon.enchantmentId ? getEnchantmentById(weapon.enchantmentId) : null
-    if (enchant?.special === 'haymaker' && Math.random() < HAYMAKER_HAY_CHANCE && inventoryStore.canAddItem('hay', 1)) {
+    const haymakerChance = inventoryStore.getWeaponAffixEffectValue('weapon_haymaker_chance')
+    if (haymakerChance > 0 && Math.random() < haymakerChance && inventoryStore.canAddItem('hay', 1)) {
       inventoryStore.addItemExact('hay', 1)
       achievementStore.discoverItem('hay')
       haymakerMessage = ' 割草附魔获得干草×1。'
@@ -909,9 +906,7 @@ export const handleBatchClearWeed = () => {
 
   let cleared = 0
   let haymakerHay = 0
-  const weapon = inventoryStore.getEquippedWeapon()
-  const enchant = weapon.enchantmentId ? getEnchantmentById(weapon.enchantmentId) : null
-  const haymakerActive = enchant?.special === 'haymaker'
+  const haymakerChance = inventoryStore.getWeaponAffixEffectValue('weapon_haymaker_chance')
   const batchRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const batchRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
   for (const plot of targets) {
@@ -919,7 +914,7 @@ export const handleBatchClearWeed = () => {
     const cost = getFarmingActionStaminaCost(2, [1 - farmingBuff, 1 - batchRingFarmReduction, 1 - batchRingGlobalReduction])
     if (!playerStore.consumeStamina(cost, { source: 'tool' })) break
     farmStore.clearWeed(plot.id)
-    if (haymakerActive && Math.random() < HAYMAKER_HAY_CHANCE && inventoryStore.addItemExact('hay', 1)) {
+    if (haymakerChance > 0 && Math.random() < haymakerChance && inventoryStore.addItemExact('hay', 1)) {
       achievementStore.discoverItem('hay')
       haymakerHay++
     }

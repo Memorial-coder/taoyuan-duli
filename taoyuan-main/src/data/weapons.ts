@@ -1,4 +1,9 @@
-import type { WeaponDef, EnchantmentDef, WeaponType } from '@/types'
+import type { ForgeAffixRoll, WeaponDef, EnchantmentDef, WeaponType } from '@/types'
+import {
+  formatForgeAffixNameSummary,
+  getForgeAffixSellBonus,
+  migrateLegacyEnchantmentToAffixes
+} from './forgeAffixes'
 
 /** 附魔定义 */
 export const ENCHANTMENTS: Record<string, EnchantmentDef> = {
@@ -591,26 +596,21 @@ export const getEnchantmentById = (id: string): EnchantmentDef | undefined => {
 }
 
 /** 计算武器卖出价格 */
-export const getWeaponSellPrice = (defId: string, enchantmentId: string | null): number => {
+export const getWeaponSellPrice = (defId: string, enchantmentId: string | null, affixes?: ForgeAffixRoll[] | null): number => {
   const def = WEAPONS[defId]
   if (!def) return 0
   const base = def.shopPrice ? Math.floor(def.shopPrice * 0.5) : def.attack * 15
-  // 附魔额外加价
-  if (enchantmentId) {
-    const enchant = ENCHANTMENTS[enchantmentId]
-    if (enchant) return base + 100 + enchant.attackBonus * 20
-  }
-  return base
+  const effectiveAffixes = affixes?.length ? affixes : migrateLegacyEnchantmentToAffixes('weapon', enchantmentId)
+  return base + getForgeAffixSellBonus(effectiveAffixes)
 }
 
 /** 获取附魔武器的显示名称 */
-export const getWeaponDisplayName = (defId: string, enchantmentId: string | null): string => {
+export const getWeaponDisplayName = (defId: string, enchantmentId: string | null, affixes?: ForgeAffixRoll[] | null): string => {
   const weapon = WEAPONS[defId]
   if (!weapon) return defId
-  if (!enchantmentId) return weapon.name
-  const enchant = ENCHANTMENTS[enchantmentId]
-  if (!enchant) return weapon.name
-  return `${enchant.name}的${weapon.name}`
+  const effectiveAffixes = affixes?.length ? affixes : migrateLegacyEnchantmentToAffixes('weapon', enchantmentId)
+  const affixName = formatForgeAffixNameSummary(effectiveAffixes)
+  return affixName ? `${affixName}的${weapon.name}` : weapon.name
 }
 
 /** 宝箱掉落武器（按矿洞区域） */

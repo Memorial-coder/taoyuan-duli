@@ -21,6 +21,11 @@ import { usePlayerStore } from './usePlayerStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { processHiddenNpcDiscovery } from '@/composables/useHiddenNpcDiscovery'
+import {
+  buildRareVisitorSeasonVisitLedgerId,
+  getRareVisitorById,
+  WANDERING_ARTIST_VISITOR_ID
+} from '@/data/bookseller'
 
 const MAX_TRAVEL_SPEED_BONUS = 0.45
 const MAX_FOOD_ACTION_SPEED_BONUS = 0.25
@@ -154,6 +159,17 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 鎺ㄨ繘鏃堕棿锛堝皬鏃讹級锛岃繑鍥炵粨鏋?*/
+  const getRareVisitorActionSpeedBonus = (): number => {
+    const visitor = getRareVisitorById(WANDERING_ARTIST_VISITOR_ID)
+    if (visitor?.visitReward.type !== 'action_speed') return 0
+
+    const playerStore = usePlayerStore()
+    const seasonVisitLedgerId = buildRareVisitorSeasonVisitLedgerId(visitor.id, year.value, season.value)
+    const seasonVisitEntry = playerStore.getLifestyleDiscoverySnapshot().lifestyleUnlocks[seasonVisitLedgerId]
+    const currentDayTag = `${year.value}-${season.value}-${day.value}`
+    return seasonVisitEntry?.lastSeenDayTag === currentDayTag ? Math.max(0, visitor.visitReward.value) : 0
+  }
+
   const getActionSpeedReduction = (): number => {
     const cookingStore = useCookingStore()
     const foodSpeedBuff = cookingStore.activeBuff?.type === 'speed'
@@ -163,7 +179,8 @@ export const useGameStore = defineStore('game', () => {
       MAX_ALCHEMY_ACTION_SPEED_BONUS,
       Math.max(0, cookingStore.getActiveAlchemyActionSpeedBonus())
     )
-    const combined = 1 - (1 - foodSpeedBuff) * (1 - alchemySpeedBuff)
+    const rareVisitorSpeedBuff = getRareVisitorActionSpeedBonus()
+    const combined = 1 - (1 - foodSpeedBuff) * (1 - alchemySpeedBuff) * (1 - rareVisitorSpeedBuff)
     return Math.min(MAX_TOTAL_ACTION_SPEED_BONUS, combined)
   }
 
