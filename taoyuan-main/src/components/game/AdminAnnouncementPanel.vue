@@ -114,6 +114,22 @@
         </label>
       </div>
 
+      <label class="announcement-save-toggle">
+        <input v-model="form.show_save_update_button" type="checkbox" />
+        <span>
+          <strong>显示“保存存档并更新”按钮</strong>
+          <small>版本更新 / 热修复说明默认开启，其他公告默认关闭；这里可以手动覆盖。</small>
+        </span>
+      </label>
+
+      <label class="announcement-pin-toggle" data-testid="announcement-pin-toggle">
+        <input v-model="form.is_pinned" type="checkbox" />
+        <span>
+          <strong>置顶公告</strong>
+          <small>同一时间只保留一条已发布置顶公告；发布新置顶时会自动取消旧置顶。</small>
+        </span>
+      </label>
+
       <div class="announcement-reward-panel" data-testid="announcement-reward-config">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -210,6 +226,7 @@
         </div>
         <div class="announcement-preview" data-testid="announcement-admin-preview">
           <img v-if="form.image_url" :src="form.image_url" :alt="form.title || '公告图片'" class="announcement-preview-image" />
+          <span v-if="form.is_pinned" class="announcement-pin-badge">置顶</span>
           <h3>{{ form.title || '未命名公告' }}</h3>
           <div class="announcement-preview-body taoyuan-rich-markdown" v-html="previewHtml" />
           <div v-if="form.rewards.length" class="announcement-preview-rewards" data-testid="announcement-reward-preview">
@@ -218,6 +235,7 @@
           </div>
           <div class="announcement-preview-actions">
             <span>{{ previewCloseButtonLabel }}</span>
+            <span v-if="form.show_save_update_button">保存存档并更新</span>
             <span v-if="form.cta_url">{{ form.cta_text || form.button_texts.cta || '查看详情' }}</span>
           </div>
         </div>
@@ -240,6 +258,7 @@
           >
             <span class="announcement-list-title">{{ announcement.title }}</span>
             <span class="announcement-list-meta">
+              <template v-if="announcement.is_pinned">置顶 · </template>
               {{ statusLabel(announcement.status) }} · {{ formatTime(announcement.updated_at || announcement.created_at) }}
               <template v-if="announcement.version"> · v{{ announcement.version }}</template>
               <template v-if="announcement.rewards.length"> · 奖励 {{ announcement.rewards.length }}</template>
@@ -291,6 +310,7 @@
     updateAdminAnnouncement,
     uploadAdminContentImage,
   } from '@/utils/adminContentApi'
+  import { getDefaultAnnouncementSaveUpdateButton } from '@/utils/announcementApi'
   import { showFloat } from '@/composables/useGameLog'
   import type {
     AnnouncementReward,
@@ -326,6 +346,8 @@
       cta: '查看详情',
     },
     template_type: '',
+    show_save_update_button: false,
+    is_pinned: false,
     rewards: [],
     duplicate_compensation_money: 0,
   })
@@ -439,6 +461,8 @@
     start_at: fromDatetimeLocal(startAtText.value),
     end_at: fromDatetimeLocal(endAtText.value),
     priority: Number(form.value.priority) || 0,
+    show_save_update_button: form.value.show_save_update_button === true,
+    is_pinned: form.value.is_pinned === true,
     button_texts: {
       close: form.value.button_texts.close || '知道了',
       suppress: form.value.button_texts.suppress || '本条不再提示',
@@ -472,6 +496,8 @@
       cta_url: announcement.cta_url,
       button_texts: { ...announcement.button_texts },
       template_type: announcement.template_type,
+      show_save_update_button: announcement.show_save_update_button,
+      is_pinned: announcement.is_pinned,
       rewards: announcement.rewards.map(item => ({ ...item })),
       duplicate_compensation_money: announcement.duplicate_compensation_money,
     }
@@ -615,6 +641,7 @@
     form.value.title = template.title || templateLabel(template)
     form.value.body = template.body || ''
     form.value.template_type = template.template_type || template.id
+    form.value.show_save_update_button = getDefaultAnnouncementSaveUpdateButton(form.value.template_type)
     showFloat(`已套用${templateLabel(template)}模板`, 'success')
   }
 
@@ -887,7 +914,7 @@
 
   .announcement-preview-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     gap: 6px;
     margin-top: 12px;
     font-size: 0.6875rem;
@@ -902,6 +929,56 @@
     justify-content: center;
     padding: 4px 6px;
     text-align: center;
+  }
+
+  .announcement-save-toggle,
+  .announcement-pin-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1px solid rgba(200, 164, 92, 0.16);
+    border-radius: 6px;
+    background: rgba(16, 20, 30, 0.34);
+    padding: 10px;
+    color: rgb(var(--color-text));
+  }
+
+  .announcement-save-toggle input,
+  .announcement-pin-toggle input {
+    margin-top: 3px;
+  }
+
+  .announcement-save-toggle strong,
+  .announcement-save-toggle small,
+  .announcement-pin-toggle strong,
+  .announcement-pin-toggle small {
+    display: block;
+    line-height: 1.5;
+  }
+
+  .announcement-save-toggle strong,
+  .announcement-pin-toggle strong {
+    font-size: 0.8125rem;
+  }
+
+  .announcement-save-toggle small,
+  .announcement-pin-toggle small {
+    color: rgb(var(--color-muted));
+    font-size: 0.6875rem;
+  }
+
+  .announcement-pin-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-bottom: 8px;
+    border: 1px solid rgba(244, 189, 96, 0.34);
+    border-radius: 999px;
+    background: rgba(244, 189, 96, 0.14);
+    color: #ffd88a;
+    font-size: 0.6875rem;
+    line-height: 1;
+    padding: 4px 8px;
   }
 
   .announcement-status {

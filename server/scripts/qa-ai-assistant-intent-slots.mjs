@@ -13,6 +13,7 @@ delete process.env.OPENAI_API_KEY;
 const require = createRequire(import.meta.url);
 const cfg = require('../src/config');
 const aiAssistant = require('../src/taoyuanAiAssistant');
+const aiAssistantModelClient = require('../src/taoyuanAi/modelClient');
 
 cfg.setWithMeta({
   ai_assistant_enabled: true,
@@ -65,6 +66,7 @@ const cases = [
   { question: '小青菜哪里买', routeName: 'farm', types: ['resource-source', 'shop-purchase'], slots: { items: ['青菜'] }, intents: ['find_source'] },
   { question: '菜苗从哪来', routeName: 'farm', types: ['resource-source'], slots: { items: ['青菜'] }, intents: ['find_source'] },
   { question: '铜矿石差两个去哪弄', routeName: 'mining', types: ['resource-source', 'task-diagnosis'], slots: { items: ['铜矿'], quantities: ['2个'] }, intents: ['find_source', 'diagnose_task'] },
+  { question: '铜矿缺一个去哪弄', routeName: 'mining', types: ['resource-source', 'task-diagnosis'], slots: { items: ['铜矿'] }, intents: ['find_source', 'diagnose_task'] },
   { question: '小鲫在哪钓', routeName: 'fishing', types: ['resource-source', 'fish-condition'], slots: { items: ['鲫鱼'] }, intents: ['find_source'] },
   { question: '溪流鱼有什么用', routeName: 'fishing', types: ['resource-use'], slots: { items: ['鲫鱼'], locations: ['溪流'] }, intents: ['explain_usage'] },
   { question: '认证签怎么搞', routeName: 'breeding', types: ['resource-source'], slots: { items: ['谱系认证签'] }, intents: ['find_source'] },
@@ -74,9 +76,14 @@ const cases = [
   { question: '孙铁匠那能补铜吗', routeName: 'shop', types: ['resource-source'], slots: { items: ['铜矿'], locations: ['铁匠铺'], npcs: ['孙铁匠'] }, intents: ['gameplay_qa'] },
   { question: '春天能种什么', routeName: 'farm', types: ['resource-source'], slots: { seasons: ['春季'] }, intents: ['gameplay_qa'] },
   { question: '夏天鱼塘要干嘛', routeName: 'fishpond', types: ['today-planning', 'system-mechanic'], slots: { seasons: ['夏季'], systems: ['鱼塘'] }, intents: ['plan_today', 'explain_system'] },
+  { question: '我现在干啥', routeName: 'farm', types: ['today-planning'], slots: {}, intents: ['plan_today'] },
+  { question: '帮我看看今天该去哪', routeName: 'hall', types: ['today-planning'], slots: {}, intents: ['plan_today'] },
   { question: '秋季矿洞路线', routeName: 'mining', types: ['next-step-suggestion'], slots: { seasons: ['秋季'], locations: ['矿洞'] }, intents: ['suggest_next_step'] },
+  { question: '下一步干啥', routeName: 'hanhai', types: ['today-planning', 'next-step-suggestion'], slots: {}, intents: ['plan_today', 'suggest_next_step'] },
   { question: '冬天药铺开吗', routeName: 'shop', types: ['page-explanation'], slots: { seasons: ['冬季'], locations: ['药铺'] }, intents: ['explain_page'] },
   { question: '阿石的矿料任务卡住', routeName: 'quest', types: ['task-diagnosis'], slots: { npcs: ['阿石'], items: ['铜矿'] }, intents: ['diagnose_task'] },
+  { question: '任务为啥交不了', routeName: 'quest', types: ['task-diagnosis'], slots: {}, intents: ['diagnose_task'] },
+  { question: '交不了咋办', routeName: 'quest', types: ['task-diagnosis', 'next-step-suggestion'], slots: {}, intents: ['diagnose_task', 'suggest_next_step'] },
   { question: '秋月要的鱼去哪找', routeName: 'quest', types: ['resource-source', 'task-diagnosis'], slots: { npcs: ['秋月'] }, intents: ['find_source', 'diagnose_task'] },
   { question: '博物馆展陈缺什么', routeName: 'museum', types: ['task-diagnosis'], slots: { systems: ['博物馆'] }, intents: ['diagnose_task'] },
   { question: '公会讨伐奖励在哪看', routeName: 'guild', types: ['page-explanation', 'system-mechanic'], slots: { systems: ['公会'] }, intents: ['find_source', 'explain_page'] },
@@ -84,7 +91,7 @@ const cases = [
   { question: '灯会房间怎么重连', routeName: 'festival', types: ['page-explanation', 'task-diagnosis'], slots: { systems: ['节会'], tasks: ['节会房间重连'] }, intents: ['explain_page'] },
 ];
 
-assert.equal(cases.length, 20, 'QA should cover 20 synonym phrasings');
+assert.equal(cases.length, 26, 'QA should cover 26 synonym phrasings');
 
 for (const item of cases) {
   const plan = aiAssistant.__testing.resolveQueryPlanForTests(item.question, item.routeName);
@@ -103,6 +110,49 @@ assert.ok(
   'official ID match should be preserved as official-id, not overwritten by aliases',
 );
 
+const baseSemanticPlan = aiAssistant.__testing.resolveQueryPlanForTests('我现在咋整', 'farm');
+const semanticMergedPlan = aiAssistant.__testing.mergeSemanticQueryPlanForTests(baseSemanticPlan, {
+  structured: {
+    normalizedQuestion: '铜矿还缺一个，去哪里获取最快？',
+    intents: ['resource_source', 'plan_today'],
+    questionTypes: ['resource_source'],
+    routeHints: ['矿洞'],
+    sourceTerms: ['铜矿'],
+    rewriteQueries: ['铜矿 来源'],
+    slots: { items: ['铜矿'], quantities: ['1个'] },
+    clarification: { required: false, question: '', options: [] },
+    confidence: 0.9,
+  },
+});
+assertIntent(semanticMergedPlan, 'find_source', 'semantic prepass should add source intent');
+assertQuestionType(semanticMergedPlan, 'resource-source', 'semantic prepass should add resource-source type');
+assert.ok(semanticMergedPlan.routeHints.includes('mining'), 'semantic route label should normalize to route name');
+assert.ok(semanticMergedPlan.sourceTerms.includes('铜矿'), 'semantic terms should enrich retrieval terms');
+assert.equal(
+  (semanticMergedPlan.slots.items || []).some(item => item.source === 'semantic-model'),
+  false,
+  'semantic prepass should not turn model slots into verified local slots',
+);
+
+const lowConfidencePlan = aiAssistant.__testing.mergeSemanticQueryPlanForTests(
+  aiAssistant.__testing.resolveQueryPlanForTests('随便看看', ''),
+  {
+    structured: {
+      normalizedQuestion: '铜矿来源',
+      intents: ['resource_source'],
+      questionTypes: ['resource_source'],
+      routeHints: ['mining'],
+      sourceTerms: ['铜矿'],
+      rewriteQueries: [],
+      slots: { items: ['铜矿'] },
+      clarification: { required: false, question: '', options: [] },
+      confidence: 0.2,
+    },
+  },
+);
+assert.equal(lowConfidencePlan.semanticPrepass.applied, false, 'low-confidence semantic prepass should not alter intent');
+assert.equal((lowConfidencePlan.intents || []).includes('find_source'), false, 'low-confidence semantic intent should not be applied');
+
 async function assertLocalStructuredAnswer(question, routeName, expectedTitle) {
   const result = await aiAssistant.askPublic(question, { routeName });
   assert.equal(result.provider, 'local', `${question} should be answered locally`);
@@ -111,7 +161,8 @@ async function assertLocalStructuredAnswer(question, routeName, expectedTitle) {
     (result.evidence || []).some(item => item.sourceType === 'structured-knowledge'),
     `${question} should expose structured knowledge evidence`,
   );
-  assert.match(result.answer, new RegExp(`结构化公开资料回答：${expectedTitle}`), `${question} should match ${expectedTitle}`);
+  assert.match(result.answer, new RegExp(`我能确认的对象是「${expectedTitle}」|结论：${expectedTitle}`), `${question} should match ${expectedTitle}`);
+  assert.doesNotMatch(result.answer, /结构化公开资料回答|资源索引|依据：|证据|命中公开资料/, `${question} should avoid report-like evidence wording`);
   assert.equal(JSON.stringify(result).includes('server/src'), false, `${question} must not expose source paths`);
   assert.equal(JSON.stringify(result).includes('process.env'), false, `${question} must not expose env internals`);
 }
@@ -122,6 +173,66 @@ await assertLocalStructuredAnswer('铜矿石差两个去哪弄', 'mining', '铜�
 await assertLocalStructuredAnswer('小鲫在哪钓', 'fishing', '鲫鱼');
 await assertLocalStructuredAnswer('认证签怎么搞', 'breeding', '谱系认证签');
 await assertLocalStructuredAnswer('青菜料理怎么做', 'cooking', '炒青菜');
+
+cfg.setWithMeta({
+  ai_assistant_enabled: true,
+  ai_assistant_mode: 'strict',
+  ai_assistant_api_url: 'https://model.example/v1',
+  ai_assistant_model: 'qa-model',
+  ai_assistant_source_read_enabled: false,
+  ai_assistant_source_ingest_enabled: false,
+});
+
+let remoteCallCount = 0;
+aiAssistantModelClient.configureAiAssistantModelClient({
+  fetchImpl: async (_url, init) => {
+    remoteCallCount += 1;
+    const body = JSON.parse(init.body);
+    const isSemanticPrepass = /语义解析器/.test(body.messages?.[0]?.content || '');
+    return {
+      ok: true,
+      json: async () => ({
+        output_text: JSON.stringify(isSemanticPrepass
+          ? {
+              normalized_question: '铜矿缺一个，去哪里获取？',
+              intents: ['resource_source'],
+              question_types: ['resource_source'],
+              route_hints: ['mining'],
+              source_terms: ['铜矿'],
+              slots: { items: ['铜矿'] },
+              rewrite_queries: ['铜矿 来源'],
+              clarification: { required: false, question: '', options: [] },
+              confidence: 0.92,
+            }
+          : {
+              intent: 'find_source',
+              answer: '先去矿洞补铜矿；如果入口没开，再看铁匠铺或当前任务提示。',
+              evidence_ids: [],
+              matched_files: [],
+              uncertain_points: [],
+              actions: [],
+            }),
+      }),
+    };
+  },
+});
+
+const modelAnswer = await aiAssistant.askPublic('铜矿缺一个咋弄', { routeName: 'farm' });
+assert.equal(modelAnswer.provider, 'model', 'configured provider should return model answer');
+assert.match(modelAnswer.answer, /先去矿洞补铜矿/);
+assert.deepEqual(modelAnswer.evidence, [], 'model answer should not expose local evidence by default');
+assert.deepEqual(modelAnswer.sources, [], 'model answer should not expose local source tags by default');
+assert.equal(modelAnswer.traceSummary.evidenceCount, 0, 'model trace summary should not advertise hidden local evidence');
+assert.ok(remoteCallCount >= 2, 'model ask should run semantic prepass before final model answer');
+
+cfg.setWithMeta({
+  ai_assistant_enabled: true,
+  ai_assistant_mode: 'strict',
+  ai_assistant_api_url: '',
+  ai_assistant_model: '',
+  ai_assistant_source_read_enabled: false,
+  ai_assistant_source_ingest_enabled: false,
+});
 
 const unknownPlan = aiAssistant.__testing.resolveQueryPlanForTests('月影彩虹兔怎么转职？');
 assert.equal(unknownPlan.clarification?.required, true, 'unknown query should require clarification');

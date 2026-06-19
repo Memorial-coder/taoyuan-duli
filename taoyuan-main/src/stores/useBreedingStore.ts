@@ -28,6 +28,7 @@ import type {
 } from '@/types/breeding'
 import {
   BASE_BREEDING_BOX,
+  SEED_BOX_MAX_LEVEL,
   SEED_BOX_UPGRADES,
   SEED_BOX_UPGRADE_INCREMENT,
   BREEDING_DAYS,
@@ -37,9 +38,9 @@ import {
   MUTATION_JUMP_MIN,
   MUTATION_JUMP_MAX,
   MUTATION_RATE_DRIFT,
-  BREEDING_STATION_COST,
   MAX_BREEDING_STATIONS,
   BREEDING_RESEARCH_UPGRADES,
+  getBreedingStationCost,
   generateGeneticsId,
   clampStat,
   clampMutationRate,
@@ -103,7 +104,7 @@ export const useBreedingStore = defineStore('breeding', () => {
   const lastFailureSalvage = ref<BreedingFailureSalvageSummary | null>(null)
   const failureProgressByHybridId = ref<Record<string, BreedingFailureProgressEntry>>({})
 
-  /** 种子箱等级：0/1/2，对应 30/45/60 */
+  /** 种子箱等级：0~25，对应 30~405 */
   const seedBoxLevel = ref(0)
 
   /** 收藏的种子ID */
@@ -226,8 +227,16 @@ export const useBreedingStore = defineStore('breeding', () => {
     }
 
     const compareByTotal = (a: BreedingSeed, b: BreedingSeed) => getTotalStats(b.genetics) - getTotalStats(a.genetics)
+    const compareByCrop = (a: BreedingSeed, b: BreedingSeed) =>
+      a.genetics.cropId.localeCompare(b.genetics.cropId) ||
+      b.genetics.generation - a.genetics.generation ||
+      compareByTotal(a, b) ||
+      a.genetics.id.localeCompare(b.genetics.id)
 
     switch (seedSortKey.value) {
+      case 'crop':
+        seeds.sort(compareByCrop)
+        break
       case 'total':
         seeds.sort(compareByTotal)
         break
@@ -910,11 +919,14 @@ export const useBreedingStore = defineStore('breeding', () => {
 
   // === 育种台 ===
 
+  const getCurrentStationCost = () => getBreedingStationCost(stationCount.value + 1)
+
   const craftStation = (spendMoney: SpendMoneyFn, refundMoney: RefundMoneyFn, removeMaterials: RemoveMaterialsFn): boolean => {
     if (stationCount.value >= MAX_BREEDING_STATIONS) return false
-    if (!spendMoney(BREEDING_STATION_COST.money)) return false
-    if (!removeMaterials(BREEDING_STATION_COST.materials)) {
-      refundMoney(BREEDING_STATION_COST.money)
+    const cost = getCurrentStationCost()
+    if (!spendMoney(cost.money)) return false
+    if (!removeMaterials(cost.materials)) {
+      refundMoney(cost.money)
       return false
     }
     stationCount.value++
@@ -931,8 +943,9 @@ export const useBreedingStore = defineStore('breeding', () => {
 
   const canCraftStation = (money: number, getItemCount: (id: string) => number): boolean => {
     if (stationCount.value >= MAX_BREEDING_STATIONS) return false
-    if (money < BREEDING_STATION_COST.money) return false
-    for (const mat of BREEDING_STATION_COST.materials) {
+    const cost = getCurrentStationCost()
+    if (money < cost.money) return false
+    for (const mat of cost.materials) {
       if (getItemCount(mat.itemId) < mat.quantity) return false
     }
     return true
@@ -1358,7 +1371,8 @@ export const useBreedingStore = defineStore('breeding', () => {
     }))
     const rawStationCount = Math.max(0, Number(data.stationCount) || 0)
     stationCount.value = Math.min(MAX_BREEDING_STATIONS, Math.max(rawStationCount, stations.value.length))
-    seedBoxLevel.value = data.seedBoxLevel ?? 0
+    const rawSeedBoxLevel = Math.floor(Number(data.seedBoxLevel) || 0)
+    seedBoxLevel.value = Math.min(SEED_BOX_MAX_LEVEL, Math.max(0, rawSeedBoxLevel))
     researchLevel.value = data.researchLevel ?? 0
     favoriteSeedIds.value = (data.favoriteSeedIds ?? []).filter((id: string) => breedingBox.value.some(s => s.genetics.id === id))
     compendium.value = data.compendium ?? []

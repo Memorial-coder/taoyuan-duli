@@ -11,7 +11,7 @@
     @click="emit('click')"
   >
     <Lock v-if="locked" :size="10" class="item-card__lock" />
-    <ItemIcon :item="item" size="sm" :quality="quality" :silhouette="!discovered" />
+    <ItemIcon :item="item" size="sm" :quality="quality" :silhouette="resolvedSilhouette" />
     <span class="item-card__copy">
       <span class="item-card__name" :class="resolvedNameClass">{{ displayName }}</span>
       <span v-if="secondaryLine" class="item-card__meta">{{ secondaryLine }}</span>
@@ -31,6 +31,7 @@
     quality?: Quality
     locked?: boolean
     discovered?: boolean
+    silhouette?: boolean
     secondary?: string
     tone?: 'normal' | 'danger'
     nameClass?: string
@@ -40,6 +41,7 @@
     quality: 'normal',
     locked: false,
     discovered: true,
+    silhouette: undefined,
     secondary: '',
     tone: 'normal',
     nameClass: '',
@@ -69,6 +71,8 @@
   })
 
   const resolvedNameClass = computed(() => [nameClass.value, props.nameClass].filter(Boolean))
+
+  const resolvedSilhouette = computed(() => props.silhouette ?? !props.discovered)
 
   const toneClass = computed(() => props.tone === 'danger' ? 'item-card--danger' : 'item-card--normal')
 </script>

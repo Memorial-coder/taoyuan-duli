@@ -6,7 +6,7 @@
         <Wrench :size="14" />
         <span>工具升级</span>
       </div>
-      <span class="text-xs text-muted">铁匠·小满</span>
+      <span class="text-xs text-muted">木匠学徒·小满</span>
     </div>
     <p class="text-xs text-muted mb-3">消耗金属锭和铜钱升级工具，锻造完成后会自动归还；水壶可加急立即完成。</p>
 

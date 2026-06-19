@@ -1,4 +1,5 @@
 import type { MaintenancePlan } from './economy'
+import type { SkillType } from './skill'
 
 export interface VillageProjectMaterialCost {
   itemId: string
@@ -14,11 +15,16 @@ export type VillageProjectRequirementType =
   | 'completedBundles'
   | 'completedQuests'
   | 'villageProjectLevel'
+  | 'mineFloor'
+  | 'skullCavernFloor'
+  | 'skillLevel'
+  | 'skillMasteryNodeCount'
 
 export interface VillageProjectRequirement {
   type: VillageProjectRequirementType
   target: number
   label?: string
+  skillType?: SkillType
 }
 
 export interface VillageProjectRequirementProgress extends VillageProjectRequirement {
@@ -38,7 +44,7 @@ export interface VillageProjectCheckResult {
 
 export type VillageProjectFundingPhase = 'bootstrap' | 'expansion' | 'endgame'
 export type VillageProjectPlayerSegment = 'midgame_operator' | 'capital_builder' | 'endgame_patron'
-export type VillageProjectLinkedSystem = 'quest' | 'goal' | 'museum' | 'guild' | 'hanhai'
+export type VillageProjectLinkedSystem = 'quest' | 'goal' | 'museum' | 'guild' | 'hanhai' | 'mining' | 'potential'
 export type VillageProjectAuditMetricCategory = 'core' | 'guardrail'
 export type VillageProjectContentTier = 'P0' | 'P1' | 'P2'
 export type VillageProjectBuildMode = 'standard' | 'staged' | 'donation'

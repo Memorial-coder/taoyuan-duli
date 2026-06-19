@@ -1,4 +1,5 @@
 import type { Season } from './game'
+import type { Quality } from './item'
 import type { FriendshipLevel, RelationshipStage } from './npc'
 import type { RewardTicketType } from './economy'
 import type { BreedingCommercialTag, BreedingStabilityRank } from './breeding'
@@ -30,6 +31,7 @@ export interface SpecialOrderComboRequirement {
   itemId: string
   itemName: string
   quantity: number
+  minQuality?: Quality
   deliveryMode?: QuestDeliveryMode
   requiredHybridId?: string
   requiredSweetnessMin?: number
@@ -64,6 +66,7 @@ export interface SpecialOrderStageDef {
   targetItemId?: string
   targetItemName?: string
   targetQuantity?: number
+  minQuality?: Quality
   deliveryMode?: QuestDeliveryMode
   requirementSummary?: string[]
   comboRequirements?: SpecialOrderComboRequirement[]
@@ -202,6 +205,7 @@ export interface QuestTargetDef {
   seasons: Season[]
   /** 物品单价(用于计算奖励) */
   unitPrice: number
+  minQuality?: Quality
 }
 
 /** 任务模板(按类型) */
@@ -225,6 +229,7 @@ export interface QuestInstance {
   targetItemId: string
   targetItemName: string
   targetQuantity: number
+  minQuality?: Quality
   collectedQuantity: number
   moneyReward: number
   friendshipReward: number

@@ -24,7 +24,10 @@
           v-for="announcement in announcements"
           :key="announcement.id"
           class="announcement-item"
-          :class="{ 'announcement-item--collapsed': !isAnnouncementExpanded(announcement.id) }"
+          :class="{
+            'announcement-item--collapsed': !isAnnouncementExpanded(announcement.id),
+            'announcement-item--pinned': announcement.is_pinned,
+          }"
           data-testid="announcement-popup-item"
         >
           <button
@@ -41,6 +44,7 @@
               </p>
             </div>
             <div class="announcement-summary-side">
+              <span v-if="announcement.is_pinned" class="announcement-chip announcement-chip--pinned">置顶</span>
               <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
               <span v-if="announcement.rewards.length" class="announcement-chip announcement-chip--reward">奖励 {{ announcement.rewards.length }}</span>
               <span class="announcement-toggle">
@@ -84,6 +88,7 @@
           {{ closeButtonLabel }}
         </Button>
         <Button
+          v-if="showSaveUpdateButton"
           class="announcement-button announcement-button-update justify-center"
           :icon="RefreshCw"
           :disabled="closing"
@@ -118,6 +123,7 @@
   const expandedAnnouncementIds = ref<Set<string>>(new Set())
   const primaryAnnouncement = computed(() => props.announcements[0] || null)
   const hasAnnouncementRewards = computed(() => props.announcements.some(announcement => announcement.rewards.length > 0))
+  const showSaveUpdateButton = computed(() => props.announcements.some(announcement => announcement.show_save_update_button))
   const shouldClaimRewards = computed(() => hasAnnouncementRewards.value && props.claimRewards !== false)
   const rewardHintLabel = computed(() => (
     shouldClaimRewards.value ? '点击“知道并领取”后发放' : '服务端存档登录后可领取'
@@ -233,6 +239,12 @@
     background: rgba(104, 211, 145, 0.1);
   }
 
+  .announcement-chip--pinned {
+    border-color: rgba(244, 189, 96, 0.38);
+    color: #ffd88a;
+    background: rgba(244, 189, 96, 0.14);
+  }
+
   .announcement-scroll {
     min-height: 0;
     overflow-y: auto;
@@ -248,8 +260,17 @@
     padding: 12px;
   }
 
+  .announcement-item--pinned {
+    border-color: rgba(244, 189, 96, 0.46);
+    background: linear-gradient(180deg, rgba(244, 189, 96, 0.12), rgba(244, 189, 96, 0.04)), var(--color-surface-raised);
+  }
+
   .announcement-item--collapsed {
     background: var(--color-surface-muted);
+  }
+
+  .announcement-item--pinned.announcement-item--collapsed {
+    background: linear-gradient(180deg, rgba(244, 189, 96, 0.1), rgba(244, 189, 96, 0.03)), var(--color-surface-muted);
   }
 
   .announcement-summary {

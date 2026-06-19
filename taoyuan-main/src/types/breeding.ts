@@ -132,7 +132,7 @@ export interface BreedingMasteryPerk {
 export type SeedStarRating = 1 | 2 | 3 | 4 | 5
 
 /** 种子箱排序方式 */
-export type SeedSortKey = 'default' | 'total' | 'sweetness' | 'yield' | 'resistance' | 'generation'
+export type SeedSortKey = 'default' | 'crop' | 'total' | 'sweetness' | 'yield' | 'resistance' | 'generation'
 
 /** 种子箱筛选方式 */
 export type SeedFilterKey = 'all' | 'hybrid' | 'nonHybrid' | 'highStar' | 'favorite'

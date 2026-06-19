@@ -140,7 +140,6 @@ function composePlayerTemplateAnswer({
   reasons = [],
   steps = [],
   cautions = [],
-  evidence = [],
   related = [],
 }) {
   const sections = [];
@@ -149,26 +148,23 @@ function composePlayerTemplateAnswer({
   sections.push(`结论：${String(conclusion || '我暂时无法确认，需要更具体的问题或页面线索。').trim()}`);
 
   const reasonText = formatTemplateItems(reasons, 4);
-  if (reasonText) sections.push(`原因：\n${reasonText}`);
+  if (reasonText) sections.push(`为什么：\n${reasonText}`);
 
   const stepText = formatTemplateItems(steps, 5);
-  if (stepText) sections.push(`步骤：\n${stepText}`);
+  if (stepText) sections.push(`下一步：\n${stepText}`);
 
   const cautionText = formatTemplateItems(cautions, 4);
-  if (cautionText) sections.push(`注意事项：\n${cautionText}`);
-
-  const evidenceText = formatTemplateItems(evidence, 4);
-  if (evidenceText) sections.push(`依据：\n${evidenceText}`);
+  if (cautionText) sections.push(`注意：\n${cautionText}`);
 
   const relatedText = formatTemplateItems(related, 3);
-  if (relatedText) sections.push(`相关：\n${relatedText}`);
+  if (relatedText) sections.push(`还可以看：\n${relatedText}`);
 
   return sections.filter(Boolean).join('\n\n');
 }
 
 function getTemplateStrictModeCautions(mode) {
   return mode === 'strict'
-    ? ['当前是严格模式：只使用玩家可见的公开资料或公开状态摘要，不提供隐藏数值、不公开规则或敏感信息。']
+    ? ['只按玩家可见信息判断，不公开隐藏数值或内部规则。']
     : [];
 }
 
@@ -197,15 +193,14 @@ function composeClarificationAnswer({ question, intro, queryPlan, routeName = ''
     legacyLead: `关于“${question}”，我还没识别出明确的物品、任务、NPC、地点或系统。`,
     conclusion: '我需要一个更具体的对象、系统或目标，才能给出可执行路线。',
     reasons: [
-      '本地意图识别没有命中明确对象。',
-      '当前问题缺少可匹配的物品、任务、NPC、地点或系统名。',
+      '我没有看到明确的物品、任务、NPC、地点或系统名。',
+      '补上对象后，我就能直接按来源、任务缺口或页面玩法给步骤。',
     ],
     steps: [
       ...options,
       relatedRouteLabels.length ? `也可以先打开这些相关页面再追问：${relatedRouteLabels.join('、')}。` : '',
     ],
     cautions: ['尽量带上物品名、任务名、NPC 名或当前页面，这样可以直接给出步骤。'],
-    evidence: ['本地槽位抽取未命中明确对象。'],
   });
 }
 
@@ -213,15 +208,14 @@ function composeNoMatchAnswer({ question, intro, queryPlan, routeName, mode }) {
   const { options, routeLabels: relatedRouteLabels } = buildClarificationOptions(queryPlan, routeName);
   return composePlayerTemplateAnswer({
     intro,
-    legacyLead: `关于“${question}”，我暂时无法从当前整理的公开游戏资料中确认答案。`,
+    legacyLead: `关于“${question}”，这次没有找到足够线索。`,
     conclusion: '可以先补充更具体的对象，或换成来源、任务、页面玩法这类问题。',
-    reasons: ['当前公开知识库没有找到足够匹配的条目。'],
+    reasons: ['当前资料里没有足够匹配的条目。'],
     steps: [
       ...options,
       relatedRouteLabels.length ? `推荐先查看：${relatedRouteLabels.join('、')}。` : '也可以问“当前页面主要做什么”来获取页面级建议。',
     ],
     cautions: getTemplateStrictModeCautions(mode),
-    evidence: ['本地知识检索无可用命中。'],
   });
 }
 
@@ -344,30 +338,22 @@ function composeResourceLookupAnswer({ question, contextLabel, entry, supplement
 
   return composePlayerTemplateAnswer({
     intro: contextLabel ? `你当前大概率在【${contextLabel}】相关场景。` : '',
-    legacyLead: `关于“${question}”，我先按结构化公开资料回答：${entry.title}。`,
-    conclusion: `资源反查：${entry.title}。${entry.summary || '可以先按公开资料确认来源、解锁条件和推荐路线。'}`,
+    conclusion: `${entry.title}：${entry.summary || '先确认来源、解锁条件和推荐路线。'}`,
     reasons: [
-      `命中了结构化资源索引：${entry.title}`,
+      `我能确认的对象是「${entry.title}」。`,
       sourceTypeLabels.length ? `来源类型：${sourceTypeLabels.join('、')}。` : '当前资料没有足够来源记录。',
       routeHints.length ? `关联页面：${routeHints.slice(0, 3).join('、')}。` : '',
       uses.length ? `用途线索：${uses.slice(0, 2).join('；')}` : '',
     ],
     steps: [
-      sources.length ? `来源：\n${sources.map((item, index) => `${index + 1}. ${item}`).join('\n')}` : '来源：资料不足，暂时不能确认公开来源。',
+      sources.length ? `来源：${sources.slice(0, 3).join('；')}` : '来源：资料不足，暂时不能确认公开来源。',
       `最快路线：${fastRoute}`,
       unlockStatus,
       ...routeSteps,
     ],
     cautions: [
       ...getTemplateStrictModeCautions(mode),
-      '如果当前页面没有出现对应入口、商品或配方，以玩家可见页面为准；我不会根据隐藏进度臆造已解锁。',
-    ],
-    evidence: [
-      `结构化公开资料回答：${entry.title}`,
-      sources.length ? `来源：${sources.slice(0, 3).join('；')}` : '来源资料不足。',
-      entry.unlock ? `公开解锁条件：${entry.unlock}` : '',
-      `最快路线：${fastRoute}`,
-      `推荐路线：${recommendedRoute}`,
+      '如果页面上没有出现入口、商品或配方，先核对公开前置，不按未显示内容推进。',
     ],
     related: supplements.map(item => `${item.structuredEntry?.title || item.title}：${item.structuredEntry?.summary || item.content}`),
   });
@@ -428,10 +414,9 @@ function composeStructuredKnowledgeAnswer({ question, contextLabel, matches, mod
 
   return composePlayerTemplateAnswer({
     intro: contextLabel ? `你当前大概率在【${contextLabel}】相关场景。` : '',
-    legacyLead: `关于“${question}”，我先按结构化公开资料回答：${entry.title}。`,
     conclusion: entry.summary || `可以先按公开资料确认「${entry.title}」的来源、用途和关联页面。`,
     reasons: [
-      `命中了结构化公开资料：${entry.title}`,
+      `我能确认的对象是「${entry.title}」。`,
       sources.length ? `资料中有 ${sources.length} 条来源记录。` : '',
       uses.length ? `资料中有 ${uses.length} 条用途或推进记录。` : '',
       routeHints.length ? `关联页面：${routeHints.slice(0, 3).join('、')}。` : '',
@@ -440,11 +425,6 @@ function composeStructuredKnowledgeAnswer({ question, contextLabel, matches, mod
     cautions: [
       ...getTemplateStrictModeCautions(mode),
       relationLabels.length ? `关联对象可作为后续追问线索：${relationLabels.join('、')}。` : '',
-    ],
-    evidence: [
-      `结构化公开资料回答：${entry.title}`,
-      sources.length ? `来源：${sources.slice(0, 2).join('；')}` : '',
-      uses.length ? `用途：${uses.slice(0, 2).join('；')}` : '',
     ],
     related: supplements.map(item => `${item.structuredEntry?.title || item.title}：${item.structuredEntry?.summary || item.content}`),
   });
@@ -455,7 +435,7 @@ function shouldUseTaskDiagnosisAnswer(question = '', queryPlan = {}, diagnostics
   const raw = String(question || '');
   const types = new Set(queryPlan.questionTypes || []);
   const intents = new Set(queryPlan.intents || []);
-  const explicitTaskQuestion = /任务|委托|订单|卡住|缺什么|缺口|卡关|交付|要的|差.*个|差.*条/.test(raw);
+  const explicitTaskQuestion = /任务|委托|订单|卡住|卡了|为啥.*卡|为什么.*卡|过不去|交不了|缺什么|缺口|卡关|交付|要的|差.*个|差.*条|差.*哪|缺.*哪|帮我看.*任务|看下.*任务|帮我看看.*任务/.test(raw);
   const hasTaskSlot = (queryPlan.slots?.tasks || []).length > 0;
   if (!explicitTaskQuestion && !hasTaskSlot) return false;
   return (
@@ -474,35 +454,80 @@ function formatTaskDiagnosisCheckLine(taskDiagnosis = {}, kind = '') {
   return `${label}：${check.statusLabel}。${check.detail}${nextStep}`;
 }
 
+function formatTaskBlockerLine(check = {}) {
+  const nextStep = check.nextStep ? `；${check.nextStep}` : '';
+  const detail = String(check.detail || check.statusLabel || '需要先确认').replace(/[。；;,.，、]+$/, '');
+  return `${check.label || '卡点'}：${detail}${nextStep}`;
+}
+
+function getDiagnosticPriorityLabel(score = 0) {
+  const value = Number(score) || 0;
+  if (value >= 85) return '高';
+  if (value >= 60) return '中';
+  return '低';
+}
+
+function sanitizeDiagnosticPlayerText(value = '') {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/识别到\s*\d+\s*条本地诊断信号，?/g, '当前可处理项：')
+    .replace(/本地诊断信号/g, '当前状态信号')
+    .replace(/本地诊断/g, '当前状态')
+    .replace(/任务诊断：/g, '任务线：')
+    .replace(/评分/g, '优先判断')
+    .replace(/证据/g, '线索');
+}
+
+function formatDiagnosticReason(item = {}) {
+  const title = sanitizeDiagnosticPlayerText(item.title || '当前事项');
+  const reasons = normalizeTemplateItems(item.reasons || [], 3)
+    .map(sanitizeDiagnosticPlayerText)
+    .join('、');
+  const priority = getDiagnosticPriorityLabel(item.score);
+  const priorityText = priority === '高' ? '优先处理' : priority === '中' ? '可以接着处理' : '有空再处理';
+  return `${title}：${reasons ? `${priorityText}，因为${reasons}` : priorityText}。`;
+}
+
+function formatDiagnosticStep(item = {}) {
+  const route = item.routeLabel ? `（去${item.routeLabel}）` : '';
+  return `${sanitizeDiagnosticPlayerText(item.recommendation || '先处理这个事项。')}${route}`;
+}
+
 function composeTaskDiagnosisAnswer({ question, intro, taskDiagnosis = {}, mode }) {
   const checks = taskDiagnosis.checks || [];
   if (!checks.length) return '';
-  const blockedChecks = taskDiagnosis.blockedChecks || [];
+  const blockedChecks = (taskDiagnosis.blockedChecks || []).map(item => {
+    const matchingCheck = checks.find(check => check.kind === item.kind || check.label === item.label) || {};
+    return {
+      ...matchingCheck,
+      ...item,
+      nextStep: item.nextStep || matchingCheck.nextStep || '',
+      statusLabel: item.statusLabel || matchingCheck.statusLabel || '',
+    };
+  });
   const top = blockedChecks[0] || checks[0];
   const taskTitle = taskDiagnosis.targetTask?.title || '当前任务';
+  const blockerLabels = blockedChecks.map(item => item.label).filter(Boolean);
+  const blockerSummary = blockerLabels.length ? blockerLabels.join('、') : '任务条件';
+  const routeSteps = (taskDiagnosis.routeSteps || []).slice(0, 3);
+  const detailSteps = blockedChecks.length
+    ? blockedChecks.slice(0, 3).map(formatTaskBlockerLine)
+    : checks.slice(0, 3).map(formatTaskBlockerLine);
   return composePlayerTemplateAnswer({
     intro,
-    legacyLead: `关于“${question}”，我先按当前公开任务摘要做任务诊断。`,
     conclusion: blockedChecks.length
-      ? `「${taskTitle}」当前主要卡在：${blockedChecks.map(item => item.label).join('、')}。`
-      : `「${taskTitle}」当前没有明确阻塞点，但仍需要逐项核对任务条件。`,
+      ? `「${taskTitle}」卡在${blockerSummary}，${top?.nextStep || '先补齐缺口再回任务页确认。'}`
+      : `「${taskTitle}」没有明显卡点，先回任务页核对可交付条件。`,
     reasons: [
-      `诊断对象：${taskTitle}。`,
+      top?.detail || '',
       taskDiagnosis.summary || '',
-      top ? `优先阻塞：${top.label} - ${top.detail}` : '',
     ],
     steps: [
-      `任务条件逐项核对：\n${TASK_DIAGNOSIS_KIND_ORDER.map(kind => formatTaskDiagnosisCheckLine(taskDiagnosis, kind)).join('\n')}`,
-      `下一步路线：\n${(taskDiagnosis.routeSteps || []).map((item, index) => `${index + 1}. ${item}`).join('\n')}`,
+      ...detailSteps,
+      ...routeSteps,
     ],
-    cautions: [
-      ...getTemplateStrictModeCautions(mode),
-      '这是只读诊断：我不会自动交任务、消耗背包物品、发奖励或改存档。',
-    ],
-    evidence: [
-      taskDiagnosis.targetTask?.source ? `任务摘要来源：${taskDiagnosis.targetTask.source}` : '任务摘要来源：当前公开任务上下文。',
-      `诊断检查项：${checks.map(item => item.label).join('、')}`,
-    ],
+    cautions: getTemplateStrictModeCautions(mode),
   });
 }
 
@@ -520,7 +545,7 @@ function shouldUseLocalDiagnostics(question = '', queryPlan = {}, diagnostics = 
     || intents.has('diagnose_task')
     || intents.has('remind_risk')
     || intents.has('suggest_next_step')
-    || /今天|任务|卡住|缺口|风险|提醒|下一步|先做|该做|怎么办|要干嘛/.test(raw)
+    || /今天|当前|现在|任务|卡住|卡了|为啥.*卡|为什么.*卡|交不了|缺口|风险|提醒|下一步|接下来|接着|先做|该做|该干啥|该去哪|干啥|做啥|怎么办|咋办|咋整|要干嘛|帮我看看|帮我安排|注意啥|有没有坑/.test(raw)
   );
 }
 
@@ -534,18 +559,13 @@ function composeLocalDiagnosticsAnswer({ question, intro, diagnostics = {}, mode
   const [top] = suggestions;
   return composePlayerTemplateAnswer({
     intro,
-    legacyLead: `关于“${question}”，我先按当前公开状态做本地诊断。`,
-    conclusion: `优先处理「${top.title}」（评分 ${top.score}）。`,
-    reasons: suggestions.slice(0, 4).map(item => `${item.title}：评分 ${item.score}；原因：${item.reasons.join('；')}`),
-    steps: suggestions.slice(0, 4).map(item => {
-      const route = item.routeLabel ? `；建议查看：${item.routeLabel}` : '';
-      return `建议：${item.recommendation}${route}`;
-    }),
-    cautions: getTemplateStrictModeCautions(mode),
-    evidence: [
-      diagnostics.summary ? `本地诊断：${diagnostics.summary}` : '',
-      `公开状态信号数：${diagnostics.signals?.length || suggestions.length}`,
+    conclusion: `现在先做「${sanitizeDiagnosticPlayerText(top.title)}」。`,
+    reasons: [
+      diagnostics.summary ? `当前状态：${sanitizeDiagnosticPlayerText(diagnostics.summary)}` : '',
+      ...suggestions.slice(0, 3).map(formatDiagnosticReason),
     ],
+    steps: suggestions.slice(0, 4).map(formatDiagnosticStep),
+    cautions: getTemplateStrictModeCautions(mode),
   });
 }
 
@@ -557,7 +577,7 @@ function composeSourceAnswer({ question, intro = '', matches = [], mode = 'stric
   const directoryMatches = matches.filter(item => item?.sourceType === 'source-directory');
   const sections = [];
   if (intro) sections.push(intro);
-  sections.push(`关于“${question}”，我优先按命中的源码文件回答。`);
+  sections.push(`关于“${question}”，我先按公开源码线索回答。`);
 
   if (directoryMatches.length) {
     sections.push(
@@ -573,15 +593,15 @@ function composeSourceAnswer({ question, intro = '', matches = [], mode = 'stric
       fullFileMatches
         .slice(0, 2)
         .map((item, index) => [
-          `命中文件 ${index + 1}：${item.path}`,
-          item.originTitle ? `命中依据：${item.originTitle}` : '',
+          `相关文件 ${index + 1}：${item.path}`,
+          item.originTitle ? `为什么相关：${item.originTitle}` : '',
           item.symbol ? `关联符号：${item.symbol}${item.lineNumber ? `（第 ${item.lineNumber} 行附近）` : ''}` : '',
           item.content,
         ].filter(Boolean).join('\n\n'))
         .join('\n\n')
     );
   } else {
-    sections.push(`最相关证据：\n\n${first.content}`);
+    sections.push(`最相关线索：\n\n${first.content}`);
   }
 
   const supplementary = rest
@@ -603,24 +623,25 @@ function composeSourceAnswer({ question, intro = '', matches = [], mode = 'stric
 function composeGenericKnowledgeAnswer({ question, intro = '', matches = [], mode = 'strict' } = {}) {
   const [first, ...rest] = matches;
   if (!first) return '';
+  const firstTitle = first.title || first.structuredEntry?.title || '当前资料';
+  const supplementarySteps = rest
+    .slice(0, 2)
+    .map(item => {
+      const title = item.title || item.structuredEntry?.title || '';
+      const content = item.content || item.structuredEntry?.summary || '';
+      return title && content ? `补充：${title}：${content}` : '';
+    })
+    .filter(Boolean);
 
   return composePlayerTemplateAnswer({
     intro,
-    legacyLead: `关于“${question}”，根据当前可用的桃源乡资料：`,
     conclusion: first.content,
     reasons: [
-      `命中公开资料：${first.title}`,
+      `我能确认的条目是「${firstTitle}」。`,
       first.routeHints?.length ? `关联页面：${first.routeHints.map(item => routeLabels[item] || item).filter(Boolean).slice(0, 3).join('、')}。` : '',
     ],
-    steps: [
-      first.content,
-      ...rest.slice(0, 2).map(item => `${item.title}：${item.content}`),
-    ],
+    steps: supplementarySteps,
     cautions: getTemplateStrictModeCautions(mode),
-    evidence: [
-      first.title,
-      ...rest.slice(0, 2).map(item => item.title),
-    ],
   });
 }
 

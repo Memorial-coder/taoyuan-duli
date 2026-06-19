@@ -254,7 +254,7 @@ assert.deepEqual(codeMode.suggestions, []);
 
 const block = service.formatThreeStepSuggestionsBlock(built);
 assert.match(block, /三步建议/);
-assert.match(block, /安全轻动作/);
+assert.doesNotMatch(block, /收益：|安全轻动作/, 'three-step answer block should stay compact; actions are already returned as structured buttons');
 assert.equal(service.appendThreeStepSuggestionsToAnswer('原回答', built).startsWith('原回答\n\n三步建议'), true);
 assert.equal(service.appendThreeStepSuggestionsToAnswer('原回答', { suggestions: [] }), '原回答');
 

@@ -1,13 +1,20 @@
 import type { SeedGenetics, HybridDef, SeedStarRating, BreedingResearchUpgrade } from '@/types/breeding'
 import { getCropById } from './crops'
 
+type BreedingMaterialRequirement = { itemId: string; quantity: number }
+type BreedingCost = { money: number; materials: BreedingMaterialRequirement[] }
+type SeedBoxUpgrade = { level: number; cost: number; materials: BreedingMaterialRequirement[] }
+
 // === 常量 ===
 
 /** 种子箱基础容量 */
 export const BASE_BREEDING_BOX = 30
 
+/** 种子箱最高等级 */
+export const SEED_BOX_MAX_LEVEL = 25
+
 /** 种子箱升级定义 */
-export const SEED_BOX_UPGRADES = [
+const BASE_SEED_BOX_UPGRADES: SeedBoxUpgrade[] = [
   {
     level: 1,
     cost: 5000,
@@ -56,8 +63,73 @@ export const SEED_BOX_UPGRADES = [
 /** 每级种子箱容量增量 */
 export const SEED_BOX_UPGRADE_INCREMENT = 15
 
+const createLateSeedBoxUpgrade = (level: number): SeedBoxUpgrade => {
+  if (level >= 6 && level <= 10) {
+    const offset = level - 6
+    return {
+      level,
+      cost: 100000 + 20000 * offset,
+      materials: [
+        { itemId: 'iridium_bar', quantity: 6 + offset },
+        { itemId: 'dream_silk', quantity: 4 + offset },
+        { itemId: 'moon_herb', quantity: 6 + offset }
+      ]
+    }
+  }
+
+  if (level >= 11 && level <= 15) {
+    const offset = level - 11
+    return {
+      level,
+      cost: 220000 + 30000 * offset,
+      materials: [
+        { itemId: 'iridium_bar', quantity: 12 + offset * 2 },
+        { itemId: 'dream_silk', quantity: 9 + offset },
+        { itemId: 'moon_herb', quantity: 12 + offset },
+        { itemId: 'battery', quantity: 2 + offset }
+      ]
+    }
+  }
+
+  if (level >= 16 && level <= 20) {
+    const offset = level - 16
+    return {
+      level,
+      cost: 400000 + 50000 * offset,
+      materials: [
+        { itemId: 'iridium_bar', quantity: 20 + offset * 2 },
+        { itemId: 'dream_silk', quantity: 14 + offset },
+        { itemId: 'moon_herb', quantity: 18 + offset },
+        { itemId: 'battery', quantity: 6 + offset },
+        { itemId: 'dragon_jade', quantity: 1 + offset }
+      ]
+    }
+  }
+
+  const offset = level - 21
+  return {
+    level,
+    cost: 700000 + 75000 * offset,
+    materials: [
+      { itemId: 'iridium_bar', quantity: 30 + offset * 3 },
+      { itemId: 'dream_silk', quantity: 20 + offset * 2 },
+      { itemId: 'moon_herb', quantity: 24 + offset * 2 },
+      { itemId: 'battery', quantity: 10 + offset * 2 },
+      { itemId: 'dragon_jade', quantity: 6 + offset },
+      { itemId: 'prismatic_shard', quantity: 1 + offset }
+    ]
+  }
+}
+
+export const SEED_BOX_UPGRADES = [
+  ...BASE_SEED_BOX_UPGRADES,
+  ...Array.from({ length: SEED_BOX_MAX_LEVEL - BASE_SEED_BOX_UPGRADES.length }, (_, index) =>
+    createLateSeedBoxUpgrade(BASE_SEED_BOX_UPGRADES.length + index + 1)
+  )
+]
+
 /** @deprecated 使用 useBreedingStore().maxSeedBox 代替 */
-export const MAX_BREEDING_BOX = 30
+export const MAX_BREEDING_BOX = BASE_BREEDING_BOX + SEED_BOX_MAX_LEVEL * SEED_BOX_UPGRADE_INCREMENT
 
 /** 育种加工天数 */
 export const BREEDING_DAYS = 2
@@ -82,7 +154,7 @@ export const MUTATION_JUMP_MAX = 30
 export const MUTATION_RATE_DRIFT = 5
 
 /** 育种台制造费用 */
-export const BREEDING_STATION_COST = {
+export const BREEDING_STATION_COST: BreedingCost = {
   money: 100000,
   materials: [
     { itemId: 'wood', quantity: 30 },
@@ -92,7 +164,79 @@ export const BREEDING_STATION_COST = {
 }
 
 /** 育种台最大数量 */
-export const MAX_BREEDING_STATIONS = 3
+export const MAX_BREEDING_STATIONS = 10
+
+const BREEDING_STATION_COST_TIERS: Array<{
+  minStation: number
+  maxStation: number
+  cost: BreedingCost
+}> = [
+  { minStation: 1, maxStation: 3, cost: BREEDING_STATION_COST },
+  {
+    minStation: 4,
+    maxStation: 5,
+    cost: {
+      money: 150000,
+      materials: [
+        { itemId: 'wood', quantity: 80 },
+        { itemId: 'iron_bar', quantity: 5 },
+        { itemId: 'gold_ore', quantity: 8 }
+      ]
+    }
+  },
+  {
+    minStation: 6,
+    maxStation: 7,
+    cost: {
+      money: 220000,
+      materials: [
+        { itemId: 'wood', quantity: 140 },
+        { itemId: 'iron_bar', quantity: 10 },
+        { itemId: 'gold_bar', quantity: 3 },
+        { itemId: 'battery', quantity: 1 }
+      ]
+    }
+  },
+  {
+    minStation: 8,
+    maxStation: 9,
+    cost: {
+      money: 320000,
+      materials: [
+        { itemId: 'wood', quantity: 220 },
+        { itemId: 'gold_bar', quantity: 8 },
+        { itemId: 'iridium_bar', quantity: 2 },
+        { itemId: 'battery', quantity: 2 }
+      ]
+    }
+  },
+  {
+    minStation: 10,
+    maxStation: 10,
+    cost: {
+      money: 450000,
+      materials: [
+        { itemId: 'wood', quantity: 300 },
+        { itemId: 'iridium_bar', quantity: 4 },
+        { itemId: 'dragon_jade', quantity: 1 },
+        { itemId: 'dream_silk', quantity: 1 }
+      ]
+    }
+  }
+]
+
+export const getBreedingStationCost = (nextStationNumber: number): BreedingCost => {
+  const stationNumber = Math.min(
+    MAX_BREEDING_STATIONS,
+    Math.max(1, Math.floor(Number(nextStationNumber) || 1))
+  )
+  const tier = BREEDING_STATION_COST_TIERS.find(entry => stationNumber >= entry.minStation && stationNumber <= entry.maxStation)
+  const cost = tier?.cost ?? BREEDING_STATION_COST
+  return {
+    money: cost.money,
+    materials: cost.materials.map(material => ({ ...material }))
+  }
+}
 
 /** 育种研究升级定义 */
 export const BREEDING_RESEARCH_UPGRADES: BreedingResearchUpgrade[] = [

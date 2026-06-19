@@ -7,6 +7,15 @@ import { getThemeByKey, hexToRgb, type ThemeKey } from '@/data/themes'
 import { applyQmsgConfig } from '@/composables/useGameLog'
 import type { ItemCategory, LateGameBalanceConfig, LateGameBalanceOverride, LateGameFeatureFlag, LateGameFeatureOverrideMap } from '@/types'
 import { CROP_USE_TAG_LABELS, type CropUseTag } from '@/data/cropUseProfiles'
+import {
+  KEYBOARD_SHORTCUT_SAVE_VERSION,
+  createDefaultKeyboardShortcutBindings,
+  normalizeKeyboardShortcutBinding,
+  normalizeKeyboardShortcutBindings,
+  type KeyboardShortcutActionId,
+  type KeyboardShortcutBinding,
+  type KeyboardShortcutBindingMap
+} from '@/data/keyboardShortcuts'
 
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
@@ -80,6 +89,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const pageWidthMode = ref<PageWidthMode>(DEFAULT_PAGE_WIDTH_MODE)
   const pageWidthPercent = ref(DEFAULT_PAGE_WIDTH_PERCENT)
   const desktopLayoutMode = ref<DesktopLayoutMode>(DEFAULT_DESKTOP_LAYOUT_MODE)
+  const keyboardShortcutsEnabled = ref(true)
+  const keyboardShortcutSaveVersion = ref(KEYBOARD_SHORTCUT_SAVE_VERSION)
+  const keyboardShortcutBindings = ref<KeyboardShortcutBindingMap>(createDefaultKeyboardShortcutBindings())
 
   /** 背包物品筛选：选中的分类（空数组 = 显示全部） */
   const inventoryFilter = ref<ItemCategory[]>([])
@@ -263,6 +275,31 @@ export const useSettingsStore = defineStore('settings', () => {
     lateGameBalanceOverrides.value = {}
   }
 
+  const getKeyboardShortcutBinding = (actionId: KeyboardShortcutActionId): KeyboardShortcutBinding | null => (
+    keyboardShortcutBindings.value[actionId] ?? null
+  )
+
+  const setKeyboardShortcutBinding = (actionId: KeyboardShortcutActionId, binding: KeyboardShortcutBinding | null) => {
+    keyboardShortcutBindings.value = {
+      ...keyboardShortcutBindings.value,
+      [actionId]: binding ? normalizeKeyboardShortcutBinding(binding) : null
+    }
+  }
+
+  const clearKeyboardShortcutBinding = (actionId: KeyboardShortcutActionId) => {
+    setKeyboardShortcutBinding(actionId, null)
+  }
+
+  const resetKeyboardShortcutBinding = (actionId: KeyboardShortcutActionId) => {
+    const defaultBindings = createDefaultKeyboardShortcutBindings()
+    setKeyboardShortcutBinding(actionId, defaultBindings[actionId])
+  }
+
+  const resetKeyboardShortcutBindings = () => {
+    keyboardShortcutSaveVersion.value = KEYBOARD_SHORTCUT_SAVE_VERSION
+    keyboardShortcutBindings.value = createDefaultKeyboardShortcutBindings()
+  }
+
   const serialize = () => {
     const { sfxEnabled, bgmEnabled } = useAudio()
     const selectedCropUseTags = sanitizeInventoryCropUseFilter(inventoryCropUseFilter.value)
@@ -287,6 +324,9 @@ export const useSettingsStore = defineStore('settings', () => {
       pageWidthMode: pageWidthMode.value,
       pageWidthPercent: pageWidthPercent.value,
       desktopLayoutMode: desktopLayoutMode.value,
+      keyboardShortcutsEnabled: keyboardShortcutsEnabled.value,
+      keyboardShortcutSaveVersion: KEYBOARD_SHORTCUT_SAVE_VERSION,
+      keyboardShortcutBindings: keyboardShortcutBindings.value,
       inventoryFilter: inventoryFilter.value,
       inventoryCropUseFilter: selectedCropUseTags,
       cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION,
@@ -331,6 +371,11 @@ export const useSettingsStore = defineStore('settings', () => {
       ? 'classic'
       : DEFAULT_DESKTOP_LAYOUT_MODE
     applyDesktopLayout()
+    keyboardShortcutsEnabled.value = typeof data?.keyboardShortcutsEnabled === 'boolean'
+      ? data.keyboardShortcutsEnabled
+      : true
+    keyboardShortcutSaveVersion.value = Math.max(1, Math.floor(Number(data?.keyboardShortcutSaveVersion) || KEYBOARD_SHORTCUT_SAVE_VERSION))
+    keyboardShortcutBindings.value = normalizeKeyboardShortcutBindings(data?.keyboardShortcutBindings)
     inventoryFilter.value = data?.inventoryFilter ?? []
     const cropUseFilterState = normalizeCropUseFilterState(data)
     cropUseTagSaveVersion.value = cropUseFilterState.version
@@ -378,6 +423,9 @@ export const useSettingsStore = defineStore('settings', () => {
     pageWidthMode,
     pageWidthPercent,
     desktopLayoutMode,
+    keyboardShortcutsEnabled,
+    keyboardShortcutSaveVersion,
+    keyboardShortcutBindings,
     inventoryFilter,
     inventoryCropUseFilter,
     cropUseTagSaveVersion,
@@ -403,6 +451,11 @@ export const useSettingsStore = defineStore('settings', () => {
     getLateGameBalanceConfig,
     setLateGameBalanceOverrides,
     clearLateGameBalanceOverrides,
+    getKeyboardShortcutBinding,
+    setKeyboardShortcutBinding,
+    clearKeyboardShortcutBinding,
+    resetKeyboardShortcutBinding,
+    resetKeyboardShortcutBindings,
     applyFontSize,
     applyTheme,
     applyPageWidth,

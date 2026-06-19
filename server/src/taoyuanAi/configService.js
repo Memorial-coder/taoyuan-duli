@@ -2,7 +2,7 @@ const API_KEY_ENV_NAMES = ['TAOYUAN_AI_ASSISTANT_API_KEY', 'AI_ASSISTANT_API_KEY
 const DEFAULT_CONSOLE_CREDIT_MESSAGE =
   '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186';
 const DEFAULT_AI_ASSISTANT_WELCOME_MESSAGE =
-  '你好，我是桃源小助理。我可以结合当前页面和玩家可见状态，回答玩法目标、资源来源、任务卡点和下一步建议；回答会标明内置知识库、远程模型或 fallback 来源。严格模式下，我不会提供隐藏掉率、后台规则、密钥或刷资源方法，也不会执行存档修改、奖励发放或资源扣除。可以先点下方快捷问题开始。';
+  '你好，我是桃源小助理。你可以直接问“现在干啥”“这个去哪弄”“任务为啥卡了”；我会结合当前页面和玩家可见状态给短建议。严格模式下不提供隐藏掉率、后台规则、密钥或刷资源方法，也不改存档、发奖励或扣资源。';
 const OFFICIAL_MANAGED_AI_FIELDS = Object.freeze([
   'ai_assistant_name',
   'ai_assistant_welcome',

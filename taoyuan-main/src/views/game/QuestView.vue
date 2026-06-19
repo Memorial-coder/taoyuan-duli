@@ -325,7 +325,7 @@
           <div v-else class="mt-0.5">
             <span class="inline-flex items-center gap-1.5 text-xs text-muted">
               <ItemIcon :item="getItemById(quest.targetItemId)" size="xs" :show-badge="false" />
-              背包 {{ inventoryStore.getItemCount(quest.targetItemId) }}/{{ quest.targetQuantity }}
+              背包 {{ getQuestCarriedCount(quest) }}/{{ quest.targetQuantity }}{{ getQuestQualitySuffix(quest.minQuality) }}
             </span>
           </div>
         </div>
@@ -448,7 +448,7 @@
               <p class="text-xs text-muted mb-1">目标</p>
               <p class="inline-flex items-center gap-1.5 text-xs">
                 <ItemIcon :item="getItemById(selectedBoardQuest.targetItemId)" size="sm" :show-badge="false" />
-                {{ selectedBoardQuest.targetItemName }} × {{ selectedBoardQuest.targetQuantity }}
+                {{ getQuestTargetSummary(selectedBoardQuest) }}
               </p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
@@ -638,7 +638,7 @@
               </div>
               <p v-else class="inline-flex items-center gap-1.5 text-xs">
                 <ItemIcon :item="getItemById(selectedActiveQuest.targetItemId)" size="sm" :show-badge="false" />
-                背包中 {{ inventoryStore.getItemCount(selectedActiveQuest.targetItemId) }}/{{ selectedActiveQuest.targetQuantity }}
+                背包中 {{ getQuestCarriedCount(selectedActiveQuest) }}/{{ selectedActiveQuest.targetQuantity }}{{ getQuestQualitySuffix(selectedActiveQuest.minQuality) }}
               </p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -702,7 +702,7 @@
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
-  import { getSpecialOrderRewardProfile } from '@/data/quests'
+  import { formatQuestRequirementTarget, getQuestMinQualityLabel, getSpecialOrderRewardProfile } from '@/data/quests'
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
   import { getCropById } from '@/data/crops'
   import { addLog } from '@/composables/useGameLog'
@@ -762,6 +762,18 @@
     return getCropById(id)?.name ?? getItemName(id)
   }
 
+  const getQuestCarriedCount = (quest: QuestInstance | null | undefined): number => {
+    if (!quest) return 0
+    return quest.minQuality
+      ? inventoryStore.getTotalItemCountAtLeast(quest.targetItemId, quest.minQuality)
+      : inventoryStore.getTotalItemCount(quest.targetItemId)
+  }
+
+  const getQuestQualitySuffix = (minQuality?: QuestInstance['minQuality']): string => {
+    const label = getQuestMinQualityLabel(minQuality)
+    return label ? `（${label}）` : ''
+  }
+
   const orderDeedUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('order_deed') > 0)
   const getOrderDeedHint = (quest: QuestInstance | null | undefined): string => {
     if (!orderDeedUnlocked.value || !quest) return ''
@@ -769,7 +781,7 @@
     if (itemDef?.category !== 'crop') return ''
     const cropDef = getCropById(quest.targetItemId)
     const seedHint = cropDef ? `，建议预留${getItemName(cropDef.seedId)}` : ''
-    return `订单田契：需求${quest.targetItemName}×${quest.targetQuantity}，背包${inventoryStore.getItemCount(quest.targetItemId)}/${quest.targetQuantity}${seedHint}`
+    return `订单田契：需求${formatQuestRequirementTarget(quest.targetItemName, quest.targetQuantity, quest.minQuality)}，背包${getQuestCarriedCount(quest)}/${quest.targetQuantity}${seedHint}`
   }
 
   const getCategoryLabel = (category?: VillagerQuestCategory): string => {
@@ -822,6 +834,10 @@
     if (quest.rewardProfileId) {
       const profile = getSpecialOrderRewardProfile(quest.rewardProfileId)
       details.push(`奖励档案：${profile?.label ?? quest.rewardProfileId}`)
+    }
+    const minQualityLabel = getQuestMinQualityLabel(quest.minQuality)
+    if (minQualityLabel) {
+      details.push(`品质委托：${minQualityLabel}，基础报酬已提高`)
     }
     if (preview.villageMoneyBonus > 0) {
       details.push(`村庄项目：铜钱+${preview.villageMoneyBonus}`)
@@ -953,7 +969,9 @@
     }
     if (quest.stageDefinitions?.length) {
       quest.stageDefinitions.forEach((stage, index) => {
-        const targetText = stage.targetItemName && stage.targetQuantity ? ` · ${stage.targetItemName}×${stage.targetQuantity}` : ''
+        const targetText = stage.targetItemName && stage.targetQuantity
+          ? ` · ${formatQuestRequirementTarget(stage.targetItemName, stage.targetQuantity, stage.minQuality)}`
+          : ''
         lines.push(`阶段 ${index + 1}：${stage.title}${targetText}`)
         if (stage.description) {
           lines.push(`- ${stage.description}`)
@@ -961,7 +979,7 @@
       })
     }
     if (quest.comboRequirements?.length) {
-      lines.push(`组合交付：${quest.comboRequirements.map(requirement => `${requirement.itemName}×${requirement.quantity}`).join('、')}`)
+      lines.push(`组合交付：${quest.comboRequirements.map(requirement => formatQuestRequirementTarget(requirement.itemName, requirement.quantity, requirement.minQuality)).join('、')}`)
     }
     if (quest.orderProgressState) {
       const currentStage = (quest.orderProgressState.currentStageIndex ?? 0) + 1
@@ -1019,9 +1037,9 @@
   const getQuestTargetSummary = (quest: QuestInstance | null | undefined): string => {
     if (!quest) return ''
     if (quest.comboRequirements?.length) {
-      return quest.comboRequirements.map(requirement => `${requirement.itemName} × ${requirement.quantity}`).join('、')
+      return quest.comboRequirements.map(requirement => formatQuestRequirementTarget(requirement.itemName, requirement.quantity, requirement.minQuality)).join('、')
     }
-    return `${quest.targetItemName} × ${quest.targetQuantity}`
+    return formatQuestRequirementTarget(quest.targetItemName, quest.targetQuantity, quest.minQuality)
   }
 
   const rewardTicketPrizeNaming = computed(() => walletStore.rewardTicketPrizeNaming)

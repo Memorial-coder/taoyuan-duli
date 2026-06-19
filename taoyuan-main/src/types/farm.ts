@@ -61,4 +61,4 @@ export interface CropDef {
 }
 
 /** 农场尺寸 */
-export type FarmSize = 4 | 6 | 8 | 10 | 12
+export type FarmSize = 4 | 6 | 8 | 10 | 12 | 16

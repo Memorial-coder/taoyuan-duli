@@ -3,7 +3,7 @@
  */
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { FarmPlot, FarmSize, Season, Quality } from '@/types'
+import type { FarmPlot, FarmSize, FarmMapType, Season, Quality } from '@/types'
 import type { SprinklerType, FertilizerType, PlantedFruitTree, PlantedGreenhouseFruitTree, FruitTreeType, WildTreeType, PlantedWildTree } from '@/types'
 import type { SeedGenetics } from '@/types/breeding'
 import { getCropById } from '@/data'
@@ -60,6 +60,29 @@ const resetCropPlotToTilled = (plot: FarmPlot): void => {
   plot.infestedDays = 0
   plot.weedy = false
   plot.weedyDays = 0
+}
+
+const STANDARD_FARM_SIZES: FarmSize[] = [4, 6, 8, 10, 12, 16]
+const NON_STANDARD_FARM_SIZES: FarmSize[] = [4, 6, 8, 10, 12]
+
+const getFarmSizeChain = (farmMapType: FarmMapType): FarmSize[] => {
+  return farmMapType === 'standard' ? STANDARD_FARM_SIZES : NON_STANDARD_FARM_SIZES
+}
+
+const normalizeSupportedFarmSize = (value: unknown, plotCount = 0): FarmSize => {
+  const size = Number(value)
+  if (STANDARD_FARM_SIZES.includes(size as FarmSize)) return size as FarmSize
+
+  const inferred = Math.sqrt(Number(plotCount) || 0)
+  if (Number.isInteger(inferred) && STANDARD_FARM_SIZES.includes(inferred as FarmSize)) return inferred as FarmSize
+
+  return 4
+}
+
+const normalizeFarmSizeForMap = (size: FarmSize, farmMapType: FarmMapType): FarmSize => {
+  const sizes = getFarmSizeChain(farmMapType)
+  if (sizes.includes(size)) return size
+  return sizes[sizes.length - 1]!
 }
 
 export const useFarmStore = defineStore('farm', () => {
@@ -628,8 +651,10 @@ export const useFarmStore = defineStore('farm', () => {
 
   /** 扩建农场 */
   const expandFarm = (): FarmSize | null => {
-    const sizes: FarmSize[] = [4, 6, 8, 10, 12]
+    const gameStore = useGameStore()
+    const sizes = getFarmSizeChain(gameStore.farmMapType)
     const currentIndex = sizes.indexOf(farmSize.value)
+    if (currentIndex < 0) return null
     if (currentIndex >= sizes.length - 1) return null
     const newSize = sizes[currentIndex + 1]!
     const oldPlots = [...plots.value]
@@ -1042,21 +1067,52 @@ export const useFarmStore = defineStore('farm', () => {
     return f as FertilizerType
   }
 
+  const normalizeLoadedPlot = (plot: FarmPlot): FarmPlot => ({
+    ...plot,
+    fertilizer: migrateFertilizer(plot.fertilizer),
+    harvestCount: (plot as any).harvestCount ?? 0,
+    giantCropGroup: (plot as any).giantCropGroup ?? null,
+    seedGenetics: (plot as any).seedGenetics ?? null,
+    seedQuality: (plot as any).seedQuality ?? null,
+    infested: (plot as any).infested ?? false,
+    infestedDays: (plot as any).infestedDays ?? 0,
+    weedy: (plot as any).weedy ?? false,
+    weedyDays: (plot as any).weedyDays ?? 0
+  })
+
+  const resizePlotsForFarmSize = (rawPlots: FarmPlot[], sourceSize: FarmSize, targetSize: FarmSize): FarmPlot[] => {
+    const resizedPlots = createPlots(targetSize)
+    const copySize = Math.min(sourceSize, targetSize)
+    for (let row = 0; row < copySize; row++) {
+      for (let col = 0; col < copySize; col++) {
+        const oldIndex = row * sourceSize + col
+        const newIndex = row * targetSize + col
+        const oldPlot = rawPlots[oldIndex]
+        if (oldPlot) resizedPlots[newIndex] = { ...normalizeLoadedPlot(oldPlot), id: newIndex }
+      }
+    }
+    return resizedPlots
+  }
+
+  const normalizeSprinklersForFarmSize = (rawSprinklers: PlacedSprinkler[], sourceSize: FarmSize, targetSize: FarmSize): PlacedSprinkler[] => {
+    return rawSprinklers.flatMap(sprinkler => {
+      const oldPlotId = Number(sprinkler.plotId)
+      if (!Number.isInteger(oldPlotId) || oldPlotId < 0) return []
+      const oldRow = Math.floor(oldPlotId / sourceSize)
+      const oldCol = oldPlotId % sourceSize
+      if (oldRow >= targetSize || oldCol >= targetSize) return []
+      const plotId = oldRow * targetSize + oldCol
+      return [{ ...sprinkler, plotId, id: `${sprinkler.type}_${plotId}` }]
+    })
+  }
+
   const deserialize = (data: ReturnType<typeof serialize>) => {
-    farmSize.value = data.farmSize as FarmSize
-    plots.value = data.plots.map(p => ({
-      ...p,
-      fertilizer: migrateFertilizer(p.fertilizer),
-      harvestCount: (p as any).harvestCount ?? 0,
-      giantCropGroup: (p as any).giantCropGroup ?? null,
-      seedGenetics: (p as any).seedGenetics ?? null,
-      seedQuality: (p as any).seedQuality ?? null,
-      infested: (p as any).infested ?? false,
-      infestedDays: (p as any).infestedDays ?? 0,
-      weedy: (p as any).weedy ?? false,
-      weedyDays: (p as any).weedyDays ?? 0
-    }))
-    sprinklers.value = (data as any).sprinklers ?? []
+    const rawPlots = Array.isArray((data as any).plots) ? (data as any).plots : []
+    const sourceFarmSize = normalizeSupportedFarmSize((data as any).farmSize, rawPlots.length)
+    const loadedFarmSize = normalizeFarmSizeForMap(sourceFarmSize, useGameStore().farmMapType)
+    farmSize.value = loadedFarmSize
+    plots.value = resizePlotsForFarmSize(rawPlots, sourceFarmSize, loadedFarmSize)
+    sprinklers.value = normalizeSprinklersForFarmSize((data as any).sprinklers ?? [], sourceFarmSize, loadedFarmSize)
     fruitTrees.value = ((data as any).fruitTrees ?? []).map((t: any) => ({
       ...t,
       yearAge: t.yearAge ?? t.seasonAge ?? 0

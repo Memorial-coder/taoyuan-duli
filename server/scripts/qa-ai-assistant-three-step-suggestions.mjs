@@ -185,6 +185,7 @@ for (const routeName of routeSamples) {
   assert.match(result.answer, /马上做/, `${routeName} answer should display now level`);
   assert.match(result.answer, /今天做/, `${routeName} answer should display today level`);
   assert.match(result.answer, /本周做/, `${routeName} answer should display week level`);
+  assert.doesNotMatch(result.answer, /收益：|不会直接改存档/, `${routeName} answer should keep three-step copy compact`);
   assertSuggestionSet(result.suggestions, routeName, `${routeName} public result`);
   assertSafePayload(result, `${routeName} public result`);
 }

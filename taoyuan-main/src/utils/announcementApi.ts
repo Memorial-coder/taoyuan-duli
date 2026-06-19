@@ -14,6 +14,7 @@ import type {
 } from '@/types/announcement'
 
 const pkg = _pkg as typeof _pkg & { version?: string }
+const SAVE_UPDATE_BUTTON_TEMPLATE_TYPES = new Set(['version_update', 'hotfix'])
 
 export const getAnnouncementClientVersion = (): string => String(pkg.version || '3.0.0').trim() || '3.0.0'
 
@@ -65,6 +66,27 @@ const normalizeAnnouncementReward = (raw: Partial<AnnouncementReward> = {}): Ann
   }
 }
 
+export const getDefaultAnnouncementSaveUpdateButton = (templateType: string): boolean =>
+  SAVE_UPDATE_BUTTON_TEMPLATE_TYPES.has(String(templateType || '').trim())
+
+const normalizeAnnouncementSaveUpdateButton = (value: unknown, templateType: unknown): boolean => {
+  if (value === true || value === 1) return true
+  if (value === false || value === 0) return false
+  const text = String(value ?? '').trim().toLowerCase()
+  if (text === 'true' || text === '1' || text === 'yes' || text === 'on') return true
+  if (text === 'false' || text === '0' || text === 'no' || text === 'off') return false
+  return getDefaultAnnouncementSaveUpdateButton(String(templateType || ''))
+}
+
+const normalizeBooleanFlag = (value: unknown, fallback = false): boolean => {
+  if (value === true || value === 1) return true
+  if (value === false || value === 0) return false
+  const text = String(value ?? '').trim().toLowerCase()
+  if (text === 'true' || text === '1' || text === 'yes' || text === 'on') return true
+  if (text === 'false' || text === '0' || text === 'no' || text === 'off') return false
+  return fallback
+}
+
 export const normalizeAnnouncement = (raw: Partial<TaoyuanAnnouncement> = {}): TaoyuanAnnouncement => ({
   id: String(raw.id || ''),
   title: String(raw.title || ''),
@@ -85,6 +107,12 @@ export const normalizeAnnouncement = (raw: Partial<TaoyuanAnnouncement> = {}): T
     cta: String(raw.button_texts?.cta || raw.cta_text || '查看详情'),
   },
   template_type: String(raw.template_type || ''),
+  show_save_update_button: normalizeAnnouncementSaveUpdateButton(
+    raw.show_save_update_button ?? (raw as Partial<TaoyuanAnnouncement> & { showSaveUpdateButton?: unknown }).showSaveUpdateButton,
+    raw.template_type,
+  ),
+  is_pinned: normalizeBooleanFlag(raw.is_pinned ?? (raw as Partial<TaoyuanAnnouncement> & { isPinned?: unknown }).isPinned),
+  is_read: normalizeBooleanFlag(raw.is_read ?? (raw as Partial<TaoyuanAnnouncement> & { isRead?: unknown }).isRead),
   rewards: Array.isArray(raw.rewards)
     ? raw.rewards.map(item => normalizeAnnouncementReward(item)).filter((item): item is AnnouncementReward => !!item)
     : [],
@@ -116,6 +144,8 @@ export const normalizeAnnouncementPayload = (payload: TaoyuanAnnouncementPayload
     cta: String(payload.button_texts?.cta || '查看详情').trim() || '查看详情',
   },
   template_type: String(payload.template_type || '').trim(),
+  show_save_update_button: normalizeAnnouncementSaveUpdateButton(payload.show_save_update_button, payload.template_type),
+  is_pinned: normalizeBooleanFlag(payload.is_pinned),
   rewards: Array.isArray(payload.rewards)
     ? payload.rewards.map(item => normalizeAnnouncementReward(item)).filter((item): item is AnnouncementReward => !!item)
     : [],

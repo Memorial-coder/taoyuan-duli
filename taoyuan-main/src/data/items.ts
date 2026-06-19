@@ -400,7 +400,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '红枣酒',
     category: 'processed',
     description: '醇厚滋补的红枣酒。',
-    sellPrice: 360,
+    sellPrice: 450,
     edible: true,
     staminaRestore: 25,
     healthRestore: 15
@@ -2071,7 +2071,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'painted_pottery', name: '彩陶碎片', category: 'artifact', description: '绘有精美纹饰的彩陶碎片。', sellPrice: 200, edible: false },
 
   // ===== 酒馆物品 =====
-  { id: 'tavern_rice_wine', name: '桃源米酒', category: 'processed' as const, description: '桃源乡常见的清甜米酒，入口绵软。', sellPrice: 80, edible: true, staminaRestore: 20, healthRestore: 8 },
+  { id: 'tavern_rice_wine', name: '桃源米酒', category: 'processed' as const, description: '桃源乡常见的清甜米酒，入口绵软。', sellPrice: 180, edible: true, staminaRestore: 20, healthRestore: 8 },
   { id: 'tavern_plum_wine', name: '青梅酒', category: 'processed' as const, description: '用青梅酿制的酸甜果酒，回味悠长。', sellPrice: 150, edible: true, staminaRestore: 30, healthRestore: 12 },
   { id: 'tavern_herbal_brew', name: '药草老酒', category: 'processed' as const, description: '浸泡多味草药的陈酿，强筋健体。', sellPrice: 280, edible: true, staminaRestore: 50, healthRestore: 25 },
   { id: 'tavern_snack_plate', name: '小食拼盘', category: 'food' as const, description: '花生、豆干和咸肉的下酒小食，补充体力。', sellPrice: 60, edible: true, staminaRestore: 15, healthRestore: 6 },

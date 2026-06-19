@@ -44,6 +44,7 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
       if (!resolved) throw new Error(`无法解析模块：${specifier}`)
@@ -79,6 +80,13 @@ registerHooks({
           }
           export default router
         `,
+        shortCircuit: true
+      }
+    }
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {}; export default { saveAs };',
         shortCircuit: true
       }
     }
@@ -397,6 +405,36 @@ assert(goalsViewSource.includes('GuidanceDigestPanel surface-id="quest"'), 'Goal
 assert(questOperationHintsSource.includes('data-testid="quest-operation-hints"'), 'Shared operation hints need a stable test id.')
 assert(questOperationHintsSource.includes('weeklyPlanSnapshot.primaryRouteLabel'), 'Shared operation hints must show the weekly route from goalStore.')
 assert(questOperationHintsSource.includes('questStore.specialOrder'), 'Shared operation hints must carry quest board special order direction.')
+assert(
+  /id:\s*'chen_bo_errand_stock'[\s\S]*?minQuality:\s*'fine'/.test(questDataSource) &&
+    /id:\s*'chen_bo_firewood_stock'[\s\S]*?minQuality:\s*'fine'/.test(questDataSource) &&
+    /id:\s*'xiao_man_festival_carpentry'[\s\S]*?minQuality:\s*'fine'/.test(questDataSource) &&
+    /id:\s*'zhao_mujiang_workbench'[\s\S]*?minQuality:\s*'excellent'/.test(questDataSource) &&
+    /id:\s*'xue_qin_festival_decor'[\s\S]*?minQuality:\s*'excellent'/.test(questDataSource),
+  'Selected formal villager quests should carry the planned minimum quality gates.'
+)
+assert(
+  questDataSource.includes("id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, minQuality: 'excellent'"),
+  'Street-scene special order bamboo combo requirement should require excellent-or-better bamboo.'
+)
+assert(
+  questDataSource.includes('const qualityRewardMultiplier = getQuestQualityRewardMultiplier(template.minQuality)') &&
+    questDataSource.includes('Math.floor(template.moneyReward * qualityRewardMultiplier)') &&
+    questDataSource.includes('Math.floor(TIER_FRIENDSHIP[clampedTier - 1]! * qualityRewardMultiplier)'),
+  'Quality-gated quests should use the shared quest quality reward multiplier for generated base rewards.'
+)
+assert(
+  questStoreSource.includes('getQuestInventoryCount') &&
+    questStoreSource.includes('getTotalItemCountAtLeast') &&
+    questStoreSource.includes('removeItemAnywhereAtLeast'),
+  'Quest submission should count and consume minimum-quality inventory through shared helpers.'
+)
+assert(
+  questViewSource.includes('formatQuestRequirementTarget') &&
+    questViewSource.includes('getQuestCarriedCount(quest)') &&
+    questViewSource.includes('getQuestQualitySuffix'),
+  'Quest UI should display minimum-quality requirements and matching carried counts.'
+)
 
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
@@ -547,6 +585,102 @@ const clone = value => JSON.parse(JSON.stringify(value))
     assert(questStore.getQuestEffectiveProgress(remainingQuest) === 0, 'Same-item quest progress must reflect current inventory after another quest consumes the shared stack.')
     assert(!questStore.canSubmitQuest(remainingQuest), 'Same-item quest submit state must clear when current inventory is no longer enough.')
   }
+}
+
+{
+  const { inventoryStore, questStore } = freshStores()
+  const quest = {
+    id: 'qa-fine-wood-delivery',
+    type: 'delivery',
+    npcId: 'chen_bo',
+    npcName: '陈伯',
+    description: 'QA 良品木材委托',
+    targetItemId: 'wood',
+    targetItemName: '木材',
+    targetQuantity: 2,
+    minQuality: 'fine',
+    collectedQuantity: 0,
+    moneyReward: 0,
+    friendshipReward: 0,
+    daysRemaining: 2,
+    accepted: true
+  }
+
+  inventoryStore.items = [{ itemId: 'wood', quantity: 5, quality: 'normal' }]
+  inventoryStore.tempItems = []
+  questStore.deserialize({
+    ...questStore.serialize(),
+    activeQuests: [quest],
+    completedQuestCount: 0,
+    completedQuestHistory: [],
+    specialOrderSettlementReceipts: []
+  })
+
+  assert(questStore.getQuestEffectiveProgress(questStore.activeQuests[0]) === 0, 'Normal wood should not count toward a fine-or-better delivery quest.')
+  assert(!questStore.canSubmitQuest(questStore.activeQuests[0]), 'Fine-or-better delivery quest should not be submittable with normal wood only.')
+
+  inventoryStore.items = [
+    { itemId: 'wood', quantity: 5, quality: 'normal' },
+    { itemId: 'wood', quantity: 1, quality: 'fine' },
+    { itemId: 'wood', quantity: 1, quality: 'excellent' }
+  ]
+  inventoryStore.tempItems = [{ itemId: 'wood', quantity: 1, quality: 'supreme' }]
+
+  assert(questStore.getQuestEffectiveProgress(questStore.activeQuests[0]) === 2, 'Fine and higher wood should count toward the quality-gated quest progress.')
+  assert(questStore.canSubmitQuest(questStore.activeQuests[0]), 'Fine-or-better delivery quest should be submittable when enough eligible stacks are carried.')
+  const result = questStore.submitQuest(quest.id)
+  assert(result.success === true, 'Submitting a fine-or-better delivery quest should succeed with fine and excellent stacks.')
+  assert(inventoryStore.getItemCount('wood', 'normal') === 5, 'Quality-gated quest submission must not consume lower-quality normal wood.')
+  assert(inventoryStore.getItemCount('wood', 'fine') === 0, 'Quality-gated quest submission should consume fine wood first.')
+  assert(inventoryStore.getItemCount('wood', 'excellent') === 0, 'Quality-gated quest submission should continue into excellent wood when needed.')
+  assert(inventoryStore.getTempItemCount('wood', 'supreme') === 1, 'Quality-gated quest submission should leave supreme wood if fine/excellent satisfy the order.')
+}
+
+{
+  const { inventoryStore, questStore } = freshStores()
+  const quest = {
+    id: 'qa-excellent-bamboo-combo',
+    type: 'special_order',
+    npcId: 'xue_qin',
+    npcName: '雪芹',
+    description: 'QA 精品竹子组合订单',
+    targetItemId: 'bamboo',
+    targetItemName: '竹子',
+    targetQuantity: 2,
+    collectedQuantity: 0,
+    moneyReward: 0,
+    friendshipReward: 0,
+    daysRemaining: 3,
+    accepted: true,
+    orderVersion: '3.0',
+    orderStageType: 'combo',
+    comboRequirements: [
+      { id: 'qa_combo_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 2, minQuality: 'excellent' }
+    ]
+  }
+
+  inventoryStore.items = [
+    { itemId: 'bamboo', quantity: 4, quality: 'normal' },
+    { itemId: 'bamboo', quantity: 3, quality: 'fine' },
+    { itemId: 'bamboo', quantity: 1, quality: 'excellent' }
+  ]
+  inventoryStore.tempItems = [{ itemId: 'bamboo', quantity: 1, quality: 'supreme' }]
+  questStore.deserialize({
+    ...questStore.serialize(),
+    activeQuests: [quest],
+    completedQuestCount: 0,
+    completedQuestHistory: [],
+    specialOrderSettlementReceipts: []
+  })
+
+  assert(questStore.getQuestEffectiveProgress(questStore.activeQuests[0]) === 2, 'Excellent-or-better combo requirement should count excellent and supreme bamboo only.')
+  assert(questStore.canSubmitQuest(questStore.activeQuests[0]), 'Excellent-or-better combo order should be submittable when excellent and supreme stacks are carried.')
+  const result = questStore.submitQuest(quest.id)
+  assert(result.success === true, 'Submitting an excellent-or-better combo order should succeed with excellent and supreme bamboo.')
+  assert(inventoryStore.getItemCount('bamboo', 'normal') === 4, 'Excellent combo submission must not consume normal bamboo.')
+  assert(inventoryStore.getItemCount('bamboo', 'fine') === 3, 'Excellent combo submission must not consume fine bamboo.')
+  assert(inventoryStore.getItemCount('bamboo', 'excellent') === 0, 'Excellent combo submission should consume excellent bamboo first.')
+  assert(inventoryStore.getTempItemCount('bamboo', 'supreme') === 0, 'Excellent combo submission should continue into supreme bamboo when excellent is insufficient.')
 }
 
 const makeFinalStageSpecialOrder = () => ({

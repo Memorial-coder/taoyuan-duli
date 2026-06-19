@@ -12,6 +12,7 @@ import type {
   QuestTemplateDef,
   QuestThemeTag,
   QuestType,
+  Quality,
   OrderGenerationTraceAttempt,
   ReleaseChecklistItem,
   RelationshipStage,
@@ -35,6 +36,45 @@ import { isRelationshipStageAtLeast, NPC_VILLAGER_QUEST_PROFILES } from './npcWo
 
 // WS05 anchor: the quest pool and special orders already provide the base surface
 // for character-flavored orders, seasonal windows, and long-tail reward loops.
+
+export const QUEST_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+export const QUEST_QUALITY_LABELS: Record<Quality, string> = {
+  normal: '普通',
+  fine: '良品',
+  excellent: '精品',
+  supreme: '极品'
+}
+export const QUEST_QUALITY_REWARD_MULTIPLIERS: Record<Quality, number> = {
+  normal: 1,
+  fine: 1.25,
+  excellent: 1.5,
+  supreme: 2
+}
+
+export const getQuestMinQualityLabel = (minQuality?: Quality): string =>
+  minQuality && minQuality !== 'normal' ? `${QUEST_QUALITY_LABELS[minQuality]}及以上` : ''
+
+export const formatQuestRequirementTarget = (itemName: string, quantity: number, minQuality?: Quality): string => {
+  const qualityLabel = getQuestMinQualityLabel(minQuality)
+  return `${qualityLabel ? `${qualityLabel}` : ''}${itemName} × ${quantity}`
+}
+
+const getQuestTargetNameWithMinQuality = (itemName: string, minQuality?: Quality): string => {
+  const qualityLabel = getQuestMinQualityLabel(minQuality)
+  return qualityLabel ? `${qualityLabel}${itemName}` : itemName
+}
+
+const getQuestQualityRewardMultiplier = (minQuality?: Quality): number =>
+  QUEST_QUALITY_REWARD_MULTIPLIERS[minQuality ?? 'normal'] ?? 1
+
+const getQuestQualityRank = (quality?: Quality): number =>
+  quality ? QUEST_QUALITY_ORDER.indexOf(quality) : -1
+
+const getHighestQuestMinQuality = (qualities: Array<Quality | undefined>): Quality | undefined =>
+  qualities.reduce<Quality | undefined>(
+    (best, quality) => getQuestQualityRank(quality) > getQuestQualityRank(best) ? quality : best,
+    undefined
+  )
 
 export const QUEST_TEMPLATES: QuestTemplateDef[] = [
   {
@@ -158,6 +198,7 @@ interface SpecialOrderTemplate {
   targetItemId: string
   targetItemName: string
   quantity: number
+  minQuality?: Quality
   days: number
   moneyReward: number
   itemReward: { itemId: string; quantity: number }[]
@@ -281,6 +322,7 @@ const createSingleStageDefinitions = (input: {
   targetItemId: string
   targetItemName: string
   quantity: number
+  minQuality?: Quality
   deliveryMode?: QuestDeliveryMode
 }): SpecialOrderStageDef[] => [
   {
@@ -291,6 +333,7 @@ const createSingleStageDefinitions = (input: {
     targetItemId: input.targetItemId,
     targetItemName: input.targetItemName,
     targetQuantity: input.quantity,
+    minQuality: input.minQuality,
     deliveryMode: input.deliveryMode
   }
 ]
@@ -320,6 +363,7 @@ const createMultiStageDefinitions = (input: {
     targetItemId?: string
     targetItemName?: string
     targetQuantity?: number
+    minQuality?: Quality
     deliveryMode?: QuestDeliveryMode
     requirementSummary?: string[]
     comboRequirements?: SpecialOrderComboRequirement[]
@@ -335,12 +379,23 @@ const createMultiStageDefinitions = (input: {
     targetItemId: stage.targetItemId,
     targetItemName: stage.targetItemName,
     targetQuantity: stage.targetQuantity,
+    minQuality: stage.minQuality,
     deliveryMode: stage.deliveryMode,
     requirementSummary: stage.requirementSummary ? [...stage.requirementSummary] : undefined,
     comboRequirements: cloneComboRequirements(stage.comboRequirements),
     stageRewards: cloneStageRewards(stage.stageRewards),
     nextStageTemplateId: stage.nextStageTemplateId
   }))
+
+const getSpecialOrderRewardQuality = (template: SpecialOrderTemplate): Quality | undefined =>
+  getHighestQuestMinQuality([
+    template.minQuality,
+    ...(template.comboRequirements?.map(requirement => requirement.minQuality) ?? []),
+    ...(template.stageDefinitions?.flatMap(stage => [
+      stage.minQuality,
+      ...(stage.comboRequirements?.map(requirement => requirement.minQuality) ?? [])
+    ]) ?? [])
+  ])
 
 export const BREEDING_SPECIAL_ORDER_BASELINE = {
   auditId: 'ws05_breeding_special_order_theme_week',
@@ -1796,7 +1851,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderStageType: 'combo',
     requiredVillageProjectIds: ['festival_greenhouse'],
     comboRequirements: [
-      { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
+      { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, minQuality: 'excellent', note: '用于摊位和街口框架补缮。' },
       { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝帕', quantity: 2, note: '用于节景挂饰收尾。' },
       { id: 'combo_scene_incense', itemId: 'pine_incense', itemName: '松香', quantity: 2, note: '用于陈列区的香气点缀。' }
     ],
@@ -1804,7 +1859,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       title: '备齐街市节景套组',
       description: '雪芹这回要的不是单一材料，而是一整套能立刻上街的节景补缮包。',
       requirements: [
-        { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
+        { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, minQuality: 'excellent', note: '用于摊位和街口框架补缮。' },
         { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝帕', quantity: 2, note: '用于节景挂饰收尾。' },
         { id: 'combo_scene_incense', itemId: 'pine_incense', itemName: '松香', quantity: 2, note: '用于陈列区的香气点缀。' }
       ],
@@ -2084,6 +2139,7 @@ interface VillagerQuestTemplate {
   targetItemName: string
   minQty: number
   maxQty: number
+  minQuality?: Quality
   days: number
   rewardMultiplier: number
   friendshipReward: number
@@ -2109,6 +2165,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     targetItemName: '木材',
     minQty: 12,
     maxQty: 20,
+    minQuality: 'fine',
     days: 3,
     rewardMultiplier: 4,
     friendshipReward: 8,
@@ -2201,6 +2258,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     targetItemName: '竹子',
     minQty: 4,
     maxQty: 7,
+    minQuality: 'fine',
     days: 3,
     rewardMultiplier: 6,
     friendshipReward: 8,
@@ -2216,6 +2274,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     targetItemName: '竹子',
     minQty: 6,
     maxQty: 10,
+    minQuality: 'excellent',
     days: 3,
     rewardMultiplier: 6,
     friendshipReward: 8,
@@ -2369,6 +2428,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     targetItemName: '竹子',
     minQty: 4,
     maxQty: 6,
+    minQuality: 'excellent',
     days: 3,
     rewardMultiplier: 7,
     friendshipReward: 10,
@@ -2444,6 +2504,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     targetItemName: '柴火',
     minQty: 8,
     maxQty: 12,
+    minQuality: 'fine',
     days: 2,
     rewardMultiplier: 4,
     friendshipReward: 6,
@@ -3378,14 +3439,17 @@ export const generateVillagerQuest = (
   const repeatSignature = `villager:${template.npcId}:${template.targetItemId}:${template.category}`
   const isRepeatVariant = completedQuestSignatures.includes(repeatSignature)
   const quantity = isRepeatVariant ? baseQuantity + Math.max(1, Math.floor(baseQuantity * 0.25)) : baseQuantity
-  const moneyReward = Math.floor(quantity * template.rewardMultiplier * 12 * (isRepeatVariant ? 1.25 : 1))
+  const qualityRewardMultiplier = getQuestQualityRewardMultiplier(template.minQuality)
+  const moneyReward = Math.floor(quantity * template.rewardMultiplier * 12 * (isRepeatVariant ? 1.25 : 1) * qualityRewardMultiplier)
+  const friendshipReward = Math.floor(template.friendshipReward * qualityRewardMultiplier)
   const categoryLabel = VILLAGER_CATEGORY_LABELS[template.category]
+  const targetItemName = getQuestTargetNameWithMinQuality(template.targetItemName, template.minQuality)
   const description = template.descriptionTemplate
     ? template.descriptionTemplate
         .replace(/\{npcName\}/g, npcName)
-        .replace(/\{targetItemName\}/g, template.targetItemName)
+        .replace(/\{targetItemName\}/g, targetItemName)
         .replace(/\{quantity\}/g, String(quantity))
-    : `${npcName}有一份${categoryLabel}委托：需要${quantity}个${template.targetItemName}。`
+    : `${npcName}有一份${categoryLabel}委托：需要${quantity}个${targetItemName}。`
   const cropUseSummary =
     template.category === 'festival_prep'
       ? getCropUseTagMatchedSummary(template.targetItemId, ['festival'])
@@ -3412,9 +3476,10 @@ export const generateVillagerQuest = (
     targetItemId: template.targetItemId,
     targetItemName: template.targetItemName,
     targetQuantity: quantity,
+    minQuality: template.minQuality,
     collectedQuantity: 0,
     moneyReward,
-    friendshipReward: template.friendshipReward,
+    friendshipReward,
     ticketReward: getVillagerQuestTicketReward(template, isRepeatVariant),
     daysRemaining: template.days,
     accepted: false,
@@ -3429,6 +3494,7 @@ export const generateVillagerQuest = (
     buildingClueText: template.buildingClueText,
     bonusSummary: [
       ...(template.bonusSummary ?? []),
+      ...(getQuestMinQualityLabel(template.minQuality) ? [`品质要求：${getQuestMinQualityLabel(template.minQuality)}。`] : []),
       ...(cropUseSummary ? [cropUseSummary] : []),
       ...(isRepeatVariant ? ['这是做过同类委托后的熟客加急版。'] : [])
     ]
@@ -3638,8 +3704,12 @@ export const generateSpecialOrder = (
     if (template.requiredFishMature) summary.push('需成熟个体')
     if (template.requiredFishHealthy) summary.push('需健康个体')
     if (template.deliveryMode === 'pond') summary.push('可直接从鱼塘交付')
+    const targetQualityLabel = getQuestMinQualityLabel(template.minQuality)
+    if (targetQualityLabel) {
+      summary.push(`主目标品质：${targetQualityLabel}`)
+    }
     if (template.comboRequirements?.length) {
-      summary.push(`组合交付：${template.comboRequirements.map(requirement => `${requirement.itemName}×${requirement.quantity}`).join('、')}`)
+      summary.push(`组合交付：${template.comboRequirements.map(requirement => formatQuestRequirementTarget(requirement.itemName, requirement.quantity, requirement.minQuality)).join('、')}`)
     }
     return summary
   }
@@ -3717,7 +3787,7 @@ export const generateSpecialOrder = (
         hints.push('该订单需从背包携带全部材料后统一交付。')
       }
       const requirementLines = requirements.map(requirement =>
-        `${requirement.itemName}：${requirement.deliveryMode === 'pond' ? '鱼塘直交' : '背包提交'}${requirement.note ? ` · ${requirement.note}` : ''}`
+        `${formatQuestRequirementTarget(requirement.itemName, requirement.quantity, requirement.minQuality)}：${requirement.deliveryMode === 'pond' ? '鱼塘直交' : '背包提交'}${requirement.note ? ` · ${requirement.note}` : ''}`
       )
       hints.push(...requirementLines)
     } else if (hasPondStage && hasInventoryStage) {
@@ -3745,6 +3815,7 @@ export const generateSpecialOrder = (
           targetItemId: template.targetItemId,
           targetItemName: template.targetItemName,
           quantity: template.quantity,
+          minQuality: template.minQuality,
           deliveryMode: template.deliveryMode
         })
 
@@ -3835,6 +3906,9 @@ export const generateSpecialOrder = (
   const tierLabel = TIER_LABELS[clampedTier - 1]
   const specialOrderCropUseSummaries = getSpecialOrderCropUseSummaries(template)
   const demandHints = [template.bonusSummary?.[0], ...specialOrderCropUseSummaries].filter((line): line is string => !!line)
+  const rewardQuality = getSpecialOrderRewardQuality(template)
+  const qualityRewardMultiplier = getQuestQualityRewardMultiplier(rewardQuality)
+  const targetItemName = getQuestTargetNameWithMinQuality(template.targetItemName, template.minQuality)
 
   questCounter++
   return {
@@ -3843,13 +3917,14 @@ export const generateSpecialOrder = (
     npcId: template.npcId,
     npcName,
     tierLabel,
-    description: `${npcName}急需${template.quantity}个${template.targetItemName}。`,
+    description: `${npcName}急需${template.quantity}个${targetItemName}。`,
     targetItemId: template.targetItemId,
     targetItemName: template.targetItemName,
     targetQuantity: template.quantity,
+    minQuality: template.minQuality,
     collectedQuantity: 0,
-    moneyReward: template.moneyReward,
-    friendshipReward: TIER_FRIENDSHIP[clampedTier - 1]!,
+    moneyReward: Math.floor(template.moneyReward * qualityRewardMultiplier),
+    friendshipReward: Math.floor(TIER_FRIENDSHIP[clampedTier - 1]! * qualityRewardMultiplier),
     ticketReward: template.ticketReward,
     rewardProfileId: template.rewardProfileId,
     orderVersion: template.orderVersion,
@@ -3877,7 +3952,11 @@ export const generateSpecialOrder = (
     antiRepeatCooldownWeeks: template.antiRepeatCooldownWeeks,
     recommendedHybridIds: template.requiredHybridId ? [template.requiredHybridId] : undefined,
     preferredSeasons: template.preferredSeasons,
-    bonusSummary: [...(template.bonusSummary ?? []), ...specialOrderCropUseSummaries],
+    bonusSummary: [
+      ...(template.bonusSummary ?? []),
+      ...(getQuestMinQualityLabel(rewardQuality) ? [`品质要求：${getQuestMinQualityLabel(rewardQuality)}。`] : []),
+      ...specialOrderCropUseSummaries
+    ],
     deliverySourceHint: buildSpecialOrderDeliverySourceHint(template, cloneStageDefinitions(template.stageDefinitions), cloneComboRequirements(template.comboRequirements)),
     requirementSummary: getRequirementSummary(template),
     requiredHybridId: template.requiredHybridId,
@@ -3986,15 +4065,18 @@ export const generateQuest = (
   const quantity = target.minQty + Math.floor(Math.random() * (target.maxQty - target.minQty + 1))
 
   // 奖励计算
-  const moneyReward = Math.floor(target.unitPrice * quantity * template.rewardMultiplier)
+  const qualityRewardMultiplier = getQuestQualityRewardMultiplier(target.minQuality)
+  const moneyReward = Math.floor(target.unitPrice * quantity * template.rewardMultiplier * qualityRewardMultiplier)
+  const friendshipReward = Math.floor((isUrgent ? template.friendshipReward + 5 : template.friendshipReward) * qualityRewardMultiplier)
 
   questCounter++
   const verb = QUEST_TYPE_VERBS[template.type]
   const urgentPrefix = isUrgent ? '【紧急】' : ''
+  const targetName = getQuestTargetNameWithMinQuality(target.name, target.minQuality)
   const description =
     template.type === 'delivery'
-      ? `${urgentPrefix}${npcName}需要${quantity}个${target.name}，请${verb}${npcName}。`
-      : `${urgentPrefix}${npcName}委托：${verb}${quantity}个${target.name}。`
+      ? `${urgentPrefix}${npcName}需要${quantity}个${targetName}，请${verb}${npcName}。`
+      : `${urgentPrefix}${npcName}委托：${verb}${quantity}个${targetName}。`
   const cropUseDemandHint =
     template.type === 'delivery' ? getCropUseTagMatchedSummary(target.itemId, ['order', 'festival']) : undefined
 
@@ -4007,9 +4089,10 @@ export const generateQuest = (
     targetItemId: target.itemId,
     targetItemName: target.name,
     targetQuantity: quantity,
+    minQuality: target.minQuality,
     collectedQuantity: 0,
     moneyReward: isUrgent ? moneyReward * 2 : moneyReward,
-    friendshipReward: isUrgent ? template.friendshipReward + 5 : template.friendshipReward,
+    friendshipReward,
     daysRemaining: isUrgent ? 1 : 2,
     accepted: false,
     activitySourceId: (template as any).activitySourceId,

@@ -119,7 +119,7 @@ const ancientWine = hiddenById.get('hidden_wine_ancient_fruit')
 assert(!!ancientWine, '缺少远古水果隐藏酿酒配方 hidden_wine_ancient_fruit')
 assert(ancientWine?.machineType === 'wine_workshop', '远古水果隐藏配方必须属于酒坊')
 assert(ancientWine?.inputItemId === 'ancient_fruit', '远古水果隐藏配方输入必须为 ancient_fruit')
-assert(ancientWine?.outputItemId === 'celestial_fruit_wine', '远古水果隐藏配方应进入通用果酒顶档 celestial_fruit_wine')
+assert(ancientWine?.outputItemId === 'ancient_fruit_wine', '远古水果隐藏配方必须产出专属远古果酒，不得占用多年育种顶档天成果酿')
 assert(ancientWine?.hiddenMeta?.gate?.workshopLevel === 2, '远古水果隐藏配方需要工坊 Lv.2 门槛')
 assert(ancientWine?.hiddenMeta?.gate?.requiredItemId === 'ancient_fruit', '远古水果隐藏配方需要持有 ancient_fruit 才出现')
 
@@ -131,16 +131,26 @@ assert(ancientWine?.inputQuantity === 1, 'ancient fruit wine should consume exac
 assert(ancientWine?.outputQuantity === 1, 'ancient fruit wine should produce exactly 1 bottle.')
 assert(ancientWine?.processingDays === 4, 'ancient fruit hidden wine should follow valuable crop 4-day brewing.')
 assert(
-  ancientWineItem?.sellPrice === 28000,
-  `ancient fruit hidden wine output should match celestial fruit wine price: ${ancientWineItem?.sellPrice ?? 0}`
+  ancientWineItem?.sellPrice === 5000,
+  `ancient fruit hidden wine output should use dedicated ancient fruit wine price: ${ancientWineItem?.sellPrice ?? 0}`
 )
 assert(
-  ancientWineItem?.staminaRestore === 720,
-  `ancient fruit hidden wine stamina should match celestial fruit wine: ${ancientWineItem?.staminaRestore ?? 0}`
+  ancientWineItem?.staminaRestore === 180,
+  `ancient fruit hidden wine stamina should use dedicated ancient fruit wine recovery: ${ancientWineItem?.staminaRestore ?? 0}`
 )
 assert(
-  ancientWineItem?.healthRestore === 360,
-  `ancient fruit hidden wine health should match celestial fruit wine: ${ancientWineItem?.healthRestore ?? 0}`
+  ancientWineItem?.healthRestore === 90,
+  `ancient fruit hidden wine health should use dedicated ancient fruit wine recovery: ${ancientWineItem?.healthRestore ?? 0}`
+)
+
+const heavenlyTuberWine = hiddenById.get('hidden_wine_heavenly_change_tuber')
+const heavenlyTuberWineItem = getItemById(heavenlyTuberWine?.outputItemId ?? '')
+assert(!!heavenlyTuberWine, '缺少天化薯隐藏酿酒配方 hidden_wine_heavenly_change_tuber')
+assert(heavenlyTuberWine?.inputItemId === 'heavenly_change_tuber', '天化薯隐藏酿酒配方输入必须为 heavenly_change_tuber')
+assert(heavenlyTuberWine?.outputItemId === 'celestial_fruit_wine', '天化薯等多年育种链顶端作物应保留天成果酿出口')
+assert(
+  (heavenlyTuberWineItem?.sellPrice ?? 0) > (ancientWineItem?.sellPrice ?? 0) * 2,
+  '普通天化薯顶档果酒基础价必须高于极品远古专属果酒，避免优质肥料远古压过多年育种链'
 )
 
 const ancientProfile = getCropUseProfile('ancient_fruit')
@@ -204,6 +214,15 @@ const getHiddenProcessingMinimumMultiplier = recipe => {
   return 1.25
 }
 
+const PUBLIC_WINE_WORKSHOP_TRIPLE_VALUE_EXCEPTIONS = new Set([
+  'vinegar_rice'
+])
+
+const getPublicProcessingMinimumMultiplier = recipe => {
+  if (recipe.machineType === 'wine_workshop' && !PUBLIC_WINE_WORKSHOP_TRIPLE_VALUE_EXCEPTIONS.has(recipe.id)) return 3
+  return 1
+}
+
 for (const recipe of hiddenRecipes) {
   if (!hiddenBalanceMachineTypes.has(recipe.machineType)) continue
 
@@ -237,10 +256,11 @@ for (const recipe of PROCESSING_RECIPES) {
   const inputValue = getRecipeInputValue(recipe)
   const outputValue = getRecipeOutputValue(recipe)
   if (inputValue <= 0 || outputValue <= 0) continue
+  const minimumValue = Math.ceil(inputValue * getPublicProcessingMinimumMultiplier(recipe))
 
   assert(
-    outputValue >= inputValue,
-    `${recipe.id} public processing value loss: ${outputValue} < ${inputValue} (${recipe.outputItemId})`
+    outputValue >= minimumValue,
+    `${recipe.id} public processing value loss: ${outputValue} < ${minimumValue} (${recipe.outputItemId}, input ${inputValue})`
   )
 
   const inputRecovery = getRecipeInputRecovery(recipe)

@@ -11,6 +11,7 @@ import type {
   QuestInstance,
   QuestStageState,
   QuestType,
+  Quality,
   RewardTicketType,
   Season,
   FriendshipLevel,
@@ -34,6 +35,7 @@ import {
   BREEDING_SPECIAL_ORDER_TUNING_CONFIG,
   CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID,
   CHILD_SPIRIT_SPECIAL_ORDER_NPC_IDS,
+  getQuestMinQualityLabel,
   WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
   WS13_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
   type QuestMarketCategory
@@ -881,7 +883,7 @@ export const useQuestStore = defineStore('quest', () => {
 
     // 非送货类委托：检查背包中已有的物品数量
     if (quest.type !== 'delivery') {
-      quest.collectedQuantity = Math.min(inventoryStore.getTotalItemCount(quest.targetItemId), quest.targetQuantity)
+      quest.collectedQuantity = Math.min(getQuestInventoryCount(quest.targetItemId, quest.minQuality), quest.targetQuantity)
     }
 
     activeQuests.value.push(quest)
@@ -910,7 +912,7 @@ export const useQuestStore = defineStore('quest', () => {
         order.targetQuantity
       )
     } else {
-      order.collectedQuantity = Math.min(inventoryStore.getTotalItemCount(order.targetItemId), order.targetQuantity)
+      order.collectedQuantity = Math.min(getQuestInventoryCount(order.targetItemId, order.minQuality), order.targetQuantity)
     }
 
     activeQuests.value.push(order)
@@ -919,6 +921,17 @@ export const useQuestStore = defineStore('quest', () => {
   }
 
   const getSpecialOrderBaseline = () => specialOrderBaseline
+
+  const getQuestInventoryCount = (itemId: string, minQuality?: Quality): number =>
+    minQuality ? inventoryStore.getTotalItemCountAtLeast(itemId, minQuality) : inventoryStore.getTotalItemCount(itemId)
+
+  const removeQuestInventoryItems = (itemId: string, quantity: number, minQuality?: Quality): boolean =>
+    minQuality ? inventoryStore.removeItemAnywhereAtLeast(itemId, quantity, minQuality) : inventoryStore.removeItemAnywhere(itemId, quantity)
+
+  const getQuestRequiredItemLabel = (itemName: string, minQuality?: Quality): string => {
+    const qualityLabel = getQuestMinQualityLabel(minQuality)
+    return qualityLabel ? `${qualityLabel}${itemName}` : itemName
+  }
 
   const resolveSpecialOrderRank = (
     rule: SpecialOrderScoreRule,
@@ -1428,6 +1441,7 @@ export const useQuestStore = defineStore('quest', () => {
     const targetItemId = stage.targetItemId ?? quest.targetItemId
     const targetQuantity = stage.targetQuantity ?? quest.targetQuantity
     const deliveryMode = stage.deliveryMode ?? quest.deliveryMode
+    const minQuality = stage.minQuality ?? quest.minQuality
 
     if (deliveryMode === 'pond') {
       const fishPondStore = useFishPondStore()
@@ -1440,7 +1454,7 @@ export const useQuestStore = defineStore('quest', () => {
       return Math.min(eligible, targetQuantity)
     }
 
-    return Math.min(inventoryStore.getTotalItemCount(targetItemId), targetQuantity)
+    return Math.min(getQuestInventoryCount(targetItemId, minQuality), targetQuantity)
   }
 
   const hasComboRequirements = (quest: QuestInstance): boolean => Array.isArray(quest.comboRequirements) && quest.comboRequirements.length > 0
@@ -1457,11 +1471,11 @@ export const useQuestStore = defineStore('quest', () => {
       return Math.min(eligible, requirement.quantity)
     }
 
-    return Math.min(inventoryStore.getTotalItemCount(requirement.itemId), requirement.quantity)
+    return Math.min(getQuestInventoryCount(requirement.itemId, requirement.minQuality), requirement.quantity)
   }
 
-  const getInventoryQuestProgress = (itemId: string, targetQuantity: number): number =>
-    Math.min(inventoryStore.getTotalItemCount(itemId), targetQuantity)
+  const getInventoryQuestProgress = (itemId: string, targetQuantity: number, minQuality?: Quality): number =>
+    Math.min(getQuestInventoryCount(itemId, minQuality), targetQuantity)
 
   const getUnsatisfiedComboRequirement = (quest: QuestInstance): SpecialOrderComboRequirement | null => {
     if (!hasComboRequirements(quest)) return null
@@ -1473,7 +1487,7 @@ export const useQuestStore = defineStore('quest', () => {
     if (requirement.deliveryMode === 'pond') {
       return `鱼塘中符合条件的${requirement.itemName}不足（${current}/${requirement.quantity}）。`
     }
-    return `${requirement.itemName}不足（${current}/${requirement.quantity}）。`
+    return `${getQuestRequiredItemLabel(requirement.itemName, requirement.minQuality)}不足（${current}/${requirement.quantity}）。`
   }
 
   const getQuestEffectiveProgress = (quest: QuestInstance): number => {
@@ -1497,7 +1511,7 @@ export const useQuestStore = defineStore('quest', () => {
       return Math.min(eligible, quest.targetQuantity)
     }
 
-    return getInventoryQuestProgress(quest.targetItemId, quest.targetQuantity)
+    return getInventoryQuestProgress(quest.targetItemId, quest.targetQuantity, quest.minQuality)
   }
 
   const canSubmitQuest = (quest: QuestInstance): boolean => {
@@ -1511,12 +1525,13 @@ export const useQuestStore = defineStore('quest', () => {
       const targetItemId = currentStage.targetItemId ?? quest.targetItemId
       const targetQuantity = currentStage.targetQuantity ?? quest.targetQuantity
       const deliveryMode = currentStage.deliveryMode ?? quest.deliveryMode
+      const minQuality = currentStage.minQuality ?? quest.minQuality
 
       if (deliveryMode === 'pond') {
         return getStageEffectiveProgress(quest, currentStage) >= targetQuantity
       }
 
-      const carriedCount = inventoryStore.getTotalItemCount(targetItemId)
+      const carriedCount = getQuestInventoryCount(targetItemId, minQuality)
       if (currentStage.phaseType === 'prepare' || currentStage.phaseType === 'verify' || currentStage.phaseType === 'deliver') {
         return carriedCount >= targetQuantity && getStageEffectiveProgress(quest, currentStage) >= targetQuantity
       }
@@ -1532,7 +1547,7 @@ export const useQuestStore = defineStore('quest', () => {
       return getQuestEffectiveProgress(quest) >= quest.targetQuantity
     }
 
-    const carriedCount = inventoryStore.getTotalItemCount(quest.targetItemId)
+    const carriedCount = getQuestInventoryCount(quest.targetItemId, quest.minQuality)
     if (quest.type === 'delivery') {
       return carriedCount >= quest.targetQuantity
     }
@@ -1628,9 +1643,9 @@ export const useQuestStore = defineStore('quest', () => {
             if (isFinalStage) {
               submittedPondFishSnapshots.push(...fishPondStore.lastOrderSubmissionSnapshots)
             }
-          } else if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)) {
+          } else if (!removeQuestInventoryItems(requirement.itemId, requirement.quantity, requirement.minQuality)) {
             rollbackSubmissionState()
-            return { success: false, message: `${requirement.itemName}不足，无法完成当前订单阶段。` }
+            return { success: false, message: `${getQuestRequiredItemLabel(requirement.itemName, requirement.minQuality)}不足，无法完成当前订单阶段。` }
           }
         }
       } else if (deliveryMode === 'pond') {
@@ -1663,12 +1678,13 @@ export const useQuestStore = defineStore('quest', () => {
         if (effectiveProgress < targetQuantity) {
           return { success: false, message: `${targetItemName}当前阶段进度不足（${effectiveProgress}/${targetQuantity}）。` }
         }
-        if (inventoryStore.getTotalItemCount(targetItemId) < targetQuantity) {
-          return { success: false, message: `请先带上足够的${targetItemName}再来提交当前阶段。` }
+        const minQuality = currentStage.minQuality ?? quest.minQuality
+        if (getQuestInventoryCount(targetItemId, minQuality) < targetQuantity) {
+          return { success: false, message: `请先带上足够的${getQuestRequiredItemLabel(targetItemName, minQuality)}再来提交当前阶段。` }
         }
-        if (!inventoryStore.removeItemAnywhere(targetItemId, targetQuantity)) {
+        if (!removeQuestInventoryItems(targetItemId, targetQuantity, minQuality)) {
           rollbackSubmissionState()
-          return { success: false, message: `请先带上足够的${targetItemName}再来提交当前阶段。` }
+          return { success: false, message: `请先带上足够的${getQuestRequiredItemLabel(targetItemName, minQuality)}再来提交当前阶段。` }
         }
       }
 
@@ -1758,9 +1774,9 @@ export const useQuestStore = defineStore('quest', () => {
             return { success: false, message: `${requirement.itemName}鱼塘交付失败，请稍后再试。` }
           }
           submittedPondFishSnapshots.push(...fishPondStore.lastOrderSubmissionSnapshots)
-        } else if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)) {
+        } else if (!removeQuestInventoryItems(requirement.itemId, requirement.quantity, requirement.minQuality)) {
           rollbackSubmissionState()
-          return { success: false, message: `${requirement.itemName}不足，无法完成组合交付。` }
+          return { success: false, message: `${getQuestRequiredItemLabel(requirement.itemName, requirement.minQuality)}不足，无法完成组合交付。` }
         }
       }
     } else if (quest.deliveryMode === 'pond') {
@@ -1790,12 +1806,12 @@ export const useQuestStore = defineStore('quest', () => {
     }
     // 送货类委托：提交时从背包扣除物品
     else if (quest.type === 'delivery') {
-      if (inventoryStore.getTotalItemCount(quest.targetItemId) < quest.targetQuantity) {
-        return { success: false, message: `背包中${quest.targetItemName}不足。` }
+      if (getQuestInventoryCount(quest.targetItemId, quest.minQuality) < quest.targetQuantity) {
+        return { success: false, message: `背包中${getQuestRequiredItemLabel(quest.targetItemName, quest.minQuality)}不足。` }
       }
-      if (!inventoryStore.removeItemAnywhere(quest.targetItemId, quest.targetQuantity)) {
+      if (!removeQuestInventoryItems(quest.targetItemId, quest.targetQuantity, quest.minQuality)) {
         rollbackSubmissionState()
-        return { success: false, message: `背包中${quest.targetItemName}不足。` }
+        return { success: false, message: `背包中${getQuestRequiredItemLabel(quest.targetItemName, quest.minQuality)}不足。` }
       }
     } else {
       // 钓鱼/挖矿/采集/特殊订单类：检查收集进度或背包数量
@@ -1803,12 +1819,12 @@ export const useQuestStore = defineStore('quest', () => {
       if (effectiveProgress < quest.targetQuantity) {
         return { success: false, message: `${quest.targetItemName}收集进度不足（${effectiveProgress}/${quest.targetQuantity}）。` }
       }
-      if (inventoryStore.getTotalItemCount(quest.targetItemId) < quest.targetQuantity) {
-        return { success: false, message: `请先带上足够的${quest.targetItemName}再来提交。` }
+      if (getQuestInventoryCount(quest.targetItemId, quest.minQuality) < quest.targetQuantity) {
+        return { success: false, message: `请先带上足够的${getQuestRequiredItemLabel(quest.targetItemName, quest.minQuality)}再来提交。` }
       }
-      if (!inventoryStore.removeItemAnywhere(quest.targetItemId, quest.targetQuantity)) {
+      if (!removeQuestInventoryItems(quest.targetItemId, quest.targetQuantity, quest.minQuality)) {
         rollbackSubmissionState()
-        return { success: false, message: `请先带上足够的${quest.targetItemName}再来提交。` }
+        return { success: false, message: `请先带上足够的${getQuestRequiredItemLabel(quest.targetItemName, quest.minQuality)}再来提交。` }
       }
     }
 
@@ -2405,6 +2421,11 @@ export const useQuestStore = defineStore('quest', () => {
     return 'deliver'
   }
 
+  const normalizeQuestQuality = (input: unknown): Quality | undefined => {
+    if (input === 'normal' || input === 'fine' || input === 'excellent' || input === 'supreme') return input
+    return undefined
+  }
+
   const normalizeComboRequirements = (input: unknown): SpecialOrderComboRequirement[] | undefined => {
     if (!Array.isArray(input)) return undefined
 
@@ -2420,6 +2441,7 @@ export const useQuestStore = defineStore('quest', () => {
         ),
         itemName: typeof requirement.itemName === 'string' ? requirement.itemName : typeof requirement.itemId === 'string' ? requirement.itemId : '未命名交付项',
         quantity: Math.max(1, Number(requirement.quantity) || 1),
+        minQuality: normalizeQuestQuality(requirement.minQuality),
         deliveryMode: normalizeDeliveryMode(requirement.deliveryMode),
         requiredHybridId: typeof requirement.requiredHybridId === 'string' ? requirement.requiredHybridId : undefined,
         requiredSweetnessMin: Number.isFinite(Number(requirement.requiredSweetnessMin)) ? Number(requirement.requiredSweetnessMin) : undefined,
@@ -2456,6 +2478,7 @@ export const useQuestStore = defineStore('quest', () => {
           : undefined,
         targetItemName: typeof stage.targetItemName === 'string' ? stage.targetItemName : undefined,
         targetQuantity: Number.isFinite(Number(stage.targetQuantity)) ? Math.max(1, Number(stage.targetQuantity)) : undefined,
+        minQuality: normalizeQuestQuality(stage.minQuality),
         deliveryMode: normalizeDeliveryMode(stage.deliveryMode),
         requirementSummary: normalizeStringArray(stage.requirementSummary),
         comboRequirements: normalizeComboRequirements(stage.comboRequirements),
@@ -2623,6 +2646,7 @@ export const useQuestStore = defineStore('quest', () => {
           ),
       targetItemName: typeof quest.targetItemName === 'string' ? quest.targetItemName : quest.targetItemId,
       targetQuantity: Math.max(1, Number(quest.targetQuantity) || 1),
+      minQuality: normalizeQuestQuality(quest.minQuality),
       collectedQuantity: Math.max(0, Number(quest.collectedQuantity) || 0),
       moneyReward: Math.max(0, Number(quest.moneyReward) || 0),
       friendshipReward: Number(quest.friendshipReward) || 0,

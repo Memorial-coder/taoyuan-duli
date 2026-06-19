@@ -153,10 +153,10 @@ const publicResult = await aiAssistant.askPublic('我今天该做什么', {
 });
 assert.equal(publicResult.provider, 'local', 'public planning answer should use local provider with remote disabled');
 assert.equal(publicResult.mode, 'strict', 'public planning answer should keep strict mode');
-assert.match(publicResult.answer, /本地诊断/, 'public answer should use local diagnostic wording');
-assert.match(publicResult.answer, /评分/, 'public answer should include score');
-assert.match(publicResult.answer, /原因/, 'public answer should include reasons');
-assert.match(publicResult.answer, /建议/, 'public answer should include recommendation');
+assert.match(publicResult.answer, /现在先做|卡在/, 'public answer should give a direct recommendation');
+assert.doesNotMatch(publicResult.answer, /本地诊断|评分|公开状态信号数/, 'public answer should not expose internal diagnostic wording');
+assert.match(publicResult.answer, /为什么/, 'public answer should include reasons');
+assert.match(publicResult.answer, /下一步/, 'public answer should include recommendation');
 
 const publicText = JSON.stringify(publicResult);
 for (const marker of hiddenMarkers) {

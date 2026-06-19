@@ -50,6 +50,7 @@ export type PotentialEffectMode = 'formula' | 'info'
 
 export type PotentialSourceId =
   | 'mine_boss_clear'
+  | 'quarry_stewardship'
   | 'journey_high_risk'
   | 'special_order_finish'
   | 'theme_week_settlement'

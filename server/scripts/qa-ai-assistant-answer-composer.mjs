@@ -64,22 +64,23 @@ const templateAnswer = composePlayerTemplateAnswer({
   intro: '你当前大概率在【任务】相关场景。',
   legacyLead: '关于“卡住了”，我先按公开资料回答。',
   conclusion: '',
-  reasons: [' 命中公开资料 ', '命中公开资料', '关联页面：任务'],
+  reasons: [' 公开资料可确认 ', '公开资料可确认', '关联页面：任务'],
   steps: ['步骤 1', '步骤 2', '步骤 3', '步骤 4', '步骤 5', '步骤 6 应截断'],
   cautions: ['注意公开资料边界。'],
   evidence: ['依据 A', '依据 A', '依据 B'],
   related: ['相关 A', '相关 B', '相关 C', '相关 D 应截断'],
 });
 assert.ok(templateAnswer.includes('结论：我暂时无法确认，需要更具体的问题或页面线索。'));
-assert.ok(templateAnswer.includes('原因：\n1. 命中公开资料\n2. 关联页面：任务'));
-assert.ok(templateAnswer.includes('步骤：\n1. 步骤 1\n2. 步骤 2\n3. 步骤 3\n4. 步骤 4\n5. 步骤 5'));
+assert.ok(templateAnswer.includes('为什么：\n1. 公开资料可确认\n2. 关联页面：任务'));
+assert.ok(templateAnswer.includes('下一步：\n1. 步骤 1\n2. 步骤 2\n3. 步骤 3\n4. 步骤 4\n5. 步骤 5'));
 assert.ok(!templateAnswer.includes('步骤 6 应截断'), 'template steps should keep at most 5 items');
-assert.ok(templateAnswer.includes('依据：\n1. 依据 A\n2. 依据 B'), 'template evidence should de-duplicate');
+assert.doesNotMatch(templateAnswer, /依据：|证据/, 'template should keep evidence out of player-facing body');
+assert.ok(templateAnswer.includes('还可以看：\n1. 相关 A\n2. 相关 B\n3. 相关 C'), 'template related section should use player-facing label');
 assert.ok(!templateAnswer.includes('相关 D 应截断'), 'template related section should keep at most 3 items');
 
 assert.deepEqual(getTemplateStrictModeCautions('standard'), []);
 assert.deepEqual(getTemplateStrictModeCautions('strict'), [
-  '当前是严格模式：只使用玩家可见的公开资料或公开状态摘要，不提供隐藏数值、不公开规则或敏感信息。',
+  '只按玩家可见信息判断，不公开隐藏数值或内部规则。',
 ]);
 
 const clarificationAnswer = composeClarificationAnswer({
@@ -92,8 +93,8 @@ const clarificationAnswer = composeClarificationAnswer({
   },
 });
 assert.ok(clarificationAnswer.includes('关于“怎么弄？”，我还没识别出明确的物品、任务、NPC、地点或系统。'));
-assert.ok(clarificationAnswer.includes('步骤：\n1. 查物品来源\n2. 查任务缺口\n3. 查系统玩法\n4. 也可以先打开这些相关页面再追问：矿洞、任务。'));
-assert.ok(clarificationAnswer.includes('依据：\n1. 本地槽位抽取未命中明确对象。'));
+assert.ok(clarificationAnswer.includes('下一步：\n1. 查物品来源\n2. 查任务缺口\n3. 查系统玩法\n4. 也可以先打开这些相关页面再追问：矿洞、任务。'));
+assert.doesNotMatch(clarificationAnswer, /本地槽位|依据：|证据/, 'clarification should avoid internal parser wording');
 
 const noMatchAnswer = composeNoMatchAnswer({
   question: '不存在的东西去哪找？',
@@ -102,9 +103,9 @@ const noMatchAnswer = composeNoMatchAnswer({
   queryPlan: {},
   mode: 'strict',
 });
-assert.ok(noMatchAnswer.includes('当前公开知识库没有找到足够匹配的条目。'));
+assert.ok(noMatchAnswer.includes('当前资料里没有足够匹配的条目。'));
 assert.ok(noMatchAnswer.includes('也可以问“当前页面主要做什么”来获取页面级建议。'));
-assert.ok(noMatchAnswer.includes('当前是严格模式：只使用玩家可见的公开资料或公开状态摘要，不提供隐藏数值、不公开规则或敏感信息。'));
+assert.ok(noMatchAnswer.includes('只按玩家可见信息判断，不公开隐藏数值或内部规则。'));
 
 assert.deepEqual(
   formatStructuredKnowledgeRecords([
@@ -160,12 +161,12 @@ const resourceAnswer = composeStructuredKnowledgeAnswer({
     },
   ],
 });
-assert.ok(resourceAnswer.includes('结论：资源反查：铜矿。用于工具升级。'));
-assert.ok(resourceAnswer.includes('来源： 1. 【掉落】宝箱，低概率获得'));
+assert.ok(resourceAnswer.includes('结论：铜矿：用于工具升级。'));
+assert.ok(resourceAnswer.includes('来源：【掉落】宝箱，低概率获得'));
 assert.ok(resourceAnswer.includes('最快路线：【购买】铁匠铺，偶尔出售'));
 assert.ok(resourceAnswer.includes('当前是否已解锁：当前问题来自【矿洞】相关入口'));
-assert.ok(resourceAnswer.includes('结构化公开资料回答：铜矿'));
-assert.ok(resourceAnswer.includes('相关：\n1. 铁匠铺：偶尔出售矿石。'));
+assert.doesNotMatch(resourceAnswer, /结构化公开资料回答|资源索引|依据：|证据/, 'resource answer body should avoid report-like evidence wording');
+assert.ok(resourceAnswer.includes('还可以看：\n1. 铁匠铺：偶尔出售矿石。'));
 
 const systemAnswer = composeStructuredKnowledgeAnswer({
   question: '鱼塘怎么玩？',
@@ -229,11 +230,12 @@ const taskAnswer = composeTaskDiagnosisAnswer({
   taskDiagnosis,
   mode: 'strict',
 });
-assert.ok(taskAnswer.includes('结论：「阿石矿料委托」当前主要卡在：库存。'));
-assert.ok(taskAnswer.includes('任务条件逐项核对： 接取状态：已满足。已接取任务。'));
-assert.ok(taskAnswer.includes('库存：阻塞。还缺铜矿2个。 下一步：先补齐铜矿。'));
-assert.ok(taskAnswer.includes('下一步路线： 1. 去矿洞或铁匠铺补齐铜矿。 2. 回任务页确认交付对象。'));
-assert.ok(taskAnswer.includes('这是只读诊断：我不会自动交任务、消耗背包物品、发奖励或改存档。'));
+assert.ok(taskAnswer.includes('结论：「阿石矿料委托」卡在库存，先补齐铜矿。'));
+assert.ok(taskAnswer.includes('为什么：\n1. 还缺铜矿2个。'));
+assert.ok(taskAnswer.includes('下一步：\n1. 库存：还缺铜矿2个；先补齐铜矿。'));
+assert.ok(taskAnswer.includes('2. 去矿洞或铁匠铺补齐铜矿。'));
+assert.ok(taskAnswer.includes('3. 回任务页确认交付对象。'));
+assert.doesNotMatch(taskAnswer, /任务条件逐项核对|只读诊断|自动交任务|改存档/, 'task answer should avoid report-like or long safety wording');
 
 const localDiagnostics = {
   available: true,
@@ -265,10 +267,11 @@ const localAnswer = composeLocalDiagnosticsAnswer({
   mode: 'standard',
   queryPlan: { questionTypes: ['today-planning'] },
 });
-assert.ok(localAnswer.includes('结论：优先处理「任务阻塞：铜矿」（评分 92）。'));
-assert.ok(localAnswer.includes('任务阻塞：铜矿：评分 92；原因：任务阻塞；收益高'));
-assert.ok(localAnswer.includes('建议：先补齐铜矿再交付。；建议查看：任务'));
-assert.ok(localAnswer.includes('本地诊断：今天优先处理任务和体力。'));
+assert.ok(localAnswer.includes('结论：现在先做「任务阻塞：铜矿」。'));
+assert.ok(localAnswer.includes('当前状态：今天优先处理任务和体力。'));
+assert.ok(localAnswer.includes('任务阻塞：铜矿：优先处理，因为任务阻塞、收益高。'));
+assert.ok(localAnswer.includes('先补齐铜矿再交付。（去任务）'));
+assert.doesNotMatch(localAnswer, /评分|本地诊断|公开状态信号数|依据：/, 'planning answer should avoid internal diagnostics wording');
 
 const localTaskAnswer = composeLocalDiagnosticsAnswer({
   question: '阿石矿料委托任务卡住了，缺什么？',
@@ -277,7 +280,7 @@ const localTaskAnswer = composeLocalDiagnosticsAnswer({
   mode: 'strict',
   queryPlan: taskQueryPlan,
 });
-assert.ok(localTaskAnswer.includes('我先按当前公开任务摘要做任务诊断。'));
+assert.ok(localTaskAnswer.includes('结论：「阿石矿料委托」卡在库存，先补齐铜矿。'));
 assert.ok(!localTaskAnswer.includes('优先处理「任务阻塞：铜矿」'), 'task diagnosis should take priority over generic diagnostics');
 
 const sourceAnswer = composeSourceAnswer({
@@ -305,10 +308,10 @@ const sourceAnswer = composeSourceAnswer({
     },
   ],
 });
-assert.ok(sourceAnswer.includes('关于“作物图片在哪里实现？”，我优先按命中的源码文件回答。'));
+assert.ok(sourceAnswer.includes('关于“作物图片在哪里实现？”，我先按公开源码线索回答。'));
 assert.ok(sourceAnswer.includes('模块目录：农场图片\n\n包含作物图片组件和偏好设置。'));
-assert.ok(sourceAnswer.includes('命中文件 1：taoyuan-main/src/components/game/CropImage.vue'));
-assert.ok(sourceAnswer.includes('命中依据：CropImage 组件'));
+assert.ok(sourceAnswer.includes('相关文件 1：taoyuan-main/src/components/game/CropImage.vue'));
+assert.ok(sourceAnswer.includes('为什么相关：CropImage 组件'));
 assert.ok(sourceAnswer.includes('关联符号：renderCropImage（第 42 行附近）'));
 assert.ok(sourceAnswer.includes('补充线索：\n1. 作物图片偏好：偏好存储在 useCropImagePreferences。'));
 assert.ok(sourceAnswer.includes('当前是严格模式：涉及隐藏数值、掉率、风控、后台规则或敏感实现的内容不会提供。'));
@@ -324,7 +327,7 @@ const sourceFallbackAnswer = composeSourceAnswer({
     },
   ],
 });
-assert.ok(sourceFallbackAnswer.includes('最相关证据：\n\n最相关的公开索引摘要。'));
+assert.ok(sourceFallbackAnswer.includes('最相关线索：\n\n最相关的公开索引摘要。'));
 assert.ok(!sourceFallbackAnswer.includes('当前是严格模式'), 'standard source answers should not add strict caution');
 
 const genericAnswer = composeGenericKnowledgeAnswer({
@@ -343,13 +346,12 @@ const genericAnswer = composeGenericKnowledgeAnswer({
     },
   ],
 });
-assert.ok(genericAnswer.includes('关于“桃子怎么种？”，根据当前可用的桃源乡资料：'));
 assert.ok(genericAnswer.includes('结论：春季播种，成熟前每天浇水。'));
-assert.ok(genericAnswer.includes('命中公开资料：桃子种植'));
+assert.ok(genericAnswer.includes('我能确认的条目是「桃子种植」。'));
 assert.ok(genericAnswer.includes('关联页面：农场、任务。'));
-assert.ok(genericAnswer.includes('浇水提示：缺水会暂停生长。'));
-assert.ok(genericAnswer.includes('依据：\n1. 桃子种植\n2. 浇水提示'));
-assert.ok(genericAnswer.includes('当前是严格模式：只使用玩家可见的公开资料或公开状态摘要，不提供隐藏数值、不公开规则或敏感信息。'));
+assert.ok(genericAnswer.includes('补充：浇水提示：缺水会暂停生长。'));
+assert.doesNotMatch(genericAnswer, /依据：|命中公开资料|证据/, 'generic answer should avoid report-like source wording');
+assert.ok(genericAnswer.includes('只按玩家可见信息判断，不公开隐藏数值或内部规则。'));
 
 assert.equal(buildLocalAnswerIntro({ routeName: 'farm' }), '你当前大概率在【农场】相关场景。');
 assert.equal(buildLocalAnswerIntro({ contextLabel: '矿洞', routeName: 'farm' }), '你当前大概率在【矿洞】相关场景。');
@@ -388,8 +390,8 @@ const localStructuredAnswer = composeLocalAnswerFromMatches({
     },
   ],
 });
-assert.ok(localStructuredAnswer.includes('关于“铜矿怎么获得？”，我先按结构化公开资料回答：铜矿。'));
-assert.ok(localStructuredAnswer.includes('资源反查：铜矿'));
+assert.ok(localStructuredAnswer.includes('我能确认的对象是「铜矿」。'));
+assert.ok(localStructuredAnswer.includes('结论：铜矿'));
 
 const localDirectAnswer = composeLocalAnswerFromMatches({
   question: '铜矿',
@@ -412,7 +414,7 @@ const localDirectAnswer = composeLocalAnswerFromMatches({
   ],
 });
 assert.ok(localDirectAnswer.includes('你当前大概率在【矿洞】相关场景。'));
-assert.ok(localDirectAnswer.includes('命中公开资料：铜矿公开手册'));
+assert.ok(localDirectAnswer.includes('我能确认的条目是「铜矿公开手册」。'));
 assert.ok(!localDirectAnswer.includes('结构化公开资料回答'), 'high-score direct knowledge should not be replaced by structured answer');
 
 const localCodeAnswer = composeLocalAnswerFromMatches({
@@ -427,8 +429,8 @@ const localCodeAnswer = composeLocalAnswerFromMatches({
     },
   ],
 });
-assert.ok(localCodeAnswer.includes('我优先按命中的源码文件回答。'));
-assert.ok(localCodeAnswer.includes('最相关证据：\n\nCropImage.vue 包含作物图片渲染。'));
+assert.ok(localCodeAnswer.includes('我先按公开源码线索回答。'));
+assert.ok(localCodeAnswer.includes('最相关线索：\n\nCropImage.vue 包含作物图片渲染。'));
 
 const localClarificationAnswer = composeLocalAnswerFromMatches({
   question: '怎么弄？',

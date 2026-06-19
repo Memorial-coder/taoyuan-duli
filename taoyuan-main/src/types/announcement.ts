@@ -44,6 +44,9 @@ export interface TaoyuanAnnouncement {
   cta_url: string
   button_texts: AnnouncementButtonTexts
   template_type: string
+  show_save_update_button: boolean
+  is_pinned: boolean
+  is_read?: boolean
   rewards: AnnouncementReward[]
   duplicate_compensation_money: number
   created_at: number
@@ -77,6 +80,8 @@ export interface TaoyuanAnnouncementPayload {
   cta_url: string
   button_texts: AnnouncementButtonTexts
   template_type: string
+  show_save_update_button: boolean
+  is_pinned: boolean
   rewards: AnnouncementReward[]
   duplicate_compensation_money: number
 }

@@ -143,7 +143,10 @@ const {
   getAskStreamPhases,
   buildAskStreamResultEvents,
 } = aiAssistantAnswerComposer;
-const { callRemoteModel } = aiAssistantModelClient;
+const {
+  callRemoteModel,
+  callRemoteSemanticPrepass,
+} = aiAssistantModelClient;
 const {
   appendThreeStepSuggestionsToAnswer,
   buildAiAssistantThreeStepSuggestions: buildAiAssistantThreeStepSuggestionsWithService,
@@ -169,6 +172,7 @@ const ROUTE_LABELS = {
   home: '家园',
   cottage: '小屋与家庭',
   village: '村庄与 NPC',
+  'friend-chat': '好友聊天',
   shop: '商店',
   forage: '采集',
   fishing: '钓鱼',
@@ -178,7 +182,9 @@ const ROUTE_LABELS = {
   upgrade: '工具升级',
   inventory: '背包',
   skills: '技能',
+  potential: '潜能',
   achievement: '成就',
+  goals: '目标',
   wallet: '钱包兑换',
   quest: '任务',
   charinfo: '角色信息',
@@ -187,6 +193,72 @@ const ROUTE_LABELS = {
   guild: '公会',
   hanhai: '瀚海',
   fishpond: '鱼塘',
+};
+
+const ROUTE_NAME_BY_LABEL = Object.fromEntries(
+  Object.entries(ROUTE_LABELS).map(([routeName, label]) => [normalizeText(label), routeName])
+);
+
+const SEMANTIC_PREPASS_CONFIDENCE_THRESHOLD = 0.35;
+const SEMANTIC_PREPASS_TIMEOUT_MS = 8000;
+const SEMANTIC_ALLOWED_INTENTS = new Set([
+  'find_source',
+  'explain_usage',
+  'diagnose_task',
+  'plan_today',
+  'explain_page',
+  'explain_system',
+  'remind_risk',
+  'suggest_next_step',
+  'gameplay_qa',
+]);
+const SEMANTIC_INTENT_ALIASES = {
+  'resource-source': 'find_source',
+  resource_source: 'find_source',
+  source: 'find_source',
+  usage: 'explain_usage',
+  resource_use: 'explain_usage',
+  'resource-use': 'explain_usage',
+  task_diagnosis: 'diagnose_task',
+  'task-diagnosis': 'diagnose_task',
+  today_planning: 'plan_today',
+  'today-planning': 'plan_today',
+  page_explanation: 'explain_page',
+  'page-explanation': 'explain_page',
+  system_mechanic: 'explain_system',
+  'system-mechanic': 'explain_system',
+  risk_reminder: 'remind_risk',
+  'risk-reminder': 'remind_risk',
+  next_step_suggestion: 'suggest_next_step',
+  'next-step-suggestion': 'suggest_next_step',
+};
+const SEMANTIC_ALLOWED_QUESTION_TYPES = new Set([
+  'resource-source',
+  'resource-use',
+  'shop-purchase',
+  'task-diagnosis',
+  'today-planning',
+  'page-explanation',
+  'system-mechanic',
+  'risk-reminder',
+  'next-step-suggestion',
+  'precondition',
+  'recipe',
+  'page-feature',
+  'fish-condition',
+]);
+const SEMANTIC_QUESTION_TYPE_ALIASES = {
+  resource_source: 'resource-source',
+  resource_use: 'resource-use',
+  shop_purchase: 'shop-purchase',
+  task_diagnosis: 'task-diagnosis',
+  today_planning: 'today-planning',
+  page_explanation: 'page-explanation',
+  system_mechanic: 'system-mechanic',
+  risk_reminder: 'risk-reminder',
+  next_step_suggestion: 'next-step-suggestion',
+  page_feature: 'page-feature',
+  fish_condition: 'fish-condition',
 };
 
 const DATA_DIR = process.env.DB_STORAGE
@@ -452,15 +524,15 @@ const SOURCE_SYNONYM_RULES = [
 ];
 
 const SOURCE_QUESTION_TYPE_RULES = [
-  { type: 'resource-source', test: /在哪里|在哪|去哪|怎么获得|怎么获取|怎么搞|怎么弄|来源|从哪来|哪来|掉落|产出|获取|差.*去|缺.*去/i },
+  { type: 'resource-source', test: /在哪里|在哪|去哪|怎么获得|怎么获取|怎么搞|怎么弄|咋搞|咋弄|怎么拿|哪里拿|哪里弄|哪里搞|去哪弄|去哪搞|从哪弄|在哪弄|最快怎么拿|来源|从哪来|哪来|哪里出|哪掉|刷哪|掉落|产出|获取|差.*去|差.*哪|缺.*去|缺.*哪/i },
   { type: 'resource-use', test: /用途|有什么用|用来|拿来|能做什么|需要|消耗|要几个|要多少/i },
   { type: 'shop-purchase', test: /在哪买|哪里买|购买|商店|药铺|渔具铺|铁匠铺|万物铺/i },
-  { type: 'task-diagnosis', test: /任务|委托|订单|卡住|缺什么|缺口|差.*个|差.*条|交付|要的|卡关/i },
-  { type: 'today-planning', test: /今天|当前|现在|先做|该做|安排|规划|要干嘛/i },
+  { type: 'task-diagnosis', test: /任务|委托|订单|卡住|卡了|为啥.*卡|为什么.*卡|过不去|交不了|缺什么|缺口|差.*个|差.*条|差.*哪|缺.*哪|帮我看.*任务|看下.*任务|帮我看看.*任务|交付|要的|卡关/i },
+  { type: 'today-planning', test: /今天|当前|现在|先做|该做|该干啥|该去哪|现在干啥|今天干啥|干啥|做啥|干什么|做什么|帮我安排|帮我看看|看下现在|安排|规划|要干嘛/i },
   { type: 'page-explanation', test: /页面|界面|入口|在哪看|怎么看|怎么重连|开吗|开放吗/i },
   { type: 'system-mechanic', test: /系统|机制|怎么玩|周赛|育种|鱼塘|博物馆|公会|瀚海|商路|节会|灯会/i },
-  { type: 'risk-reminder', test: /风险|提醒|快到期|换季|背包满|体力不足|现金不足|生病|来不及/i },
-  { type: 'next-step-suggestion', test: /下一步|接下来|路线|推进|先做|要干嘛|怎么办/i },
+  { type: 'risk-reminder', test: /风险|提醒|快到期|换季|背包满|体力不足|现金不足|生病|来不及|有没有坑|别踩坑|注意啥|要注意|会不会亏|来得及吗/i },
+  { type: 'next-step-suggestion', test: /下一步|下一步干啥|接下来|接下来干啥|接着干啥|路线|往哪走|去哪做|推进|怎么推进|先做|要干嘛|怎么办|咋办|咋整|然后呢/i },
   { type: 'precondition', test: /条件|前置|要求|限制|为什么不能|解锁/i },
   { type: 'recipe', test: /配方|食谱|合成|制作|加工/i },
   { type: 'page-feature', test: /页面|系统|功能|有什么用|做什么|怎么玩/i },
@@ -2222,16 +2294,16 @@ function detectQueryIntents(question = '', explicitTargets = []) {
   ) {
     intents.push('inspect_directory');
   }
-  if (/哪里买|哪买|买|购买|获得|获取|来源|掉落|产出|怎么来|怎么搞|怎么弄|从哪来|哪来|去哪|在哪里|在哪|哪里|在哪里买|哪里找|去哪找/.test(raw)) {
+  if (/哪里买|哪买|买|购买|获得|获取|来源|掉落|产出|怎么来|怎么搞|怎么弄|咋搞|咋弄|怎么拿|哪里拿|哪里弄|哪里搞|去哪弄|去哪搞|从哪弄|在哪弄|最快怎么拿|从哪来|哪来|去哪|在哪里|在哪|哪里|哪里出|哪掉|刷哪|在哪里买|哪里找|去哪找|差.*哪|缺.*哪/.test(raw)) {
     intents.push('find_source');
   }
   if (/用途|有什么用|用来|拿来|能做什么|需要|消耗|要几个|要多少/.test(raw)) {
     intents.push('explain_usage');
   }
-  if (/任务|委托|订单|卡住|缺什么|缺口|卡关|交付|要的|差.*个|差.*条/.test(raw)) {
+  if (/任务|委托|订单|卡住|卡了|为啥.*卡|为什么.*卡|过不去|交不了|缺什么|缺口|卡关|交付|要的|差.*个|差.*条|差.*哪|缺.*哪|帮我看.*任务|看下.*任务|帮我看看.*任务/.test(raw)) {
     intents.push('diagnose_task');
   }
-  if (/今天|当前|现在|先做|该做|安排|规划|要干嘛/.test(raw)) {
+  if (/今天|当前|现在|先做|该做|该干啥|该去哪|现在干啥|今天干啥|干啥|做啥|干什么|做什么|帮我安排|帮我看看|看下现在|安排|规划|要干嘛/.test(raw)) {
     intents.push('plan_today');
   }
   if (/页面|界面|入口|在哪看|怎么看|怎么重连|开吗|开放吗/.test(raw)) {
@@ -2240,10 +2312,10 @@ function detectQueryIntents(question = '', explicitTargets = []) {
   if (/系统|机制|怎么玩|周赛|育种|鱼塘|博物馆|公会|瀚海|商路|节会|灯会/.test(raw)) {
     intents.push('explain_system');
   }
-  if (/风险|提醒|快到期|换季|背包满|体力不足|现金不足|生病|来不及/.test(raw)) {
+  if (/风险|提醒|快到期|换季|背包满|体力不足|现金不足|生病|来不及|有没有坑|别踩坑|注意啥|要注意|会不会亏|来得及吗/.test(raw)) {
     intents.push('remind_risk');
   }
-  if (/下一步|接下来|路线|推进|先做|要干嘛|怎么办/.test(raw)) {
+  if (/下一步|下一步干啥|接下来|接下来干啥|接着干啥|路线|往哪走|去哪做|推进|怎么推进|先做|要干嘛|怎么办|咋办|咋整|然后呢/.test(raw)) {
     intents.push('suggest_next_step');
   }
 
@@ -2992,6 +3064,105 @@ function unique(items) {
   return Array.from(new Set(items.filter(Boolean)));
 }
 
+function normalizeSemanticIntent(value = '') {
+  const raw = String(value || '').trim();
+  const key = raw.toLowerCase().replace(/\s+/g, '_');
+  const normalized = SEMANTIC_INTENT_ALIASES[key] || SEMANTIC_INTENT_ALIASES[raw] || raw;
+  return SEMANTIC_ALLOWED_INTENTS.has(normalized) ? normalized : '';
+}
+
+function normalizeSemanticQuestionType(value = '') {
+  const raw = String(value || '').trim();
+  const key = raw.toLowerCase().replace(/\s+/g, '_');
+  const normalized = SEMANTIC_QUESTION_TYPE_ALIASES[key] || SEMANTIC_QUESTION_TYPE_ALIASES[raw] || raw;
+  return SEMANTIC_ALLOWED_QUESTION_TYPES.has(normalized) ? normalized : '';
+}
+
+function normalizeSemanticRouteHint(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (ROUTE_LABELS[raw]) return raw;
+  return ROUTE_NAME_BY_LABEL[normalizeText(raw)] || '';
+}
+
+function getSemanticSlotTerms(slots = {}) {
+  const source = slots && typeof slots === 'object' && !Array.isArray(slots) ? slots : {};
+  return QUERY_SLOT_FIELDS.flatMap(field => sanitizeStringArray(source[field]));
+}
+
+function buildSemanticTracePayload(semantic = {}, { applied = false, error = '', reason = '' } = {}) {
+  return {
+    used: !!semantic,
+    applied,
+    error: String(error || '').slice(0, 160),
+    reason: String(reason || '').slice(0, 80),
+    confidence: Number(semantic?.confidence) || 0,
+    normalizedQuestion: semantic?.normalizedQuestion || '',
+    intents: sanitizeStringArray(semantic?.intents).map(normalizeSemanticIntent).filter(Boolean),
+    questionTypes: sanitizeStringArray(semantic?.questionTypes).map(normalizeSemanticQuestionType).filter(Boolean),
+    routeHints: sanitizeStringArray(semantic?.routeHints).map(normalizeSemanticRouteHint).filter(Boolean),
+    sourceTerms: sanitizeStringArray(semantic?.sourceTerms).slice(0, 16),
+    rewriteQueries: sanitizeStringArray(semantic?.rewriteQueries).slice(0, 6),
+  };
+}
+
+function mergeSemanticQueryPlan(queryPlan = {}, semanticResult = null) {
+  const semantic = semanticResult?.structured;
+  if (!semantic) {
+    return {
+      ...queryPlan,
+      semanticPrepass: buildSemanticTracePayload(null, { applied: false, reason: 'not_available' }),
+    };
+  }
+
+  const confidence = Number(semantic.confidence) || 0;
+  const semanticIntents = sanitizeStringArray(semantic.intents).map(normalizeSemanticIntent).filter(Boolean);
+  const semanticQuestionTypes = sanitizeStringArray(semantic.questionTypes).map(normalizeSemanticQuestionType).filter(Boolean);
+  const semanticRouteHints = sanitizeStringArray(semantic.routeHints).map(normalizeSemanticRouteHint).filter(Boolean);
+  const semanticTerms = unique([
+    semantic.normalizedQuestion,
+    ...sanitizeStringArray(semantic.sourceTerms),
+    ...sanitizeStringArray(semantic.rewriteQueries),
+    ...getSemanticSlotTerms(semantic.slots),
+  ]).filter(term => String(term || '').length <= 80);
+
+  if (confidence < SEMANTIC_PREPASS_CONFIDENCE_THRESHOLD) {
+    return {
+      ...queryPlan,
+      expandedTerms: unique([...(queryPlan.expandedTerms || []), ...semanticTerms]).slice(0, 120),
+      semanticPrepass: buildSemanticTracePayload(semantic, { applied: false, reason: 'low_confidence' }),
+    };
+  }
+
+  const mergedIntents = unique([...(queryPlan.intents || []), ...semanticIntents]);
+  const preferredSemanticIntent = semanticIntents.find(intent => intent !== 'gameplay_qa');
+  const primaryIntent = queryPlan.primaryIntent === 'gameplay_qa' && preferredSemanticIntent
+    ? preferredSemanticIntent
+    : queryPlan.primaryIntent || mergedIntents[0] || 'gameplay_qa';
+  const mergedQuestionTypes = unique([...(queryPlan.questionTypes || []), ...semanticQuestionTypes]);
+  const mergedRouteHints = unique([...(queryPlan.routeHints || []), ...semanticRouteHints]);
+  const mergedSourceTerms = unique([...semanticTerms, ...semanticQuestionTypes, ...(queryPlan.sourceTerms || [])]).slice(0, 120);
+  const mergedExpandedTerms = unique([
+    ...(queryPlan.expandedTerms || []),
+    ...semanticTerms.filter(term => !mergedSourceTerms.includes(term)),
+  ]).slice(0, 120);
+
+  return {
+    ...queryPlan,
+    intents: mergedIntents.length ? mergedIntents : ['gameplay_qa'],
+    primaryIntent,
+    sourceTerms: mergedSourceTerms,
+    expandedTerms: mergedExpandedTerms,
+    questionTypes: mergedQuestionTypes,
+    routeHints: mergedRouteHints,
+    needsKnowledgeSearch: queryPlan.needsKnowledgeSearch !== false || semanticIntents.length > 0,
+    clarification: preferredSemanticIntent || mergedQuestionTypes.length || mergedRouteHints.length
+      ? { required: false, reason: '', options: [] }
+      : queryPlan.clarification,
+    semanticPrepass: buildSemanticTracePayload(semantic, { applied: true }),
+  };
+}
+
 function splitTopics(value) {
   return String(value || '')
     .split(/\r?\n|,|，|;|；/)
@@ -3214,6 +3385,7 @@ function buildAskTrace({
       clarification: queryPlan?.clarification || { required: false, reason: '', options: [] },
       moduleHints: queryPlan?.moduleHints || [],
       routeHints: queryPlan?.routeHints || [],
+      semanticPrepass: queryPlan?.semanticPrepass || { used: false, applied: false, error: '', reason: '' },
       nounLexiconMatches: (queryPlan?.nounLexiconMatches || []).map(entry => ({
         term: entry.term,
         normalized: entry.normalized,
@@ -3435,8 +3607,39 @@ async function askInternal(question, options = {}, debug = false) {
   );
   const contextSnapshotText = buildContextSnapshotText(options.contextSnapshot);
   const contextLabel = [baseContextLabel, contextSnapshotText].filter(Boolean).join(' / ');
-  const queryPlan = parseCodeQuestion(trimmedQuestion, routeName);
+  let queryPlan = parseCodeQuestion(trimmedQuestion, routeName);
   timings.afterParseMs = Date.now() - timings.startedAt;
+  if (publicConfig.providerConfigured && !getRemoteModelCircuitStatus().open) {
+    try {
+      const semanticResult = await callRemoteSemanticPrepass({
+        question: trimmedQuestion,
+        contextLabel,
+        routeName,
+        queryPlan,
+      }, {
+        timeoutMs: SEMANTIC_PREPASS_TIMEOUT_MS,
+      });
+      queryPlan = mergeSemanticQueryPlan(queryPlan, semanticResult);
+    } catch (error) {
+      queryPlan = {
+        ...queryPlan,
+        semanticPrepass: {
+          used: true,
+          applied: false,
+          error: String(error?.message || '远程语义解析失败').slice(0, 160),
+          reason: 'failed',
+          confidence: 0,
+          normalizedQuestion: '',
+          intents: [],
+          questionTypes: [],
+          routeHints: [],
+          sourceTerms: [],
+          rewriteQueries: [],
+        },
+      };
+    }
+  }
+  timings.afterSemanticPrepassMs = Date.now() - timings.startedAt;
   const diagnostics = buildAiAssistantLocalDiagnostics(options.contextSnapshot, {
     queryPlan,
     routeName,
@@ -3566,7 +3769,8 @@ async function askInternal(question, options = {}, debug = false) {
   }
 
   timings.totalMs = Date.now() - timings.startedAt;
-  const publicEvidence = outputGuard.blocked ? [] : buildPublicEvidenceSummary(matches);
+  const suppressPublicSources = provider === 'model';
+  const publicEvidence = outputGuard.blocked || suppressPublicSources ? [] : buildPublicEvidenceSummary(matches);
   const publicSuggestions = outputGuard.blocked ? [] : threeStepSuggestions.suggestions;
   const traceSummary = buildAiAssistantTraceSummary({
     provider,
@@ -3578,7 +3782,7 @@ async function askInternal(question, options = {}, debug = false) {
 
   const result = {
     answer,
-    sources: outputGuard.blocked
+    sources: outputGuard.blocked || suppressPublicSources
       ? []
       : unique([
           ...knowledgeMatches.map(item => item.title),
@@ -3674,6 +3878,7 @@ module.exports = {
     getRemoteModelCircuitStatus,
     scanAiAssistantOutputForTests: scanAiAssistantOutput,
     resolveQueryPlanForTests: resolveQueryPlan,
+    mergeSemanticQueryPlanForTests: mergeSemanticQueryPlan,
     extractQuerySlotsForTests: extractQuerySlots,
     buildLocalDiagnosticsForTests: buildAiAssistantLocalDiagnostics,
     buildThreeStepSuggestionsForTests: buildAiAssistantThreeStepSuggestions,

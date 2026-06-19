@@ -173,7 +173,8 @@ export const TAB_TO_LOCATION_GROUP: Record<string, LocationGroup | null> = {
   charinfo: null,
   museum: 'village_area',
   guild: 'village_area',
-  hanhai: 'hanhai'
+  hanhai: 'hanhai',
+  quarry: 'mine'
 }
 
 // === 移动时间 ===

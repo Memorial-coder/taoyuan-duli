@@ -508,6 +508,7 @@
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useRealtimeStore } from '@/stores/useRealtimeStore'
   import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
+  import { useMiningStore } from '@/stores/useMiningStore'
   import { useFriendChatStore } from '@/stores/useFriendChatStore'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useFarmStore } from '@/stores/useFarmStore'
@@ -526,8 +527,10 @@
   import { getNpcById, getItemById, getCropById } from '@/data'
   import { CHEST_DEFS } from '@/data/items'
   import { useGameClock } from '@/composables/useGameClock'
-  import { syncNavigationClockPauseForRoute } from '@/composables/useNavigation'
+  import { navigateToPanel, syncNavigationClockPauseForRoute, type PanelKey } from '@/composables/useNavigation'
   import { useAudio } from '@/composables/useAudio'
+  import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
+  import type { KeyboardShortcutActionId } from '@/data/keyboardShortcuts'
   import type { Quality, RecordCenterTabId } from '@/types'
   import type { SaveSlotInfo } from '@/stores/useSaveStore'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
@@ -585,6 +588,7 @@
   const farmStore = useFarmStore()
   const mailboxStore = useMailboxStore()
   const saveStore = useSaveStore()
+  const miningStore = useMiningStore()
   const realtimeStore = useRealtimeStore()
   const announcementStore = useAnnouncementStore()
   const friendChatStore = useFriendChatStore()
@@ -1406,6 +1410,118 @@
   }
   const voidQtyModal = ref<VoidQtyModalData | null>(null)
   const voidQty = ref(1)
+
+  const globalShortcutNavigationTargets: Partial<Record<KeyboardShortcutActionId, PanelKey>> = {
+    navFarm: 'farm',
+    navInventory: 'inventory',
+    navQuest: 'quest',
+    navRegionMap: 'region-map',
+    navCharInfo: 'charinfo',
+    navSkills: 'skills',
+    navPotential: 'potential',
+    navGoals: 'goals',
+    navAnimal: 'animal',
+    navHome: 'home',
+    navBreeding: 'breeding',
+    navShop: 'shop',
+    navWorkshop: 'workshop',
+    navUpgrade: 'upgrade',
+    navFishPond: 'fishpond',
+    navQuarry: 'quarry',
+    navCottage: 'cottage',
+    navDecoration: 'decoration',
+    navForage: 'forage',
+    navFishing: 'fishing',
+    navMining: 'mining',
+    navCooking: 'cooking',
+    navWallet: 'wallet',
+    navMail: 'mail',
+    navAchievement: 'achievement',
+    navGlossary: 'glossary',
+    navMuseum: 'museum',
+    navGuild: 'guild',
+    navHanhai: 'hanhai'
+  }
+
+  const hasNonSettingsShortcutModal = computed(() => !!(
+    currentEvent.value ||
+    pendingHeartEvent.value ||
+    currentFestival.value ||
+    pendingPerk.value ||
+    pendingPetAdoption.value ||
+    childProposalVisible.value ||
+    pendingFarmEvent.value ||
+    pendingDiscoveryScene.value ||
+    currentAnnouncement.value ||
+    showMobileMap.value ||
+    showSleepConfirm.value ||
+    showSavePrompt.value ||
+    showSaveManager.value ||
+    showRecordCenter.value ||
+    showDailyDigestSummary.value ||
+    showVoidModal.value ||
+    showVoidDepositModal.value ||
+    !!voidQtyModal.value ||
+    !!voidItemDetail.value ||
+    miningStore.inCombat
+  ))
+
+  const canRunGlobalPanelShortcut = () => !showSettings.value && !hasNonSettingsShortcutModal.value
+
+  const openSaveManagerFromShortcut = () => {
+    saveIntent.value = 'manage'
+    saveReturnUrl.value = window.location.href
+    showSavePrompt.value = false
+    showSaveManager.value = true
+  }
+
+  useKeyboardShortcutActions([
+    {
+      id: 'systemSettings',
+      priority: 20,
+      canRun: () => showSettings.value || !hasNonSettingsShortcutModal.value,
+      run: () => {
+        if (showSettings.value) {
+          closeSettings()
+        } else {
+          openSettings()
+        }
+      }
+    },
+    {
+      id: 'systemRecordCenter',
+      priority: 10,
+      canRun: () => showRecordCenter.value || canRunGlobalPanelShortcut(),
+      run: () => {
+        if (showRecordCenter.value) {
+          showRecordCenter.value = false
+          return
+        }
+        recordCenterInitialTab.value = playerRecordCenterStore.getPreferredOpenTab()
+        showRecordCenter.value = true
+      }
+    },
+    {
+      id: 'systemSaveManager',
+      priority: 10,
+      canRun: canRunGlobalPanelShortcut,
+      run: openSaveManagerFromShortcut
+    },
+    ...Object.entries(globalShortcutNavigationTargets).map(([id, panelKey]) => ({
+      id: id as KeyboardShortcutActionId,
+      priority: 0,
+      canRun: canRunGlobalPanelShortcut,
+      run: () => navigateToPanel(panelKey as PanelKey)
+    })),
+    {
+      id: 'toolVoidChest',
+      priority: 0,
+      canRun: () => canRunGlobalPanelShortcut() && warehouseStore.hasVoidChest,
+      run: () => {
+        showVoidModal.value = true
+      }
+    }
+  ])
 
   watch(
     () =>

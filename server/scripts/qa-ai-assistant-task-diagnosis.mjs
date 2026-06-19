@@ -78,7 +78,7 @@ const cases = [
         blockerLabels: ['阿石矿料委托缺铜矿2个'],
       },
     }),
-    expected: [/库存：阻塞/, /数量：阻塞|数量：未确认/, /铜矿/, /矿洞|铁匠铺|补齐铜矿/],
+    expected: [/库存：.*铜矿|铜矿缺2/, /矿洞|铁匠铺|补齐铜矿/],
   },
   {
     label: 'precondition shortage',
@@ -89,7 +89,7 @@ const cases = [
         blockerLabels: ['谱系认证订单前置不足：需要完成育种入门并解锁育种棚'],
       },
     }),
-    expected: [/前置：阻塞/, /建筑等级：阻塞|建筑等级：未确认/, /育种入门|育种棚/, /先打开任务关联的系统|建筑\/家园/],
+    expected: [/前置：.*育种入门|育种棚/, /先打开任务关联的系统|建筑\/家园/],
   },
   {
     label: 'season mismatch',
@@ -101,7 +101,7 @@ const cases = [
         blockerLabels: ['草药采集委托季节不符：当前冬季，春季/夏季/秋季可采集草药'],
       },
     }),
-    expected: [/季节：阻塞/, /冬季|季节不符/, /草药/, /改做不受季节限制/],
+    expected: [/季节：.*冬季|季节不符/, /草药/, /改做不受季节限制/],
   },
   {
     label: 'time mismatch',
@@ -113,7 +113,7 @@ const cases = [
         blockerLabels: ['夜钓委托时间不符：需要夜晚，现在是上午'],
       },
     }),
-    expected: [/时间：阻塞/, /夜晚|上午|时间不符/, /确认剩余时间|时段|截止日/, /鲫鱼|溪流|补齐鲫鱼/],
+    expected: [/时间：.*夜晚|上午|时间不符/, /确认剩余时间|时段|截止日/, /鲫鱼|溪流|补齐鲫鱼/],
   },
   {
     label: 'not accepted',
@@ -123,7 +123,7 @@ const cases = [
         boardQuestLabels: ['阿石矿料委托：交付铜矿3个给阿石'],
       },
     }),
-    expected: [/接取状态：阻塞/, /尚未确认已接取|可接\/告示板/, /打开任务\/告示板页面接取/, /不会自动交任务/],
+    expected: [/接取状态：.*尚未确认已接取|可接\/告示板/, /打开任务\/告示板页面接取/],
   },
 ];
 
@@ -134,22 +134,15 @@ for (const item of cases) {
   });
   assert.equal(result.provider, 'local', `${item.label} should be answered locally`);
   assert.equal(result.mode, 'strict', `${item.label} should keep strict mode`);
-  assert.match(result.answer, /任务诊断/, `${item.label} should use task diagnosis answer`);
-  assert.match(result.answer, /接取状态/, `${item.label} should include accepted check`);
-  assert.match(result.answer, /目标/, `${item.label} should include objective check`);
-  assert.match(result.answer, /库存/, `${item.label} should include inventory check`);
-  assert.match(result.answer, /交付对象\/地点/, `${item.label} should include delivery check`);
-  assert.match(result.answer, /数量/, `${item.label} should include quantity check`);
-  assert.match(result.answer, /前置/, `${item.label} should include precondition check`);
-  assert.match(result.answer, /时间/, `${item.label} should include time check`);
-  assert.match(result.answer, /季节/, `${item.label} should include season check`);
-  assert.match(result.answer, /建筑等级/, `${item.label} should include building check`);
-  assert.match(result.answer, /下一步路线/, `${item.label} should include next route`);
+  assert.match(result.answer, /结论：/, `${item.label} should give a direct conclusion`);
+  assert.match(result.answer, /卡在|没有明显卡点/, `${item.label} should describe task state`);
+  assert.match(result.answer, /为什么：/, `${item.label} should include concise reasons`);
+  assert.match(result.answer, /下一步：/, `${item.label} should include next actions`);
   for (const pattern of item.expected) {
     assert.match(result.answer, pattern, `${item.label} should match ${pattern}`);
   }
-  assert.match(result.answer, /不会自动交任务|不会自动提交任务/, `${item.label} should state task submission is read-only`);
-  assert.match(result.answer, /不会.*消耗.*物品|不会直接改存档/, `${item.label} should state inventory/save changes are read-only`);
+  assert.match(result.answer, /只按玩家可见信息判断/, `${item.label} should keep a compact strict-mode boundary`);
+  assert.doesNotMatch(result.answer, /任务诊断|下一步路线|评分|只读诊断|自动交任务|改存档/, `${item.label} should avoid report-like wording`);
   assert.doesNotMatch(result.answer, /已自动|将自动|正在自动|直接发放|已经扣除|已扣除/, `${item.label} must not claim automatic execution`);
   assertSafePayload(result, item.label);
 

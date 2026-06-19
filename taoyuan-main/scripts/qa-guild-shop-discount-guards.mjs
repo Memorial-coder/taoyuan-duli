@@ -119,11 +119,37 @@ assert(guildStoreSource.includes('playerStore.spendMoney(moneyPrice)'), '铜钱�
 assert(guildStoreSource.includes('contributionPoints.value -= item.contributionCost'), '贡献点兑换仍应按贡献点原价扣款。')
 
 const guildViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'GuildView.vue'), 'utf8')
+const itemCardSource = fs.readFileSync(path.join(srcRoot, 'components', 'game', 'ItemCard.vue'), 'utf8')
 assert(guildViewSource.includes('荣誉采购折扣 -{{ guildShopDiscountPercent }}%'), '公会商店应展示荣誉采购折扣提示。')
 assert(guildViewSource.includes('formatShopItemCost(item)'), '公会商店列表应显示折后价格。')
 assert(guildViewSource.includes('formatShopItemCost(shopModalItem, true)'), '购买弹窗应显示折后单价。')
 assert(guildViewSource.includes('playerStore.money >= shopBuyTotalCost'), '购买弹窗持有铜钱判断应使用折后合计。')
 assert(guildViewSource.includes('getShopItemMoneyPrice(item) * safeQty'), '购买阻塞判断应使用折后单价。')
+assert(guildViewSource.includes("import ItemCard from '@/components/game/ItemCard.vue'"), 'Guild shop should reuse the backpack ItemCard component.')
+assert(guildViewSource.includes('v-for="item in visibleGuildShopItems"'), 'Guild shop list should render filtered visibleGuildShopItems.')
+assert(!guildViewSource.includes('v-for="item in GUILD_SHOP_ITEMS"'), 'Guild shop template must not render the raw unfiltered shop list.')
+assert(
+  guildViewSource.includes('const visibleGuildShopItems = computed(() =>') &&
+    guildViewSource.includes('GUILD_SHOP_ITEMS.filter(item => !isGuildShopItemLimitReached(item))'),
+  'Guild shop visible list should hide items that reached their limit.'
+)
+assert(
+  guildViewSource.includes('const isGuildShopItemLimitReached = (item: GuildShopItemDef): boolean =>') &&
+    guildViewSource.includes('item.dailyLimit && guildStore.getDailyRemaining(item.itemId, item.dailyLimit) <= 0') &&
+    guildViewSource.includes('item.weeklyLimit && guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) <= 0') &&
+    guildViewSource.includes('item.totalLimit && guildStore.getTotalRemaining(item.itemId, item.totalLimit) <= 0'),
+  'Guild shop limit hiding must cover daily, weekly, and total purchase caps.'
+)
+assert(guildViewSource.includes(':secondary="formatShopItemCost(item)"'), 'Guild shop ItemCard should show the cost on the secondary line.')
+assert(guildViewSource.includes(':locked="!guildStore.isShopItemUnlocked(item.itemId)"'), 'Locked guild shop cards should keep a lock marker.')
+assert(guildViewSource.includes(':silhouette="!guildStore.isShopItemUnlocked(item.itemId)"'), 'Locked guild shop cards should keep the silhouette treatment.')
+assert(guildViewSource.includes('当前可兑换商品已购完或尚未解锁'), 'Guild shop should show an empty state when every visible offer is filtered out.')
+assert(
+  itemCardSource.includes('silhouette?: boolean') &&
+    itemCardSource.includes('const resolvedSilhouette = computed(() => props.silhouette ?? !props.discovered)') &&
+    itemCardSource.includes(':silhouette="resolvedSilhouette"'),
+  'ItemCard should support explicit silhouettes without hiding known item names.'
+)
 
 if (errors.length > 0) {
   console.error('qa:guild-shop-discount-guards failed:')

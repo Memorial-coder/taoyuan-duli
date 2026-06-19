@@ -161,7 +161,8 @@ for (const crop of CROPS.filter(crop => (crop.seedPrice > 0 || crop.id === 'anci
 }
 expectItem('ancient_fruit', { category: 'crop', sellPrice: 2700, edible: true, staminaRestore: 14, healthRestore: 5 })
 expectItem('ancient_fruit_wine', { category: 'processed', sellPrice: 5000, edible: true, staminaRestore: 180, healthRestore: 90 })
-expectItem('tavern_rice_wine', { name: '桃源米酒', category: 'processed', sellPrice: 80, edible: true })
+expectItem('jujube_wine', { name: '红枣酒', category: 'processed', sellPrice: 450, edible: true })
+expectItem('tavern_rice_wine', { name: '桃源米酒', category: 'processed', sellPrice: 180, edible: true })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
 expectItem('duck_egg', { category: 'animal_product', sellPrice: 180 })

@@ -6,7 +6,11 @@
       data-testid="settings-dialog-overlay"
       @click.self="$emit('close')"
     >
-      <div class="game-panel settings-dialog-shell w-full max-w-xs text-center relative" data-testid="settings-dialog">
+      <div
+        class="game-panel settings-dialog-shell w-full text-center relative"
+        :class="activeTab === 'shortcuts' ? 'max-w-lg' : 'max-w-xs'"
+        data-testid="settings-dialog"
+      >
         <button
           type="button"
           class="settings-dialog-close"
@@ -18,7 +22,7 @@
         </button>
         <Divider title class="settings-dialog-title my-4" label="设置" />
         <!-- 分类导航 -->
-        <div class="settings-dialog-tabs grid grid-cols-3 justify-center gap-1 mb-3">
+        <div class="settings-dialog-tabs grid grid-cols-4 justify-center gap-1 mb-3">
           <button
             v-for="tab in SETTINGS_TABS"
             :key="tab.key"
@@ -491,6 +495,105 @@
               </div>
             </div>
           </template>
+
+          <!-- ===== 快捷键 ===== -->
+          <template v-if="activeTab === 'shortcuts'">
+            <div class="settings-dialog-scroll settings-shortcuts-panel flex flex-col space-y-2" data-testid="settings-shortcuts-panel">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1" data-testid="settings-shortcuts-toggle-card">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-muted">键盘快捷键</p>
+                  <div class="flex shrink-0 items-center gap-1">
+                    <Button
+                      class="py-0.5 px-2 text-[0.625rem]"
+                      :class="{ '!bg-accent !text-bg': settingsStore.keyboardShortcutsEnabled }"
+                      data-testid="settings-shortcuts-enabled-on"
+                      @click="settingsStore.keyboardShortcutsEnabled = true"
+                    >
+                      开
+                    </Button>
+                    <Button
+                      class="py-0.5 px-2 text-[0.625rem]"
+                      :class="{ '!bg-accent !text-bg': !settingsStore.keyboardShortcutsEnabled }"
+                      data-testid="settings-shortcuts-enabled-off"
+                      @click="settingsStore.keyboardShortcutsEnabled = false"
+                    >
+                      关
+                    </Button>
+                    <Button
+                      class="py-0.5 px-2 text-[0.625rem]"
+                      data-testid="settings-shortcuts-reset-all"
+                      @click="resetAllShortcutBindings"
+                    >
+                      默认
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <p
+                v-if="shortcutCaptureMessage"
+                class="settings-shortcut-message text-[0.625rem] leading-5"
+                :class="shortcutCaptureTone === 'danger' ? 'text-danger' : 'text-accent'"
+                data-testid="settings-shortcut-capture-message"
+              >
+                {{ shortcutCaptureMessage }}
+              </p>
+
+              <section
+                v-for="group in shortcutGroups"
+                :key="group.category"
+                class="settings-dialog-card border border-accent/20 rounded-xs mr-1 text-left"
+                :data-testid="`settings-shortcuts-group-${group.category}`"
+              >
+                <div class="mb-2 flex items-center justify-between">
+                  <p class="text-xs text-accent">{{ group.label }}</p>
+                  <span class="text-[0.625rem] text-muted">{{ group.actions.length }}</span>
+                </div>
+                <div class="flex flex-col divide-y divide-accent/10">
+                  <div
+                    v-for="action in group.actions"
+                    :key="action.id"
+                    class="settings-shortcut-row"
+                    :data-testid="`settings-shortcut-row-${action.id}`"
+                  >
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-text">{{ action.label }}</p>
+                      <p class="truncate text-[0.625rem] text-muted">{{ action.description }}</p>
+                    </div>
+                    <div class="settings-shortcut-row-actions">
+                      <button
+                        type="button"
+                        class="settings-shortcut-key"
+                        :class="{ 'settings-shortcut-key--recording': editingShortcutId === action.id }"
+                        :data-testid="`settings-shortcut-bind-${action.id}`"
+                        @click="beginShortcutCapture(action.id)"
+                      >
+                        {{ editingShortcutId === action.id ? '录入中' : getShortcutBindingLabel(action.id) }}
+                      </button>
+                      <button
+                        type="button"
+                        class="settings-shortcut-mini"
+                        :disabled="isShortcutAtDefault(action.id)"
+                        :data-testid="`settings-shortcut-reset-${action.id}`"
+                        @click="resetShortcutBinding(action.id)"
+                      >
+                        默认
+                      </button>
+                      <button
+                        type="button"
+                        class="settings-shortcut-mini"
+                        :disabled="!settingsStore.getKeyboardShortcutBinding(action.id)"
+                        :data-testid="`settings-shortcut-clear-${action.id}`"
+                        @click="clearShortcutBinding(action.id)"
+                      >
+                        清除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </template>
           </div>
           </Transition>
         </div>
@@ -516,7 +619,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, onBeforeUnmount, type Component } from 'vue'
+  import { computed, ref, onMounted, onBeforeUnmount, type Component } from 'vue'
   import {
     X,
     Pause,
@@ -540,6 +643,7 @@
     Settings,
     Palette,
     Bell,
+    Keyboard,
     Sprout,
     Square,
     Maximize2,
@@ -567,16 +671,33 @@
   import { THEMES } from '@/data/themes'
   import SaveManager from '@/components/game/SaveManager.vue'
   import ClipboardJS from 'clipboard'
+  import {
+    KEYBOARD_SHORTCUT_CATEGORY_LABELS,
+    KEYBOARD_SHORTCUT_DEFINITION_BY_ID,
+    KEYBOARD_SHORTCUT_DEFINITIONS,
+    areKeyboardShortcutBindingsEqual,
+    formatKeyboardShortcutBinding,
+    getKeyboardEventBinding,
+    isReservedKeyboardShortcutBinding,
+    type KeyboardShortcutActionId,
+    type KeyboardShortcutBinding,
+    type KeyboardShortcutCategory
+  } from '@/data/keyboardShortcuts'
+  import { setKeyboardShortcutCaptureActive } from '@/composables/useKeyboardShortcuts'
 
-  type SettingsTab = 'general' | 'display' | 'notification'
+  type SettingsTab = 'general' | 'display' | 'notification' | 'shortcuts'
+  type ShortcutCaptureTone = 'accent' | 'danger'
 
   type BoolSettingKey = 'qmsgIsLimitWidth' | 'qmsgAnimation' | 'qmsgAutoClose' | 'qmsgShowClose' | 'qmsgShowIcon' | 'qmsgShowReverse'
 
   const SETTINGS_TABS: { key: SettingsTab; label: string; icon: Component }[] = [
     { key: 'general', label: '通用', icon: Settings },
     { key: 'display', label: '外观', icon: Palette },
-    { key: 'notification', label: '通知', icon: Bell }
+    { key: 'notification', label: '通知', icon: Bell },
+    { key: 'shortcuts', label: '快捷键', icon: Keyboard }
   ]
+
+  const SHORTCUT_GROUP_ORDER: KeyboardShortcutCategory[] = ['system', 'navigation', 'tool', 'ui', 'miningCombat', 'movement']
 
   const QMSG_POSITIONS: { value: QmsgPosition; label: string; icon: Component }[] = [
     { value: 'topleft', label: '左上', icon: ArrowUpLeft },
@@ -624,7 +745,17 @@
   } = useWebdav()
 
   const showSaveManager = ref(false)
+  const editingShortcutId = ref<KeyboardShortcutActionId | null>(null)
+  const shortcutCaptureMessage = ref('')
+  const shortcutCaptureTone = ref<ShortcutCaptureTone>('accent')
   let clipboard: ClipboardJS | null = null
+  let shortcutCaptureListenerActive = false
+
+  const shortcutGroups = computed(() => SHORTCUT_GROUP_ORDER.map(category => ({
+    category,
+    label: KEYBOARD_SHORTCUT_CATEGORY_LABELS[category],
+    actions: KEYBOARD_SHORTCUT_DEFINITIONS.filter(action => action.category === category)
+  })).filter(group => group.actions.length > 0))
 
   onMounted(() => {
     clipboard = new ClipboardJS('.webdav-log-copy', {
@@ -641,6 +772,7 @@
   })
 
   onBeforeUnmount(() => {
+    stopShortcutCapture()
     clipboard?.destroy()
     clipboard = null
   })
@@ -686,6 +818,118 @@
   const setBool = (key: BoolSettingKey, value: boolean) => {
     settingsStore[key] = value
     settingsStore.syncQmsgConfig()
+  }
+
+  const getShortcutBindingLabel = (actionId: KeyboardShortcutActionId) => (
+    formatKeyboardShortcutBinding(settingsStore.getKeyboardShortcutBinding(actionId))
+  )
+
+  const isShortcutAtDefault = (actionId: KeyboardShortcutActionId) => (
+    areKeyboardShortcutBindingsEqual(
+      settingsStore.getKeyboardShortcutBinding(actionId),
+      KEYBOARD_SHORTCUT_DEFINITION_BY_ID[actionId].defaultBinding
+    )
+  )
+
+  const findShortcutConflict = (actionId: KeyboardShortcutActionId, binding: KeyboardShortcutBinding) => (
+    KEYBOARD_SHORTCUT_DEFINITIONS.find(action => (
+      action.id !== actionId &&
+      areKeyboardShortcutBindingsEqual(settingsStore.getKeyboardShortcutBinding(action.id), binding)
+    )) ?? null
+  )
+
+  const stopShortcutCapture = () => {
+    editingShortcutId.value = null
+    setKeyboardShortcutCaptureActive(false)
+    if (shortcutCaptureListenerActive && typeof document !== 'undefined') {
+      document.removeEventListener('keydown', handleShortcutCaptureKeydown, true)
+      shortcutCaptureListenerActive = false
+    }
+  }
+
+  const beginShortcutCapture = (actionId: KeyboardShortcutActionId) => {
+    if (editingShortcutId.value === actionId) {
+      stopShortcutCapture()
+      shortcutCaptureMessage.value = ''
+      return
+    }
+
+    stopShortcutCapture()
+    editingShortcutId.value = actionId
+    shortcutCaptureTone.value = 'accent'
+    shortcutCaptureMessage.value = '录入中'
+    setKeyboardShortcutCaptureActive(true)
+    if (typeof document !== 'undefined') {
+      document.addEventListener('keydown', handleShortcutCaptureKeydown, true)
+      shortcutCaptureListenerActive = true
+    }
+  }
+
+  const clearShortcutBinding = (actionId: KeyboardShortcutActionId) => {
+    settingsStore.clearKeyboardShortcutBinding(actionId)
+    shortcutCaptureTone.value = 'accent'
+    shortcutCaptureMessage.value = `${KEYBOARD_SHORTCUT_DEFINITION_BY_ID[actionId].label} 已清除`
+    showFloat('快捷键已清除', 'success')
+  }
+
+  const resetShortcutBinding = (actionId: KeyboardShortcutActionId) => {
+    settingsStore.resetKeyboardShortcutBinding(actionId)
+    shortcutCaptureTone.value = 'accent'
+    shortcutCaptureMessage.value = `${KEYBOARD_SHORTCUT_DEFINITION_BY_ID[actionId].label} 已恢复默认`
+    showFloat('快捷键已恢复默认', 'success')
+  }
+
+  const resetAllShortcutBindings = () => {
+    settingsStore.resetKeyboardShortcutBindings()
+    shortcutCaptureTone.value = 'accent'
+    shortcutCaptureMessage.value = '已恢复全部默认键位'
+    showFloat('快捷键已恢复默认', 'success')
+  }
+
+  function handleShortcutCaptureKeydown(event: KeyboardEvent) {
+    if (!editingShortcutId.value) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    const actionId = editingShortcutId.value
+    if (event.key === 'Escape') {
+      shortcutCaptureTone.value = 'accent'
+      shortcutCaptureMessage.value = '已取消录入'
+      stopShortcutCapture()
+      return
+    }
+
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      clearShortcutBinding(actionId)
+      stopShortcutCapture()
+      return
+    }
+
+    const binding = getKeyboardEventBinding(event)
+    if (!binding) {
+      shortcutCaptureTone.value = 'danger'
+      shortcutCaptureMessage.value = '这个键不能单独绑定'
+      return
+    }
+
+    if (isReservedKeyboardShortcutBinding(binding)) {
+      shortcutCaptureTone.value = 'danger'
+      shortcutCaptureMessage.value = '该键位已被系统或浏览器保留'
+      return
+    }
+
+    const conflict = findShortcutConflict(actionId, binding)
+    if (conflict) {
+      shortcutCaptureTone.value = 'danger'
+      shortcutCaptureMessage.value = `已被「${conflict.label}」占用`
+      return
+    }
+
+    settingsStore.setKeyboardShortcutBinding(actionId, binding)
+    shortcutCaptureTone.value = 'accent'
+    shortcutCaptureMessage.value = `${KEYBOARD_SHORTCUT_DEFINITION_BY_ID[actionId].label}：${formatKeyboardShortcutBinding(binding)}`
+    showFloat('快捷键已更新', 'success')
+    stopShortcutCapture()
   }
 </script>
 
@@ -834,6 +1078,83 @@
   .settings-save-button {
     flex-shrink: 0;
     min-height: 40px;
+  }
+
+  .settings-shortcuts-panel {
+    padding-right: 0;
+  }
+
+  .settings-shortcut-message {
+    min-height: 20px;
+    text-align: center;
+  }
+
+  .settings-shortcut-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 9px 0;
+  }
+
+  .settings-shortcut-row:first-child {
+    padding-top: 0;
+  }
+
+  .settings-shortcut-row:last-child {
+    padding-bottom: 0;
+  }
+
+  .settings-shortcut-row-actions {
+    display: grid;
+    grid-template-columns: minmax(86px, 1fr) 46px 46px;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .settings-shortcut-key,
+  .settings-shortcut-mini {
+    min-height: 32px;
+    border: 1px solid rgb(var(--color-accent) / 0.2);
+    border-radius: 3px;
+    color: rgb(var(--color-text));
+    font-size: 0.625rem;
+    line-height: 1;
+    transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  .settings-shortcut-key {
+    padding: 0 8px;
+    background: rgb(var(--color-bg) / 0.48);
+    color: rgb(var(--color-accent));
+    white-space: nowrap;
+  }
+
+  .settings-shortcut-key:hover,
+  .settings-shortcut-key--recording {
+    border-color: rgb(var(--color-accent) / 0.55);
+    background: rgb(var(--color-accent) / 0.14);
+  }
+
+  .settings-shortcut-mini {
+    padding: 0 4px;
+    color: rgb(var(--color-muted));
+  }
+
+  .settings-shortcut-mini:hover:not(:disabled) {
+    border-color: rgb(var(--color-accent) / 0.45);
+    color: rgb(var(--color-accent));
+  }
+
+  .settings-shortcut-mini:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+
+  @media (min-width: 520px) {
+    .settings-shortcut-row {
+      grid-template-columns: minmax(0, 1fr) minmax(190px, 0.72fr);
+      align-items: center;
+    }
   }
 
   @media (min-width: 768px) {

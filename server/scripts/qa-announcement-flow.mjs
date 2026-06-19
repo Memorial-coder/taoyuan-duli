@@ -331,6 +331,54 @@ try {
   assert.ok(announcementId, 'created announcement should have id');
   assert.equal(createResult.data.announcement.status, 'draft', 'new announcement should be draft');
   assert.equal(createResult.data.announcement.rewards?.length, 2, 'created announcement should retain rewards');
+  assert.equal(createResult.data.announcement.show_save_update_button, true, 'version update announcements should default to save-update button');
+  assert.equal(createResult.data.announcement.is_pinned, false, 'new announcements should not be pinned by default');
+
+  const defaultMaintenance = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA maintenance announcement',
+      body: 'Maintenance announcement should not show save-update by default.',
+      template_type: 'maintenance',
+    },
+  });
+  assert.equal(defaultMaintenance.response.status, 200, 'maintenance announcement draft should be created');
+  assert.equal(defaultMaintenance.data?.announcement?.show_save_update_button, false, 'maintenance announcements should not default to save-update button');
+
+  const defaultHotfix = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA hotfix announcement',
+      body: 'Hotfix announcement should show save-update by default.',
+      template_type: 'hotfix',
+    },
+  });
+  assert.equal(defaultHotfix.response.status, 200, 'hotfix announcement draft should be created');
+  assert.equal(defaultHotfix.data?.announcement?.show_save_update_button, true, 'hotfix announcements should default to save-update button');
+
+  const manualHidden = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA manually hidden update button',
+      body: 'Version update can manually hide save-update.',
+      template_type: 'version_update',
+      show_save_update_button: false,
+    },
+  });
+  assert.equal(manualHidden.response.status, 200, 'manual hidden announcement draft should be created');
+  assert.equal(manualHidden.data?.announcement?.show_save_update_button, false, 'manual false should override version update default');
+
+  const manualShown = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA manually shown update button',
+      body: 'Compensation can manually show save-update.',
+      template_type: 'compensation',
+      show_save_update_button: true,
+    },
+  });
+  assert.equal(manualShown.response.status, 200, 'manual shown announcement draft should be created');
+  assert.equal(manualShown.data?.announcement?.show_save_update_button, true, 'manual true should override non-update defaults');
 
   const longMarkdownBody = Array.from({ length: 360 }, (_, index) => `- L${index + 1}`).join('\n');
   const multilineDraft = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
@@ -352,6 +400,111 @@ try {
   assert.equal(templateResult.response.status, 200, 'announcement list should load');
   assert.ok(Array.isArray(templateResult.data?.templates) && templateResult.data.templates.length >= 5, 'templates should be returned');
 
+  const firstPinned = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA pinned announcement one',
+      body: 'Pinned announcement should sort before normal announcements.',
+      version: 'qa-pin-sort',
+      target_versions: ['qa-pin-sort'],
+      target_channels: ['web'],
+      start_at: now - 60,
+      end_at: now + 3600,
+      priority: 1,
+      is_pinned: true,
+    },
+  });
+  assert.equal(firstPinned.response.status, 200, 'first pinned draft should be created');
+  assert.equal(firstPinned.data?.announcement?.is_pinned, true, 'first pinned draft should retain pin flag');
+  const firstPinnedId = firstPinned.data?.announcement?.id;
+  const firstPinnedPublish = await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${firstPinnedId}/publish`, { method: 'POST' });
+  assert.equal(firstPinnedPublish.response.status, 200, 'first pinned announcement should publish');
+  assert.equal(firstPinnedPublish.data?.announcement?.is_pinned, true, 'first pinned announcement should publish as pinned');
+
+  const secondPinned = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA pinned announcement two',
+      body: 'New pinned announcement should replace the previous pinned announcement.',
+      version: 'qa-pin-sort',
+      target_versions: ['qa-pin-sort'],
+      target_channels: ['web'],
+      start_at: now - 60,
+      end_at: now + 3600,
+      priority: 0,
+      is_pinned: true,
+    },
+  });
+  const secondPinnedId = secondPinned.data?.announcement?.id;
+  const secondPinnedPublish = await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${secondPinnedId}/publish`, { method: 'POST' });
+  assert.equal(secondPinnedPublish.response.status, 200, 'second pinned announcement should publish');
+  assert.equal(secondPinnedPublish.data?.announcement?.is_pinned, true, 'second pinned announcement should publish as pinned');
+
+  const pinnedList = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements');
+  assert.equal(findAnnouncement(pinnedList.data, firstPinnedId)?.is_pinned, false, 'publishing a new pinned announcement should clear the old pinned flag');
+  assert.equal(findAnnouncement(pinnedList.data, secondPinnedId)?.is_pinned, true, 'new pinned announcement should remain pinned');
+  assert.equal(
+    (pinnedList.data?.announcements || []).filter(item => item.is_pinned).length,
+    1,
+    'admin announcement list should contain only one pinned announcement',
+  );
+
+  const pinnedActive = await publicRequest(baseUrl, '/api/taoyuan/announcements/active?version=qa-pin-sort&channel=web');
+  assert.equal(pinnedActive.response.status, 200, 'pinned active announcements should load');
+  assert.equal(pinnedActive.data?.announcements?.[0]?.id, secondPinnedId, 'pinned active announcement should sort first');
+  assert.equal(pinnedActive.data?.announcements?.[0]?.is_pinned, true, 'active announcement should expose pinned flag');
+
+  const pinnedHistory = await publicRequest(baseUrl, '/api/taoyuan/announcements/history?version=qa-pin-sort&channel=web');
+  assert.equal(pinnedHistory.data?.announcements?.[0]?.id, secondPinnedId, 'pinned history announcement should sort first');
+
+  const pinnedOffline = await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${secondPinnedId}/offline`, { method: 'POST' });
+  assert.equal(pinnedOffline.response.status, 200, 'pinned announcement should offline');
+  assert.equal(pinnedOffline.data?.announcement?.is_pinned, false, 'offline announcement should clear pinned flag');
+
+  const pinnedReader = new QaSession(baseUrl);
+  await register(pinnedReader, 'qa_pin_reader');
+  const readPinned = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA read pinned announcement',
+      body: 'Pinned announcements should follow unread announcements after they are read.',
+      version: 'qa-pin-read',
+      target_versions: ['qa-pin-read'],
+      target_channels: ['web'],
+      start_at: now - 60,
+      end_at: now + 3600,
+      priority: 0,
+      is_pinned: true,
+    },
+  });
+  const readPinnedId = readPinned.data?.announcement?.id;
+  await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${readPinnedId}/publish`, { method: 'POST' });
+  const unreadNormal = await adminRequest(baseUrl, '/api/admin/taoyuan/announcements', {
+    method: 'POST',
+    body: {
+      title: 'QA unread normal announcement',
+      body: 'Unread normal announcement should trigger the popup batch.',
+      version: 'qa-pin-read',
+      target_versions: ['qa-pin-read'],
+      target_channels: ['web'],
+      start_at: now - 60,
+      end_at: now + 3600,
+      priority: 99,
+    },
+  });
+  const unreadNormalId = unreadNormal.data?.announcement?.id;
+  await adminRequest(baseUrl, `/api/admin/taoyuan/announcements/${unreadNormalId}/publish`, { method: 'POST' });
+  await pinnedReader.request(`/api/taoyuan/announcements/${readPinnedId}/events`, {
+    method: 'POST',
+    body: { event_type: 'close', client_version: 'qa-pin-read', client_channel: 'web' },
+  });
+  const readPinnedActive = await pinnedReader.request('/api/taoyuan/announcements/active?version=qa-pin-read&channel=web');
+  assert.equal(readPinnedActive.response.status, 200, 'active announcements should load for read pinned scenario');
+  assert.equal(readPinnedActive.data?.announcements?.[0]?.id, readPinnedId, 'read pinned announcement should still sort first when unread announcements exist');
+  assert.equal(readPinnedActive.data?.announcements?.[0]?.is_read, true, 'read pinned announcement should expose read state');
+  assert.equal(readPinnedActive.data?.announcements?.[1]?.id, unreadNormalId, 'unread normal announcement should remain in the popup batch');
+  assert.equal(readPinnedActive.data?.announcements?.[1]?.is_read, false, 'unread normal announcement should expose unread state');
+
   let activeResult = await publicRequest(baseUrl, '/api/taoyuan/announcements/active?version=3.0.0&channel=web');
   assert.equal(activeResult.response.status, 200, 'active announcements should load');
   assert.equal(findAnnouncement(activeResult.data, announcementId), null, 'draft announcement should not be visible');
@@ -372,6 +525,7 @@ try {
   const activeAnnouncement = findAnnouncement(activeResult.data, announcementId);
   assert.ok(activeAnnouncement, 'published targeted announcement should be active');
   assert.equal(activeAnnouncement.rewards?.length, 2, 'active announcement should expose reward preview');
+  assert.equal(activeAnnouncement.show_save_update_button, true, 'active announcement should expose save-update button flag');
 
   const historyResult = await publicRequest(baseUrl, '/api/taoyuan/announcements/history?version=3.0.0&channel=web');
   assert.ok(findAnnouncement(historyResult.data, announcementId), 'published announcement should appear in history');

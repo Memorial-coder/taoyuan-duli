@@ -26,6 +26,37 @@ type ChestConsumeEntry = {
 
 const normalizeChestConsumeQuantity = (quantity: number): number => Math.max(0, Math.floor(Number(quantity) || 0))
 
+const chestStacksMatch = (left: InventoryItem, right: InventoryItem): boolean =>
+  inventoryStacksMatch(left, right) && !!left.locked === !!right.locked
+
+const compactChestItems = (sourceItems: InventoryItem[]): InventoryItem[] => {
+  const compacted: InventoryItem[] = []
+
+  for (const item of sourceItems) {
+    let remaining = Math.max(0, Math.floor(Number(item.quantity) || 0))
+    if (remaining <= 0) continue
+
+    for (const slot of compacted) {
+      if (remaining <= 0) break
+      if (chestStacksMatch(slot, item) && slot.quantity < MAX_STACK) {
+        const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
+        slot.quantity += canAdd
+        remaining -= canAdd
+      }
+    }
+
+    while (remaining > 0) {
+      const batch = Math.min(remaining, MAX_STACK)
+      const slot = cloneInventoryItemSlot(item)
+      slot.quantity = batch
+      compacted.push(slot)
+      remaining -= batch
+    }
+  }
+
+  return compacted
+}
+
 export const useWarehouseStore = defineStore('warehouse', () => {
   const unlocked = ref(false)
   const chests = ref<Chest[]>([])
@@ -109,16 +140,17 @@ export const useWarehouseStore = defineStore('warehouse', () => {
     if (!chest) return false
     const cap = CHEST_DEFS[chest.tier].capacity
     const incoming = createInventoryItemSlot(itemId, quantity, quality, meta)
+    const simulatedItems = compactChestItems(chest.items)
 
     let simulatedRemaining = quantity
-    for (const slot of chest.items) {
+    for (const slot of simulatedItems) {
       if (simulatedRemaining <= 0) break
       if (inventoryStacksMatch(slot, incoming) && slot.quantity < MAX_STACK) {
         const canAdd = Math.min(simulatedRemaining, MAX_STACK - slot.quantity)
         simulatedRemaining -= canAdd
       }
     }
-    simulatedRemaining -= Math.max(0, cap - chest.items.length) * MAX_STACK
+    simulatedRemaining -= Math.max(0, cap - simulatedItems.length) * MAX_STACK
     return simulatedRemaining <= 0
   }
 
@@ -132,6 +164,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   ): boolean => {
     const chest = chests.value.find(c => c.id === chestId)
     if (!chest) return false
+    chest.items = compactChestItems(chest.items)
     const cap = CHEST_DEFS[chest.tier].capacity
     const incoming = createInventoryItemSlot(itemId, quantity, quality, meta)
 
@@ -425,7 +458,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
 
     // 旧存档迁移：有 items 无 chests
     if (data.items && !data.chests) {
-      const oldItems = (Array.isArray(data.items) ? data.items : []).map(normalizeChestItem).filter((item): item is InventoryItem => !!item)
+      const oldItems = compactChestItems((Array.isArray(data.items) ? data.items : []).map(normalizeChestItem).filter((item): item is InventoryItem => !!item))
       if (oldItems.length > 0) {
         // 金箱容量36，超出时分多个箱子
         const goldCap = CHEST_DEFS.gold.capacity
@@ -450,7 +483,7 @@ export const useWarehouseStore = defineStore('warehouse', () => {
     } else {
       chests.value = ((data.chests as Chest[]) ?? []).map(chest => ({
         ...chest,
-        items: (Array.isArray(chest.items) ? chest.items : []).map(normalizeChestItem).filter((item): item is InventoryItem => !!item)
+        items: compactChestItems((Array.isArray(chest.items) ? chest.items : []).map(normalizeChestItem).filter((item): item is InventoryItem => !!item))
       }))
     }
 

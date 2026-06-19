@@ -85,6 +85,32 @@ const getWorkshopDoubleOutputChance = (level: number): number => {
   return 0
 }
 
+export interface ProcessingMachineRemovalEntry {
+  itemId: string
+  quantity: number
+  quality?: Quality
+}
+
+export interface ProcessingMachineVoidOutputEntry extends ProcessingMachineRemovalEntry {
+  chestId: string
+  quality: Quality
+}
+
+export interface ProcessingMachineRemovalPreview {
+  total: number
+  idle: number
+  processing: number
+  ready: number
+  refundEntries: ProcessingMachineRemovalEntry[]
+  voidOutputEntries: ProcessingMachineVoidOutputEntry[]
+  moneyRefund: number
+  canRemove: boolean
+}
+
+export interface ProcessingMachineRemovalResult extends ProcessingMachineRemovalPreview {
+  removed: number
+}
+
 export const useProcessingStore = defineStore('processing', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
@@ -928,58 +954,141 @@ export const useProcessingStore = defineStore('processing', () => {
     return { collected, blocked, outputs }
   }
 
+  const createEmptyMachineRemovalPreview = (): ProcessingMachineRemovalPreview => ({
+    total: 0,
+    idle: 0,
+    processing: 0,
+    ready: 0,
+    refundEntries: [],
+    voidOutputEntries: [],
+    moneyRefund: 0,
+    canRemove: false
+  })
+
+  const cloneProcessingSlot = (slot: ProcessingSlot): ProcessingSlot => {
+    const clone: ProcessingSlot = {
+      machineType: slot.machineType,
+      recipeId: slot.recipeId,
+      inputItemId: slot.inputItemId,
+      inputQuality: slot.inputQuality,
+      consumedInputs: slot.consumedInputs?.map(entry => ({ ...entry })),
+      alchemyResult: slot.alchemyResult ? { ...slot.alchemyResult } : undefined,
+      daysProcessed: slot.daysProcessed,
+      totalDays: slot.totalDays,
+      ready: slot.ready
+    }
+    return clone
+  }
+
+  const normalizeMachineRemovalIndices = (slotIndices: number[]) =>
+    Array.from(new Set(slotIndices))
+      .filter(index => Number.isInteger(index) && index >= 0 && index < machines.value.length)
+
+  const getMachineIndicesByType = (machineType: MachineType) =>
+    machines.value
+      .map((slot, index) => ({ slot, index }))
+      .filter(({ slot }) => slot.machineType === machineType)
+      .map(({ index }) => index)
+
+  const previewMachineRemovalBySlotIndices = (slotIndices: number[]): ProcessingMachineRemovalPreview => {
+    const indices = normalizeMachineRemovalIndices(slotIndices)
+    if (indices.length === 0) return createEmptyMachineRemovalPreview()
+
+    const warehouseStore = useWarehouseStore()
+    const warehouseSnapshot = warehouseStore.serialize()
+    const preview = createEmptyMachineRemovalPreview()
+
+    try {
+      for (const slotIndex of indices) {
+        const slot = machines.value[slotIndex]
+        if (!slot) continue
+
+        preview.total++
+        if (!slot.recipeId) {
+          preview.idle++
+        } else if (slot.ready) {
+          preview.ready++
+        } else {
+          preview.processing++
+        }
+
+        const machineDef = PROCESSING_MACHINES.find(m => m.id === slot.machineType)
+        const recipe = slot.recipeId ? getProcessingRecipeById(slot.recipeId) : null
+        const voidOutput = warehouseStore.getVoidOutputChest()
+
+        if (slot.recipeId && slot.ready && recipe) {
+          const outputQuality = slot.inputQuality ?? 'normal'
+          const output = getSlotOutput(slot, recipe)
+          if (voidOutput && warehouseStore.addItemToChest(voidOutput.id, output.itemId, output.quantity, outputQuality)) {
+            preview.voidOutputEntries.push({
+              chestId: voidOutput.id,
+              itemId: output.itemId,
+              quantity: output.quantity,
+              quality: outputQuality
+            })
+          } else {
+            preview.refundEntries.push({ itemId: output.itemId, quantity: output.quantity, quality: outputQuality })
+          }
+        } else if (slot.recipeId && !slot.ready && recipe) {
+          preview.refundEntries.push(...getSlotInputRefundEntries(slot, recipe))
+        }
+
+        if (machineDef) {
+          preview.refundEntries.push(...machineDef.craftCost.map(mat => ({ itemId: mat.itemId, quantity: mat.quantity })))
+          preview.moneyRefund += machineDef.craftMoney
+        }
+      }
+    } finally {
+      warehouseStore.deserialize(warehouseSnapshot)
+    }
+
+    preview.canRemove = preview.total > 0 && canRefundItems(preview.refundEntries)
+    return preview
+  }
+
+  const removeMachinesBySlotIndices = (slotIndices: number[]): ProcessingMachineRemovalResult => {
+    const indices = normalizeMachineRemovalIndices(slotIndices)
+    const preview = previewMachineRemovalBySlotIndices(indices)
+    if (!preview.canRemove) return { ...preview, removed: 0 }
+
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseStore = useWarehouseStore()
+    const warehouseSnapshot = warehouseStore.serialize()
+    const machineSnapshot = machines.value.map(cloneProcessingSlot)
+
+    try {
+      for (const entry of preview.voidOutputEntries) {
+        if (!warehouseStore.addItemToChest(entry.chestId, entry.itemId, entry.quantity, entry.quality)) {
+          throw new Error('void output chest is full')
+        }
+      }
+      if (!refundItemsExact(preview.refundEntries)) throw new Error('inventory refund failed')
+
+      for (const slotIndex of [...indices].sort((a, b) => b - a)) {
+        machines.value.splice(slotIndex, 1)
+      }
+      if (preview.moneyRefund > 0) playerStore.earnMoney(preview.moneyRefund)
+
+      return { ...preview, removed: preview.total }
+    } catch {
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      machines.value = machineSnapshot
+      return { ...preview, canRemove: false, removed: 0 }
+    }
+  }
+
+  const previewRemoveMachinesByType = (machineType: MachineType): ProcessingMachineRemovalPreview => {
+    return previewMachineRemovalBySlotIndices(getMachineIndicesByType(machineType))
+  }
+
+  const removeMachinesByType = (machineType: MachineType): ProcessingMachineRemovalResult => {
+    return removeMachinesBySlotIndices(getMachineIndicesByType(machineType))
+  }
+
   /** 拆除机器（退回加工原料 + 已完成产物 + 机器制作材料） */
   const removeMachine = (slotIndex: number): boolean => {
-    const slot = machines.value[slotIndex]
-    if (!slot) return false
-
-    const refundEntries: { itemId: string; quantity: number; quality?: Quality }[] = []
-    const machineDef = PROCESSING_MACHINES.find(m => m.id === slot.machineType)
-    const recipe = slot.recipeId ? getProcessingRecipeById(slot.recipeId) : null
-    const warehouseStore = useWarehouseStore()
-    const voidOutput = warehouseStore.getVoidOutputChest()
-
-    if (slot.recipeId && slot.ready && recipe) {
-      const outputQuality = slot.inputQuality ?? 'normal'
-      const output = getSlotOutput(slot, recipe)
-      const canUseVoidOutput = !!voidOutput && warehouseStore.canAddItemToChest(voidOutput.id, output.itemId, output.quantity, outputQuality)
-      if (!canUseVoidOutput) {
-        refundEntries.push({ itemId: output.itemId, quantity: output.quantity, quality: outputQuality })
-      }
-    } else if (slot.recipeId && !slot.ready && recipe) {
-      refundEntries.push(...getSlotInputRefundEntries(slot, recipe))
-    }
-
-    if (machineDef) {
-      for (const mat of machineDef.craftCost) {
-        refundEntries.push({ itemId: mat.itemId, quantity: mat.quantity })
-      }
-    }
-
-    if (!canRefundItems(refundEntries)) return false
-
-    // 如果已完成：先收取产物
-    if (slot.recipeId && slot.ready && recipe) {
-      const output = getSlotOutput(slot, recipe)
-      if (voidOutput && warehouseStore.canAddItemToChest(voidOutput.id, output.itemId, output.quantity, slot.inputQuality ?? 'normal')) {
-        warehouseStore.addItemToChest(voidOutput.id, output.itemId, output.quantity, slot.inputQuality ?? 'normal')
-      } else {
-        refundItemsExact([{ itemId: output.itemId, quantity: output.quantity, quality: slot.inputQuality ?? 'normal' }])
-      }
-    }
-    // 如果正在加工：退回原料
-    else if (slot.recipeId && !slot.ready && recipe) {
-      refundItemsExact(getSlotInputRefundEntries(slot, recipe))
-    }
-
-    // 退还机器制作材料
-    if (machineDef) {
-      refundItemsExact(machineDef.craftCost.map(mat => ({ itemId: mat.itemId, quantity: mat.quantity })))
-      playerStore.earnMoney(machineDef.craftMoney)
-    }
-
-    machines.value.splice(slotIndex, 1)
-    return true
+    return removeMachinesBySlotIndices([slotIndex]).removed === 1
   }
 
   /** 取消加工（退回原料，机器回到空闲状态） */
@@ -1272,6 +1381,8 @@ export const useProcessingStore = defineStore('processing', () => {
     collectProductsByType,
     cancelProcessing,
     cancelProcessingByType,
+    previewRemoveMachinesByType,
+    removeMachinesByType,
     removeMachine,
     getAvailableRecipes,
     dailyUpdate,

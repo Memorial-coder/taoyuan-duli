@@ -722,7 +722,8 @@
             </div>
 
             <div v-show="randomNpcDetailTab === 'relationship'" class="space-y-2">
-              <div class="border border-accent/10 rounded-xs p-2" :data-testid="`random-npc-growth-preview-${selectedRandomNpcVisitor.id}`">
+              <div class="border border-accent/10 rounded-xs p-2" data-testid="random-npc-growth-unlock-hint">
+              <p class="text-[0.625rem] text-muted/60 mb-1 leading-4">随机来客通过关系事件驱动成长：好感达标后推进故事线和家人线解锁长期功能，无需提交材料。</p>
                 <p class="text-[0.625rem] text-muted">自然成长</p>
                 <div class="mt-1 space-y-1">
                   <div
@@ -1535,7 +1536,21 @@
           <p class="text-[0.625rem] text-muted mt-1 leading-4">
             当前祝福：{{ selectedSpiritBlessingSummary.activeBlessing?.label ?? '未启用' }}
           </p>
-          <div class="flex flex-wrap gap-1 mt-1">
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
+            仙灵能力会随显现、往来与结缘逐步开放；当前已解锁能力如下。
+          </p>
+          <div v-if="selectedSpiritUnlockedAbilities.length > 0" class="flex flex-wrap gap-1 mt-1">
+            <span
+              v-for="ability in selectedSpiritUnlockedAbilities"
+              :key="ability.id"
+              class="text-[0.625rem] px-1 rounded-xs border border-accent/15 text-accent/80"
+            >
+              {{ ability.name }}
+            </span>
+          </div>
+          <p v-else class="text-[0.625rem] text-muted mt-1">当前还没有开放可启用的仙灵能力。</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">当前可用祝福：</p>
+          <div v-if="selectedSpiritBlessings.length > 0" class="flex flex-wrap gap-1 mt-1">
             <span
               v-for="blessing in selectedSpiritBlessings"
               :key="blessing.id"
@@ -1544,6 +1559,7 @@
               {{ blessing.label }}
             </span>
           </div>
+          <p v-else class="text-[0.625rem] text-muted mt-1">当前还没有开放可启用的祝福。</p>
         </div>
         <div v-if="selectedSpiritMemoryChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
           <p class="text-[0.625rem] text-muted mb-1">结缘记忆链</p>
@@ -1946,6 +1962,148 @@
                     转换票据
                   </Button>
                 </template>
+              </div>
+
+              <!-- NPC 功能解锁面板 -->
+              <div
+                v-if="selectedNpcFunctionUnlockStatuses.length > 0"
+                data-testid="npc-function-unlocks-panel"
+                class="border border-accent/20 rounded-xs p-2 mb-3"
+              >
+                <p class="text-xs text-accent/80 mb-1.5 flex items-center space-x-1">
+                  <Star :size="12" />
+                  <span>功能解锁</span>
+                </p>
+                <p class="text-[0.625rem] text-muted/70 leading-4 mb-2">
+                  好感达标后提交材料，永久解锁这位村民的专属能力。逐级递进，不可跳档。
+                </p>
+                <div class="flex items-center gap-1 mb-2">
+                  <span
+                    v-for="tier in ['T1', 'T2', 'T3', 'T4']"
+                    :key="tier"
+                    class="text-[0.5rem] px-1 rounded-xs border"
+                    :class="
+                      selectedNpcFunctionUnlockStatuses.some(s => s.def?.tier === tier && s.unlocked)
+                        ? 'border-success/40 text-success'
+                        : selectedNpcFunctionUnlockStatuses.some(s => s.def?.tier === tier)
+                          ? 'border-muted/20 text-muted/50'
+                          : 'border-muted/10 text-muted/20'
+                    "
+                  >{{ tier }}</span>
+                </div>
+                <div class="space-y-1.5">
+                  <div
+                    v-for="status in selectedNpcFunctionUnlockStatuses"
+                    :key="status.def?.id"
+                    class="border border-accent/10 rounded-xs p-2"
+                    :data-testid="`npc-function-unlock-card-${status.def?.id}`"
+                  >
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="text-xs text-accent">
+                          <span class="text-muted/60 mr-0.5">{{ status.def?.tier }}</span>
+                          {{ status.def?.title }}
+                        </p>
+                        <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ status.def?.summary }}</p>
+                      </div>
+                      <span
+                        v-if="status.unlocked"
+                        class="text-[0.625rem] text-success whitespace-nowrap"
+                      >已解锁</span>
+                      <span
+                        v-else-if="status.canUnlock"
+                        class="text-[0.625rem] text-success whitespace-nowrap"
+                      >可解锁</span>
+                      <span
+                        v-else
+                        class="text-[0.625rem] text-warning whitespace-nowrap"
+                      >待满足</span>
+                    </div>
+                    <div v-if="!status.unlocked" class="mt-1 space-y-0.5">
+                      <p class="text-[0.625rem] text-muted/75 leading-4">
+                        好感阶段：{{ RELATIONSHIP_STAGE_META[status.def?.requiredStage ?? 'recognize'].label }}
+                        <span v-if="status.def?.costMoney"> · 铜钱：{{ status.def.costMoney }}文</span>
+                      </p>
+                      <div v-for="mat in status.def?.materialCost" :key="mat.itemId" class="flex items-center justify-between text-[0.625rem] leading-4">
+                        <span class="text-muted/75">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+                        <span :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
+                          {{ inventoryStore.getItemCount(mat.itemId) }}/{{ mat.quantity }}
+                        </span>
+                      </div>
+                    </div>
+                    <p v-if="status.disabledReason && !status.unlocked" class="text-[0.625rem] text-warning mt-1 leading-4">
+                      {{ status.disabledReason }}
+                    </p>
+                    <div v-if="!status.unlocked && !status.def?.legacyUnlocked" class="mt-2 flex justify-end">
+                      <Button
+                        class="justify-center !px-2 !py-1"
+                        :class="{ '!bg-accent !text-bg': status.canUnlock }"
+                        :disabled="!status.canUnlock"
+                        :data-testid="`npc-function-unlock-${status.def?.id}`"
+                        @click="handleUnlockNpcFunction(status.def?.id ?? '')"
+                      >
+                        解锁
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="selectedNpcActiveServices.length > 0"
+                data-testid="npc-active-services-panel"
+                class="border border-accent/20 rounded-xs p-2 mb-3"
+              >
+                <p class="text-xs text-accent/80 mb-1.5 flex items-center space-x-1">
+                  <Package :size="12" />
+                  <span>村民帮办</span>
+                </p>
+                <p class="text-[0.625rem] text-muted/70 leading-4 mb-2">
+                  好感达到门槛后，每位村民每周可按自己的门路帮办一次，把关系变成实际补给。
+                </p>
+                <p class="text-[0.625rem] text-muted/70 leading-4 mb-2" data-testid="npc-active-service-talk-progress">
+                  本周交谈：{{ selectedNpcActiveServiceTalksThisWeek }} / {{ npcStore.NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS }}
+                </p>
+                <div class="space-y-1.5">
+                  <div
+                    v-for="service in selectedNpcActiveServices"
+                    :key="service.id"
+                    class="border border-accent/10 rounded-xs p-2"
+                    :data-testid="`npc-active-service-card-${service.id}`"
+                  >
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="text-xs text-accent">{{ service.title }}</p>
+                        <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ service.summary }}</p>
+                      </div>
+                      <span
+                        class="text-[0.625rem] whitespace-nowrap"
+                        :class="getNpcActiveServiceStatusClass(service)"
+                      >
+                        {{ getNpcActiveServiceStatusText(service) }}
+                      </span>
+                    </div>
+                    <div class="mt-1 space-y-0.5">
+                      <p v-for="line in getNpcActiveServiceRewardLines(service)" :key="line" class="text-[0.625rem] text-muted/75 leading-4">
+                        {{ line }}
+                      </p>
+                    </div>
+                    <p v-if="getNpcActiveServiceDisabledReason(service)" class="text-[0.625rem] text-warning mt-1 leading-4">
+                      {{ getNpcActiveServiceDisabledReason(service) }}
+                    </p>
+                    <div class="mt-2 flex justify-end">
+                      <Button
+                        class="justify-center !px-2 !py-1"
+                        :class="{ '!bg-accent !text-bg': canUseNpcActiveService(service) }"
+                        :disabled="!canUseNpcActiveService(service)"
+                        :data-testid="`npc-active-service-${service.id}`"
+                        @click="handleUseNpcActiveService(service)"
+                      >
+                        {{ isNpcActiveServiceUsed(service) ? '本周已办' : isNpcActiveServicePending(service) ? '明早送达' : '委托帮办' }}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- 婚礼倒计时 -->
@@ -2358,7 +2516,17 @@
   import { useSkillStore } from '@/stores/useSkillStore'
   import { NPCS, getNpcById, getItemById, getHeartEventById, getTodayEvent } from '@/data'
   import { MAYOR_TICKET_CONVERSION_NPC_ID, MAYOR_TICKET_CONVERTIBLE_TYPES } from '@/data/rewardTickets'
-  import { getNpcRelationshipFocusLabels } from '@/data/npcWorld'
+  import {
+    getNpcActiveServiceDefs,
+    getNpcRelationshipFocusLabels,
+    getRelationshipStageFromState,
+    isNpcActiveServiceVisible,
+    isRelationshipStageAtLeast,
+    RELATIONSHIP_STAGE_META
+  } from '@/data/npcWorld'
+  import type { NpcActiveServiceDef } from '@/data/npcWorld'
+  import { getNpcFunctionUnlockDefs } from '@/data/npcFunctions'
+  import type { NpcFunctionUnlockStatus } from '@/data/npcFunctions'
   import { RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
@@ -2369,6 +2537,7 @@
   import { triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
   import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
+  import { getWeekCycleInfo } from '@/utils/weekCycle'
   import type {
     ChildTrainingFamilyEventEntry,
     ChildState,
@@ -2376,6 +2545,8 @@
     GiftPreference,
     MayorTicketConversionTicketType,
     Quality,
+    RelationshipStage,
+    RewardTicketType,
     RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
     RandomNpcArchiveSummary,
@@ -2604,6 +2775,13 @@
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
+  const selectedSpiritUnlockedAbilities = computed(() => {
+    if (!selectedHiddenNpc.value) return []
+    const def = getHiddenNpcById(selectedHiddenNpc.value)
+    const state = hiddenNpcStore.getHiddenNpcState(selectedHiddenNpc.value)
+    if (!def || !state) return []
+    return def.abilities.filter(ability => state.unlockedAbilities.includes(ability.id))
+  })
   const selectedSpiritMemoryChain = computed(() => {
     const summary = selectedSpiritBlessingSummary.value
     const nextMemoryId = summary?.memoryRewards.find(entry => !summary.claimedBondMemoryIds.includes(entry.id))?.id ?? summary?.memoryRewards[0]?.id
@@ -3520,6 +3698,30 @@
   const selectedGiftReturnSummaries = computed(() => (selectedNpc.value ? npcStore.getRelationshipGiftReturnSummaries(selectedNpc.value) : []))
   const selectedNextRelationshipBenefits = computed(() => (selectedNpc.value ? npcStore.getNextRelationshipBenefits(selectedNpc.value) : []))
   const selectedRelationshipClues = computed(() => (selectedNpc.value ? npcStore.getRelationshipCluesForNpc(selectedNpc.value) : []))
+  const currentNpcServiceWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
+  const currentNpcServiceDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
+  const selectedNpcRelationshipStage = computed<RelationshipStage>(() => {
+    const state = selectedNpcState.value
+    if (!state) return 'recognize'
+    return getRelationshipStageFromState(state.friendship, {
+      dating: state.dating,
+      married: state.married,
+      zhiji: state.zhiji
+    })
+  })
+  const selectedNpcFunctionUnlocks = computed(() => (selectedNpc.value ? getNpcFunctionUnlockDefs(selectedNpc.value) : []))
+  const selectedNpcFunctionUnlockStatuses = computed(() => {
+    if (!selectedNpcFunctionUnlocks.value.length) return [] as NpcFunctionUnlockStatus[]
+    return selectedNpcFunctionUnlocks.value.map(def => npcStore.getNpcFunctionUnlockStatus(def.id))
+  })
+  const selectedNpcHasT1Unlock = computed(() =>
+    selectedNpcFunctionUnlockStatuses.value.some(s => s.def?.tier === 'T1' && s.unlocked)
+  )
+  const selectedNpcActiveServices = computed(() =>
+    (selectedNpc.value ? getNpcActiveServiceDefs(selectedNpc.value) : [])
+      .filter(service => isNpcActiveServiceVisible(service, selectedNpcHasT1Unlock.value))
+  )
+  const selectedNpcActiveServiceTalksThisWeek = computed(() => selectedNpcState.value?.activeServiceTalksThisWeek ?? 0)
   const selectedGiftKnowledgeSummary = computed(() =>
     selectedNpc.value ? npcStore.getGiftKnowledgeSummary(selectedNpc.value) : { hintCount: 0, exactCount: 0, confirmedCount: 0 }
   )
@@ -3616,6 +3818,87 @@
     )
     showFloat(result.message, result.success ? 'success' : 'danger')
     addLog(`【村务票据】${result.message}`)
+  }
+
+  const getNpcActiveServiceLedgerId = (service: NpcActiveServiceDef): string =>
+    `npc_active_service:${service.npcId}:${service.id}:${currentNpcServiceWeekId.value}`
+
+  const isNpcActiveServiceUsed = (service: NpcActiveServiceDef): boolean =>
+    playerStore.hasLifestyleDiscovery('lifestyleUnlocks', getNpcActiveServiceLedgerId(service))
+
+  const isNpcActiveServicePending = (service: NpcActiveServiceDef): boolean =>
+    npcStore.hasPendingNpcActiveService(service.npcId, service.id, currentNpcServiceWeekId.value)
+
+  const isNpcActiveServiceUnlocked = (service: NpcActiveServiceDef): boolean =>
+    isRelationshipStageAtLeast(selectedNpcRelationshipStage.value, service.minStage)
+
+  const getNpcActiveServiceRewardParts = (
+    service: NpcActiveServiceDef,
+    ticketRewards: Partial<Record<RewardTicketType, number>> | undefined = service.ticketRewards
+  ): string[] => {
+    const itemParts = (service.itemRewards ?? []).map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+    const ticketParts = Object.entries(ticketRewards ?? {})
+      .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${Math.max(0, Math.floor(Number(amount) || 0))}`)
+      .filter(part => !part.endsWith('×0'))
+    return [...itemParts, ...ticketParts]
+  }
+
+  const getNpcActiveServiceRewardLines = (service: NpcActiveServiceDef): string[] => {
+    const rewards = getNpcActiveServiceRewardParts(service)
+    return [
+      `花费：${service.costMoney}文 · ${RELATIONSHIP_STAGE_META[service.minStage].label}开放 · 本周交谈${npcStore.NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS}次后可约`,
+      rewards.length > 0 ? `获得：${rewards.join('、')}` : '获得：关系推进与生活记录'
+    ]
+  }
+
+  const getNpcActiveServiceDisabledReason = (service: NpcActiveServiceDef): string => {
+    if (!selectedNpc.value || service.npcId !== selectedNpc.value) return '请选择对应村民。'
+    if (isNpcActiveServiceUsed(service)) return '本周已经请这位村民办过这件事。'
+    if (isNpcActiveServicePending(service)) return '这件帮办已经约下了，明早会结算。'
+    if (!canInteractWithSelectedNpc.value) return unavailableInteractionReason.value || '对方暂时不在。'
+    if (!isNpcActiveServiceUnlocked(service)) return `需要关系达到「${RELATIONSHIP_STAGE_META[service.minStage].label}」。`
+    if (selectedNpcActiveServiceTalksThisWeek.value < npcStore.NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS) {
+      return `本周还需要再交谈 ${npcStore.NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS - selectedNpcActiveServiceTalksThisWeek.value} 次。`
+    }
+    if (playerStore.money < service.costMoney) return `铜钱不足（需要${service.costMoney}文）。`
+    return ''
+  }
+
+  const canUseNpcActiveService = (service: NpcActiveServiceDef): boolean => getNpcActiveServiceDisabledReason(service) === ''
+
+  const getNpcActiveServiceStatusText = (service: NpcActiveServiceDef): string => {
+    if (isNpcActiveServiceUsed(service)) return '本周已办'
+    if (isNpcActiveServicePending(service)) return '明早送达'
+    return canUseNpcActiveService(service) ? '可帮办' : '待满足'
+  }
+
+  const getNpcActiveServiceStatusClass = (service: NpcActiveServiceDef): string => {
+    if (isNpcActiveServiceUsed(service) || isNpcActiveServicePending(service)) return 'text-muted/50'
+    return canUseNpcActiveService(service) ? 'text-success' : 'text-warning'
+  }
+
+  const handleUnlockNpcFunction = (functionId: string) => {
+    const result = npcStore.unlockNpcFunction(functionId)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    addLog(`【功能解锁】${result.message}`)
+  }
+
+  const handleUseNpcActiveService = (service: NpcActiveServiceDef) => {
+    const disabledReason = getNpcActiveServiceDisabledReason(service)
+    if (disabledReason) {
+      showFloat(disabledReason, 'danger')
+      addLog(`【村民帮办】${disabledReason}`)
+      return
+    }
+
+    const result = npcStore.requestNpcActiveService(
+      service.npcId,
+      service.id,
+      currentNpcServiceWeekId.value,
+      currentNpcServiceDayTag.value
+    )
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    addLog(`【村民帮办】${result.message}`)
   }
 
   const notifyMayorTicketConversionFriendshipProgress = (previousFriendship: number) => {

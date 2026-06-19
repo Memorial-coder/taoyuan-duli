@@ -3172,12 +3172,14 @@ const getHiddenTieredOutput = (
 ): string => chooseHiddenOutputTier(tiers, getHiddenRequiredOutputEconomy(machineType, inputEconomy, processingDays), preferredItemId)
 
 const getHiddenWineOutput = (
-  _cropId: string,
+  cropId: string,
   profile: CropUseProfile,
   inputEconomy: HiddenInputEconomy,
   processingDays: number
 ): string => {
-    const preferredItemId = profile.spirituality === 'mystic' || profile.spirituality === 'spirit'
+  if (cropId === 'ancient_fruit') return 'ancient_fruit_wine'
+
+  const preferredItemId = profile.spirituality === 'mystic' || profile.spirituality === 'spirit'
     ? 'spirit_fruit_brew'
     : profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal'
       ? 'seasonal_fruit_wine'

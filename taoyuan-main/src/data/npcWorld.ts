@@ -4,6 +4,8 @@ import type {
   RelationshipCluePrecision,
   RelationshipClueSource,
   RelationshipStage,
+  Quality,
+  RewardTicketType,
   Season,
   VillagerQuestCategory,
   Weather,
@@ -771,6 +773,196 @@ export const getNpcNextBenefitSummaries = (npcId: string, stage: RelationshipSta
     .filter(benefit => benefit.minStage === nextStage)
     .map(benefit => `${RELATIONSHIP_STAGE_META[nextStage].label}：${benefit.summary}`)
 }
+
+export interface NpcActiveServiceRewardItem {
+  itemId: string
+  quantity: number
+  quality?: Quality
+}
+
+export interface NpcActiveServiceDef {
+  id: string
+  npcId: string
+  minStage: RelationshipStage
+  title: string
+  summary: string
+  costMoney: number
+  itemRewards?: NpcActiveServiceRewardItem[]
+  ticketRewards?: Partial<Record<RewardTicketType, number>>
+  legacyUnlocked?: boolean
+}
+
+export const NPC_ACTIVE_SERVICE_DEFS: NpcActiveServiceDef[] = [
+  {
+    id: 'chen_bo_trade_cache',
+    npcId: 'chen_bo',
+    minStage: 'familiar',
+    title: '万物铺代采',
+    summary: '陈伯帮你从熟门路里捎一批日常茶货，并顺手补一张商路票。',
+    costMoney: 760,
+    itemRewards: [{ itemId: 'tea', quantity: 4 }],
+    ticketRewards: { caravan: 1 }
+  },
+  {
+    id: 'liu_niang_greenhouse_notes',
+    npcId: 'liu_niang',
+    minStage: 'familiar',
+    title: '花圃温室笔记',
+    summary: '柳娘替你整理花圃和节庆布置所需的小肥料、展陈门路。',
+    costMoney: 700,
+    itemRewards: [{ itemId: 'quality_fertilizer', quantity: 2 }],
+    ticketRewards: { exhibit: 1 }
+  },
+  {
+    id: 'a_shi_mine_support_materials',
+    npcId: 'a_shi',
+    minStage: 'friend',
+    title: '矿洞支架料',
+    summary: '阿石把这周挑出的矿料留给你，适合补建设和锻造缺口。',
+    costMoney: 900,
+    itemRewards: [{ itemId: 'iron_ore', quantity: 8 }],
+    ticketRewards: { construction: 1 }
+  },
+  {
+    id: 'qiu_yue_fishing_bait_pack',
+    npcId: 'qiu_yue',
+    minStage: 'familiar',
+    title: '渔汛饵包',
+    summary: '秋月按这周水情配一包鱼饵，顺带帮你接上海货周转。',
+    costMoney: 680,
+    itemRewards: [{ itemId: 'standard_bait', quantity: 10 }],
+    ticketRewards: { caravan: 1 }
+  },
+  {
+    id: 'lin_lao_herb_pack',
+    npcId: 'lin_lao',
+    minStage: 'familiar',
+    title: '药圃调养包',
+    summary: '林老配一份常备草药和兽药，也会给研究账本补一笔样本记录。',
+    costMoney: 850,
+    itemRewards: [
+      { itemId: 'herb', quantity: 3 },
+      { itemId: 'animal_medicine', quantity: 2 }
+    ],
+    ticketRewards: { research: 1 }
+  },
+  {
+    id: 'su_su_tailor_supply',
+    npcId: 'su_su',
+    minStage: 'familiar',
+    title: '裁缝补给',
+    summary: '素素替你留下一匹可用布料，并把展陈与送礼的细账整理好。',
+    costMoney: 1200,
+    itemRewards: [{ itemId: 'cloth', quantity: 1 }],
+    ticketRewards: { exhibit: 1 }
+  },
+  {
+    id: 'sun_tiejiang_forge_leftovers',
+    npcId: 'sun_tiejiang',
+    minStage: 'friend',
+    title: '锻炉余料',
+    summary: '孙铁匠把炉边余下的铜锭交给你，适合临时补一段建造材料。',
+    costMoney: 1100,
+    itemRewards: [{ itemId: 'copper_bar', quantity: 2 }],
+    ticketRewards: { construction: 1 }
+  },
+  {
+    id: 'yun_fei_escort_liaison',
+    npcId: 'yun_fei',
+    minStage: 'friend',
+    title: '护送联络',
+    summary: '云飞帮你把一趟护送线接上商路，换来更多路线凭证。',
+    costMoney: 900,
+    itemRewards: [{ itemId: 'copper_bar', quantity: 1 }],
+    ticketRewards: { caravan: 2 }
+  },
+  {
+    id: 'wang_dashen_banquet_prep',
+    npcId: 'wang_dashen',
+    minStage: 'friend',
+    title: '宴席备料',
+    summary: '王大婶替你备一份宴席常用油料，也给人情往来留了账。',
+    costMoney: 880,
+    itemRewards: [{ itemId: 'sesame_oil', quantity: 1 }],
+    ticketRewards: { familyFavor: 1 }
+  },
+  {
+    id: 'zhao_mujiang_wood_stock',
+    npcId: 'zhao_mujiang',
+    minStage: 'friend',
+    title: '木工整料',
+    summary: '赵木匠从工坊边角料里整理出一批木材，适合补建造缺口。',
+    costMoney: 980,
+    itemRewards: [{ itemId: 'wood', quantity: 24 }],
+    ticketRewards: { construction: 1 }
+  },
+  {
+    id: 'dan_qing_literary_gathering',
+    npcId: 'dan_qing',
+    minStage: 'friend',
+    title: '文会名帖',
+    summary: '丹青替你牵一场小文会，顺手准备几枝桂花和研究人脉。',
+    costMoney: 760,
+    itemRewards: [{ itemId: 'osmanthus', quantity: 3 }],
+    ticketRewards: { research: 1 }
+  },
+  {
+    id: 'mo_bai_voice_tea',
+    npcId: 'mo_bai',
+    minStage: 'friend',
+    title: '夜曲润喉茶',
+    summary: '墨白留下一份演出前润嗓茶，也帮你攒一点家和人情。',
+    costMoney: 720,
+    itemRewards: [{ itemId: 'tea', quantity: 3 }],
+    ticketRewards: { familyFavor: 1 }
+  },
+  {
+    id: 'hong_dou_wine_cellar',
+    npcId: 'hong_dou',
+    minStage: 'friend',
+    title: '酒坊小酿',
+    summary: '红豆从酒坊分出一壶桂花酿，并帮你接上一条商路酒水线。',
+    costMoney: 1100,
+    itemRewards: [{ itemId: 'osmanthus_wine', quantity: 1 }],
+    ticketRewards: { caravan: 1 }
+  },
+  {
+    id: 'chun_lan_tea_parlor_snack',
+    npcId: 'chun_lan',
+    minStage: 'friend',
+    title: '茶庄点心',
+    summary: '春兰替你泡好一组茶饮，也能转成节庆待客的展陈助力。',
+    costMoney: 900,
+    itemRewards: [{ itemId: 'green_tea_drink', quantity: 2 }],
+    ticketRewards: { exhibit: 1 }
+  },
+  {
+    id: 'xue_qin_studio_display',
+    npcId: 'xue_qin',
+    minStage: 'friend',
+    title: '画室陈列',
+    summary: '雪芹整理一组松香和画室布置清单，适合补展陈方向。',
+    costMoney: 880,
+    itemRewards: [{ itemId: 'pine_incense', quantity: 2 }],
+    ticketRewards: { exhibit: 1 }
+  },
+  {
+    id: 'da_niu_hay_bundle',
+    npcId: 'da_niu',
+    minStage: 'familiar',
+    title: '牧场草料',
+    summary: '大牛替你捆好一批干草，也记下一笔家里家外的帮忙人情。',
+    costMoney: 520,
+    itemRewards: [{ itemId: 'hay', quantity: 18 }],
+    ticketRewards: { familyFavor: 1 }
+  }
+]
+
+export const getNpcActiveServiceDefs = (npcId: string): NpcActiveServiceDef[] =>
+  NPC_ACTIVE_SERVICE_DEFS.filter(service => service.npcId === npcId)
+
+export const isNpcActiveServiceVisible = (service: NpcActiveServiceDef, npcHasT1Unlock: boolean): boolean =>
+  service.legacyUnlocked === true || npcHasT1Unlock
 
 export const NPC_RELATIONSHIP_FOCUS: Record<string, string[]> = {
   chen_bo: ['商路人脉', '商店折扣', '紧要委托'],

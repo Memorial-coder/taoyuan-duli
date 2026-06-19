@@ -24,7 +24,7 @@ const DEFAULT_VALUES = Object.freeze({
     '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186',
   ai_assistant_name: '桃源小助理',
   ai_assistant_welcome:
-    '你好，我是桃源小助理。你可以问我玩法、系统机制、资源获取和攻略建议；如果是严格模式，我不会回答敏感数值、隐藏掉率或后台规则。',
+    '你好，我是桃源小助理。你可以直接问“现在干啥”“这个去哪弄”“任务为啥卡了”；我会结合当前页面和玩家可见状态给短建议。严格模式下不提供隐藏掉率、后台规则、密钥或刷资源方法，也不改存档、发奖励或扣资源。',
   taoyuan_about_dialog_title: '关于桃源乡',
   taoyuan_about_dialog_content: '欢迎来到桃源乡独立版。这是一款以种田、采集、养殖、钓鱼和经营为核心的文字田园模拟游戏。',
 });

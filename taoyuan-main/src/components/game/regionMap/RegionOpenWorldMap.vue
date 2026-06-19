@@ -873,6 +873,11 @@
     position: relative;
     transform-origin: top left;
     will-change: transform;
+    transition: transform 0.1s linear;
+  }
+
+  .region-open-world-viewport.is-dragging .region-open-world-grid {
+    transition: none;
   }
 
   .region-open-world-tile {
@@ -962,7 +967,7 @@
     line-height: 1;
     pointer-events: none;
     transform: translate(-50%, -50%);
-    transition: left 0.26s ease, top 0.26s ease;
+    transition: left 0.12s linear, top 0.12s linear;
   }
 
   .region-open-world-viewport.is-dragging .region-open-world-player {

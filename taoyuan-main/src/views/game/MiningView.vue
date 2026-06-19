@@ -318,8 +318,8 @@
               <button
                 v-for="tile in miningStore.floorGrid"
                 :key="tile.index"
-                class="w-10 h-10 rounded-xs flex items-center justify-center text-xs border transition-colors"
-                :class="getTileClass(tile)"
+                class="w-10 h-10 rounded-xs flex items-center justify-center text-xs border mining-tile-transition"
+                :class="[getTileClass(tile), tile.index === cursorIndex && cursorIndex !== null ? 'ring-2 ring-accent ring-inset ring-offset-0' : '']"
                 :disabled="!isTileClickable(tile)"
                 @click="handleTileClick(tile)"
               >
@@ -530,22 +530,26 @@
               <div
                 class="flex flex-col items-center border border-accent/20 rounded-xs py-1.5"
                 :class="combatAnimLock ? 'opacity-50' : 'cursor-pointer hover:bg-accent/5'"
+                data-testid="mining-combat-action-attack"
                 @click="!combatAnimLock && handleCombat('attack')"
               >
                 <span class="text-xs">
                   <Swords :size="12" class="inline" />
                   攻击
+                  <kbd class="mining-combat-shortcut-badge" data-testid="mining-combat-shortcut-attack">{{ getCombatShortcutLabel('miningAttack') }}</kbd>
                 </span>
                 <span class="text-[0.625rem] text-muted">{{ weaponAttack }}攻击力</span>
               </div>
               <div
                 class="flex flex-col items-center border border-accent/20 rounded-xs py-1.5"
                 :class="combatAnimLock ? 'opacity-50' : 'cursor-pointer hover:bg-accent/5'"
+                data-testid="mining-combat-action-defend"
                 @click="!combatAnimLock && handleCombat('defend')"
               >
                 <span class="text-xs">
                   <Shield :size="12" class="inline" />
                   防御
+                  <kbd class="mining-combat-shortcut-badge" data-testid="mining-combat-shortcut-defend">{{ getCombatShortcutLabel('miningDefend') }}</kbd>
                 </span>
                 <span class="text-[0.625rem] text-muted">减免伤害</span>
               </div>
@@ -556,11 +560,13 @@
                     ? 'border-accent/10 opacity-50'
                     : 'border-danger/20 cursor-pointer hover:bg-danger/5'
                 "
+                data-testid="mining-combat-action-flee"
                 @click="!miningStore.combatIsBoss && !combatAnimLock && handleCombat('flee')"
               >
                 <span class="text-xs" :class="miningStore.combatIsBoss ? 'text-muted' : 'text-danger'">
                   <MoveRight :size="12" class="inline" />
                   {{ miningStore.combatIsBoss ? '无法' : '逃跑' }}
+                  <kbd class="mining-combat-shortcut-badge" data-testid="mining-combat-shortcut-flee">{{ getCombatShortcutLabel('miningFlee') }}</kbd>
                 </span>
                 <span v-if="miningStore.combatIsBoss" class="text-[0.625rem] text-muted/40">BOSS战</span>
               </div>
@@ -569,11 +575,13 @@
             <div
               v-if="availableCombatItems.length > 0"
               class="flex items-center justify-between border border-success/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-success/5"
+              data-testid="mining-combat-action-items"
               @click="showCombatItems = true"
             >
               <span class="text-xs text-success">
                 <Backpack :size="12" class="inline" />
                 使用道具
+                <kbd class="mining-combat-shortcut-badge" data-testid="mining-combat-shortcut-items">{{ getCombatShortcutLabel('miningItems') }}</kbd>
               </span>
               <span class="text-xs text-muted">{{ availableCombatItems.length }}种</span>
             </div>
@@ -581,11 +589,13 @@
             <div
               v-if="inventoryStore.equipmentPresets.length > 0"
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
+              data-testid="mining-combat-action-presets"
               @click="showPresetListModal = true"
             >
               <span class="text-xs text-accent">
                 <BookMarked :size="12" class="inline" />
                 切换装备方案
+                <kbd class="mining-combat-shortcut-badge" data-testid="mining-combat-shortcut-presets">{{ getCombatShortcutLabel('miningPresets') }}</kbd>
               </span>
               <span v-if="inventoryStore.activeEquipmentPresetName" class="text-[0.625rem] text-muted">
                 {{ inventoryStore.activeEquipmentPresetName }}
@@ -612,6 +622,7 @@
       <div
         v-if="showCombatItems"
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4"
+        data-testid="mining-combat-items-modal"
         @click.self="showCombatItems = false"
       >
         <div class="game-panel max-w-xs w-full">
@@ -723,6 +734,7 @@
       <div
         v-if="showPresetListModal"
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-70 p-4"
+        data-testid="mining-equipment-presets-modal"
         @click.self="showPresetListModal = false"
       >
         <div class="game-panel relative flex max-h-[78vh] w-full max-w-sm flex-col">
@@ -902,6 +914,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMiningStore } from '@/stores/useMiningStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { ZONE_NAMES, getFloor, BOSS_MONSTERS, MAX_MINE_FLOOR, getSkullCavernDepthLootProfile } from '@/data'
@@ -915,13 +928,16 @@
   import type { CombatAction, MineTile } from '@/types'
   import { sfxMine, sfxAttack, sfxHurt, sfxClick, sfxEncounter, sfxDefend, sfxFlee, sfxVictory } from '@/composables/useAudio'
   import { useAudio } from '@/composables/useAudio'
+  import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
+  import { formatKeyboardShortcutBinding, type KeyboardShortcutActionId } from '@/data/keyboardShortcuts'
 
   const miningStore = useMiningStore()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
+  const settingsStore = useSettingsStore()
   const skillStore = useSkillStore()
   const achievementStore = useAchievementStore()
   const tutorialStore = useTutorialStore()
@@ -1167,6 +1183,10 @@
 
   /** 炸弹模式 */
   const bombModeId = ref<string | null>(null)
+
+  /** 方向键光标 */
+  const cursorIndex = ref<number | null>(null)
+  const MINE_MOVE_GRID = 6
 
   /** 战斗道具面板 */
   const showCombatItems = ref(false)
@@ -1664,6 +1684,7 @@
     const msg = miningStore.enterMine(startFrom)
     exploreLog.value = [msg]
     sfxClick()
+    cursorIndex.value = miningStore.entryIndex
     addLog(msg)
   }
 
@@ -1673,6 +1694,7 @@
     const msg = miningStore.enterSkullCavern(startFrom)
     exploreLog.value = [msg]
     sfxClick()
+    cursorIndex.value = miningStore.entryIndex
     addLog(msg)
   }
 
@@ -1779,6 +1801,7 @@
     if (result.success) {
       exploreLog.value = [result.message]
       bombModeId.value = null
+      cursorIndex.value = miningStore.entryIndex
     } else {
       exploreLog.value.push(result.message)
     }
@@ -1797,6 +1820,7 @@
     const msg = miningStore.leaveMine()
     exploreLog.value = []
     bombModeId.value = null
+    cursorIndex.value = null
     addLog(msg)
   }
 
@@ -1810,6 +1834,121 @@
   const showPresetDetailModal = ref(false)
   const detailPresetId = ref<string | null>(null)
   const showEquipPropertyModal = ref(false)
+
+  const getCombatShortcutLabel = (actionId: KeyboardShortcutActionId) => (
+    formatKeyboardShortcutBinding(settingsStore.getKeyboardShortcutBinding(actionId))
+  )
+
+  const handleCombatFleeShortcut = () => {
+    if (!miningStore.inCombat || combatAnimLock.value) return
+    if (miningStore.combatIsBoss) {
+      showFloat('BOSS 战无法逃跑。', 'danger')
+      return
+    }
+    handleCombat('flee')
+  }
+
+  /** 方向键移动光标并翻开格子 */
+  const handleMiningCursorMove = (delta: number) => {
+    const grid = miningStore.floorGrid
+    if (!grid.length) return
+    const current = cursorIndex.value ?? miningStore.entryIndex ?? 0
+    const targetRow = Math.floor((current + delta) / MINE_MOVE_GRID)
+    const currentRow = Math.floor(current / MINE_MOVE_GRID)
+    if (targetRow < 0 || targetRow >= MINE_MOVE_GRID) return
+    const targetCol = (current + delta) % MINE_MOVE_GRID
+    if (Math.abs(delta) === 1 && targetRow !== currentRow) return
+    if (targetCol < 0 || targetCol >= MINE_MOVE_GRID) return
+    const targetIdx = current + delta
+    if (targetIdx < 0 || targetIdx >= grid.length) return
+    cursorIndex.value = targetIdx
+    const tile = grid[targetIdx]
+    if (tile && isTileClickable(tile)) {
+      handleTileClick(tile)
+    }
+  }
+
+  useKeyboardShortcutActions([
+    // direction-movement
+    {
+      id: 'moveUp',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 185,
+        intervalMs: 82
+      },
+      canRun: () => miningStore.isExploring && !miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value && !showElevatorModal.value && !showMapModal.value,
+      run: () => handleMiningCursorMove(-MINE_MOVE_GRID)
+    },
+    {
+      id: 'moveDown',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 185,
+        intervalMs: 82
+      },
+      canRun: () => miningStore.isExploring && !miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value && !showElevatorModal.value && !showMapModal.value,
+      run: () => handleMiningCursorMove(MINE_MOVE_GRID)
+    },
+    {
+      id: 'moveLeft',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 185,
+        intervalMs: 82
+      },
+      canRun: () => miningStore.isExploring && !miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value && !showElevatorModal.value && !showMapModal.value,
+      run: () => handleMiningCursorMove(-1)
+    },
+    {
+      id: 'moveRight',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 185,
+        intervalMs: 82
+      },
+      canRun: () => miningStore.isExploring && !miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value && !showElevatorModal.value && !showMapModal.value,
+      run: () => handleMiningCursorMove(1)
+    },
+    {
+      id: 'miningAttack',
+      priority: 100,
+      canRun: () => miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value,
+      run: () => handleCombat('attack')
+    },
+    {
+      id: 'miningDefend',
+      priority: 100,
+      canRun: () => miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value,
+      run: () => handleCombat('defend')
+    },
+    {
+      id: 'miningFlee',
+      priority: 100,
+      canRun: () => miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value,
+      run: handleCombatFleeShortcut
+    },
+    {
+      id: 'miningItems',
+      priority: 100,
+      canRun: () => miningStore.inCombat && !combatAnimLock.value && availableCombatItems.value.length > 0 && !showPresetListModal.value && !showPresetDetailModal.value,
+      run: () => {
+        showCombatItems.value = true
+      }
+    },
+    {
+      id: 'miningPresets',
+      priority: 100,
+      canRun: () => miningStore.inCombat && !combatAnimLock.value && inventoryStore.equipmentPresets.length > 0 && !showCombatItems.value && !showPresetDetailModal.value,
+      run: () => {
+        showPresetListModal.value = true
+      }
+    }
+  ])
 
   interface EquipPropertyInfo {
     category: string
@@ -2010,9 +2149,31 @@
     animation: miningStatusPulse 1s ease-in-out infinite;
   }
 
+  .mining-combat-shortcut-badge {
+    display: inline-flex;
+    min-width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    padding: 0 4px;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.28);
+    border-radius: 3px;
+    background: rgb(var(--color-bg) / 0.45);
+    color: rgb(var(--color-accent-rgb));
+    font-size: 0.625rem;
+    line-height: 1;
+    vertical-align: middle;
+  }
+
   .mining-dialog-titlebar {
     user-select: none;
   }
+
+  .mining-tile-transition {
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
 
   @media (max-width: 360px) {
     .mining-status-item {
@@ -2028,6 +2189,7 @@
 
   @media (min-width: 768px) and (pointer: fine) {
     .mining-dialog-overlay {
+      padding-top: 76px;
       padding-top: calc(76px + constant(safe-area-inset-top, 0px));
       padding-top: calc(76px + env(safe-area-inset-top, 0px));
     }

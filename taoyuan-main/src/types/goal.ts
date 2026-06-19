@@ -516,7 +516,7 @@ export type EconomyRiskLevel = 'healthy' | 'watch' | 'warning' | 'critical'
 
 export type EconomyFlowKind = 'income' | 'expense'
 
-export type EconomySystemKey = 'breeding' | 'shop' | 'goal' | 'quest' | 'achievement' | 'villageProject' | 'wallet' | 'market' | 'system' | 'fishPond'
+export type EconomySystemKey = 'breeding' | 'shop' | 'goal' | 'quest' | 'achievement' | 'villageProject' | 'wallet' | 'market' | 'system' | 'fishPond' | 'npc_function_unlock'
 
 export type EconomySinkCategory = 'construction' | 'luxuryCatalog' | 'maintenance' | 'themeActivity' | 'specialOrder' | 'service'
 

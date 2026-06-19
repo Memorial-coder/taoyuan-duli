@@ -1268,6 +1268,7 @@
   import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
+  import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { useRegionJourneyHandoffModel } from '@/composables/useRegionJourneyHandoffModel'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
@@ -1505,21 +1506,29 @@
   const getOpenWorldViewportCamera = (regionId: RegionOpenWorldId) => openWorldViewportCameras.value[regionId] ?? null
   const getOpenWorldViewportSize = (regionId: RegionOpenWorldId) => openWorldViewportSizes.value[regionId] ?? null
   const setOpenWorldViewportCamera = (regionId: RegionOpenWorldId, camera: RegionOpenWorldViewportCamera) => {
-    openWorldViewportCameras.value = {
-      ...openWorldViewportCameras.value,
-      [regionId]: {
-        x: camera.x,
-        y: camera.y
-      }
+    const current = openWorldViewportCameras.value[regionId]
+    if (current && current.x === camera.x && current.y === camera.y) return
+    if (current) {
+      current.x = camera.x
+      current.y = camera.y
+      return
+    }
+    openWorldViewportCameras.value[regionId] = {
+      x: camera.x,
+      y: camera.y
     }
   }
   const setOpenWorldViewportSize = (regionId: RegionOpenWorldId, size: RegionOpenWorldViewportSize) => {
-    openWorldViewportSizes.value = {
-      ...openWorldViewportSizes.value,
-      [regionId]: {
-        columns: size.columns,
-        rows: size.rows
-      }
+    const current = openWorldViewportSizes.value[regionId]
+    if (current && current.columns === size.columns && current.rows === size.rows) return
+    if (current) {
+      current.columns = size.columns
+      current.rows = size.rows
+      return
+    }
+    openWorldViewportSizes.value[regionId] = {
+      columns: size.columns,
+      rows: size.rows
     }
   }
   const activeOpenWorldRegionView = computed(() =>
@@ -3991,10 +4000,45 @@
     })
   }
 
-  const handleMoveOpenWorldPlayer = (tileId: string) => {
+  const keepCurrentOpenWorldTileInViewport = () => {
     const regionId = regionMapStore.openWorldState.activeRegionId
-    setOpenWorldViewportCamera(regionId, activeOpenWorldRegionView.value.camera)
+    const view = activeOpenWorldRegionView.value
+    const playerTile = view.def.tiles.find(tile => tile.id === view.state.playerTileId)
+    if (!playerTile) return
+
+    const paddingColumns = Math.min(2, Math.max(1, Math.floor(view.visibleColumnCount / 4)))
+    const paddingRows = Math.min(2, Math.max(1, Math.floor(view.visibleRowCount / 4)))
+    const localX = playerTile.x + 0.5 - view.camera.x
+    const localY = playerTile.y + 0.5 - view.camera.y
+    const safeMaxX = Math.max(paddingColumns, view.visibleColumnCount - paddingColumns)
+    const safeMaxY = Math.max(paddingRows, view.visibleRowCount - paddingRows)
+
+    let nextCameraX = view.camera.x
+    let nextCameraY = view.camera.y
+
+    if (localX < paddingColumns) {
+      nextCameraX = playerTile.x + 0.5 - paddingColumns
+    } else if (localX > safeMaxX) {
+      nextCameraX = playerTile.x + 0.5 - safeMaxX
+    }
+
+    if (localY < paddingRows) {
+      nextCameraY = playerTile.y + 0.5 - paddingRows
+    } else if (localY > safeMaxY) {
+      nextCameraY = playerTile.y + 0.5 - safeMaxY
+    }
+
+    if (nextCameraX === view.camera.x && nextCameraY === view.camera.y) return
+
+    setOpenWorldViewportCamera(regionId, {
+      x: clampOpenWorldViewportValue(nextCameraX, 0, Math.max(0, view.def.width - view.visibleColumnCount)),
+      y: clampOpenWorldViewportValue(nextCameraY, 0, Math.max(0, view.def.height - view.visibleRowCount))
+    })
+  }
+
+  const handleMoveOpenWorldPlayer = (tileId: string) => {
     const result = regionMapStore.moveOpenWorldPlayer(tileId, currentDayTag.value)
+    if (result.success) keepCurrentOpenWorldTileInViewport()
     setActionSummary(result.message, result.success ? 'accent' : result.tone)
   }
 
@@ -4174,6 +4218,88 @@
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     showFloat(result.message, result.success ? 'success' : 'danger')
   }
+
+  /** 方向键在行旅图开放世界地图上移动玩家 */
+  const handleRegionMapCursorMove = (dx: number, dy: number) => {
+    const view = activeOpenWorldRegionView.value
+    const allTiles = view.def.tiles
+    const playerTile = allTiles.find(tile => tile.id === view.state.playerTileId)
+    if (!playerTile) return
+    const px = playerTile.x
+    const py = playerTile.y
+    let best: (typeof allTiles)[number] | null = null
+    let bestDist = Infinity
+    for (const tile of allTiles) {
+      const tileDx = tile.x - px
+      const tileDy = tile.y - py
+      const tileView = regionMapStore.getOpenWorldTileView(regionMapStore.openWorldState.activeRegionId, tile.id)
+      if (!tileView?.canMove) continue
+      const forwardDistance = dx !== 0 ? tileDx * dx : tileDy * dy
+      if (forwardDistance <= 0) continue
+      const lateralDistance = dx !== 0 ? Math.abs(tileDy) : Math.abs(tileDx)
+      const score = lateralDistance * view.def.width + forwardDistance
+      if (score < bestDist) {
+        bestDist = score
+        best = tile
+      }
+    }
+    if (!best) return
+    handleMoveOpenWorldPlayer(best.id)
+  }
+
+  /** 行旅图方向键快捷键：开放地图无弹窗/进行中远征时生效 */
+  const regionMapCanMove = () =>
+    activeOpenWorldRegionView.value.unlocked
+    && !settlementDialog.value
+    && !currentSession.value
+    && !!activeOpenWorldRegionView.value.state.playerTileId
+
+  useKeyboardShortcutActions([
+    {
+      id: 'moveUp',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 115,
+        intervalMs: 68
+      },
+      canRun: () => regionMapCanMove(),
+      run: () => handleRegionMapCursorMove(0, -1)
+    },
+    {
+      id: 'moveDown',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 115,
+        intervalMs: 68
+      },
+      canRun: () => regionMapCanMove(),
+      run: () => handleRegionMapCursorMove(0, 1)
+    },
+    {
+      id: 'moveLeft',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 115,
+        intervalMs: 68
+      },
+      canRun: () => regionMapCanMove(),
+      run: () => handleRegionMapCursorMove(-1, 0)
+    },
+    {
+      id: 'moveRight',
+      priority: 50,
+      allowRepeat: true,
+      repeatConfig: {
+        initialDelayMs: 115,
+        intervalMs: 68
+      },
+      canRun: () => regionMapCanMove(),
+      run: () => handleRegionMapCursorMove(1, 0)
+    }
+  ])
 </script>
 
 <style scoped>

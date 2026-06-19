@@ -1041,7 +1041,7 @@
               class="greenhouse-plot relative aspect-square border border-accent/20 rounded-xs flex flex-col items-center justify-center cursor-pointer transition-colors hover:border-accent/60 hover:bg-panel/80 leading-tight"
               :class="getPlotDisplay(plot).color"
               :title="getPlotTooltip(plot)"
-              @click="activeGhPlotId = plot.id"
+              @click="openGhPlot(plot.id)"
             >
               <template v-if="settingsStore.farmPlotDisplayMode === 'image' && plot.cropId">
                 <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" fallback-mode="label" />
@@ -1136,45 +1136,77 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showGhBatchPlant = false"
       >
-        <div class="game-panel max-w-xs w-full relative">
+        <div class="game-panel max-w-sm w-full relative max-h-[88dvh] flex flex-col">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showGhBatchPlant = false">
             <X :size="14" />
           </button>
-          <p class="text-accent text-sm mb-2">温室一键种植</p>
-          <p class="text-xs text-muted mb-2">空耕地 {{ ghTilledEmptyCount }} 块，选择要种植的种子：</p>
-          <div class="farm-action-list flex flex-col space-y-1 max-h-60 overflow-y-auto overflow-x-hidden pr-1">
-            <button
-              v-for="seed in allSeeds"
-              :key="seed.cropId + ':' + seed.quality"
-              class="btn text-xs justify-between shrink-0 farm-seed-option"
-              @click="doGhBatchPlant(seed.cropId, seed.quality)"
-            >
-              <span class="farm-seed-option__main">
-                <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
-                <span class="farm-seed-option__label">
-                  {{ seed.name }}
-                  <span
-                    v-if="seed.quality !== 'normal'"
-                    :class="{
-                      'text-quality-fine': seed.quality === 'fine',
-                      'text-quality-excellent': seed.quality === 'excellent',
-                      'text-quality-supreme': seed.quality === 'supreme'
-                    }"
-                    class="ml-0.5"
-                  >
-                    [{{ QUALITY_NAMES[seed.quality] }}]
+          <div class="shrink-0">
+            <p class="text-accent text-sm mb-2">温室一键种植</p>
+            <p class="text-xs text-muted mb-2">空耕地 {{ ghTilledEmptyCount }} 块，选择要种植的种子：</p>
+            <div v-if="allSeeds.length > 0 || ghBatchBreedingSeedGroups.length > 0" class="space-y-2 mb-2">
+              <div class="relative">
+                <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                <input
+                  v-model="ghBatchSeedSearch"
+                  class="w-full rounded-xs border border-accent/20 bg-bg/70 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-accent"
+                  placeholder="搜索作物或种子"
+                />
+              </div>
+              <div class="grid grid-cols-3 gap-1">
+                <button
+                  v-for="option in greenhouseSeedFilterOptions"
+                  :key="'batch-' + option.value"
+                  class="btn text-xs justify-center !px-2 !py-1"
+                  :class="{ '!bg-accent !text-bg': ghBatchSeedKindFilter === option.value }"
+                  @click="ghBatchSeedKindFilter = option.value"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div
+            data-testid="greenhouse-batch-seed-scroll"
+            class="farm-action-list flex-1 min-h-0 space-y-2 overflow-y-auto overflow-x-hidden pr-1"
+          >
+            <template v-if="visibleGhBatchSeedGroups.length > 0">
+              <Divider label="普通种子" class="!my-2" />
+              <div
+                v-for="group in visibleGhBatchSeedGroups"
+                :key="'batch-seed-group:' + group.cropId"
+                class="farm-seed-group"
+              >
+                <div class="farm-seed-group__head">
+                  <span class="farm-seed-option__main">
+                    <ItemIcon :item="getSeedItem(group.seedId)" size="xs" :show-badge="false" />
+                    <span class="farm-seed-option__label" :class="group.colorClass">
+                      {{ group.name }}
+                      <span v-if="group.regrowth" class="text-success ml-1">[多茬]</span>
+                    </span>
                   </span>
-                  <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
-                </span>
-              </span>
-              <span class="text-muted farm-seed-option__count">×{{ seed.count }}</span>
-            </button>
-            <template v-if="ghBatchBreedingSeedGroups.length > 0">
+                  <span class="text-muted farm-seed-option__count">×{{ group.totalCount }}</span>
+                </div>
+                <div class="farm-seed-quality-options" data-testid="greenhouse-seed-quality-options">
+                  <button
+                    v-for="seed in group.seeds"
+                    :key="seed.cropId + ':' + seed.quality"
+                    class="btn text-xs farm-seed-quality-button"
+                    @click="doGhBatchPlant(seed.cropId, seed.quality)"
+                  >
+                    <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
+                    <span :class="qualityTextClass(seed.quality) || group.colorClass">{{ QUALITY_NAMES[seed.quality] }}</span>
+                    <span class="text-muted">×{{ seed.count }}</span>
+                  </button>
+                </div>
+              </div>
+            </template>
+            <template v-if="visibleGhBatchBreedingSeedGroups.length > 0">
               <Divider label="育种种子" class="!my-2" />
               <button
-                v-for="group in ghBatchBreedingSeedGroups"
+                v-for="group in visibleGhBatchBreedingSeedGroups"
                 :key="group.cropId"
                 class="btn text-xs justify-between shrink-0 farm-seed-option"
+                data-testid="greenhouse-batch-breeding-seed-group"
                 @click="doGhBatchPlantBreeding(group.cropId)"
               >
                 <span class="farm-seed-option__main">
@@ -1182,15 +1214,16 @@
                   <span class="farm-seed-option__label">
                     {{ group.name }}
                     <span class="text-muted">G{{ group.minGen }}{{ group.minGen !== group.maxGen ? `~${group.maxGen}` : '' }}</span>
+                    <span class="text-accent ml-1">{{ group.bestStars }}★</span>
                   </span>
                 </span>
                 <span class="text-muted farm-seed-option__count">×{{ group.count }}</span>
               </button>
             </template>
-          </div>
-          <div v-if="allSeeds.length === 0 && ghBatchBreedingSeedGroups.length === 0" class="flex flex-col items-center py-4">
-            <Sprout :size="32" class="text-muted/30" />
-            <p class="text-xs text-muted mt-2">没有可种植的种子</p>
+            <div v-if="greenhouseBatchSeedPickerEmpty" class="flex flex-col items-center py-4">
+              <Sprout :size="32" class="text-muted/30" />
+              <p class="text-xs text-muted mt-2">{{ greenhouseBatchSeedEmptyText }}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1235,111 +1268,180 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeGhPlotId = null"
       >
-        <div class="game-panel max-w-xs w-full relative">
+        <div class="game-panel max-w-sm w-full relative max-h-[88dvh] flex flex-col">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeGhPlotId = null">
             <X :size="14" />
           </button>
-          <p class="text-accent text-sm mb-2">温室地块 #{{ activeGhPlot.id + 1 }}</p>
+          <div class="shrink-0">
+            <p class="text-accent text-sm mb-2">温室地块 #{{ activeGhPlot.id + 1 }}</p>
 
-          <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <div class="flex flex-col space-y-1">
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-muted">状态</span>
-                <span class="text-xs">{{ ghPlotStateLabel }}</span>
-              </div>
-              <div v-if="activeGhPlot.cropId" class="flex items-center justify-between">
-                <span class="text-xs text-muted">作物</span>
-                <span class="text-xs">
-                  {{ getCropName(activeGhPlot.cropId) }}
-                  <span v-if="ghPlotCropRegrowth" class="text-success ml-1">
-                    [多茬 {{ activeGhPlot.harvestCount }}/{{ ghPlotCropMaxHarvests }}]
-                  </span>
-                </span>
-              </div>
-              <div v-if="activeGhPlot.cropId && activeGhPlot.state !== 'harvestable'" class="flex items-center space-x-2">
-                <span class="text-xs text-muted shrink-0">生长</span>
-                <div class="flex-1 h-1 bg-bg rounded-xs border border-accent/10">
-                  <div
-                    class="h-full rounded-xs bg-success transition-all"
-                    :style="{
-                      width: Math.min(100, Math.floor((activeGhPlot.growthDays / (Number(ghPlotCropGrowthDays) || 1)) * 100)) + '%'
-                    }"
-                  />
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <div class="flex flex-col space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-muted">状态</span>
+                  <span class="text-xs">{{ ghPlotStateLabel }}</span>
                 </div>
-                <span class="text-xs text-muted whitespace-nowrap">{{ activeGhPlot.growthDays }}/{{ ghPlotCropGrowthDays }}天</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-muted">特性</span>
-                <span class="text-xs text-water">自动浇水 · 无季节限制</span>
-              </div>
-              <div v-if="activeGhPlot.fertilizer" class="flex items-center justify-between">
-                <span class="text-xs text-muted">肥料</span>
-                <span class="text-xs text-success">{{ ghPlotFertName }}</span>
+                <div v-if="activeGhPlot.cropId" class="flex items-center justify-between">
+                  <span class="text-xs text-muted">作物</span>
+                  <span class="text-xs">
+                    {{ getCropName(activeGhPlot.cropId) }}
+                    <span v-if="ghPlotCropRegrowth" class="text-success ml-1">
+                      [多茬 {{ activeGhPlot.harvestCount }}/{{ ghPlotCropMaxHarvests }}]
+                    </span>
+                  </span>
+                </div>
+                <div v-if="activeGhPlot.cropId && activeGhPlot.state !== 'harvestable'" class="flex items-center space-x-2">
+                  <span class="text-xs text-muted shrink-0">生长</span>
+                  <div class="flex-1 h-1 bg-bg rounded-xs border border-accent/10">
+                    <div
+                      class="h-full rounded-xs bg-success transition-all"
+                      :style="{
+                        width: Math.min(100, Math.floor((activeGhPlot.growthDays / (Number(ghPlotCropGrowthDays) || 1)) * 100)) + '%'
+                      }"
+                    />
+                  </div>
+                  <span class="text-xs text-muted whitespace-nowrap">{{ activeGhPlot.growthDays }}/{{ ghPlotCropGrowthDays }}天</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-muted">特性</span>
+                  <span class="text-xs text-water">自动浇水 · 无季节限制</span>
+                </div>
+                <div v-if="activeGhPlot.fertilizer" class="flex items-center justify-between">
+                  <span class="text-xs text-muted">肥料</span>
+                  <span class="text-xs text-success">{{ ghPlotFertName }}</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div v-if="activeGhPlot.cropId" class="farm-crop-image-detail border border-accent/10 rounded-xs p-2 mb-2">
-            <CropImage :crop-id="activeGhPlot.cropId" :crop-name="getCropName(activeGhPlot.cropId)" :plot="activeGhPlot" size="lg" :resolution="256" />
-            <div class="min-w-0">
-              <p class="text-xs text-muted mb-1">作物图片</p>
-              <CropImageVariantPicker :crop-id="activeGhPlot.cropId" :crop-name="getCropName(activeGhPlot.cropId)" :plot="activeGhPlot" />
+            <div v-if="activeGhPlot.cropId" class="farm-crop-image-detail border border-accent/10 rounded-xs p-2 mb-2">
+              <CropImage :crop-id="activeGhPlot.cropId" :crop-name="getCropName(activeGhPlot.cropId)" :plot="activeGhPlot" size="lg" :resolution="256" />
+              <div class="min-w-0">
+                <p class="text-xs text-muted mb-1">作物图片</p>
+                <CropImageVariantPicker :crop-id="activeGhPlot.cropId" :crop-name="getCropName(activeGhPlot.cropId)" :plot="activeGhPlot" />
+              </div>
+            </div>
+            <div v-if="activeGhPlot.state === 'tilled' && (allSeeds.length > 0 || ghBatchBreedingSeedGroups.length > 0)" class="space-y-2 mb-2">
+              <div class="relative">
+                <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                <input
+                  v-model="ghSeedSearch"
+                  class="w-full rounded-xs border border-accent/20 bg-bg/70 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-accent"
+                  placeholder="搜索作物或种子"
+                />
+              </div>
+              <div class="grid grid-cols-3 gap-1">
+                <button
+                  v-for="option in greenhouseSeedFilterOptions"
+                  :key="'single-' + option.value"
+                  class="btn text-xs justify-center !px-2 !py-1"
+                  :class="{ '!bg-accent !text-bg': ghSeedKindFilter === option.value }"
+                  @click="ghSeedKindFilter = option.value"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
             </div>
           </div>
 
           <!-- 操作区 -->
-          <div class="flex flex-col space-y-1.5">
+          <div
+            data-testid="greenhouse-single-seed-scroll"
+            class="flex-1 min-h-0 space-y-1.5 overflow-y-auto overflow-x-hidden pr-1"
+          >
             <!-- 已耕 → 种植（所有种子） -->
-            <div v-if="activeGhPlot.state === 'tilled' && allSeeds.length > 0" class="border border-accent/10 rounded-xs p-2">
-              <p class="text-xs text-muted mb-1">种植</p>
-              <div class="flex flex-wrap gap-1">
-                <button
-                  v-for="seed in allSeeds"
-                  :key="seed.cropId + ':' + seed.quality"
-                  class="btn text-xs farm-seed-chip"
-                  @click="doGhPlant(seed.cropId, seed.quality)"
-                >
-                  <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
-                  <span class="farm-seed-chip__label">
-                    {{ seed.name }}
-                    <span
-                      v-if="seed.quality !== 'normal'"
-                      :class="{
-                        'text-quality-fine': seed.quality === 'fine',
-                        'text-quality-excellent': seed.quality === 'excellent',
-                        'text-quality-supreme': seed.quality === 'supreme'
-                      }"
-                      class="ml-0.5"
+            <template v-if="activeGhPlot.state === 'tilled'">
+              <div
+                v-if="visibleGhSeedGroups.length > 0"
+                class="border border-accent/10 rounded-xs p-2"
+              >
+                <p class="text-xs text-muted mb-1">普通种子</p>
+                <div class="space-y-1.5">
+                  <div
+                    v-for="group in visibleGhSeedGroups"
+                    :key="'single-seed-group:' + group.cropId"
+                    class="farm-seed-group"
+                  >
+                    <div class="farm-seed-group__head">
+                      <span class="farm-seed-option__main">
+                        <ItemIcon :item="getSeedItem(group.seedId)" size="xs" :show-badge="false" />
+                        <span class="farm-seed-option__label" :class="group.colorClass">
+                          {{ group.name }}
+                          <span v-if="group.regrowth" class="text-success ml-1">[多茬]</span>
+                        </span>
+                      </span>
+                      <span class="text-muted farm-seed-option__count">×{{ group.totalCount }}</span>
+                    </div>
+                    <div class="farm-seed-quality-options" data-testid="greenhouse-seed-quality-options">
+                      <button
+                        v-for="seed in group.seeds"
+                        :key="seed.cropId + ':' + seed.quality"
+                        class="btn text-xs farm-seed-quality-button"
+                        @click="doGhPlant(seed.cropId, seed.quality)"
+                      >
+                        <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
+                        <span :class="qualityTextClass(seed.quality) || group.colorClass">{{ QUALITY_NAMES[seed.quality] }}</span>
+                        <span class="text-muted">×{{ seed.count }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- 已耕 → 育种种子 -->
+              <div
+                v-if="visibleGhBreedingSeedGroups.length > 0"
+                class="border border-accent/10 rounded-xs p-2"
+                data-testid="greenhouse-breeding-seed-groups"
+              >
+                <p class="text-xs text-muted mb-1">育种种子</p>
+                <div class="space-y-1.5">
+                  <div
+                    v-for="group in visibleGhBreedingSeedGroups"
+                    :key="group.cropId"
+                    class="farm-seed-group"
+                  >
+                    <button
+                      class="btn text-xs justify-between shrink-0 farm-seed-option"
+                      @click="toggleGhBreedingGroup(group.cropId)"
                     >
-                      [{{ QUALITY_NAMES[seed.quality] }}]
-                    </span>
-                    <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
-                  </span>
-                  <span class="text-muted">(×{{ seed.count }})</span>
-                </button>
+                      <span class="farm-seed-option__main">
+                        <component :is="isGhBreedingGroupExpanded(group.cropId) ? ChevronDown : ChevronRight" :size="12" class="shrink-0 text-muted" />
+                        <ItemIcon :item="getSeedItemForCrop(group.cropId)" size="xs" :show-badge="false" />
+                        <span class="farm-seed-option__label">
+                          {{ group.name }}
+                          <span class="text-muted">G{{ group.minGen }}{{ group.minGen !== group.maxGen ? `~${group.maxGen}` : '' }}</span>
+                          <span class="text-accent ml-1">{{ group.bestStars }}★</span>
+                        </span>
+                      </span>
+                      <span class="text-muted farm-seed-option__count">×{{ group.count }}</span>
+                    </button>
+                    <div
+                      v-if="isGhBreedingGroupExpanded(group.cropId)"
+                      class="farm-breeding-seed-options"
+                      data-testid="greenhouse-breeding-seed-options"
+                    >
+                      <button
+                        v-for="seed in group.seeds"
+                        :key="seed.genetics.id"
+                        class="btn text-xs justify-between shrink-0 farm-seed-option"
+                        @click="doGhPlantGeneticSeed(seed.genetics.id)"
+                      >
+                        <span class="farm-seed-option__main">
+                          <ItemIcon :item="getSeedItemForCrop(seed.genetics.cropId)" size="xs" :show-badge="false" />
+                          <span class="farm-seed-option__label">{{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}</span>
+                        </span>
+                        <span class="text-muted farm-seed-option__count">{{ getBreedingSeedSummary(seed.genetics) }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            <!-- 已耕 → 育种种子 -->
-            <div v-if="activeGhPlot.state === 'tilled' && breedingStore.breedingBox.length > 0" class="border border-accent/10 rounded-xs p-2">
-              <p class="text-xs text-muted mb-1">育种种子</p>
-              <div class="flex flex-wrap gap-1">
-                <button
-                  v-for="seed in breedingStore.breedingBox"
-                  :key="seed.genetics.id"
-                  class="btn text-xs farm-seed-chip"
-                  @click="doGhPlantGeneticSeed(seed.genetics.id)"
-                >
-                  <ItemIcon :item="getSeedItemForCrop(seed.genetics.cropId)" size="xs" :show-badge="false" />
-                  <span class="farm-seed-chip__label">{{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}</span>
-                </button>
+              <!-- 已耕无种子空状态 -->
+              <div v-if="greenhouseSeedPickerEmpty" class="flex flex-col items-center py-4">
+                <Sprout :size="32" class="text-muted/30" />
+                <p class="text-xs text-muted mt-2">{{ greenhouseSeedEmptyText }}</p>
+                <Button v-if="isWanwupuOpen && allSeeds.length === 0 && ghBatchBreedingSeedGroups.length === 0" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
+                <p v-else-if="allSeeds.length === 0 && ghBatchBreedingSeedGroups.length === 0" class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
               </div>
-            </div>
-            <!-- 已耕无种子空状态 -->
-            <div v-if="activeGhPlot.state === 'tilled' && allSeeds.length === 0 && breedingStore.breedingBox.length === 0" class="flex flex-col items-center py-4">
-              <Sprout :size="32" class="text-muted/30" />
-              <p class="text-xs text-muted mt-2">背包中没有种子</p>
-              <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
-              <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
-            </div>
+            </template>
 
             <div v-if="canGhFertilizerAction && activeGhPlotFertilizerOptions.length > 0" class="border border-accent/10 rounded-xs p-2">
               <p class="text-xs text-muted mb-1">{{ activeGhPlot.fertilizer ? '替换肥料' : '施肥' }}</p>
@@ -1428,7 +1530,10 @@
     Bird,
     Zap,
     Square,
-    Flower2
+    Flower2,
+    Search,
+    ChevronDown,
+    ChevronRight
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import CropImage from '@/components/game/CropImage.vue'
@@ -1481,7 +1586,7 @@
     getFarmingStaminaCostLabel,
     QUALITY_NAMES
   } from '@/composables/useFarmActions'
-  import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality, ItemCategory, ItemDef } from '@/types'
+  import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality, ItemCategory, ItemDef, BreedingSeed, SeedGenetics } from '@/types'
   import { sfxHarvest, sfxPlant } from '@/composables/useAudio'
 
   const router = useRouter()
@@ -1592,6 +1697,12 @@
   const showGhUpgradeModal = ref(false)
   const showGhBatchPlant = ref(false)
   const showGhBatchFertilize = ref(false)
+  const ghSeedSearch = ref('')
+  const ghBatchSeedSearch = ref('')
+  type GreenhouseSeedFilter = 'all' | 'ordinary' | 'breeding'
+  const ghSeedKindFilter = ref<GreenhouseSeedFilter>('all')
+  const ghBatchSeedKindFilter = ref<GreenhouseSeedFilter>('all')
+  const expandedGhBreedingCropIds = ref<Set<string>>(new Set())
   const activeGreenhouseFruitTreeSlotId = ref<number | null>(null)
   const chopFruitTreeTarget = ref<{ id: number; type: string; area: 'outdoor' | 'greenhouse' } | null>(null)
   const chopWildTreeTarget = ref<{ id: number; type: string; chopCount: number } | null>(null)
@@ -1607,6 +1718,7 @@
     showBatchFertilize.value = false
     showBatchActions.value = false
     showGreenhouseModal.value = false
+    showGhBatchPlant.value = false
     showGhBatchFertilize.value = false
     activeGreenhouseFruitTreeSlotId.value = null
     navigateToPanel('shop')
@@ -2673,32 +2785,211 @@
 
   const nextGhUpgrade = computed(() => GREENHOUSE_UPGRADES[farmStore.greenhouseLevel] ?? null)
 
-  const allSeeds = computed(() => {
+  const greenhouseSeedFilterOptions: { value: GreenhouseSeedFilter; label: string }[] = [
+    { value: 'all', label: '全部' },
+    { value: 'ordinary', label: '普通' },
+    { value: 'breeding', label: '育种' }
+  ]
+
+  type GreenhouseSeedEntry = {
+    cropId: string
+    seedId: string
+    name: string
+    seedName: string
+    quality: Quality
+    count: number
+    colorClass: string
+    regrowth: boolean
+    seasonLabel: string
+  }
+
+  type GreenhouseSeedGroup = {
+    cropId: string
+    seedId: string
+    name: string
+    seedName: string
+    totalCount: number
+    colorClass: string
+    regrowth: boolean
+    seasonLabel: string
+    seeds: GreenhouseSeedEntry[]
+  }
+
+  type GreenhouseBreedingSeedGroup = {
+    cropId: string
+    name: string
+    count: number
+    minGen: number
+    maxGen: number
+    bestStars: number
+    bestTotalStats: number
+    seeds: BreedingSeed[]
+  }
+
+  const getCropSeasonLabel = (seasons: readonly string[]): string =>
+    seasons.map(season => SEASON_NAMES[season as keyof typeof SEASON_NAMES] ?? season).join('/')
+
+  const getBreedingTotalStats = (genetics: SeedGenetics): number =>
+    genetics.sweetness + genetics.yield + genetics.resistance
+
+  const sortBreedingSeedsForPlanting = (left: BreedingSeed, right: BreedingSeed): number => {
+    const leftStars = getStarRating(left.genetics)
+    const rightStars = getStarRating(right.genetics)
+    if (leftStars !== rightStars) return rightStars - leftStars
+    if (left.genetics.generation !== right.genetics.generation) return right.genetics.generation - left.genetics.generation
+    const totalDelta = getBreedingTotalStats(right.genetics) - getBreedingTotalStats(left.genetics)
+    if (totalDelta !== 0) return totalDelta
+    return left.genetics.id.localeCompare(right.genetics.id)
+  }
+
+  const normalizeSeedSearch = (value: string): string => value.trim().toLocaleLowerCase('zh-CN')
+
+  const allSeeds = computed<GreenhouseSeedEntry[]>(() => {
     return CROPS.flatMap(crop =>
       QUALITY_ORDER.map(quality => ({
         cropId: crop.id,
         seedId: crop.seedId,
         name: crop.name,
+        seedName: getSeedItem(crop.seedId)?.name ?? `${crop.name}种子`,
         quality,
         count: inventoryStore.getItemCount(crop.seedId, quality),
-        regrowth: crop.regrowth ?? false
+        colorClass: cropValueColor(crop.sellPrice),
+        regrowth: crop.regrowth ?? false,
+        seasonLabel: getCropSeasonLabel(crop.season)
       })).filter(seed => seed.count > 0)
     )
   })
 
-  const ghBatchBreedingSeedGroups = computed(() => {
-    const groups: Record<string, { cropId: string; name: string; count: number; minGen: number; maxGen: number }> = {}
+  const greenhouseSeedGroups = computed<GreenhouseSeedGroup[]>(() => {
+    const groups = new Map<string, GreenhouseSeedGroup>()
+    for (const seed of allSeeds.value) {
+      const group = groups.get(seed.cropId)
+      if (group) {
+        group.totalCount += seed.count
+        group.seeds.push(seed)
+      } else {
+        groups.set(seed.cropId, {
+          cropId: seed.cropId,
+          seedId: seed.seedId,
+          name: seed.name,
+          seedName: seed.seedName,
+          totalCount: seed.count,
+          colorClass: seed.colorClass,
+          regrowth: seed.regrowth,
+          seasonLabel: seed.seasonLabel,
+          seeds: [seed]
+        })
+      }
+    }
+    return [...groups.values()]
+  })
+
+  const filterGreenhouseSeedGroups = (groups: GreenhouseSeedGroup[], search: string): GreenhouseSeedGroup[] => {
+    const query = normalizeSeedSearch(search)
+    if (!query) return groups
+    return groups.filter(group =>
+      [group.name, group.seedName, group.seasonLabel].some(text => normalizeSeedSearch(text).includes(query)) ||
+      group.seeds.some(seed => QUALITY_NAMES[seed.quality].includes(query))
+    )
+  }
+
+  const ghBatchBreedingSeedGroups = computed<GreenhouseBreedingSeedGroup[]>(() => {
+    const groups = new Map<string, GreenhouseBreedingSeedGroup>()
     for (const seed of breedingStore.breedingBox) {
       const cid = seed.genetics.cropId
-      if (!groups[cid]) {
-        groups[cid] = { cropId: cid, name: getCropName(cid), count: 0, minGen: seed.genetics.generation, maxGen: seed.genetics.generation }
+      const totalStats = getBreedingTotalStats(seed.genetics)
+      const stars = getStarRating(seed.genetics)
+      const group = groups.get(cid)
+      if (group) {
+        group.count++
+        group.seeds.push(seed)
+        if (seed.genetics.generation < group.minGen) group.minGen = seed.genetics.generation
+        if (seed.genetics.generation > group.maxGen) group.maxGen = seed.genetics.generation
+        if (stars > group.bestStars) group.bestStars = stars
+        if (totalStats > group.bestTotalStats) group.bestTotalStats = totalStats
+      } else {
+        groups.set(cid, {
+          cropId: cid,
+          name: getCropName(cid),
+          count: 1,
+          minGen: seed.genetics.generation,
+          maxGen: seed.genetics.generation,
+          bestStars: stars,
+          bestTotalStats: totalStats,
+          seeds: [seed]
+        })
       }
-      groups[cid]!.count++
-      if (seed.genetics.generation < groups[cid]!.minGen) groups[cid]!.minGen = seed.genetics.generation
-      if (seed.genetics.generation > groups[cid]!.maxGen) groups[cid]!.maxGen = seed.genetics.generation
     }
-    return Object.values(groups)
+    return [...groups.values()].map(group => ({
+      ...group,
+      seeds: [...group.seeds].sort(sortBreedingSeedsForPlanting)
+    }))
   })
+
+  const filterGreenhouseBreedingSeedGroups = (groups: GreenhouseBreedingSeedGroup[], search: string): GreenhouseBreedingSeedGroup[] => {
+    const query = normalizeSeedSearch(search)
+    if (!query) return groups
+    return groups.filter(group =>
+      normalizeSeedSearch(group.name).includes(query) ||
+      group.seeds.some(seed =>
+        normalizeSeedSearch(seed.label).includes(query) ||
+        normalizeSeedSearch(`g${seed.genetics.generation}`).includes(query)
+      )
+    )
+  }
+
+  const visibleGhSeedGroups = computed(() =>
+    ghSeedKindFilter.value === 'breeding' ? [] : filterGreenhouseSeedGroups(greenhouseSeedGroups.value, ghSeedSearch.value)
+  )
+
+  const visibleGhBatchSeedGroups = computed(() =>
+    ghBatchSeedKindFilter.value === 'breeding' ? [] : filterGreenhouseSeedGroups(greenhouseSeedGroups.value, ghBatchSeedSearch.value)
+  )
+
+  const visibleGhBreedingSeedGroups = computed(() =>
+    ghSeedKindFilter.value === 'ordinary' ? [] : filterGreenhouseBreedingSeedGroups(ghBatchBreedingSeedGroups.value, ghSeedSearch.value)
+  )
+
+  const visibleGhBatchBreedingSeedGroups = computed(() =>
+    ghBatchSeedKindFilter.value === 'ordinary'
+      ? []
+      : filterGreenhouseBreedingSeedGroups(ghBatchBreedingSeedGroups.value, ghBatchSeedSearch.value)
+  )
+
+  const greenhouseSeedPickerEmpty = computed(() =>
+    activeGhPlot.value?.state === 'tilled' &&
+    visibleGhSeedGroups.value.length === 0 &&
+    visibleGhBreedingSeedGroups.value.length === 0
+  )
+
+  const greenhouseBatchSeedPickerEmpty = computed(() =>
+    visibleGhBatchSeedGroups.value.length === 0 && visibleGhBatchBreedingSeedGroups.value.length === 0
+  )
+
+  const greenhouseSeedEmptyText = computed(() =>
+    allSeeds.value.length === 0 && ghBatchBreedingSeedGroups.value.length === 0 ? '背包中没有种子' : '没有匹配的温室种子'
+  )
+
+  const greenhouseBatchSeedEmptyText = computed(() =>
+    allSeeds.value.length === 0 && ghBatchBreedingSeedGroups.value.length === 0 ? '没有可种植的种子' : '没有匹配的温室种子'
+  )
+
+  const toggleGhBreedingGroup = (cropId: string) => {
+    const next = new Set(expandedGhBreedingCropIds.value)
+    if (next.has(cropId)) next.delete(cropId)
+    else next.add(cropId)
+    expandedGhBreedingCropIds.value = next
+  }
+
+  const isGhBreedingGroupExpanded = (cropId: string): boolean => expandedGhBreedingCropIds.value.has(cropId)
+
+  const getBreedingSeedSummary = (genetics: SeedGenetics): string =>
+    `${getStarRating(genetics)}★ · ${getBreedingTotalStats(genetics)}`
+
+  const openGhPlot = (plotId: number) => {
+    activeGhPlotId.value = plotId
+    expandedGhBreedingCropIds.value = new Set()
+  }
 
   // === 弹窗操作：温室 ===
 
@@ -3148,6 +3439,37 @@
   .farm-seed-option__count {
     flex: 0 0 auto;
     margin-left: auto;
+  }
+
+  .farm-seed-group {
+    width: 100%;
+    border: 1px solid rgb(var(--color-accent) / 0.1);
+    border-radius: 2px;
+    background: rgb(var(--color-bg) / 0.42);
+    padding: 6px;
+  }
+
+  .farm-seed-group__head {
+    display: flex;
+    min-height: 32px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .farm-seed-quality-options,
+  .farm-breeding-seed-options {
+    margin-top: 6px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    gap: 4px;
+  }
+
+  .farm-seed-quality-button {
+    min-height: 34px;
+    justify-content: flex-start;
+    gap: 6px;
+    overflow: hidden;
   }
 
   .farm-seed-chip {

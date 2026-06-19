@@ -71,6 +71,17 @@ const canClaimAnnouncementRewards = (): boolean => {
   }
 }
 
+const compareAnnouncements = (left: TaoyuanAnnouncement, right: TaoyuanAnnouncement) => (
+  Number(right.is_pinned === true) - Number(left.is_pinned === true)
+  || (Number(right.priority) || 0) - (Number(left.priority) || 0)
+  || (Number(right.published_at) || 0) - (Number(left.published_at) || 0)
+  || (Number(right.created_at) || 0) - (Number(left.created_at) || 0)
+)
+
+const isAnnouncementRead = (announcement: TaoyuanAnnouncement): boolean => (
+  announcement.is_read === true || readLocalSuppressed(announcement.id)
+)
+
 export const useAnnouncementStore = defineStore('announcement', () => {
   const activeAnnouncements = ref<TaoyuanAnnouncement[]>([])
   const popupQueue = ref<TaoyuanAnnouncement[]>([])
@@ -99,8 +110,12 @@ export const useAnnouncementStore = defineStore('announcement', () => {
 
   const rebuildQueue = async (items: TaoyuanAnnouncement[]) => {
     await ensureCurrentAccount().catch(() => '')
-    activeAnnouncements.value = items
-    popupQueue.value = items.filter(item => !readLocalSuppressed(item.id))
+    const sortedItems = [...items].sort(compareAnnouncements)
+    const hasUnreadAnnouncements = sortedItems.some(item => !isAnnouncementRead(item))
+    activeAnnouncements.value = sortedItems
+    popupQueue.value = hasUnreadAnnouncements
+      ? sortedItems.filter(item => !isAnnouncementRead(item) || item.is_pinned === true)
+      : []
     impressionIds.value = new Set()
     await recordQueueImpressions()
   }

@@ -3117,6 +3117,8 @@ function buildAnnouncementAuditDetail(announcement = {}, extra = {}) {
     status: sanitizeAuditValue(announcement.status || '', 32),
     version: sanitizeAuditValue(announcement.version || '', 64),
     priority: Number(announcement.priority) || 0,
+    show_save_update_button: announcement.show_save_update_button === true,
+    is_pinned: announcement.is_pinned === true,
     reward_count: Array.isArray(announcement.rewards) ? announcement.rewards.length : 0,
     duplicate_compensation_money: Number(announcement.duplicate_compensation_money) || 0,
     target_versions: Array.isArray(announcement.target_versions) ? announcement.target_versions.slice(0, 20) : [],

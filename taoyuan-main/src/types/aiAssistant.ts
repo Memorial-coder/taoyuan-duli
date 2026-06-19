@@ -208,6 +208,19 @@ export interface AiAssistantDebugTrace {
     sourceTerms: string[]
     moduleHints: string[]
     routeHints: string[]
+    semanticPrepass?: {
+      used: boolean
+      applied: boolean
+      error?: string
+      reason?: string
+      confidence?: number
+      normalizedQuestion?: string
+      intents?: string[]
+      questionTypes?: string[]
+      routeHints?: string[]
+      sourceTerms?: string[]
+      rewriteQueries?: string[]
+    }
     nounLexiconMatches?: Array<{
       term: string
       normalized: string

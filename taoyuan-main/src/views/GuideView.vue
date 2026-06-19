@@ -104,7 +104,7 @@
         <div class="grid gap-3 md:grid-cols-2">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">桃源田庄</p>
-            <p class="text-[0.6875rem] text-muted leading-5">最稳，也最适合第一次玩。你会更容易把主线、种田、商圈和告示板这些基本盘跑顺。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">最稳，也最适合第一次玩。初始田地更大，后期还能扩到16×16，你会更容易把主线、种田、商圈和告示板这些基本盘跑顺。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">草甸田庄</p>

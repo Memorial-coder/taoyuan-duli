@@ -40,7 +40,11 @@ assert(
 )
 assert(countOccurrences(farmStoreSource, 'seedQuality: null') >= 3, 'default farm and greenhouse plot creation must initialize seedQuality.')
 assert(countOccurrences(farmStoreSource, 'plot.seedQuality = null') >= 4, 'harvest/remove/genetic planting paths must clear seedQuality.')
-assert(farmStoreSource.includes('seedQuality: (p as any).seedQuality ?? null'), 'field plot deserialization must migrate missing seedQuality.')
+assert(
+  farmStoreSource.includes('seedQuality: (p as any).seedQuality ?? null') ||
+    farmStoreSource.includes('seedQuality: (plot as any).seedQuality ?? null'),
+  'field plot deserialization must migrate missing seedQuality.'
+)
 assert(farmStoreSource.includes('seedQuality: p.seedQuality ?? null'), 'greenhouse plot deserialization must migrate missing seedQuality.')
 
 assert(farmActionsSource.includes('fine: 0.06'), 'fine seed bonus must stay +0.06.')
@@ -68,6 +72,13 @@ assert(farmViewSource.includes('@click="doBatchPlant(seed.cropId, seed.quality)"
 assert(farmViewSource.includes('QUALITY_ORDER.map(quality => ({'), 'greenhouse seed list must split stacks by seed quality.')
 assert(farmViewSource.includes('@click="doGhPlant(seed.cropId, seed.quality)"'), 'greenhouse single planting UI must preserve selected seed quality.')
 assert(farmViewSource.includes('@click="doGhBatchPlant(seed.cropId, seed.quality)"'), 'greenhouse batch planting UI must preserve selected seed quality.')
+assert(farmViewSource.includes('type GreenhouseSeedGroup'), 'greenhouse ordinary seeds should be grouped by crop for selection.')
+assert(farmViewSource.includes('data-testid="greenhouse-single-seed-scroll"'), 'greenhouse single plot modal must keep the seed/action area internally scrollable.')
+assert(farmViewSource.includes('data-testid="greenhouse-batch-seed-scroll"'), 'greenhouse batch planting modal must keep the seed list internally scrollable.')
+assert(farmViewSource.includes('data-testid="greenhouse-breeding-seed-groups"'), 'greenhouse breeding seeds must render as crop groups.')
+assert(farmViewSource.includes('data-testid="greenhouse-breeding-seed-options"'), 'greenhouse breeding seed groups must expand to exact seed choices.')
+assert(farmViewSource.includes('toggleGhBreedingGroup(group.cropId)'), 'greenhouse breeding seed groups must be collapsible.')
+assert(!farmViewSource.includes('v-for="seed in breedingStore.breedingBox"'), 'greenhouse single plot UI must not render every breeding seed as a top-level button.')
 assert(farmViewSource.includes('farmStore.greenhousePlantCrop(activeGhPlotId.value, cropId, seedQuality)'), 'greenhouse single planting must pass seed quality.')
 assert(farmViewSource.includes('farmStore.greenhousePlantCrop(plot.id, cropId, seedQuality)'), 'greenhouse batch planting must pass seed quality.')
 

@@ -1,7 +1,7 @@
 export const AI_DYNAMIC_QUICK_QUESTION_MAX = 3
 
 export const AI_ASSISTANT_DEFAULT_WELCOME_MESSAGE =
-  '你好，我是桃源小助理。我可以结合当前页面和玩家可见状态，回答玩法目标、资源来源、任务卡点和下一步建议；回答会标明内置知识库、远程模型或 fallback 来源。严格模式下，我不会提供隐藏掉率、后台规则、密钥或刷资源方法，也不会执行存档修改、奖励发放或资源扣除。可以先点下方快捷问题开始。'
+  '你好，我是桃源小助理。你可以直接问“现在干啥”“这个去哪弄”“任务为啥卡了”；我会结合当前页面和玩家可见状态给短建议。严格模式下不提供隐藏掉率、后台规则、密钥或刷资源方法，也不改存档、发奖励或扣资源。'
 
 export const AI_ASSISTANT_ROUTE_LABELS = {
   menu: '主菜单',
@@ -21,6 +21,7 @@ export const AI_ASSISTANT_ROUTE_LABELS = {
   'online-society': '在线社群',
   social: '邻里互助',
   'friend-station': '好友驿站',
+  'friend-chat': '好友聊天',
   manor: '在线庄园',
   festival: '节会与房间',
   expedition: '节会远征',
@@ -31,15 +32,18 @@ export const AI_ASSISTANT_ROUTE_LABELS = {
   forage: '采集',
   fishing: '钓鱼',
   mining: '矿洞',
+  quarry: '采石场',
   cooking: '烹饪',
   workshop: '作坊加工',
   processing: '作坊加工',
   upgrade: '工具升级',
   inventory: '背包',
   skills: '技能',
+  potential: '潜能',
   achievement: '成就',
   glossary: '图鉴',
   wallet: '钱包兑换',
+  goals: '目标',
   quest: '任务',
   mail: '邮箱',
   charinfo: '角色信息',

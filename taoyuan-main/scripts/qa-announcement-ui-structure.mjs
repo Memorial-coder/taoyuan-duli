@@ -16,6 +16,7 @@ const [
   historyDialog,
   store,
   accountStorage,
+  announcementApi,
 ] = await Promise.all([
   read('src/views/TaoyuanAdminView.vue'),
   read('src/components/game/AdminAnnouncementPanel.vue'),
@@ -25,6 +26,7 @@ const [
   read('src/components/game/AnnouncementHistoryDialog.vue'),
   read('src/stores/useAnnouncementStore.ts'),
   read('src/utils/accountStorage.ts'),
+  read('src/utils/announcementApi.ts'),
 ])
 
 assert.match(adminView, /activeAdminTab === 'announcements'/, 'admin announcements tab should be wired')
@@ -43,12 +45,27 @@ assert.match(adminPanel, /v\{\{ announcement\.version \}\}/, 'admin list should 
 assert.match(adminPanel, /reward_claim_count/, 'admin stats should include reward claim count')
 assert.match(adminPanel, /previewCloseButtonLabel/, 'admin preview should derive reward-aware close button text')
 assert.match(adminPanel, /知道并领取/, 'admin preview/help text should show reward claim wording')
+assert.match(adminPanel, /show_save_update_button/, 'admin panel should expose a save-update button toggle')
+assert.match(adminPanel, /显示“保存存档并更新”按钮/, 'admin panel should label the save-update button toggle')
+assert.match(adminPanel, /announcement-pin-toggle/, 'admin panel should expose a pinned announcement toggle')
+assert.match(adminPanel, /置顶公告/, 'admin panel should label the pinned announcement toggle')
+assert.match(adminPanel, /is_pinned/, 'admin panel should preserve pinned announcement state')
+assert.match(adminPanel, /getDefaultAnnouncementSaveUpdateButton/, 'admin template application should apply save-update defaults')
+assert.match(announcementApi, /version_update/, 'announcement API should default version updates to save-update action')
+assert.match(announcementApi, /hotfix/, 'announcement API should default hotfix announcements to save-update action')
+assert.match(announcementApi, /show_save_update_button/, 'announcement API should normalize save-update action flag')
+assert.match(announcementApi, /is_pinned/, 'announcement API should normalize pinned announcement flag')
+assert.match(announcementApi, /is_read/, 'announcement API should normalize announcement read state')
 
 assert.match(dialog, /announcements: TaoyuanAnnouncement\[\]/, 'player popup should receive the full announcement batch')
 assert.match(dialog, /announcement-popup-item/, 'player popup should render batched announcement items')
 assert.match(dialog, /announcement-popup-rewards/, 'player popup should render announcement reward previews')
 assert.match(dialog, /hasAnnouncementRewards/, 'player popup should derive reward-aware close button text')
 assert.match(dialog, /知道并领取/, 'player popup should label reward acknowledgement as claim action')
+assert.match(dialog, /showSaveUpdateButton/, 'player popup should derive whether save-update action is visible')
+assert.match(dialog, /show_save_update_button/, 'player popup should read per-announcement save-update flag')
+assert.match(dialog, /announcement-item--pinned/, 'player popup should highlight pinned announcements')
+assert.match(dialog, /announcement-chip--pinned/, 'player popup should label pinned announcements')
 assert.match(dialog, /claimRewards\?: boolean/, 'player popup should accept runtime reward claim capability')
 assert.match(dialog, /shouldClaimRewards/, 'player popup should distinguish local close from server reward claim')
 assert.match(dialog, /服务端存档登录后可领取/, 'player popup should explain rewards require server save when local players close')
@@ -56,6 +73,7 @@ assert.match(dialog, /expandedAnnouncementIds/, 'player popup should track expan
 assert.match(dialog, /aria-expanded/, 'player popup items should expose expandable state')
 assert.match(dialog, /props\.announcements\[0\]/, 'player popup should default to the first announcement')
 assert.match(dialog, /saveUpdate/, 'player popup should expose save-and-update action')
+assert.match(dialog, /v-if="showSaveUpdateButton"/, 'player popup should only render save-and-update action when configured')
 assert.doesNotMatch(dialog, /suppress/, 'player popup should not render a separate suppress button')
 
 assert.match(gameLayout, /AnnouncementDialog/, 'game layout should mount announcement dialog')
@@ -86,6 +104,8 @@ assert.match(mainMenu, /lastSaveResultStatus === 'queued'/, 'new server-mode gam
 assert.match(mainMenu, /本地首档暂未保存/, 'new local-mode game should surface first-save failures')
 assert.match(historyDialog, /announcement-history-item/, 'history dialog should render announcement list items')
 assert.match(historyDialog, /announcement-history-rewards/, 'history dialog should render reward previews')
+assert.match(historyDialog, /announcement-history-item--pinned/, 'history dialog should highlight pinned announcements')
+assert.match(historyDialog, /announcement-chip--pinned/, 'history dialog should label pinned announcements')
 assert.match(historyDialog, /expandedAnnouncementIds/, 'history dialog should track expanded announcement ids')
 assert.match(historyDialog, /aria-expanded/, 'history dialog items should expose expandable state')
 assert.match(historyDialog, /syncExpandedAnnouncements\(true\)/, 'history dialog should default to latest announcement on open')
@@ -100,6 +120,9 @@ assert.match(store, /`slot_\$\{slot\}`/, 'announcement suppress scope should fal
 assert.match(store, /if \(!key\) return false/, 'announcement suppress reads and writes should not persist without an active save scope')
 assert.doesNotMatch(store, /buildScopedSingleKey\(`\$\{SUPPRESSED_PREFIX\}\$\{announcementId\}_`\)/, 'announcement suppress key should not remain account-only')
 assert.match(store, /recordQueueImpressions/, 'announcement store should record impressions for the popup batch')
+assert.match(store, /compareAnnouncements/, 'announcement store should sort pinned announcements before priority')
+assert.match(store, /hasUnreadAnnouncements/, 'announcement store should only open the popup when unread announcements exist')
+assert.match(store, /item\.is_pinned === true/, 'announcement store should keep read pinned announcements with unread popup batches')
 assert.match(store, /clickAnnouncementCta/, 'announcement store should record cta clicks for a selected batched announcement')
 assert.match(store, /claimAnnouncementReward/, 'announcement store should claim rewards before marking announcements read')
 assert.match(store, /canClaimAnnouncementRewards/, 'announcement store should gate reward claims by runtime save mode')

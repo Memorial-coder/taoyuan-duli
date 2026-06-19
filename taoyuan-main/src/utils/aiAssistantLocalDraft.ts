@@ -63,10 +63,8 @@ export const buildAiAssistantLocalDraft = ({
 
   return [
     '**本地草稿（内置知识库）**',
-    '远程模型仍在整理，先按当前可见状态给出临时建议。',
     normalizedQuestion ? `问题：${normalizedQuestion}` : '',
     statusLine ? `状态：${statusLine}` : '',
     ...actions,
-    '完整回答返回后会补充更完整的依据、步骤和安全轻动作。',
   ].filter(Boolean).join('\n')
 }

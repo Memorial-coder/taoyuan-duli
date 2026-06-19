@@ -11,7 +11,7 @@ const widgetFile = path.join(rootDir, 'src', 'components', 'game', 'AiAssistantW
 const storeFile = path.join(rootDir, 'src', 'stores', 'useAiAssistantStore.ts');
 const apiFile = path.join(rootDir, 'src', 'utils', 'taoyuanAiApi.ts');
 const routerFile = path.join(rootDir, 'src', 'router', 'index.ts');
-const serverAssistantFile = path.resolve(rootDir, '..', 'server', 'src', 'taoyuanAiAssistant.js');
+const serverConfigFile = path.resolve(rootDir, '..', 'server', 'src', 'taoyuanAi', 'configService.js');
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'taoyuan-ai-configured-questions-'));
 const bundledFile = path.join(tmpDir, 'aiAssistantQuickQuestions.mjs');
 
@@ -98,17 +98,19 @@ const apiSource = fs.readFileSync(apiFile, 'utf8');
 assert.match(apiSource, /AI_ASSISTANT_DEFAULT_WELCOME_MESSAGE/, 'API public config mapper should use shared frontend welcome fallback');
 
 const welcome = AI_ASSISTANT_DEFAULT_WELCOME_MESSAGE;
-for (const required of ['当前页面', '玩家可见状态', '来源', '严格模式', '快捷问题']) {
+for (const required of ['当前页面', '玩家可见状态', '现在干啥', '去哪弄', '任务为啥卡了', '严格模式']) {
   assert.ok(welcome.includes(required), `welcome message should mention ${required}`);
 }
-for (const denied of ['隐藏掉率', '后台规则', '密钥', '刷资源方法', '存档修改', '奖励发放', '资源扣除']) {
-  assert.ok(welcome.includes(denied), `welcome message should state boundary for ${denied}`);
+for (const denied of [/隐藏掉率/, /后台规则/, /密钥/, /刷资源方法/, /改存档|存档修改/, /发奖励|奖励发放/, /扣资源|资源扣除/]) {
+  assert.match(welcome, denied, `welcome message should state boundary for ${denied}`);
 }
+assert.ok(welcome.length <= 130, 'welcome should stay short enough for the compact assistant panel');
+assert.doesNotMatch(welcome, /fallback|完整回答|点下方快捷问题/, 'welcome should avoid implementation or tutorial filler');
 assert.doesNotMatch(welcome, /我可以.*(改存档|发奖励|扣资源|发放资产|扣除资源)/, 'welcome should not promise high-risk actions');
 
-const serverSource = fs.readFileSync(serverAssistantFile, 'utf8');
+const serverSource = fs.readFileSync(serverConfigFile, 'utf8');
 assert.ok(serverSource.includes(welcome), 'server default welcome should match frontend shared welcome text');
-assert.doesNotMatch(serverSource, /你可以问我玩法、系统机制和攻略建议/, 'server should not keep the old short welcome fallback');
+assert.doesNotMatch(serverSource, /你可以问我玩法、系统机制和攻略建议|fallback 来源/, 'server should not keep old verbose welcome fallbacks');
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 console.log('qa-ai-assistant-configured-quick-questions passed');

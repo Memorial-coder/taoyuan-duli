@@ -577,6 +577,16 @@ export const POTENTIAL_SOURCE_RULES: readonly PotentialSourceRule[] = [
     cap: { period: 'daily', maxClaims: 2, maxResourceAmount: 4 }
   },
   {
+    id: 'quarry_stewardship',
+    label: '采石场管护',
+    summary: '旧采石场复开后，每周手动清理足够资源格时获得，作为后期材料基础设施的轻量潜能回流。',
+    rewards: [
+      { resourceId: 'potential_insight', amount: 1 },
+      { resourceId: 'mountain_jade', amount: 1 }
+    ],
+    cap: { period: 'weekly', maxClaims: 2, maxResourceAmount: 4 }
+  },
+  {
     id: 'journey_high_risk',
     label: '高风险行旅',
     summary: '完成高风险路线、精英路线或区域首领远征时获得。',

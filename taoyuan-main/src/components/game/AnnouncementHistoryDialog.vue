@@ -31,7 +31,10 @@
           v-for="announcement in announcements"
           :key="announcement.id"
           class="announcement-history-item"
-          :class="{ 'announcement-history-item--collapsed': !isAnnouncementExpanded(announcement.id) }"
+          :class="{
+            'announcement-history-item--collapsed': !isAnnouncementExpanded(announcement.id),
+            'announcement-history-item--pinned': announcement.is_pinned,
+          }"
           data-testid="announcement-history-item"
         >
           <button
@@ -48,6 +51,7 @@
               </p>
             </div>
             <div class="announcement-history-summary-side">
+              <span v-if="announcement.is_pinned" class="announcement-chip announcement-chip--pinned">置顶</span>
               <span v-if="announcement.template_type" class="announcement-chip">{{ templateLabel(announcement.template_type) }}</span>
               <span v-if="announcement.rewards.length" class="announcement-chip announcement-chip--reward">奖励 {{ announcement.rewards.length }}</span>
               <span class="announcement-history-toggle">
@@ -224,8 +228,17 @@
     padding: 12px;
   }
 
+  .announcement-history-item--pinned {
+    border-color: rgba(244, 189, 96, 0.46);
+    background: linear-gradient(180deg, rgba(244, 189, 96, 0.12), rgba(244, 189, 96, 0.04)), var(--color-surface-raised);
+  }
+
   .announcement-history-item--collapsed {
     background: var(--color-surface-muted);
+  }
+
+  .announcement-history-item--pinned.announcement-history-item--collapsed {
+    background: linear-gradient(180deg, rgba(244, 189, 96, 0.1), rgba(244, 189, 96, 0.03)), var(--color-surface-muted);
   }
 
   .announcement-history-summary {
@@ -270,6 +283,12 @@
     border-color: rgba(104, 211, 145, 0.28);
     color: rgb(var(--color-success));
     background: rgba(104, 211, 145, 0.1);
+  }
+
+  .announcement-chip--pinned {
+    border-color: rgba(244, 189, 96, 0.38);
+    color: #ffd88a;
+    background: rgba(244, 189, 96, 0.14);
   }
 
   .announcement-history-toggle {

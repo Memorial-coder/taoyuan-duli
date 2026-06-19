@@ -18,11 +18,13 @@ const ITEM_MAX_STACK = 999
 const TEMP_BAG_CAPACITY = 10
 const MAX_RECORDS_TO_KEEP = 240
 const MAX_TRANSACTION_RECEIPTS_PER_WEEK = 400
+const MAX_WEEKS_TO_KEEP = 16
 const FESTIVAL_STALL_OPEN_DAY_START = 4
 const FESTIVAL_STALL_OPEN_DAY_END = 6
 const DAYS_PER_WEEK = 7
 const DAYS_PER_SEASON = 28
 const SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter']
+const SEASON_SORT_INDEX = Object.fromEntries(SEASON_ORDER.map((season, index) => [season, index]))
 const SEASON_LABELS = {
   spring: '春',
   summer: '夏',
@@ -145,6 +147,81 @@ function normalizeWeekState(rawWeek) {
   }
 }
 
+function getWeekStateActivityTime(weekState) {
+  const recordTimes = Array.isArray(weekState?.records)
+    ? weekState.records.map(record => Math.max(0, Math.floor(Number(record?.created_at) || 0)))
+    : []
+  const receiptTimes = Object.values(weekState?.transaction_receipts || {}).map(receipt =>
+    Math.max(
+      0,
+      Math.floor(Number(receipt?.updated_at) || 0),
+      Math.floor(Number(receipt?.created_at) || 0)
+    )
+  )
+  return Math.max(0, ...recordTimes, ...receiptTimes)
+}
+
+function getFestivalWeekSortMeta(weekKey, weekState) {
+  const key = String(weekKey || '')
+  const gameMatch = key.match(/^game:(\d+):([^:]+):week-(\d+)$/)
+  if (gameMatch) {
+    const year = Math.max(0, Math.floor(Number(gameMatch[1]) || 0))
+    const rawSeason = gameMatch[2] === 'fall' ? 'autumn' : gameMatch[2]
+    const seasonIndex = Object.prototype.hasOwnProperty.call(SEASON_SORT_INDEX, rawSeason)
+      ? SEASON_SORT_INDEX[rawSeason]
+      : 0
+    const week = Math.max(0, Math.floor(Number(gameMatch[3]) || 0))
+    return { group: 3, value: year * 100 + seasonIndex * 10 + week }
+  }
+
+  const dateMatch = key.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dateMatch) {
+    const year = Math.floor(Number(dateMatch[1]) || 0)
+    const month = Math.floor(Number(dateMatch[2]) || 0)
+    const day = Math.floor(Number(dateMatch[3]) || 0)
+    const timestamp = Date.UTC(year, month - 1, day)
+    if (Number.isFinite(timestamp)) return { group: 2, value: Math.floor(timestamp / 1000) }
+  }
+
+  return { group: 1, value: getWeekStateActivityTime(weekState) }
+}
+
+function compareFestivalWeekEntries(left, right) {
+  const leftMeta = getFestivalWeekSortMeta(left[0], left[1])
+  const rightMeta = getFestivalWeekSortMeta(right[0], right[1])
+  if (rightMeta.group !== leftMeta.group) return rightMeta.group - leftMeta.group
+  if (rightMeta.value !== leftMeta.value) return rightMeta.value - leftMeta.value
+  return String(right[0]).localeCompare(String(left[0]))
+}
+
+function pruneFestivalWeeks(weeks, protectedWeekKeys = []) {
+  const source = weeks && typeof weeks === 'object' ? weeks : {}
+  const entries = Object.entries(source)
+    .map(([weekKey, weekState]) => [String(weekKey), normalizeWeekState(weekState)])
+    .filter(([weekKey]) => weekKey)
+  const byKey = new Map(entries)
+  const protectedKeys = new Set(
+    (Array.isArray(protectedWeekKeys) ? protectedWeekKeys : [protectedWeekKeys])
+      .map(key => String(key || ''))
+      .filter(Boolean)
+  )
+  const selected = []
+  const selectedKeys = new Set()
+  const addWeek = weekKey => {
+    if (!byKey.has(weekKey) || selectedKeys.has(weekKey)) return
+    selected.push([weekKey, byKey.get(weekKey)])
+    selectedKeys.add(weekKey)
+  }
+
+  for (const weekKey of protectedKeys) addWeek(weekKey)
+  for (const [weekKey] of entries.sort(compareFestivalWeekEntries)) {
+    if (selected.length >= MAX_WEEKS_TO_KEEP) break
+    addWeek(weekKey)
+  }
+
+  return Object.fromEntries(selected)
+}
+
 function loadFestivalStore() {
   try {
     if (!fs.existsSync(TAOYUAN_FESTIVAL_STALL_FILE)) return createEmptyFestivalStore()
@@ -158,12 +235,10 @@ function loadFestivalStore() {
   }
 }
 
-function saveFestivalStore(store) {
+function saveFestivalStore(store, protectedWeekKeys = []) {
   fs.mkdirSync(path.dirname(TAOYUAN_FESTIVAL_STALL_FILE), { recursive: true })
   writeJsonFileAtomic(TAOYUAN_FESTIVAL_STALL_FILE, {
-    weeks: Object.fromEntries(
-      Object.entries(store?.weeks || {}).slice(0, 16).map(([weekKey, weekState]) => [String(weekKey), normalizeWeekState(weekState)])
-    ),
+    weeks: pruneFestivalWeeks(store?.weeks, protectedWeekKeys),
   })
 }
 
@@ -228,7 +303,7 @@ function beginTransactionReceipt(store, weekKey, weekState, username, offerId, i
   }, receiptKey)
   weekState.transaction_receipts[receiptKey] = receipt
   store.weeks[weekKey] = normalizeWeekState(weekState)
-  saveFestivalStore(store)
+  saveFestivalStore(store, [weekKey])
   return receipt
 }
 
@@ -991,7 +1066,7 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
       error_message: '背包空间不足，请先整理背包',
     })
     try {
-      saveFestivalStore(store)
+      saveFestivalStore(store, [weekKey])
     } catch {}
     throw createError('背包空间不足，请先整理背包')
   }
@@ -1040,7 +1115,7 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
         save_revision: saveRevision,
       },
     })
-    saveFestivalStore(store)
+    saveFestivalStore(store, [weekKey])
   } catch (error) {
     let rolledBack = !playerSavePersisted
     if (playerSavePersisted && previousSlotEntry) {
@@ -1059,7 +1134,7 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
           ? `节庆摊位购买失败，玩家存档已回退：${error?.message || '未知错误'}`
           : `节庆摊位购买失败，玩家存档回退待补偿：${error?.message || '未知错误'}`,
       })
-      saveFestivalStore(rollbackStore)
+      saveFestivalStore(rollbackStore, [weekKey])
     } catch {}
     throw createError(`节庆摊位购买失败：${error?.message || '未知错误'}`, 500)
   }

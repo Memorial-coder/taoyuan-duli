@@ -1,3 +1,4 @@
+/* global console, fetch, process, setTimeout */
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
@@ -37,23 +38,12 @@ async function waitForHttp(url, timeoutMs = 90_000) {
     try {
       const response = await fetch(url)
       if (response.ok) return
-    } catch {}
+    } catch {
+      // Retry until the server is ready or the timeout expires.
+    }
     await new Promise(resolve => setTimeout(resolve, 500))
   }
   throw new Error(`Timed out waiting for ${url}`)
-}
-
-async function respondsOk(url, timeoutMs = 3_000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(url, { signal: controller.signal })
-    return response.ok
-  } catch {
-    return false
-  } finally {
-    clearTimeout(timer)
-  }
 }
 
 function stopProcessTree(child) {
@@ -66,7 +56,9 @@ function stopProcessTree(child) {
       killer.once('error', () => {
         try {
           child.kill()
-        } catch {}
+        } catch {
+          // The child may already be gone after taskkill fails.
+        }
         resolve()
       })
       return
@@ -105,6 +97,7 @@ async function writeAnnouncementStore() {
             cta: '查看详情',
           },
           template_type: 'version_update',
+          is_pinned: true,
           rewards: [{ type: 'money', amount: 120 }],
           duplicate_compensation_money: 0,
           created_at: now - 120,
@@ -134,6 +127,7 @@ async function writeAnnouncementStore() {
             cta: 'Details',
           },
           template_type: 'hotfix',
+          is_pinned: false,
           rewards: [],
           duplicate_compensation_money: 0,
           created_at: now - 180,
@@ -191,15 +185,6 @@ async function startServers(serverPort, frontendPort) {
   })
   await waitForHttp(`http://127.0.0.1:${serverPort}/api/health`)
 
-  const existingFrontendPort = 5173
-  if (
-    existingFrontendPort !== frontendPort
-    && !(await canListen(existingFrontendPort))
-    && await respondsOk(`http://127.0.0.1:${existingFrontendPort}/`)
-  ) {
-    return existingFrontendPort
-  }
-
   spawnLogged(process.execPath, [
     path.join(frontendRoot, 'node_modules', 'vite', 'bin', 'vite.js'),
     '--host',
@@ -215,9 +200,30 @@ async function startServers(serverPort, frontendPort) {
   return frontendPort
 }
 
+async function selectLocalStorageMode(page) {
+  await page.getByRole('button', { name: '本地存储' }).first().click()
+}
+
+async function gotoWithRetry(page, url, label, attempts = 3) {
+  const errors = []
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await waitForHttp(url, 30_000)
+      await page.goto('about:blank', { waitUntil: 'load', timeout: 10_000 }).catch(() => {})
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+      return
+    } catch (error) {
+      errors.push(`attempt ${attempt}/${attempts}: ${error.message || error}`)
+      if (attempt < attempts) await page.waitForTimeout(1_500 * attempt)
+    }
+  }
+  throw new Error(`${label} failed to open ${url}\n${errors.join('\n')}`)
+}
+
 async function verifyPopup(page, viewport, name, frontendPort) {
-  await page.goto(`http://127.0.0.1:${frontendPort}/`, { waitUntil: 'commit', timeout: 60_000 })
+  await gotoWithRetry(page, `http://127.0.0.1:${frontendPort}/`, `${name} popup root`)
   await page.getByTestId('new-journey-button').waitFor({ state: 'visible', timeout: 60_000 })
+  await selectLocalStorageMode(page)
   await page.getByTestId('new-journey-button').click()
   await page.getByTestId('privacy-agree-button').click()
   await page.getByTestId('char-name-input').fill('阿桃')
@@ -233,6 +239,12 @@ async function verifyPopup(page, viewport, name, frontendPort) {
 
   const popupItems = page.getByTestId('announcement-popup-item')
   assert.equal(await popupItems.count(), 2, `${name} should render one batched popup with two announcement items`)
+  await assert.match(
+    await popupItems.first().getAttribute('class'),
+    /announcement-item--pinned/,
+    `${name} first popup announcement should be highlighted as pinned`,
+  )
+  assert.equal(await popupItems.first().locator('.announcement-chip--pinned').innerText(), '置顶', `${name} first popup announcement should show pinned chip`)
   const expandedStates = await page.locator('.announcement-summary').evaluateAll(nodes => (
     nodes.map(node => node.getAttribute('aria-expanded'))
   ))
@@ -247,8 +259,8 @@ async function verifyPopup(page, viewport, name, frontendPort) {
   assert.equal(buttons.length, 2, `${name} should render two persistent announcement action buttons`)
   await assert.match(
     await page.locator('.announcement-actions button').first().innerText(),
-    /知道并领取/,
-    `${name} reward popup should use claim-aware primary button text`,
+    /知道了/,
+    `${name} local reward popup should use acknowledgement primary button text`,
   )
   for (const button of buttons) {
     assert(button.width > 20 && button.height > 20, `${name} button should have stable size`)
@@ -267,11 +279,18 @@ async function verifyPopup(page, viewport, name, frontendPort) {
 }
 
 async function verifyHistory(page, viewport, name, frontendPort) {
-  await page.goto(`http://127.0.0.1:${frontendPort}/`, { waitUntil: 'commit', timeout: 60_000 })
+  await gotoWithRetry(page, `http://127.0.0.1:${frontendPort}/`, `${name} history root`)
   await page.getByTestId('main-menu-announcements').waitFor({ state: 'visible', timeout: 60_000 })
   await page.getByTestId('main-menu-announcements').click()
   await page.getByTestId('announcement-history-dialog').waitFor({ state: 'visible', timeout: 25_000 })
   await page.getByTestId('announcement-history-item').first().waitFor({ state: 'visible', timeout: 25_000 })
+  const firstHistoryItem = page.getByTestId('announcement-history-item').first()
+  await assert.match(
+    await firstHistoryItem.getAttribute('class'),
+    /announcement-history-item--pinned/,
+    `${name} first history announcement should be highlighted as pinned`,
+  )
+  assert.equal(await firstHistoryItem.locator('.announcement-chip--pinned').innerText(), '置顶', `${name} first history announcement should show pinned chip`)
   const box = await page.locator('.announcement-history').boundingBox()
   assert(box, `${name} history panel should render`)
   assert(box.width <= viewport.width + 1, `${name} history panel should fit viewport width`)
@@ -279,9 +298,80 @@ async function verifyHistory(page, viewport, name, frontendPort) {
   await page.screenshot({ path: path.join(outputDir, `announcement-history-${name}.png`), fullPage: false })
 }
 
+async function verifyOrdinaryPopup(page, name, frontendPort) {
+  const now = Math.floor(Date.now() / 1000)
+  await page.route('**/api/taoyuan/announcements/active?**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        announcements: [{
+          id: `ann_ordinary_${name}`,
+          title: '普通补偿说明',
+          body: '## 补偿说明\n- 这条普通公告不要求保存并更新。',
+          image_url: '',
+          version: '3.0.0',
+          target_versions: ['3.0.0'],
+          target_channels: ['web'],
+          start_at: now - 60,
+          end_at: now + 3600,
+          priority: 5,
+          status: 'published',
+          cta_text: '',
+          cta_url: '',
+          button_texts: {
+            close: '知道了',
+            suppress: '本条不再提示',
+            cta: '查看详情',
+          },
+          template_type: 'compensation',
+          show_save_update_button: false,
+          rewards: [],
+          duplicate_compensation_money: 0,
+          created_at: now - 120,
+          updated_at: now - 120,
+          published_at: now - 120,
+        }],
+      }),
+    })
+  })
+
+  await gotoWithRetry(page, `http://127.0.0.1:${frontendPort}/`, `${name} ordinary popup root`)
+  await page.getByTestId('new-journey-button').waitFor({ state: 'visible', timeout: 60_000 })
+  await selectLocalStorageMode(page)
+  await page.getByTestId('new-journey-button').click()
+  await page.getByTestId('privacy-agree-button').click()
+  await page.getByTestId('char-name-input').fill('阿桃')
+  await page.getByTestId('char-create-next-button').click()
+  await page.getByTestId('farm-option-standard').click()
+  await page.getByTestId('confirm-start-journey-button').click()
+  await page.getByTestId('announcement-dialog').waitFor({ state: 'visible', timeout: 25_000 })
+
+  const buttons = await page.locator('.announcement-actions button').evaluateAll(nodes => nodes.map(node => node.textContent?.trim() || ''))
+  assert.deepEqual(buttons, ['知道了'], `${name} ordinary popup should only render acknowledgement button`)
+  assert.equal(await page.locator('.announcement-button-update').count(), 0, `${name} ordinary popup should not render save-update button`)
+}
+
+async function launchBrowser() {
+  const errors = []
+  for (const options of [
+    { headless: true },
+    { channel: 'msedge', headless: true },
+    { channel: 'chrome', headless: true },
+  ]) {
+    try {
+      return await chromium.launch(options)
+    } catch (error) {
+      errors.push(`${options.channel || 'bundled chromium'}: ${error.message || error}`)
+    }
+  }
+  throw new Error(`Unable to launch a Playwright browser:\n${errors.join('\n')}`)
+}
+
 async function runBrowserChecks(frontendPort) {
   await fs.mkdir(outputDir, { recursive: true })
-  const browser = await chromium.launch({ headless: true })
+  const browser = await launchBrowser()
   try {
     for (const [name, viewport] of [
       ['desktop', { width: 1366, height: 768 }],
@@ -296,6 +386,11 @@ async function runBrowserChecks(frontendPort) {
       const historyPage = await historyContext.newPage()
       await verifyHistory(historyPage, viewport, name, frontendPort)
       await historyContext.close()
+
+      const ordinaryContext = await browser.newContext({ viewport })
+      const ordinaryPage = await ordinaryContext.newPage()
+      await verifyOrdinaryPopup(ordinaryPage, name, frontendPort)
+      await ordinaryContext.close()
     }
   } finally {
     await browser.close()

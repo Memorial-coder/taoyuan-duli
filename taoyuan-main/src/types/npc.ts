@@ -704,6 +704,10 @@ export interface NpcState {
   giftedToday: boolean
   /** 本周送礼次数 (上限2) */
   giftsThisWeek: number
+  /** 本周用于村民帮办门槛的交谈次数 */
+  activeServiceTalksThisWeek: number
+  /** 已委托、等待次日日结发放的村民帮办 */
+  pendingActiveServices: NpcPendingActiveService[]
   /** 是否正在约会 */
   dating: boolean
   /** 是否已结婚 */
@@ -714,10 +718,19 @@ export interface NpcState {
   triggeredHeartEvents: string[]
   /** 已领取/解锁的关系奖励ID */
   unlockedPerks?: string[]
+  /** 永久解锁的 NPC 专属功能 ID */
+  unlockedFunctionIds?: string[]
   companionshipTier: RelationshipContentTier
   activeHouseholdRoleId: HouseholdRoleId | null
   completedFamilyWishIds: string[]
   unlockedCompanionProjectIds: string[]
+}
+
+export interface NpcPendingActiveService {
+  serviceId: string
+  weekId: string
+  requestedDayTag: string
+  costMoney: number
 }
 
 /** 心事件场景 */

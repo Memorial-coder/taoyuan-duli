@@ -199,7 +199,9 @@ for (const building of animals.ANIMAL_BUILDINGS) checkDuplicateItems('animal.bui
 for (const upgrade of animals.BUILDING_UPGRADES) checkDuplicateItems('animal.upgrade', `${upgrade.type}:${upgrade.level}`, upgrade.materialCost)
 checkDuplicateItems('pond.build', 'build', fishPond.POND_BUILD_COST.materials)
 for (const [level, cost] of Object.entries(fishPond.POND_UPGRADE_COSTS)) checkDuplicateItems('pond.upgrade', level, cost.materials)
-checkDuplicateItems('breeding.station', 'station', breeding.BREEDING_STATION_COST.materials)
+for (let stationNumber = 1; stationNumber <= breeding.MAX_BREEDING_STATIONS; stationNumber += 1) {
+  checkDuplicateItems('breeding.station', stationNumber, breeding.getBreedingStationCost(stationNumber).materials)
+}
 for (const upgrade of breeding.BREEDING_RESEARCH_UPGRADES) checkDuplicateItems('breeding.research', upgrade.level, upgrade.materials)
 for (const upgrade of breeding.SEED_BOX_UPGRADES) checkDuplicateItems('breeding.seedBox', upgrade.level, upgrade.materials)
 

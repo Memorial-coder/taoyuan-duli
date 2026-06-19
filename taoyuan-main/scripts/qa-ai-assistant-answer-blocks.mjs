@@ -36,6 +36,7 @@ assert.match(widgetSource, /extractLabeledSection/, 'widget should parse labelle
 assert.match(widgetSource, /getRiskAnswerSummary/, 'widget should build risk or strict-mode notice content');
 assert.match(widgetSource, /getPublicSourceLabel/, 'widget should sanitize public source labels');
 assert.match(widgetSource, /sensitiveSourcePathRe/, 'widget should avoid exposing source-like paths to normal players');
+assert.match(widgetSource, /message\.provider !== 'model' && message\.traceSummary\?\.evidenceCount === 0/, 'model answers should not render empty local-source blocks');
 assert.match(widgetSource, /store\.isAdmin && message\.trace/, 'full debug trace should stay admin-only');
 assert.doesNotMatch(widgetSource, /item\.path/, 'player-facing evidence rendering should not read raw evidence path');
 
@@ -70,7 +71,19 @@ const fiveSampleBlocks = [
 
 let browser;
 try {
-  browser = await chromium.launch();
+  try {
+    browser = await chromium.launch();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      !message.includes('Executable doesn\'t exist') &&
+      !message.includes('Invalid file descriptor to ICU data received')
+    ) {
+      throw error;
+    }
+    console.warn('qa-ai-assistant-answer-blocks: bundled Chromium unavailable, falling back to system Chrome');
+    browser = await chromium.launch({ channel: 'chrome', headless: true });
+  }
   const page = await browser.newPage({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,

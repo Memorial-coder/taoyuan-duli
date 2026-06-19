@@ -44,6 +44,7 @@ const questDataSource = readSource('src/data/quests.ts')
 const potentialStoreSource = readSource('src/stores/usePotentialStore.ts')
 const gameplaySources = {
   mining: readSource('src/stores/useMiningStore.ts'),
+  quarry: readSource('src/stores/useQuarryStore.ts'),
   regionMap: readSource('src/stores/useRegionMapStore.ts'),
   quest: readSource('src/stores/useQuestStore.ts'),
   goal: readSource('src/stores/useGoalStore.ts'),
@@ -57,6 +58,7 @@ const { POTENTIAL_RESOURCE_DEFS, POTENTIAL_SOURCE_RULES } = await import(pathToF
 
 const expectedSourceIds = new Set([
   'mine_boss_clear',
+  'quarry_stewardship',
   'journey_high_risk',
   'special_order_finish',
   'theme_week_settlement',
@@ -102,6 +104,10 @@ assert(gameplaySources.mining.includes('potentialBossFirstRewardIds'), '矿洞�
 assert(gameplaySources.mining.includes('boss-first:') && gameplaySources.mining.includes("'main-repeat'") && gameplaySources.mining.includes("'skull-repeat'"), '矿洞首领潜能结算必须区分首获、主矿复战与骷髅矿穴复战凭据。')
 assert(gameplaySources.mining.includes('Math.random() >= replayChance'), '矿洞首领复战潜能材料必须通过概率门槛发放。')
 assert(potentialDataSource.includes('随层数有一定概率'), '矿洞首领来源说明只能展示随层数一定概率，不应暴露精确复战概率。')
+assert(gameplaySources.quarry.includes('claimPotentialSourceReward') && gameplaySources.quarry.includes("'quarry_stewardship'"), '旧采石场周清理必须接入采石场管护潜能来源。')
+assert(gameplaySources.quarry.includes('QUARRY_WEEKLY_STEWARDSHIP_TARGET') && gameplaySources.quarry.includes('QUARRY_WEEKLY_STEWARDSHIP_MAX_CLAIMS'), '旧采石场周清理必须使用固定周目标与周领取上限。')
+assert(potentialDataSource.includes("id: 'quarry_stewardship'") && potentialDataSource.includes("cap: { period: 'weekly', maxClaims: 2, maxResourceAmount: 4 }"), '采石场管护潜能来源必须有每周 2 次、最多 4 份材料的上限。')
+assert(potentialDataSource.includes("id: 'quarry_stewardship'") && potentialDataSource.includes("{ resourceId: 'potential_insight', amount: 1 }") && potentialDataSource.includes("{ resourceId: 'mountain_jade', amount: 1 }"), '采石场管护潜能来源必须奖励潜能心得和山野玉各 1。')
 assert(gameplaySources.regionMap.includes("claimPotentialSourceReward('journey_high_risk'"), '高风险行旅或区域首领必须接入潜能来源。')
 assert(gameplaySources.quest.includes("claimPotentialSourceReward('special_order_finish'"), '特殊订单完成必须接入潜能来源。')
 assert(gameplaySources.goal.includes("claimPotentialSourceReward('theme_week_settlement'"), '主题周结算必须接入潜能来源。')

@@ -117,7 +117,7 @@
             <td class="px-2 py-2">桃源田庄</td>
             <td class="px-2 py-2 text-muted">稳定农耕</td>
             <td class="px-2 py-2 text-muted">完全新手、种田保底流</td>
-            <td class="px-2 py-2 text-muted">默认推荐，最容易把主线、商圈和告示板跑顺。</td>
+            <td class="px-2 py-2 text-muted">默认推荐，初始田地更大且后期可到16×16，最容易把主线、商圈和告示板跑顺。</td>
           </tr>
           <tr class="border-b border-accent/10">
             <td class="px-2 py-2">草甸田庄</td>

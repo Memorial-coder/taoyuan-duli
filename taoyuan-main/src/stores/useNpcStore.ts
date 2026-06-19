@@ -61,6 +61,7 @@ import type {
   RegionRumorSupplyEntry,
   Season,
   Weather,
+  RewardTicketType,
   PotentialRandomNpcMilestoneKey,
   PotentialRandomNpcMilestoneProgress
 } from '@/types'
@@ -87,6 +88,7 @@ import {
   getNpcGiftReturnSummaries,
   getNpcNextBenefitSummaries,
   getNpcNextScheduleText,
+  getNpcActiveServiceDefs,
   getNpcScheduleStatus,
   getNpcScheduleTimeline,
   getNpcShopDiscount,
@@ -98,8 +100,16 @@ import {
   RELATIONSHIP_STAGE_META,
   SECRET_NOTE_GIFT_CLUE_LINKS
 } from '@/data/npcWorld'
+import {
+  NPC_FUNCTION_TIER_ORDER,
+  getNpcFunctionUnlockDefs,
+  getNpcFunctionById,
+  type NpcFunctionUnlockDef,
+  type NpcFunctionUnlockStatus
+} from '@/data/npcFunctions'
 import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import { getItemById } from '@/data/items'
+import { useWalletStore } from './useWalletStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
@@ -119,6 +129,7 @@ const ALL_ZHIJI_COMPANION_PROJECT_DEFS = [...WS09_ZHIJI_COMPANION_PROJECT_DEFS, 
 const RANDOM_NPC_COOKING_TOPIC_LABELS = ['NPC 来访话题', '送礼话题', '家宴团圆']
 const FIXED_NPC_TALK_COOKING_TOPIC_LABELS = ['NPC 来访话题', '家宴团圆']
 const FIXED_NPC_GIFT_COOKING_TOPIC_LABELS = ['送礼话题']
+const NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS = 3
 const RANDOM_NPC_COOKING_TOPIC_AFFINITY_BONUS = 3
 const FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS = 5
 const RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD = 8
@@ -417,11 +428,14 @@ export const useNpcStore = defineStore('npc', () => {
     talkedToday: false,
     giftedToday: false,
     giftsThisWeek: 0,
+    activeServiceTalksThisWeek: 0,
+    pendingActiveServices: [],
     dating: false,
     married: false,
     zhiji: false,
     triggeredHeartEvents: [],
     unlockedPerks: [],
+    unlockedFunctionIds: [],
     companionshipTier: 'P0',
     activeHouseholdRoleId: null,
     completedFamilyWishIds: [],
@@ -5322,6 +5336,133 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getRelationshipStageDescription = (npcId: string): string => RELATIONSHIP_STAGE_META[getRelationshipStage(npcId)].description
 
+  const getNpcFunctionUnlocks = (npcId: string): NpcFunctionUnlockDef[] => getNpcFunctionUnlockDefs(npcId)
+
+  const isNpcFunctionUnlocked = (functionId: string): boolean => {
+    const def = getNpcFunctionById(functionId)
+    if (!def) return false
+    if (def.legacyUnlocked) return true
+    const state = getNpcState(def.npcId)
+    return !!state?.unlockedFunctionIds?.includes(functionId)
+  }
+
+  const getNpcFunctionUnlockStatus = (functionId: string): NpcFunctionUnlockStatus => {
+    const def = getNpcFunctionById(functionId)
+    if (!def) {
+      return {
+        def: null,
+        npcExists: false,
+        unlocked: false,
+        relationshipReady: false,
+        previousTierReady: false,
+        moneyReady: false,
+        materialsReady: false,
+        missingMaterials: [],
+        canUnlock: false,
+        disabledReason: '功能不存在。'
+      }
+    }
+
+    const state = getNpcState(def.npcId)
+    if (!state) {
+      return {
+        def,
+        npcExists: false,
+        unlocked: false,
+        relationshipReady: false,
+        previousTierReady: false,
+        moneyReady: false,
+        materialsReady: false,
+        missingMaterials: [],
+        canUnlock: false,
+        disabledReason: 'NPC不存在。'
+      }
+    }
+
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    const unlocked = isNpcFunctionUnlocked(functionId)
+    const relationshipReady = isRelationshipStageAtLeast(getRelationshipStage(def.npcId), def.requiredStage)
+    const tierIndex = NPC_FUNCTION_TIER_ORDER.indexOf(def.tier)
+    const previousTierDef =
+      tierIndex > 0 ? getNpcFunctionUnlocks(def.npcId).find(entry => entry.tier === NPC_FUNCTION_TIER_ORDER[tierIndex - 1]) ?? null : null
+    const previousTierReady = previousTierDef ? isNpcFunctionUnlocked(previousTierDef.id) : true
+    const missingMaterials = def.materialCost
+      .map(material => ({
+        ...material,
+        owned: inventoryStore.getItemCount(material.itemId)
+      }))
+      .filter(material => material.owned < material.quantity)
+    const materialsReady = missingMaterials.length <= 0
+    const moneyReady = playerStore.money >= def.costMoney
+    const canUnlock = !unlocked && !def.legacyUnlocked && relationshipReady && previousTierReady && moneyReady && materialsReady
+
+    let disabledReason = ''
+    if (!unlocked) {
+      if (!relationshipReady) {
+        disabledReason = `需要关系达到「${RELATIONSHIP_STAGE_META[def.requiredStage].label}」。`
+      } else if (!previousTierReady) {
+        disabledReason = previousTierDef ? `需要先解锁上一档「${previousTierDef.title}」。` : '需要先解锁上一档功能。'
+      } else if (!materialsReady) {
+        const summary = missingMaterials
+          .map(material => `${getItemById(material.itemId)?.name ?? material.itemId} ${material.owned}/${material.quantity}`)
+          .join('、')
+        disabledReason = `材料不足：${summary}。`
+      } else if (!moneyReady) {
+        disabledReason = `铜钱不足（需要${def.costMoney}文）。`
+      }
+    }
+
+    return {
+      def,
+      npcExists: true,
+      unlocked,
+      relationshipReady,
+      previousTierReady,
+      moneyReady,
+      materialsReady,
+      missingMaterials,
+      canUnlock,
+      disabledReason
+    }
+  }
+
+  const canUnlockNpcFunction = (functionId: string): boolean => getNpcFunctionUnlockStatus(functionId).canUnlock
+
+  const unlockNpcFunction = (functionId: string): { success: boolean; message: string } => {
+    const status = getNpcFunctionUnlockStatus(functionId)
+    const def = status.def
+    if (!def) return { success: false, message: status.disabledReason || '功能不存在。' }
+    if (!status.npcExists) return { success: false, message: status.disabledReason || 'NPC不存在。' }
+    if (status.unlocked) {
+      return {
+        success: false,
+        message: def.legacyUnlocked ? '这项功能已经由现有系统开放。' : '这项功能已经解锁。'
+      }
+    }
+    if (!status.canUnlock) return { success: false, message: status.disabledReason || '当前还不能解锁该功能。' }
+
+    const state = getNpcState(def.npcId)
+    if (!state) return { success: false, message: 'NPC不存在。' }
+
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    if (!inventoryStore.removeItemsWithRollback(def.materialCost)) {
+      return { success: false, message: '材料不足，无法完成解锁。' }
+    }
+    if (!playerStore.spendMoney(def.costMoney, 'npc_function_unlock')) {
+      inventoryStore.deserialize(inventorySnapshot)
+      return { success: false, message: `铜钱不足（需要${def.costMoney}文）。` }
+    }
+
+    state.unlockedFunctionIds = [...new Set([...(state.unlockedFunctionIds ?? []), def.id])]
+    return {
+      success: true,
+      message: `${getNpcById(def.npcId)?.name ?? def.npcId}的「${def.title}」已解锁。`
+    }
+  }
+
   const getRelationshipBenefits = (npcId: string): string[] => {
     return getNpcBenefitSummaries(npcId, getRelationshipStage(npcId))
   }
@@ -5742,6 +5883,10 @@ export const useNpcStore = defineStore('npc', () => {
     const cookingStore = useCookingStore()
 
     state.talkedToday = true
+    state.activeServiceTalksThisWeek = Math.min(
+      NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS,
+      Math.max(0, Math.floor(Number(state.activeServiceTalksThisWeek) || 0)) + 1
+    )
     const cookingTopic = cookingStore.consumeStoryTriggerRecord(FIXED_NPC_TALK_COOKING_TOPIC_LABELS)
     const alchemyDialogueBonus = cookingStore.getActiveAlchemyDialogueAffinityBonus()
     const friendshipGain = 20 + (cookingTopic ? FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS : 0) + alchemyDialogueBonus
@@ -5953,6 +6098,118 @@ export const useNpcStore = defineStore('npc', () => {
       returnedGift,
       unlockedMessages
     }
+  }
+
+  const getNpcActiveServiceLedgerId = (npcId: string, serviceId: string, weekId: string): string =>
+    `npc_active_service:${npcId}:${serviceId}:${weekId}`
+
+  const hasPendingNpcActiveService = (npcId: string, serviceId: string, weekId: string): boolean => {
+    const state = getNpcState(npcId)
+    if (!state) return false
+    return state.pendingActiveServices.some(entry => entry.serviceId === serviceId && entry.weekId === weekId)
+  }
+
+  const requestNpcActiveService = (
+    npcId: string,
+    serviceId: string,
+    weekId: string,
+    requestedDayTag: string
+  ): { success: boolean; message: string } => {
+    const state = getNpcState(npcId)
+    if (!state) return { success: false, message: 'NPC不存在。' }
+    const service = getNpcActiveServiceDefs(npcId).find(def => def.id === serviceId)
+    if (!service) return { success: false, message: '村民帮办项目不存在。' }
+
+    const playerStore = usePlayerStore()
+    const ledgerId = getNpcActiveServiceLedgerId(npcId, serviceId, weekId)
+    if (playerStore.hasLifestyleDiscovery('lifestyleUnlocks', ledgerId)) {
+      return { success: false, message: '本周已经请这位村民办过这件事。' }
+    }
+    if (hasPendingNpcActiveService(npcId, serviceId, weekId)) {
+      return { success: false, message: '这件帮办已经约下了，明早会结算。' }
+    }
+    if (!state.married && !getScheduleStatus(npcId).available) {
+      return { success: false, message: getScheduleStatus(npcId).reason || '对方暂时不在。' }
+    }
+    if (!isRelationshipStageAtLeast(getRelationshipStage(npcId), service.minStage)) {
+      return { success: false, message: `需要关系达到「${RELATIONSHIP_STAGE_META[service.minStage].label}」。` }
+    }
+    if ((state.activeServiceTalksThisWeek ?? 0) < NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS) {
+      return {
+        success: false,
+        message: `本周还需要再交谈 ${NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS - (state.activeServiceTalksThisWeek ?? 0)} 次。`
+      }
+    }
+    if (!playerStore.spendMoney(service.costMoney, 'system')) {
+      return { success: false, message: `铜钱不足（需要${service.costMoney}文）。` }
+    }
+
+    state.pendingActiveServices = [
+      ...state.pendingActiveServices.filter(entry => !(entry.serviceId === serviceId && entry.weekId === weekId)),
+      {
+        serviceId,
+        weekId,
+        requestedDayTag,
+        costMoney: service.costMoney
+      }
+    ]
+    return {
+      success: true,
+      message: `${getNpcById(npcId)?.name ?? npcId}答应帮你办「${service.title}」，明早结算时送来结果。`
+    }
+  }
+
+  const processPendingNpcActiveServices = (currentDayTag: string): string[] => {
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    const walletStore = useWalletStore()
+    const logs: string[] = []
+
+    for (const state of npcStates.value) {
+      const npcName = getNpcById(state.npcId)?.name ?? state.npcId
+      const remainingPending = []
+      for (const entry of state.pendingActiveServices) {
+        if (entry.requestedDayTag === currentDayTag) {
+          remainingPending.push(entry)
+          continue
+        }
+
+        const service = getNpcActiveServiceDefs(state.npcId).find(def => def.id === entry.serviceId)
+        if (!service) {
+          playerStore.earnMoney(entry.costMoney, { countAsEarned: false })
+          logs.push(`【村民帮办】${npcName}的帮办项目已不存在，已退回${entry.costMoney}文。`)
+          continue
+        }
+
+        const ledgerId = getNpcActiveServiceLedgerId(state.npcId, entry.serviceId, entry.weekId)
+        if (playerStore.hasLifestyleDiscovery('lifestyleUnlocks', ledgerId)) {
+          logs.push(`【村民帮办】${npcName}的「${service.title}」本周已经结算过，重复待办已忽略。`)
+          continue
+        }
+
+        if ((service.itemRewards?.length ?? 0) > 0) {
+          const inventorySnapshot = inventoryStore.serialize()
+          if (!inventoryStore.addItemsExact(service.itemRewards ?? [])) {
+            inventoryStore.deserialize(inventorySnapshot)
+            playerStore.earnMoney(entry.costMoney, { countAsEarned: false })
+            logs.push(`【村民帮办】${npcName}的「${service.title}」因背包空间不足未能送达，已退回${entry.costMoney}文。`)
+            continue
+          }
+        }
+
+        const grantedTickets = walletStore.addRewardTickets(service.ticketRewards, { applyMultiplier: false, source: 'npc_active_service' })
+        playerStore.markLifestyleUnlock(ledgerId, entry.weekId)
+        const itemParts = (service.itemRewards ?? []).map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+        const ticketParts = Object.entries(grantedTickets ?? {})
+          .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${Math.max(0, Math.floor(Number(amount) || 0))}`)
+          .filter(part => !part.endsWith('×0'))
+        const rewardText = [...itemParts, ...ticketParts].join('、') || '关系回执'
+        logs.push(`【村民帮办】${npcName}办好了「${service.title}」，送来：${rewardText}。`)
+      }
+      state.pendingActiveServices = remainingPending
+    }
+
+    return logs
   }
 
   /** 赠帕开启约会 (需2000好感/8心) */
@@ -7202,6 +7459,7 @@ export const useNpcStore = defineStore('npc', () => {
       // 每周日重置周送礼计数 (day 7,14,21,28)
       if (gameStore.day % 7 === 0) {
         state.giftsThisWeek = 0
+        state.activeServiceTalksThisWeek = 0
       }
     }
 
@@ -7302,8 +7560,23 @@ export const useNpcStore = defineStore('npc', () => {
         dating: !!s.dating,
         zhiji: !!s.zhiji,
         giftsThisWeek: Math.max(0, Number(s.giftsThisWeek) || 0),
+        activeServiceTalksThisWeek: Math.min(
+          NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS,
+          Math.max(0, Math.floor(Number(s.activeServiceTalksThisWeek) || 0))
+        ),
+        pendingActiveServices: Array.isArray(s.pendingActiveServices)
+          ? s.pendingActiveServices
+              .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.serviceId === 'string' && typeof entry.weekId === 'string')
+              .map((entry: any) => ({
+                serviceId: entry.serviceId,
+                weekId: entry.weekId,
+                requestedDayTag: typeof entry.requestedDayTag === 'string' ? entry.requestedDayTag : '',
+                costMoney: Math.max(0, Math.floor(Number(entry.costMoney) || 0))
+              }))
+          : [],
         triggeredHeartEvents: Array.isArray(s.triggeredHeartEvents) ? s.triggeredHeartEvents.filter((id: unknown) => typeof id === 'string') : [],
-        unlockedPerks: Array.isArray(s.unlockedPerks) ? s.unlockedPerks.filter((id: unknown) => typeof id === 'string') : []
+        unlockedPerks: Array.isArray(s.unlockedPerks) ? s.unlockedPerks.filter((id: unknown) => typeof id === 'string') : [],
+        unlockedFunctionIds: Array.isArray(s.unlockedFunctionIds) ? s.unlockedFunctionIds.filter((id: unknown) => typeof id === 'string') : []
       }))
     // 合并：保留已保存的状态，为新增NPC补充默认状态
     const savedIds = new Set(savedStates.map(s => s.npcId))
@@ -7869,6 +8142,11 @@ export const useNpcStore = defineStore('npc', () => {
     adjustFriendship,
     talkTo,
     giveGift,
+    requestNpcActiveService,
+    processPendingNpcActiveServices,
+    getNpcActiveServiceLedgerId,
+    hasPendingNpcActiveService,
+    NPC_ACTIVE_SERVICE_REQUIRED_WEEKLY_TALKS,
     startDating,
     propose,
     getSpouse,
@@ -7971,6 +8249,11 @@ export const useNpcStore = defineStore('npc', () => {
     canProgressRandomNpcChildFamilyEvent,
     progressRandomNpcChildFamilyEvent,
     rehydrateRelationshipPerks,
+    getNpcFunctionUnlocks,
+    isNpcFunctionUnlocked,
+    getNpcFunctionUnlockStatus,
+    canUnlockNpcFunction,
+    unlockNpcFunction,
     serialize,
     deserialize
   }

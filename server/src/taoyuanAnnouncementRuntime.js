@@ -21,6 +21,7 @@ const DEFAULT_BUTTON_TEXTS = Object.freeze({
   suppress: '本条不再提示',
   cta: '查看详情',
 });
+const SAVE_UPDATE_BUTTON_TEMPLATE_TYPES = new Set(['version_update', 'hotfix']);
 
 const TEMPLATES = Object.freeze([
   {
@@ -157,6 +158,8 @@ async function ensureMysqlReady() {
           cta_url VARCHAR(512) NOT NULL DEFAULT '',
           button_texts_json LONGTEXT NULL,
           template_type VARCHAR(64) NOT NULL DEFAULT '',
+          show_save_update_button TINYINT NULL DEFAULT NULL,
+          is_pinned TINYINT NOT NULL DEFAULT 0,
           rewards_json LONGTEXT NULL,
           duplicate_compensation_money INT NOT NULL DEFAULT 0,
           created_at BIGINT NOT NULL,
@@ -172,6 +175,8 @@ async function ensureMysqlReady() {
       `);
       await ensureMysqlColumn(pool, 'taoyuan_announcements', 'rewards_json', 'LONGTEXT NULL');
       await ensureMysqlColumn(pool, 'taoyuan_announcements', 'duplicate_compensation_money', 'INT NOT NULL DEFAULT 0');
+      await ensureMysqlColumn(pool, 'taoyuan_announcements', 'show_save_update_button', 'TINYINT NULL DEFAULT NULL');
+      await ensureMysqlColumn(pool, 'taoyuan_announcements', 'is_pinned', 'TINYINT NOT NULL DEFAULT 0');
       await pool.query(`
         CREATE TABLE IF NOT EXISTS taoyuan_announcement_events (
           id VARCHAR(96) NOT NULL,
@@ -289,8 +294,31 @@ function normalizeButtonTexts(value = {}) {
   };
 }
 
+function getDefaultShowSaveUpdateButton(templateType) {
+  return SAVE_UPDATE_BUTTON_TEMPLATE_TYPES.has(String(templateType || '').trim());
+}
+
+function normalizeShowSaveUpdateButton(value, templateType) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return getDefaultShowSaveUpdateButton(templateType);
+}
+
+function normalizeBooleanFlag(value, fallback = false) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return fallback === true;
+}
+
 function normalizeAnnouncementInput(input = {}, previous = null, actor = {}) {
   const createdAt = Number(previous?.created_at) || nowSeconds();
+  const templateType = normalizeText(input.template_type ?? input.templateType ?? previous?.template_type ?? '', 64);
   const normalized = {
     id: normalizeText(input.id || previous?.id || createId('ann'), 64),
     title: normalizeText(input.title ?? previous?.title ?? '', 120),
@@ -306,7 +334,12 @@ function normalizeAnnouncementInput(input = {}, previous = null, actor = {}) {
     cta_text: normalizeText(input.cta_text ?? input.ctaText ?? previous?.cta_text ?? '', 60),
     cta_url: sanitizeUrl(input.cta_url ?? input.ctaUrl ?? previous?.cta_url ?? ''),
     button_texts: normalizeButtonTexts(input.button_texts ?? input.buttonTexts ?? previous?.button_texts ?? {}),
-    template_type: normalizeText(input.template_type ?? input.templateType ?? previous?.template_type ?? '', 64),
+    template_type: templateType,
+    show_save_update_button: normalizeShowSaveUpdateButton(
+      input.show_save_update_button ?? input.showSaveUpdateButton ?? previous?.show_save_update_button,
+      templateType,
+    ),
+    is_pinned: normalizeBooleanFlag(input.is_pinned ?? input.isPinned ?? previous?.is_pinned, false),
     rewards: normalizeAnnouncementRewards(input.rewards ?? previous?.rewards ?? []),
     duplicate_compensation_money: clampPositiveInt(
       input.duplicate_compensation_money ?? input.duplicateCompensationMoney ?? previous?.duplicate_compensation_money,
@@ -355,6 +388,8 @@ function mapMysqlAnnouncement(row = {}) {
     cta_url: row.cta_url,
     button_texts: parseJson(row.button_texts_json, DEFAULT_BUTTON_TEXTS),
     template_type: row.template_type,
+    show_save_update_button: row.show_save_update_button,
+    is_pinned: row.is_pinned,
     rewards: parseJson(row.rewards_json, []),
     duplicate_compensation_money: row.duplicate_compensation_money,
   }, {
@@ -416,6 +451,8 @@ function toMysqlParams(announcement) {
     announcement.cta_url,
     JSON.stringify(announcement.button_texts),
     announcement.template_type,
+    announcement.show_save_update_button === true ? 1 : 0,
+    announcement.is_pinned === true ? 1 : 0,
     JSON.stringify(announcement.rewards),
     announcement.duplicate_compensation_money,
     announcement.created_at,
@@ -436,9 +473,9 @@ async function upsertAnnouncement(input = {}, actor = {}) {
     await buildMysqlPool().execute(
       `INSERT INTO taoyuan_announcements
        (id, title, body, image_url, version, target_versions_json, target_channels_json, start_at, end_at, priority, status,
-        cta_text, cta_url, button_texts_json, template_type, rewards_json, duplicate_compensation_money,
+        cta_text, cta_url, button_texts_json, template_type, show_save_update_button, is_pinned, rewards_json, duplicate_compensation_money,
         created_at, updated_at, published_at, offline_at, operator_name, operator_role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
         title = VALUES(title),
         body = VALUES(body),
@@ -454,6 +491,8 @@ async function upsertAnnouncement(input = {}, actor = {}) {
         cta_url = VALUES(cta_url),
         button_texts_json = VALUES(button_texts_json),
         template_type = VALUES(template_type),
+        show_save_update_button = VALUES(show_save_update_button),
+        is_pinned = VALUES(is_pinned),
         rewards_json = VALUES(rewards_json),
         duplicate_compensation_money = VALUES(duplicate_compensation_money),
         updated_at = VALUES(updated_at),
@@ -463,6 +502,12 @@ async function upsertAnnouncement(input = {}, actor = {}) {
         operator_role = VALUES(operator_role)`,
       toMysqlParams(announcement),
     );
+    if (announcement.status === 'published' && announcement.is_pinned === true) {
+      await buildMysqlPool().execute(
+        'UPDATE taoyuan_announcements SET is_pinned = 0 WHERE id <> ? AND is_pinned = 1',
+        [announcement.id],
+      );
+    }
     return announcement;
   }
 
@@ -470,6 +515,11 @@ async function upsertAnnouncement(input = {}, actor = {}) {
   const index = store.announcements.findIndex(item => item.id === announcement.id);
   if (index >= 0) store.announcements[index] = announcement;
   else store.announcements.unshift(announcement);
+  if (announcement.status === 'published' && announcement.is_pinned === true) {
+    store.announcements = store.announcements.map(item => (
+      item.id === announcement.id ? item : { ...item, is_pinned: false }
+    ));
+  }
   saveLocalStore(store);
   return announcement;
 }
@@ -529,6 +579,7 @@ async function offlineAnnouncement(id, actor = {}) {
   return upsertAnnouncement({
     ...current,
     status: 'offline',
+    is_pinned: false,
     offline_at: nowSeconds(),
   }, actor);
 }
@@ -612,9 +663,14 @@ async function listActiveAnnouncements(options = {}) {
     .filter(item => isAnnouncementActive(item, now))
     .filter(item => targetMatches(item.target_versions, options.version))
     .filter(item => targetMatches(item.target_channels, options.channel))
-    .filter(item => !suppressed.has(item.id))
+    .map(item => ({
+      ...item,
+      is_read: suppressed.has(item.id),
+    }))
+    .filter(item => !item.is_read || item.is_pinned === true)
     .sort((left, right) => (
-      (right.priority || 0) - (left.priority || 0)
+      Number(right.is_pinned === true) - Number(left.is_pinned === true)
+      || (right.priority || 0) - (left.priority || 0)
       || (right.published_at || 0) - (left.published_at || 0)
       || (right.created_at || 0) - (left.created_at || 0)
     ));
@@ -630,7 +686,8 @@ async function listPublicHistory(options = {}) {
     .filter(item => targetMatches(item.target_versions, options.version))
     .filter(item => targetMatches(item.target_channels, options.channel))
     .sort((left, right) => (
-      (right.published_at || 0) - (left.published_at || 0)
+      Number(right.is_pinned === true) - Number(left.is_pinned === true)
+      || (right.published_at || 0) - (left.published_at || 0)
       || (right.priority || 0) - (left.priority || 0)
       || (right.created_at || 0) - (left.created_at || 0)
     ))
@@ -805,6 +862,9 @@ function toPublicAnnouncement(announcement) {
     cta_url: announcement.cta_url,
     button_texts: announcement.button_texts,
     template_type: announcement.template_type,
+    show_save_update_button: announcement.show_save_update_button === true,
+    is_pinned: announcement.is_pinned === true,
+    is_read: announcement.is_read === true,
     rewards: Array.isArray(announcement.rewards) ? announcement.rewards.map(item => ({ ...item })) : [],
     duplicate_compensation_money: announcement.duplicate_compensation_money,
     published_at: announcement.published_at,

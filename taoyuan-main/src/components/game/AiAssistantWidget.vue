@@ -1171,7 +1171,7 @@
         .join('\n')
     }
 
-    if (message.traceSummary?.evidenceCount === 0) return '本次回答未引用外部依据，优先按内置规则和安全边界给出。'
+    if (message.provider !== 'model' && message.traceSummary?.evidenceCount === 0) return '本次回答未引用外部依据，优先按内置规则和安全边界给出。'
     return ''
   }
 

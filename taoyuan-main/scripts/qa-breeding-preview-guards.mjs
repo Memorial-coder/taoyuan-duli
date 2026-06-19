@@ -1,3 +1,4 @@
+/* global console, process */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -74,6 +75,27 @@ const breedingData = await import(pathToFileURL(path.join(srcRoot, 'data', 'bree
 assert(
   breedingData.findPossibleHybrid('cabbage', 'ancient_fruit') === null,
   'cabbage + ancient_fruit should remain a no-recipe cross for this guard.'
+)
+assert(
+  breedingTypesSource.includes("'crop'") &&
+    breedingTypesSource.includes("export type SeedSortKey = 'default' | 'crop'"),
+  'Breeding seed sort type must include the crop grouping option.'
+)
+assert(
+  breedingViewSource.includes("{ value: 'crop', label: '同种' }"),
+  'Breeding seed sort buttons must expose a same-crop grouping option.'
+)
+assert(
+  breedingStoreSource.includes("case 'crop':") &&
+    breedingStoreSource.includes('compareByCrop') &&
+    breedingStoreSource.includes('a.genetics.cropId.localeCompare(b.genetics.cropId)') &&
+    breedingStoreSource.includes('b.genetics.generation - a.genetics.generation'),
+  'Breeding store must sort visible seeds by crop, then generation, then total stats.'
+)
+assert(
+  breedingViewSource.includes('const displayedBreedingSeeds = computed(() => breedingStore.visibleBreedingBox)') &&
+    breedingViewSource.includes('v-for="seed in displayedBreedingSeeds"'),
+  'Breeding station selection must keep using the visible seed box list so crop grouping applies there too.'
 )
 assert(
   breedingViewSource.includes('if (a.cropId !== b.cropId && !hybrid) return null'),

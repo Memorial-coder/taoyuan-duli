@@ -463,11 +463,10 @@ function formatThreeStepSuggestionsBlock(threeStepSuggestions = {}) {
   if (!suggestions.length) return '';
   const lines = ['三步建议：'];
   for (const item of suggestions) {
-    const signalText = item.signalLabels?.length ? `信号：${item.signalLabels.join('、')}` : '';
-    const actionText = item.action?.label ? `轻动作：${item.action.label}` : '';
-    lines.push(`${item.levelLabel}：${item.title}。${item.reason}收益：${item.benefit}。${[signalText, actionText].filter(Boolean).join('；')}。`);
+    const signalText = item.signalLabels?.length ? `（${item.signalLabels.slice(0, 2).join('、')}）` : '';
+    const actionText = item.action?.label ? `；${item.action.label}` : '';
+    lines.push(`${item.levelLabel}：${item.title}${signalText}${actionText}`);
   }
-  lines.push('这些建议只提供跳转、复制清单或标记目标等安全轻动作，不会直接改存档、发奖励或扣资源。');
   return lines.join('\n');
 }
 

@@ -408,6 +408,13 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
     && !abortController.signal.aborted
   )
 
+  const removeLocalDraftForPending = (pendingId: string) => {
+    if (!pendingId) return
+    messages.value = messages.value.filter(message => !(message.localDraft && message.draftForPendingId === pendingId))
+  }
+
+  const shouldHideLocalDraftForResult = (provider?: string) => provider === 'model'
+
   const applyAskStreamEvent = ({
     event,
     requestId,
@@ -456,6 +463,9 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
     }
 
     if (event.event === 'evidence') {
+      if (shouldHideLocalDraftForResult(event.provider)) {
+        removeLocalDraftForPending(pendingId)
+      }
       messages.value = messages.value.map(message =>
         message.id === pendingId && (message.pending || message.streaming)
           ? {
@@ -586,6 +596,9 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
             }),
           })
       if (activeAskRequestId.value !== requestId || abortController.signal.aborted) return
+      if (shouldHideLocalDraftForResult(result.provider)) {
+        removeLocalDraftForPending(pendingId)
+      }
       messages.value = messages.value.map(message =>
         message.id === pendingId
           ? {

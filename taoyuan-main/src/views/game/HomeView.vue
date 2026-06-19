@@ -540,10 +540,10 @@
           </div>
 
           <!-- 箱子物品列表 -->
-          <div v-if="currentOpenChest.items.length > 0" class="flex flex-col space-y-1 mb-2 max-h-48 overflow-y-auto">
+          <div v-if="currentOpenChestItems.length > 0" class="flex flex-col space-y-1 mb-2 max-h-48 overflow-y-auto">
             <div
-              v-for="(item, idx) in currentOpenChest.items"
-              :key="idx"
+              v-for="item in currentOpenChestItems"
+              :key="getVisibleInventoryItemKey(item)"
               class="flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1 mr-1"
               @click="chestItemDetail = { itemId: item.itemId, quality: item.quality, quantity: item.quantity }"
             >
@@ -814,7 +814,7 @@
   import { ArrowDown, ArrowDownToLine, Building, Mountain, Leaf, Pencil, Plus, Trash2, Unlock, Warehouse, X } from 'lucide-vue-next'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useHomeStore } from '@/stores/useHomeStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useProcessingStore } from '@/stores/useProcessingStore'
@@ -1084,6 +1084,8 @@
     return warehouseStore.getChest(openChestId.value) ?? null
   })
 
+  const currentOpenChestItems = computed(() => currentOpenChest.value ? mergeVisibleInventoryItems(currentOpenChest.value.items) : [])
+
   /** 背包中可存入箱子的物品（排除种子和锁定物品） */
   const depositableItems = computed(() =>
     inventoryStore.visibleItems.filter(i => {
@@ -1096,12 +1098,12 @@
   /** 背包中可一键存入的重复物品（箱子中已有且未锁定、非种子） */
   const duplicateDepositItems = computed(() => {
     if (!currentOpenChest.value) return []
-    const chestItemIds = new Set(currentOpenChest.value.items.map(i => i.itemId))
+    const chestItemKeys = new Set(currentOpenChestItems.value.map(getVisibleInventoryItemKey))
     return inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
       const def = getItemById(i.itemId)
       if (!def || def.category === 'seed') return false
-      return chestItemIds.has(i.itemId)
+      return chestItemKeys.has(getVisibleInventoryItemKey(i))
     })
   })
 

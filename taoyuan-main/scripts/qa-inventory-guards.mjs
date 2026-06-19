@@ -39,6 +39,7 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
       if (!resolved) throw new Error(`无法解析模块：${specifier}`)
@@ -74,6 +75,13 @@ registerHooks({
           }
           export default router
         `,
+        shortCircuit: true
+      }
+    }
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {}; export default { saveAs };',
         shortCircuit: true
       }
     }
@@ -178,6 +186,7 @@ const miningStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/use
 const npcStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useNpcStore.ts'), 'utf8')
 const hiddenNpcStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useHiddenNpcStore.ts'), 'utf8')
 const shopStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useShopStore.ts'), 'utf8')
+const warehouseStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useWarehouseStore.ts'), 'utf8')
 const shopViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ShopView.vue'), 'utf8')
 const farmViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/FarmView.vue'), 'utf8')
 const inventoryViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/InventoryView.vue'), 'utf8')
@@ -215,6 +224,26 @@ const freshInventoryAndWarehouseStores = () => {
     inventoryStore: inventoryStoreModule.useInventoryStore(),
     warehouseStore: warehouseStoreModule.useWarehouseStore()
   }
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.items = [
+    { itemId: 'bamboo', quantity: 3, quality: 'normal' },
+    { itemId: 'bamboo', quantity: 2, quality: 'fine' },
+    { itemId: 'bamboo', quantity: 1, quality: 'excellent' }
+  ]
+  inventoryStore.tempItems = [
+    { itemId: 'bamboo', quantity: 1, quality: 'supreme' }
+  ]
+
+  assert(inventoryStore.getTotalItemCountAtLeast('bamboo', 'fine') === 4, 'Minimum-quality totals should include fine, excellent and supreme stacks only.')
+  assert(inventoryStore.getTotalItemCountAtLeast('bamboo', 'excellent') === 2, 'Minimum-quality totals should exclude normal and fine stacks below the threshold.')
+  assert(inventoryStore.removeItemAnywhereAtLeast('bamboo', 3, 'fine') === true, 'Minimum-quality removal should consume eligible quality stacks.')
+  assert(inventoryStore.getItemCount('bamboo', 'normal') === 3, 'Minimum-quality removal must not consume lower-quality normal stacks.')
+  assert(inventoryStore.getItemCount('bamboo', 'fine') === 0, 'Minimum-quality removal should consume fine stacks before higher-quality stacks.')
+  assert(inventoryStore.getItemCount('bamboo', 'excellent') === 0, 'Minimum-quality removal should continue into excellent stacks after fine stacks.')
+  assert(inventoryStore.getTempItemCount('bamboo', 'supreme') === 1, 'Minimum-quality removal should leave higher quality stacks when lower eligible stacks satisfy the quantity.')
 }
 
 const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'normal' }) => {
@@ -276,6 +305,29 @@ assert(
     inventoryViewSource.includes('@click="openInventoryItem(entry.itemId, entry.quality)"') &&
     inventoryViewSource.includes('quality: item.quality'),
   'Inventory crop-use recommendation entries must keep quality in their key and detail target.'
+)
+assert(
+  inventoryStoreSource.includes("const FIXED_NORMAL_QUALITY_ITEM_CATEGORIES = new Set(['ore', 'gem'])") &&
+    inventoryStoreSource.includes('export const normalizeInventoryItemQuality = (itemId: string, quality: Quality = \'normal\'): Quality =>') &&
+    inventoryStoreSource.includes('quality: normalizeInventoryItemQuality(itemId, quality)') &&
+    inventoryStoreSource.includes('quality: normalizeInventoryItemQuality(entry.itemId, entry.quality ?? \'normal\')'),
+  'Inventory ore and gem stacks should normalize to normal quality before add/preflight so hidden quality variants cannot split chests.'
+)
+assert(
+  warehouseStoreSource.includes('const compactChestItems = (sourceItems: InventoryItem[]): InventoryItem[]') &&
+    warehouseStoreSource.includes('chest.items = compactChestItems(chest.items)') &&
+    warehouseStoreSource.includes('items: compactChestItems((Array.isArray(chest.items) ? chest.items : [])'),
+  'Warehouse chests must compact legacy same-stack slots before capacity checks and during save migration.'
+)
+assert(
+  homeViewSource.includes("import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore } from '@/stores/useInventoryStore'") &&
+    homeViewSource.includes('const currentOpenChestItems = computed(() => currentOpenChest.value ? mergeVisibleInventoryItems(currentOpenChest.value.items) : [])') &&
+    homeViewSource.includes('v-if="currentOpenChestItems.length > 0"') &&
+    homeViewSource.includes('v-for="item in currentOpenChestItems"') &&
+    homeViewSource.includes(':key="getVisibleInventoryItemKey(item)"') &&
+    homeViewSource.includes('const chestItemKeys = new Set(currentOpenChestItems.value.map(getVisibleInventoryItemKey))') &&
+    homeViewSource.includes('return chestItemKeys.has(getVisibleInventoryItemKey(i))'),
+  'Home chest and void chest views should merge visible item-quality rows while preserving batch-level calculations in the store.'
 )
 assert(
   inventoryViewSource.includes('Math.max(0, inventoryStore.capacity - filteredItems.length)'),
@@ -531,6 +583,17 @@ assert(
 }
 
 {
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.capacity = 1
+  inventoryStore.items = [{ itemId: 'prismatic_shard', quantity: 998, quality: 'normal' }]
+
+  assert(inventoryStore.canAddItem('prismatic_shard', 1, 'supreme') === true, 'Gem add preflight should normalize quality before checking stack capacity.')
+  assert(inventoryStore.addItemExact('prismatic_shard', 1, 'supreme') === true, 'Gem add should normalize non-normal quality and merge into the normal stack.')
+  assert(inventoryStore.items.length === 1, 'Normalized gem quality should not create a hidden separate stack.')
+  assert(inventoryStore.items[0]?.itemId === 'prismatic_shard' && inventoryStore.items[0]?.quality === 'normal' && inventoryStore.items[0]?.quantity === 999, 'Prismatic shard should remain one normal-quality stack after normalized add.')
+}
+
+{
   const { inventoryStore, warehouseStore } = freshInventoryAndWarehouseStores()
   const shopMeta = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 }
   assert(warehouseStore.addChest('wood', 'QA') === true, 'Warehouse test chest should be created.')
@@ -542,6 +605,39 @@ assert(
   assert(warehouseStore.chests[0]?.items[0]?.purchaseUnitPrice === 500, 'Warehouse deposit should preserve purchase unit price.')
   assert(warehouseStore.withdrawFromChest(chestId, 'silk_ribbon', 2, 'normal') === true, 'Warehouse withdraw should return the stored batch.')
   assert(inventoryStore.items[0]?.origin === 'shop' && inventoryStore.items[0]?.purchaseUnitPrice === 500, 'Warehouse withdraw should preserve shop-origin metadata.')
+}
+
+{
+  const { warehouseStore } = freshInventoryAndWarehouseStores()
+  warehouseStore.deserialize({
+    unlocked: true,
+    chests: [
+      {
+        id: 'qa_void_chest',
+        tier: 'void',
+        label: 'QA',
+        voidRole: 'output',
+        items: [
+          { itemId: 'dragon_jade', quantity: 400, quality: 'normal' },
+          { itemId: 'dragon_jade', quantity: 300, quality: 'normal' },
+          { itemId: 'dragon_jade', quantity: 2, quality: 'fine' },
+          { itemId: 'silk_ribbon', quantity: 5, quality: 'normal' },
+          { itemId: 'silk_ribbon', quantity: 998, quality: 'normal', origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 },
+          { itemId: 'silk_ribbon', quantity: 2, quality: 'normal', origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 500 }
+        ]
+      }
+    ]
+  })
+
+  const chest = warehouseStore.chests[0]
+  assert(chest?.items.some(item => item.itemId === 'dragon_jade' && item.quality === 'normal' && item.quantity === 702), 'Void chest migration should normalize gem quality and compact dragon jade into one normal stack.')
+  assert(!chest?.items.some(item => item.itemId === 'dragon_jade' && item.quality !== 'normal'), 'Void chest migration should not preserve hidden gem quality variants.')
+  assert(chest?.items.some(item => item.itemId === 'silk_ribbon' && item.origin !== 'shop' && item.quantity === 5), 'Warehouse migration should keep self-acquired stock as its own calculation batch.')
+  assert(chest?.items.some(item => item.itemId === 'silk_ribbon' && item.origin === 'shop' && item.purchaseUnitPrice === 500 && item.quantity === 999), 'Warehouse migration should preserve shop-origin metadata while compacting to stack cap.')
+  assert(chest?.items.some(item => item.itemId === 'silk_ribbon' && item.origin === 'shop' && item.purchaseUnitPrice === 500 && item.quantity === 1), 'Warehouse migration should split overflow above stack cap.')
+
+  const visibleChestItems = inventoryStoreModule.mergeVisibleInventoryItems(chest?.items ?? [])
+  assert(visibleChestItems.some(item => item.itemId === 'silk_ribbon' && item.quality === 'normal' && item.quantity === 1005), 'Visible chest rows should merge shop-origin and self-acquired batches for display only.')
 }
 
 {

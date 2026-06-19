@@ -1,4 +1,4 @@
-﻿import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
+import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useFarmStore } from '@/stores/useFarmStore'
 import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -916,6 +916,9 @@ export const handleEndDay = () => {
   const currentWeekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
   const weekBoundaryEvent = getWeekBoundaryEvent(previousWeekInfo, currentWeekInfo)
   const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  for (const log of npcStore.processPendingNpcActiveServices(currentDayTag)) {
+    addLog(log)
+  }
   const breedingContestStore = useBreedingStore()
   const weeklySettlementSummary = weekBoundaryEvent.startedNewWeek
     ? goalStore.settleWeeklyGoals({

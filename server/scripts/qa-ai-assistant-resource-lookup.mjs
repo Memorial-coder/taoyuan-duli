@@ -81,8 +81,8 @@ for (const item of cases) {
     (result.evidence || []).some(evidence => evidence.sourceType === 'structured-knowledge'),
     `${item.title} should expose structured knowledge evidence`,
   );
-  assert.match(result.answer, new RegExp(`结构化公开资料回答：${item.title}`), `${item.title} should match structured entry`);
-  assert.match(result.answer, /资源反查/, `${item.title} should include resource lookup heading`);
+  assert.match(result.answer, new RegExp(`我能确认的对象是「${item.title}」|结论：${item.title}`), `${item.title} should match structured entry`);
+  assert.doesNotMatch(result.answer, /结构化公开资料回答|资源索引|资源反查|依据：|证据|命中公开资料/, `${item.title} should avoid report-like evidence wording`);
   assert.match(result.answer, /来源：/, `${item.title} should include sources`);
   assert.match(result.answer, /最快路线：/, `${item.title} should include fastest route`);
   assert.match(result.answer, /当前是否已解锁：/, `${item.title} should include unlock status`);
