@@ -1,4 +1,5 @@
-﻿import { ref } from 'vue'
+﻿import { consumeEquipmentDurability, calculateConsumptionReduction } from '@/composables/useDurability'
+import { ref } from 'vue'
 import { useAchievementStore } from '@/stores/useAchievementStore'
 import { useBreedingStore } from '@/stores/useBreedingStore'
 import { useCookingStore } from '@/stores/useCookingStore'
@@ -75,6 +76,24 @@ export const applyCropBlessing = (quality: Quality): Quality => {
 const selectedSeed = ref<{ cropId: string; quality?: Quality } | null>(null)
 
 /** 处理地块点击：翻耕/种植/浇水/收获 */
+
+/** Consume hat+shoe durability for daily farm action (once per batch) */
+const consumeFarmEquipDurability = () => {
+  const invStore = useInventoryStore()
+  const hat = invStore.equippedHatIndex >= 0 ? invStore.ownedHats[invStore.equippedHatIndex] : null
+  if (hat) {
+    const hRed = calculateConsumptionReduction(hat.affixes ?? [], hat.enchantmentId, [])
+    const hMax = invStore.getHatMaxDurability?.(invStore.equippedHatIndex) ?? 100
+    consumeEquipmentDurability(hat, hMax, 1, hRed)
+  }
+  const shoe = invStore.equippedShoeIndex >= 0 ? invStore.ownedShoes[invStore.equippedShoeIndex] : null
+  if (shoe) {
+    const sRed = calculateConsumptionReduction(shoe.affixes ?? [], shoe.enchantmentId, [])
+    const sMax = invStore.getShoeMaxDurability?.(invStore.equippedShoeIndex) ?? 100
+    consumeEquipmentDurability(shoe, sMax, 1, sRed)
+  }
+}
+
 export const handlePlotClick = (plotId: number) => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
@@ -365,6 +384,7 @@ export const handleSellAll = (filterCategories?: ItemCategory[]) => {
 
 /** 一键浇水（浇所有未浇水地块，体力不足时自动停止） */
 export const handleBatchWater = () => {
+    consumeFarmEquipDurability()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
@@ -426,6 +446,7 @@ export const handleBatchWater = () => {
 
 /** 一键开垦（开垦所有荒地，体力不足时自动停止） */
 export const handleBatchTill = () => {
+    consumeFarmEquipDurability()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
@@ -481,6 +502,7 @@ export const handleBatchTill = () => {
 
 /** 一键收获（收获所有成熟作物，不消耗体力） */
 export const handleBatchHarvest = () => {
+    consumeFarmEquipDurability()
   const gameStore = useGameStore()
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
@@ -606,6 +628,7 @@ export const handleBatchHarvest = () => {
 }
 
 /** 一键种植（在所有空耕地上种植指定作物） */
+consumeFarmEquipDurability()
 export const handleBatchPlant = (cropId: string, seedQuality?: Quality) => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()

@@ -421,46 +421,22 @@
         <p class="text-xs text-success">荣誉采购折扣 -{{ guildShopDiscountPercent }}%</p>
         <p class="text-[0.625rem] text-muted mt-0.5">仅作用于公会商店铜钱补给，贡献点与材料兑换保持原价。</p>
       </div>
-      <div
-        v-for="item in GUILD_SHOP_ITEMS"
-        :key="item.itemId"
-        class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-        @click="openShopModal(item)"
-      >
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" :silhouette="!guildStore.isShopItemUnlocked(item.itemId)" />
-          <div class="min-w-0">
-            <p class="truncate text-sm" :class="guildStore.isShopItemUnlocked(item.itemId) ? '' : 'text-muted'">{{ item.name }}</p>
-            <p class="truncate text-xs text-muted">{{ item.description }}</p>
-            <div v-if="item.materials && guildStore.isShopItemUnlocked(item.itemId)" class="mt-0.5 flex flex-wrap gap-1.5">
-              <span
-                v-for="mat in item.materials"
-                :key="mat.itemId"
-                class="flex items-center gap-1 text-xs"
-                :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'"
-              >
-                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
-                {{ getMaterialName(mat.itemId) }}×{{ mat.quantity }}
-              </span>
-            </div>
-            <p v-if="item.unlockGuildLevel && !guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-danger mt-0.5">
-              <Lock :size="10" class="inline" />
-              公会 Lv.{{ item.unlockGuildLevel }} 解锁
-            </p>
-            <p v-if="item.dailyLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-              今日剩余: {{ guildStore.getDailyRemaining(item.itemId, item.dailyLimit) }}/{{ item.dailyLimit }}
-            </p>
-            <p v-if="item.weeklyLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-              本周剩余: {{ guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) }}/{{ item.weeklyLimit }}
-            </p>
-            <p v-if="item.totalLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-              总限购: {{ guildStore.getTotalRemaining(item.itemId, item.totalLimit) }}/{{ item.totalLimit }}
-            </p>
-          </div>
-        </div>
-        <span class="text-xs whitespace-nowrap ml-2" :class="item.contributionCost ? 'text-success' : 'text-accent'">
-          {{ formatShopItemCost(item) }}
-        </span>
+      <div v-if="visibleGuildShopItems.length > 0" class="grid grid-cols-3 gap-1.5 md:grid-cols-5">
+        <ItemCard
+          v-for="item in visibleGuildShopItems"
+          :key="item.itemId"
+          :item="getItemById(item.itemId) ?? null"
+          :locked="!guildStore.isShopItemUnlocked(item.itemId)"
+          :silhouette="!guildStore.isShopItemUnlocked(item.itemId)"
+          :secondary="formatShopItemCost(item)"
+          :name-class="guildStore.isShopItemUnlocked(item.itemId) ? '' : 'text-muted'"
+          @click="openShopModal(item)"
+        />
+      </div>
+      <div v-else class="flex flex-col items-center justify-center border border-accent/10 rounded-xs py-6 text-muted">
+        <ShoppingCart :size="32" class="text-accent/30" />
+        <p class="mt-2 text-xs">当前可兑换商品已购完或尚未解锁</p>
+        <p class="mt-1 text-[0.625rem] text-muted/70">推进公会等级，或等待日/周限购刷新后再来看看。</p>
       </div>
     </div>
 
@@ -735,6 +711,7 @@
   import { Swords, Gift, CircleCheck, Circle, Lock, ShoppingCart, BookOpen, X, HandHeart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import ItemCard from '@/components/game/ItemCard.vue'
   import ItemBundleInline from '@/components/game/ItemBundleInline.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
@@ -757,10 +734,12 @@
   import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
 
   type Tab = 'goals' | 'shop' | 'bestiary' | 'donate'
+  const guildTabs = ['goals', 'shop', 'bestiary', 'donate'] as const
 
   const router = useRouter()
   const guildStore = useGuildStore()
@@ -854,6 +833,17 @@
   const getShopItemMoneyPrice = (item: GuildShopItemDef): number => {
     return guildStore.getGuildShopItemMoneyPrice(item)
   }
+
+  const isGuildShopItemLimitReached = (item: GuildShopItemDef): boolean => {
+    if (item.dailyLimit && guildStore.getDailyRemaining(item.itemId, item.dailyLimit) <= 0) return true
+    if (item.weeklyLimit && guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) <= 0) return true
+    if (item.totalLimit && guildStore.getTotalRemaining(item.itemId, item.totalLimit) <= 0) return true
+    return false
+  }
+
+  const visibleGuildShopItems = computed(() =>
+    GUILD_SHOP_ITEMS.filter(item => !isGuildShopItemLimitReached(item))
+  )
 
   const formatShopItemCost = (item: GuildShopItemDef, fullContributionText = false): string => {
     if (item.contributionCost) {
@@ -953,6 +943,19 @@
   const donateModalItem = ref<{ itemId: string; name: string; count: number; points: number } | null>(null)
   const donateQuantity = ref(1)
   const donateConfirmed = ref(false)
+
+  useKeyboardShortcutTabActions({
+    tabs: guildTabs,
+    current: tab,
+    hasBlockingModal: () => (
+      selectedGoal.value !== null ||
+      donateModalItem.value !== null ||
+      shopModalItem.value !== null ||
+      selectedMonster.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const openDonateModal = (item: { itemId: string; name: string; count: number; points: number }) => {
     donateModalItem.value = item

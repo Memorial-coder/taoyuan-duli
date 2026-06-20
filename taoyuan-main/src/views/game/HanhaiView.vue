@@ -861,6 +861,7 @@
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGameClock } from '@/composables/useGameClock'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
 
   // suppress unused warnings for template-only refs
   void CRICKET_WIN_MULTIPLIER
@@ -872,6 +873,7 @@
   const { startHanhaiBgm, endHanhaiBgm } = useAudio()
   const { pauseClock, resumeClock } = useGameClock()
   const activeTab = ref<'shop' | 'relic' | 'casino'>('shop')
+  const hanhaiTabs = ['shop', 'relic', 'casino'] as const
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
   const animationTimers = new Set<ReturnType<typeof setTimeout>>()
   let disposed = false
@@ -1362,6 +1364,23 @@
   const showBuckshotModal = ref(false)
   const buckshotSetup = ref<BuckshotSetup | null>(null)
   const hasLongCasinoModal = computed(() => showTexasModal.value || showBuckshotModal.value)
+  useKeyboardShortcutTabActions({
+    tabs: hanhaiTabs,
+    current: activeTab,
+    hasBlockingModal: () => (
+      shopModalItem.value !== null ||
+      showRouletteModal.value ||
+      showDiceModal.value ||
+      showCupModal.value ||
+      showCricketModal.value ||
+      showCardModal.value ||
+      showTexasModal.value ||
+      showBuckshotModal.value ||
+      hanhaiStore.hasActiveCasinoSession
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
   watch(hasLongCasinoModal, open => {
     if (open) {
       pauseClock('hanhaiCasino')

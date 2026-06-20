@@ -11,6 +11,7 @@ import {
   getVillageProjectFundingPhase,
   getVillageProjectPlayerSegment
 } from '@/data/villageProjects'
+import { QUARRY_PROJECT_ID } from '@/data/quarry'
 import { COMMUNITY_BUNDLES } from '@/data/achievements'
 import { getItemById } from '@/data'
 import type {
@@ -51,7 +52,9 @@ import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useQuestStore } from './useQuestStore'
 import { useShopStore } from './useShopStore'
+import { useSkillStore } from './useSkillStore'
 import { useWarehouseStore } from './useWarehouseStore'
+import { useQuarryStore } from './useQuarryStore'
 
 const VILLAGE_PROJECT_CLUE_ALIASES: Record<string, string[]> = {
   a_shi_support_clue: ['a_shi_clue'],
@@ -289,7 +292,9 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       goal: projects.value.filter(project => project.linkedSystems.includes('goal')),
       museum: projects.value.filter(project => project.linkedSystems.includes('museum')),
       guild: projects.value.filter(project => project.linkedSystems.includes('guild')),
-      hanhai: projects.value.filter(project => project.linkedSystems.includes('hanhai'))
+      hanhai: projects.value.filter(project => project.linkedSystems.includes('hanhai')),
+      mining: projects.value.filter(project => project.linkedSystems.includes('mining')),
+      potential: projects.value.filter(project => project.linkedSystems.includes('potential'))
     }
   })
 
@@ -307,6 +312,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     const hanhaiStore = useHanhaiStore()
     const museumStore = useMuseumStore()
     const questStore = useQuestStore()
+    const skillStore = useSkillStore()
 
     switch (requirement.type) {
       case 'guildContribution':
@@ -325,6 +331,14 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
         return questStore.completedQuestCount
       case 'villageProjectLevel':
         return villageProjectLevel.value
+      case 'mineFloor':
+        return achievementStore.stats.highestMineFloor
+      case 'skullCavernFloor':
+        return achievementStore.stats.skullCavernBestFloor
+      case 'skillLevel':
+        return skillStore.getSkill(requirement.skillType ?? 'mining').level
+      case 'skillMasteryNodeCount':
+        return skillStore.getSkill(requirement.skillType ?? 'mining').unlockedMasteryNodeIds.length
       default:
         return 0
     }
@@ -348,6 +362,14 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
         return `累计完成 ${requirement.target} 个委托 / 订单`
       case 'villageProjectLevel':
         return `先完成 ${requirement.target} 项村庄建设`
+      case 'mineFloor':
+        return `云隐矿洞推进到第 ${requirement.target} 层`
+      case 'skullCavernFloor':
+        return `骷髅矿穴最深到达第 ${requirement.target} 层`
+      case 'skillLevel':
+        return `${requirement.skillType === 'mining' ? '采矿' : '对应技能'} Lv.${requirement.target}`
+      case 'skillMasteryNodeCount':
+        return `${requirement.skillType === 'mining' ? '采矿' : '对应技能'}精研节点 ${requirement.target} 个`
       default:
         return '推进相关专项进度'
     }
@@ -1125,9 +1147,11 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       }
     }
 
+    const completedDayTag = getCurrentDayTag()
+
     setProjectState(projectId, {
       completed: true,
-      completedDayTag: getCurrentDayTag(),
+      completedDayTag,
       completedStageIndex: project.stageConfig?.stageIndex,
       stageGroupId: project.stageConfig?.projectGroupId
     })
@@ -1146,6 +1170,10 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
         ...donationStates.value,
         [projectId]: nextDonationState
       }
+    }
+
+    if (projectId === QUARRY_PROJECT_ID) {
+      useQuarryStore().unlockFromProject(completedDayTag, useGameStore().year)
     }
 
     addLog(`【村庄建设】${project.name}已经完工：${project.benefitSummary}`, {

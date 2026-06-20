@@ -1862,6 +1862,26 @@ export const useMiningStore = defineStore('mining', () => {
     combatMonsterHp.value -= attackOutcome.damage
     combatMonsterHp.value -= attackOutcome.extraDamage
 
+    // Equipment durability consumption on attack
+    const equippedWeapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
+    if (equippedWeapon) {
+      const wAffixes = equippedWeapon.affixes ?? []
+      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, [])
+      const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
+      consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
+    }
+    // Ring durability
+    const ringSlots = [inventoryStore.equippedRingSlot1, inventoryStore.equippedRingSlot2]
+    for (const slot of ringSlots) {
+      if (slot >= 0) {
+        const ring = inventoryStore.ownedRings[slot]
+        if (ring) {
+          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, [])
+          const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
+          consumeEquipmentDurability(ring, rMax, 1, rReduction)
+        }
+      }
+    }
     let msg = `你攻击${monster.name}，造成${attackOutcome.damage}点伤害。`
     if (attackOutcome.isCrit) {
       msg = `暴击！${msg}`

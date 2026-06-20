@@ -494,7 +494,7 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm text-accent mb-2">建造育种台</p>
+          <p class="text-sm text-accent mb-2">建造育种台 #{{ nextStationNumber }}</p>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
@@ -510,8 +510,8 @@
           <div class="border border-accent/10 rounded-xs p-2 mb-3">
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">费用</span>
-              <span class="text-xs" :class="playerStore.money >= BREEDING_STATION_COST.money ? 'text-accent' : 'text-danger'">
-                {{ BREEDING_STATION_COST.money }}文
+              <span class="text-xs" :class="playerStore.money >= nextStationCost.money ? 'text-accent' : 'text-danger'">
+                {{ nextStationCost.money }}文
               </span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
@@ -917,8 +917,8 @@
   import { getItemById } from '@/data/items'
   import {
     MAX_BREEDING_STATIONS,
-    BREEDING_STATION_COST,
     SEED_BOX_UPGRADE_INCREMENT,
+    getBreedingStationCost,
     getStarRating,
     getTotalStats,
     HYBRID_DEFS,
@@ -928,6 +928,7 @@
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useQuestStore } from '@/stores/useQuestStore'
@@ -973,6 +974,7 @@
 
   type Tab = 'breeding' | 'compendium'
   const tab = ref<Tab>('breeding')
+  const breedingTabs = ['breeding', 'compendium'] as const
 
   const BREEDING_STABILITY_RANK_LABELS = {
     volatile: '波动品系',
@@ -993,6 +995,7 @@
 
   const SEED_SORT_OPTIONS = [
     { value: 'default', label: '默认' },
+    { value: 'crop', label: '同种' },
     { value: 'total', label: '总属性' },
     { value: 'sweetness', label: '甜度' },
     { value: 'yield', label: '产量' },
@@ -1474,8 +1477,11 @@
     return breedingStore.canCraftStation(playerStore.money, (id: string) => getCombinedItemCount(id))
   })
 
+  const nextStationNumber = computed(() => Math.min(MAX_BREEDING_STATIONS, breedingStore.stationCount + 1))
+  const nextStationCost = computed(() => getBreedingStationCost(nextStationNumber.value))
+
   const craftMaterials = computed(() => {
-    return BREEDING_STATION_COST.materials.map(m => ({
+    return nextStationCost.value.materials.map(m => ({
       itemId: m.itemId,
       name: getItemById(m.itemId)?.name ?? m.itemId,
       required: m.quantity,
@@ -1508,6 +1514,21 @@
 
   const showSeedBoxUpgradeModal = ref(false)
   const showSeedBoxUpgradeConfirm = ref(false)
+
+  useKeyboardShortcutTabActions({
+    tabs: breedingTabs,
+    current: tab,
+    hasBlockingModal: () => (
+      showCraftModal.value ||
+      showSeedBoxUpgradeModal.value ||
+      showSeedBoxUpgradeConfirm.value ||
+      activeHybrid.value !== null ||
+      detailSeed.value !== null ||
+      breedingSelectSlot.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const nextSeedBoxUpgrade = computed(() => breedingStore.getNextSeedBoxUpgrade())
   const nextResearchUpgrade = computed(() => breedingStore.getNextResearchUpgrade())

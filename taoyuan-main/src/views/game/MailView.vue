@@ -528,6 +528,7 @@
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
   import { showFloat } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
   import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift, ChevronLeft, ChevronRight, CheckCheck } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
@@ -581,7 +582,16 @@
   const letterPhotoInputRef = ref<HTMLInputElement | null>(null)
   const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const memorialTab = ref<'inbox' | 'outbox' | 'saved'>('inbox')
+  const memorialTabs = ['inbox', 'outbox', 'saved'] as const
   const memorialFilter = ref<'all' | 'season' | 'friend' | 'neighbor'>('all')
+
+  useKeyboardShortcutTabActions({
+    tabs: memorialTabs,
+    current: memorialTab,
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
+
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
   const mailArrivalNoticeText = computed(() => {
     if (!mailboxStore.arrivalDigest.count) return ''

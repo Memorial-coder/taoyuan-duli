@@ -1588,6 +1588,7 @@
   } from '@/composables/useFarmActions'
   import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality, ItemCategory, ItemDef, BreedingSeed, SeedGenetics } from '@/types'
   import { sfxHarvest, sfxPlant } from '@/composables/useAudio'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
 
   const router = useRouter()
   const { selectedSeed } = useFarmActions()
@@ -1706,6 +1707,25 @@
   const activeGreenhouseFruitTreeSlotId = ref<number | null>(null)
   const chopFruitTreeTarget = ref<{ id: number; type: string; area: 'outdoor' | 'greenhouse' } | null>(null)
   const chopWildTreeTarget = ref<{ id: number; type: string; chopCount: number } | null>(null)
+
+  const farmViewTabs = computed(() => ['field', 'tree'] as const)
+
+  useKeyboardShortcutTabActions({
+    tabs: farmViewTabs,
+    current: farmTab,
+    hasBlockingModal: () => (
+      showBatchActions.value ||
+      showShippingBox.value ||
+      showGreenhouseModal.value ||
+      activePlotId.value !== null ||
+      activeGhPlotId.value !== null ||
+      plantSeasonRiskConfirm.value !== null ||
+      chopFruitTreeTarget.value !== null ||
+      chopWildTreeTarget.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const goToShop = () => {
     if (!isWanwupuOpen.value) {

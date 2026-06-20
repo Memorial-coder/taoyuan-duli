@@ -285,6 +285,7 @@
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { showFloat } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { MUSEUM_ITEMS, MUSEUM_CATEGORIES, MUSEUM_MILESTONES } from '@/data/museum'
@@ -297,6 +298,15 @@
 
   const activeCategory = ref<MuseumCategory>('ore')
   const selectedItem = ref<MuseumItemDef | null>(null)
+  const museumCategoryTabs = MUSEUM_CATEGORIES.map(cat => cat.key)
+
+  useKeyboardShortcutTabActions({
+    tabs: museumCategoryTabs,
+    current: activeCategory,
+    hasBlockingModal: () => selectedItem.value !== null,
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const filteredItems = computed(() => MUSEUM_ITEMS.filter(i => i.category === activeCategory.value))
   const activeShrineThemeName = computed(() => museumStore.getActiveShrineTheme()?.name ?? '尚未启用')

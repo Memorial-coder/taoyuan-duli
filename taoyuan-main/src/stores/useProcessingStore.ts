@@ -343,26 +343,21 @@ export const useProcessingStore = defineStore('processing', () => {
     return entries
   }
 
+  // 合并所有加速比率后一次取整，避免逐步 Math.ceil 吃掉加速效果（例如 3天×0.75=2.25→ceil=3 变成无效）
   const getEffectiveProcessingDays = (recipe: ProcessingRecipeDef, machineType: MachineType): number => {
-    let totalDays = recipe.processingDays
+    let multiplier = 1
     const processingFlowBonus = skillStore.getSkillMasteryEffectValue('processing_flow')
-    if (processingFlowBonus > 0) {
-      totalDays = Math.max(1, Math.ceil(totalDays * (1 - processingFlowBonus)))
-    }
+    if (processingFlowBonus > 0) multiplier *= (1 - processingFlowBonus)
     const potentialProcessingBonus = usePotentialStore().getPotentialEffectValue('potential_processing_speed')
-    if (potentialProcessingBonus > 0) {
-      totalDays = Math.max(1, Math.ceil(totalDays * (1 - potentialProcessingBonus)))
-    }
+    if (potentialProcessingBonus > 0) multiplier *= (1 - potentialProcessingBonus)
     // 工坊里程碑：Lv.10 加工速度 +15%
     const workshopSpeedBonus = getWorkshopSpeedBonus(workshopLevel.value)
-    if (workshopSpeedBonus > 0) {
-      totalDays = Math.max(1, Math.ceil(totalDays * (1 - workshopSpeedBonus)))
-    }
+    if (workshopSpeedBonus > 0) multiplier *= (1 - workshopSpeedBonus)
     // 仙缘能力：织速（gui_nv_1）织布机加工时间-30%
     if (machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {
-      totalDays = Math.max(1, Math.ceil(totalDays * 0.7))
+      multiplier *= 0.7
     }
-    return totalDays
+    return Math.max(1, Math.ceil(recipe.processingDays * multiplier))
   }
 
   const getSlotInputRefundEntries = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): { itemId: string; quantity: number; quality?: Quality }[] => {
@@ -1197,6 +1192,12 @@ export const useProcessingStore = defineStore('processing', () => {
             // 无需原料的机器自动重启，有原料的机器回到空闲
             if (tryWorkshopDoubleOutput(slot, recipe, outputQuality)) collected.push(getSlotCompletionName(slot, recipe))
             tryPotentialRawMaterialReturn(slot, recipe)
+            if (discoverProcessingRecipe(recipe.id)) {
+              addLog(`自动收取时发现隐藏加工配方：${recipe.name}！`, {
+                category: 'processing',
+                meta: { recipeId: recipe.id, machineType: recipe.machineType, inputItemId: recipe.inputItemId ?? '' }
+              })
+            }
             if (recipe.inputItemId === null) {
               slot.daysProcessed = 0
               slot.inputQuality = undefined
@@ -1231,6 +1232,12 @@ export const useProcessingStore = defineStore('processing', () => {
               // 种子制造机额外触发育种种子生成
               if (tryWorkshopDoubleOutput(slot, recipe, outputQuality)) collected.push(getSlotCompletionName(slot, recipe))
               tryPotentialRawMaterialReturn(slot, recipe)
+              if (discoverProcessingRecipe(recipe.id)) {
+                addLog(`自动收取时发现隐藏加工配方：${recipe.name}！`, {
+                  category: 'processing',
+                  meta: { recipeId: recipe.id, machineType: recipe.machineType, inputItemId: recipe.inputItemId ?? '' }
+                })
+              }
               if (slot.machineType === 'seed_maker' && slot.inputItemId) {
                 const breedingStore = useBreedingStore()
                 const farmingLevel = skillStore.farmingLevel
@@ -1390,6 +1397,7 @@ export const useProcessingStore = defineStore('processing', () => {
     getNextUpgrade,
     WORKSHOP_UPGRADES,
     serialize,
-    deserialize
+    deserialize,
+    getEffectiveProcessingDays
   }
 })

@@ -40,6 +40,11 @@ const isEditableShortcutTarget = (target: EventTarget | null): boolean => {
   return Boolean(element.closest('[contenteditable="true"], input, textarea, select'))
 }
 
+const shouldAllowUiCancelBinding = (bindingValue: KeyboardShortcutBinding, bindingKey: string): boolean => {
+  if (bindingValue.code !== 'Escape') return false
+  return !bindingValue.ctrlKey && !bindingValue.altKey && !bindingValue.shiftKey && !bindingValue.metaKey && bindingKey === 'Escape'
+}
+
 const isDesktopShortcutViewport = () => (
   typeof window !== 'undefined'
   && typeof window.matchMedia === 'function'
@@ -153,7 +158,10 @@ const handleKeyboardShortcutKeydown = (event: KeyboardEvent) => {
   if (!settingsStore.keyboardShortcutsEnabled) return
 
   const eventBinding = getKeyboardEventBinding(event)
-  if (!eventBinding || isReservedKeyboardShortcutBinding(eventBinding)) return
+  if (!eventBinding) return
+
+  const eventBindingKey = getKeyboardShortcutBindingKey(eventBinding)
+  if (isReservedKeyboardShortcutBinding(eventBinding) && !shouldAllowUiCancelBinding(eventBinding, eventBindingKey)) return
 
   const action = findMatchingAction(eventBinding, event)
   if (!action) return

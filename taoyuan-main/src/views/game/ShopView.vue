@@ -1958,6 +1958,7 @@
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import { handleBuySeed, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
   import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { getInventoryExpansionPrice, getNextInventoryCapacity } from '@/utils/inventoryCapacity'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
   import type { MarketCategory, MarketTrend } from '@/data/market'
@@ -2005,6 +2006,7 @@
   const isCompactMobile = ref(false)
   type ShopTabId = 'trade' | 'market' | 'economy' | 'governance'
   const shopActiveTab = ref<ShopTabId>('trade')
+  const shopShortcutTabs = ['trade', 'market', 'economy', 'governance'] as const
   const shopTabs = [
     { id: 'trade', label: '买卖', icon: Store },
     { id: 'market', label: '市场', icon: Filter },
@@ -3433,8 +3435,19 @@
           { itemId: 'wood', quantity: 1000 },
           { itemId: 'stone', quantity: 800 }
         ]
+      },
+      12: {
+        newSize: 16,
+        price: 120000,
+        requiredForagingLevel: 20,
+        requiredConstructionTickets: 12,
+        materials: [
+          { itemId: 'wood', quantity: 2400 },
+          { itemId: 'stone', quantity: 1800 }
+        ]
       }
     }
+    if (farmStore.farmSize >= 12 && gameStore.farmMapType !== 'standard') return null
     return prices[farmStore.farmSize] ?? null
   })
 
@@ -4125,6 +4138,19 @@
   const showSellFilterModal = ref(false)
   const sellFilter = ref<ItemCategory[]>([])
   const tempSellFilter = ref<Set<ItemCategory>>(new Set())
+
+  useKeyboardShortcutTabActions({
+    tabs: shopShortcutTabs,
+    current: shopActiveTab,
+    hasBlockingModal: () => (
+      shopStore.currentShopId !== null ||
+      shopModal.value !== null ||
+      showSellFilterModal.value ||
+      showSellAllConfirm.value
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const isSellFilterActive = computed(() => sellFilter.value.length > 0)
 

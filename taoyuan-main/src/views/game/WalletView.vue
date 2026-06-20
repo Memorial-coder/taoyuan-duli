@@ -754,6 +754,7 @@
   import { WALLET_ITEMS } from '@/data/wallet'
   import type { GoalReputationBudgetDiscountPreview, WalletArchetypeId, WalletItemDef, WeeklyBudgetChannelId, WeeklyBudgetSelection } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
   import { exportTaoyuanToQuota, fetchTaoyuanExchangeContext, importQuotaToTaoyuan } from '@/utils/quotaExchangeApi'
 
   const goalStore = useGoalStore()
@@ -785,6 +786,16 @@
   const showResetArchetypeConfirm = ref(false)
   const showSwitchArchetypeConfirm = ref(false)
   const pendingArchetypeId = ref<WalletArchetypeId | null>(null)
+
+  useKeyboardShortcutContextActions({
+    hasBlockingModal: () => (
+      selectedItem.value !== null ||
+      showResetArchetypeConfirm.value ||
+      showSwitchArchetypeConfirm.value
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
   const exchangeMoney = ref(100)
   const importing = ref(false)
   const exporting = ref(false)

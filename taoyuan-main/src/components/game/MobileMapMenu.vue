@@ -309,6 +309,7 @@
       '行旅图': 'region-map',
       'region-map': 'region-map',
       regionmap: 'region-map',
+      '采石场': 'quarry',
       '村庄': 'village',
       village: 'village',
       '育种': 'breeding',
@@ -421,7 +422,7 @@
   const onlineCenterGroup = computed(() => pick(['online']))
   const onlineShortcutGroup = computed(() => pick(['friend-station', 'friend-chat']))
   const villageGroup = computed(() => pick(['village', 'shop', 'quest', 'museum', 'guild']))
-  const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
+  const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map', 'quarry']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
   const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'potential', 'achievement', 'wallet', 'goals', 'mail', 'glossary']))
 

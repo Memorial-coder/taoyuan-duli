@@ -1,5 +1,5 @@
-export type KeyboardShortcutCategory = 'system' | 'navigation' | 'tool' | 'ui' | 'miningCombat' | 'movement'
-export type KeyboardShortcutScope = 'global' | 'context' | 'miningCombat' | 'movement'
+export type KeyboardShortcutCategory = 'system' | 'navigation' | 'tool' | 'ui' | 'uiInteraction' | 'miningCombat' | 'movement'
+export type KeyboardShortcutScope = 'global' | 'context' | 'modal' | 'miningCombat' | 'movement'
 
 export type KeyboardShortcutBinding = {
   code: string
@@ -47,14 +47,20 @@ export type KeyboardShortcutActionId =
   | 'uiPrevSection'
   | 'uiNextSection'
   | 'uiConfirm'
+  | 'uiCancel'
+  | 'uiFocusPrimary'
+  | 'systemSleepPrompt'
   | 'uiFocusSearch'
   | 'uiPageUp'
   | 'uiPageDown'
+  | 'uiQtyDecrease'
+  | 'uiQtyIncrease'
   | 'miningAttack'
   | 'miningDefend'
   | 'miningFlee'
   | 'miningItems'
   | 'miningPresets'
+  | 'miningDescend'
   | 'moveUp'
   | 'moveDown'
   | 'moveLeft'
@@ -78,6 +84,7 @@ export const KEYBOARD_SHORTCUT_CATEGORY_LABELS: Record<KeyboardShortcutCategory,
   navigation: '导航',
   tool: '工具',
   ui: '界面',
+  uiInteraction: '通用交互',
   miningCombat: '矿洞战斗',
   movement: '移动'
 }
@@ -125,14 +132,20 @@ export const KEYBOARD_SHORTCUT_DEFINITIONS: KeyboardShortcutDefinition[] = [
   { id: 'uiPrevSection', category: 'ui', scope: 'context', label: '上一分组/标签', description: '切换到当前界面的上一分组或标签', defaultBinding: binding('BracketLeft', '[') },
   { id: 'uiNextSection', category: 'ui', scope: 'context', label: '下一分组/标签', description: '切换到当前界面的下一分组或标签', defaultBinding: binding('BracketRight', ']') },
   { id: 'uiConfirm', category: 'ui', scope: 'context', label: '确认/主动作', description: '执行当前界面的主操作', defaultBinding: binding('Enter', 'Enter') },
+  { id: 'uiCancel', category: 'uiInteraction', scope: 'modal', label: '取消/关闭', description: '关闭最上层弹窗或取消录入', defaultBinding: binding('Escape', 'Escape') },
+  { id: 'uiFocusPrimary', category: 'uiInteraction', scope: 'modal', label: '聚焦主按钮', description: '聚焦当前弹窗或面板的主按钮', defaultBinding: null },
+  { id: 'systemSleepPrompt', category: 'system', scope: 'global', label: '打开睡觉确认', description: '仅打开睡觉确认弹窗', defaultBinding: binding('F8', 'F8') },
   { id: 'uiFocusSearch', category: 'ui', scope: 'context', label: '聚焦搜索', description: '聚焦到当前界面的搜索框', defaultBinding: binding('Slash', '/') },
   { id: 'uiPageUp', category: 'ui', scope: 'context', label: '向上翻页', description: '当前页面或列表向上翻一屏', defaultBinding: binding('PageUp', 'PageUp') },
   { id: 'uiPageDown', category: 'ui', scope: 'context', label: '向下翻页', description: '当前页面或列表向下翻一屏', defaultBinding: binding('PageDown', 'PageDown') },
+  { id: 'uiQtyDecrease', category: 'uiInteraction', scope: 'modal', label: '数量减少', description: '在数量选择弹窗中减少数量', defaultBinding: null },
+  { id: 'uiQtyIncrease', category: 'uiInteraction', scope: 'modal', label: '数量增加', description: '在数量选择弹窗中增加数量', defaultBinding: null },
   { id: 'miningAttack', category: 'miningCombat', scope: 'miningCombat', label: '攻击', description: '矿洞战斗中攻击怪物', defaultBinding: binding('Digit1', '1') },
   { id: 'miningDefend', category: 'miningCombat', scope: 'miningCombat', label: '防御', description: '矿洞战斗中举盾防御', defaultBinding: binding('Digit2', '2') },
   { id: 'miningFlee', category: 'miningCombat', scope: 'miningCombat', label: '逃跑', description: '普通战斗中撤离', defaultBinding: binding('Digit3', '3') },
   { id: 'miningItems', category: 'miningCombat', scope: 'miningCombat', label: '使用战斗道具', description: '打开可用战斗道具列表', defaultBinding: binding('Digit4', '4') },
   { id: 'miningPresets', category: 'miningCombat', scope: 'miningCombat', label: '切换装备方案', description: '打开装备方案列表', defaultBinding: binding('Digit5', '5') },
+  { id: 'miningDescend', category: 'miningCombat', scope: 'miningCombat', label: '下一层', description: '矿洞中前往下一层', defaultBinding: binding('KeyE', 'E') },
   { id: 'moveUp', category: 'movement', scope: 'movement', label: '向上移动', description: '矿洞或行旅图中向上移动', defaultBinding: binding('ArrowUp', '\u2191') },
   { id: 'moveDown', category: 'movement', scope: 'movement', label: '向下移动', description: '矿洞或行旅图中向下移动', defaultBinding: binding('ArrowDown', '\u2193') },
   { id: 'moveLeft', category: 'movement', scope: 'movement', label: '向左移动', description: '矿洞或行旅图中向左移动', defaultBinding: binding('ArrowLeft', '\u2190') },
@@ -145,7 +158,7 @@ export const KEYBOARD_SHORTCUT_DEFINITION_BY_ID = Object.fromEntries(
 
 const MODIFIER_CODES = new Set(['ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'MetaLeft', 'MetaRight'])
 const MODIFIER_KEYS = new Set(['Control', 'Alt', 'Shift', 'Meta'])
-const RESERVED_PLAIN_CODES = new Set(['F5', 'F11', 'F12', 'Escape', 'Tab', 'Backspace', 'Delete'])
+const RESERVED_PLAIN_CODES = new Set(['F5', 'F11', 'F12', 'Tab', 'Backspace', 'Delete'])
 const RESERVED_CTRL_CODES = new Set(['KeyR', 'KeyL', 'KeyW', 'KeyT', 'KeyN', 'KeyP', 'KeyS', 'Digit0', 'Minus', 'Equal'])
 
 export const createDefaultKeyboardShortcutBindings = (): KeyboardShortcutBindingMap => {

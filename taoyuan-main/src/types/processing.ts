@@ -28,6 +28,7 @@ export type MachineType =
   | 'incense_maker'
   | 'spirit_forge'
   | 'enchanting_forge'
+  | 'repair_bench'
 
 /** 加工机器定义 */
 export interface ProcessingMachineDef {

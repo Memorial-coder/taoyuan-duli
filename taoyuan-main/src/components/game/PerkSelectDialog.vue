@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-40">
     <div class="game-panel max-w-md w-full">
       <h3 class="text-accent text-sm mb-2">{{ SKILL_NAMES[skillType] }} 达到{{ level }}级！</h3>
@@ -278,11 +278,11 @@
     },
     mining: {
       vein_seeker: [
-        { id: 'earth_pulse', name: '大地脉动', description: '矿石必定双倍，稀有矿概率大幅提升' },
+        { id: 'earth_pulse', name: '大地脉动', description: '矿石50%概率×3产出' },
         { id: 'forge_god', name: '锻造之神', description: '金属矿石售价×3' }
       ],
       master_smith: [
-        { id: 'earth_pulse', name: '大地脉动', description: '矿石必定双倍，稀有矿概率大幅提升' },
+        { id: 'earth_pulse', name: '大地脉动', description: '矿石50%概率×3产出' },
         { id: 'forge_god', name: '锻造之神', description: '金属矿石售价×3' }
       ],
       deep_excavator: [

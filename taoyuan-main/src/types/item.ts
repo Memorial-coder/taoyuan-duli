@@ -32,6 +32,9 @@ export type ItemCategory =
 /** 物品品质 */
 export type Quality = 'normal' | 'fine' | 'excellent' | 'supreme'
 
+/** 装备品质档位（用于耐久上限计算） */
+export type EquipmentQualityTier = 'common' | 'fine' | 'excellent' | 'supreme'
+
 export type InventoryItemOrigin = 'shop'
 
 export type PriceModifierCategory = 'base' | 'quality' | 'skill' | 'wallet' | 'activity' | 'market' | 'equipment' | 'bond' | 'environment'
@@ -118,6 +121,7 @@ export interface WeaponDef {
   attack: number
   critRate: number
   description: string
+  qualityTier: EquipmentQualityTier
   /** 商店购买价格（null = 不可购买） */
   shopPrice: number | null
   /** 购买所需材料 */
@@ -152,6 +156,8 @@ export interface OwnedWeapon {
   defId: string
   enchantmentId: string | null
   affixes?: ForgeAffixRoll[]
+  /** 耐久 */
+  durability?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }

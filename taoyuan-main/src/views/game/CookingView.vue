@@ -232,6 +232,7 @@
   import type { Quality, RecipeDef } from '@/types'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
 
   const cookingStore = useCookingStore()
   const gameStore = useGameStore()
@@ -242,6 +243,12 @@
   const showOnlyMakeable = ref(false)
   const modalRecipeId = ref<string | null>(null)
   const modalQty = ref(1)
+
+  useKeyboardShortcutContextActions({
+    hasBlockingModal: () => !!modalRecipeId.value,
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const uniqueStrings = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)))
   const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId

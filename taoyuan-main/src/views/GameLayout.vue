@@ -11,8 +11,8 @@
       <StatusBar @request-sleep="showSleepConfirm = true" @request-save-prompt="openSavePrompt" />
 
       <div class="game-layout-header-actions">
-        <Button class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="showSleepConfirm = true">
-          {{ sleepLabel }}
+        <Button data-testid="sleep-button" class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="showSleepConfirm = true">
+          {{ sleepLabel }} <kbd class="game-layout-sleep-shortcut">{{ getShortcutLabel('systemSleepPrompt') }}</kbd>
         </Button>
       </div>
 
@@ -456,7 +456,7 @@
 
     <!-- 休息确认 -->
     <Transition name="panel-fade">
-      <div v-if="showSleepConfirm" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showSleepConfirm" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" data-testid="sleep-confirm-modal">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title>{{ sleepLabel }}</Divider>
           <p class="text-xs leading-relaxed mb-1">{{ sleepSummary }}</p>
@@ -474,8 +474,8 @@
             </Button>
           </div>
           <div class="flex space-x-3 justify-center mt-2">
-            <Button :icon="X" :icon-size="12" @click="showSleepConfirm = false">再等等</Button>
-            <Button class="btn-danger" :icon="Moon" :icon-size="12" @click="confirmSleep">{{ sleepLabel }}</Button>
+            <Button data-testid="sleep-confirm-cancel" :icon="X" :icon-size="12" @click="showSleepConfirm = false">再等等 <kbd class="game-layout-sleep-shortcut">{{ getShortcutLabel('uiCancel') }}</kbd></Button>
+            <Button data-testid="sleep-confirm-confirm" class="btn-danger" :icon="Moon" :icon-size="12" @click="confirmSleep">{{ sleepLabel }} <kbd class="game-layout-sleep-shortcut">{{ getShortcutLabel('uiConfirm') }}</kbd></Button>
           </div>
         </div>
       </div>
@@ -506,6 +506,7 @@
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useRealtimeStore } from '@/stores/useRealtimeStore'
   import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
   import { useMiningStore } from '@/stores/useMiningStore'
@@ -530,7 +531,7 @@
   import { navigateToPanel, syncNavigationClockPauseForRoute, type PanelKey } from '@/composables/useNavigation'
   import { useAudio } from '@/composables/useAudio'
   import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
-  import type { KeyboardShortcutActionId } from '@/data/keyboardShortcuts'
+  import { formatKeyboardShortcutBinding, type KeyboardShortcutActionId } from '@/data/keyboardShortcuts'
   import type { Quality, RecordCenterTabId } from '@/types'
   import type { SaveSlotInfo } from '@/stores/useSaveStore'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
@@ -1520,6 +1521,106 @@
       run: () => {
         showVoidModal.value = true
       }
+    },
+    // === v3: 睡觉提示 ===
+    {
+      id: 'systemSleepPrompt',
+      priority: 50,
+      canRun: () => !showSettings.value && !showSleepConfirm.value && !hasNonSettingsShortcutModal.value && !miningStore.inCombat,
+      run: () => {
+        showSleepConfirm.value = true
+      }
+    },
+    // === v3: 最上层弹窗取消/关闭 ===
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => showSleepConfirm.value,
+      run: () => {
+        showSleepConfirm.value = false
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => !!voidQtyModal.value,
+      run: () => {
+        voidQtyModal.value = null
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => !!voidItemDetail.value,
+      run: () => {
+        voidItemDetail.value = null
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => showVoidDepositModal.value,
+      run: () => {
+        showVoidDepositModal.value = false
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => showVoidModal.value,
+      run: () => {
+        showVoidModal.value = false
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => showRecordCenter.value,
+      run: () => {
+        showRecordCenter.value = false
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => showSavePrompt.value,
+      run: () => {
+        showSavePrompt.value = false
+      }
+    },
+    {
+      id: 'uiCancel',
+      priority: 100,
+      canRun: () => showDailyDigestSummary.value,
+      run: () => {
+        closeDailyDigestSummary()
+      }
+    },
+    // === v3: 睡觉弹窗内确认（Enter） ===
+    {
+      id: 'uiConfirm',
+      priority: 99,
+      canRun: () => showSleepConfirm.value,
+      run: () => {
+        confirmSleep()
+      }
+    },
+    // === v3: 虚空箱数量弹窗调节 ===
+    {
+      id: 'uiQtyDecrease',
+      priority: 99,
+      canRun: () => !!voidQtyModal.value && voidQty.value > 1,
+      run: () => {
+        addVoidQty(-1)
+      }
+    },
+    {
+      id: 'uiQtyIncrease',
+      priority: 99,
+      canRun: () => !!voidQtyModal.value && voidQty.value < (voidQtyModal.value?.max ?? 0),
+      run: () => {
+        addVoidQty(1)
+      }
     }
   ])
 
@@ -1626,6 +1727,12 @@
     }
     switchToSeasonalBgm()
   }
+
+  const settingsStore = useSettingsStore()
+
+  const getShortcutLabel = (actionId: KeyboardShortcutActionId) => (
+    formatKeyboardShortcutBinding(settingsStore.getKeyboardShortcutBinding(actionId))
+  )
 </script>
 
 <style scoped>
@@ -1638,6 +1745,18 @@
   .game-layout-sleep-btn {
     width: 100%;
     min-width: 0;
+  }
+
+  .game-layout-sleep-shortcut {
+    display: inline-block;
+    margin-left: 2px;
+    padding: 0 3px;
+    font-size: 0.5rem;
+    line-height: 1.25rem;
+    border: 1px solid rgba(var(--color-accent-rgb, 128 128 128), 0.4);
+    border-radius: 2px;
+    opacity: 0.6;
+    font-family: inherit;
   }
 
   .game-layout-frame {

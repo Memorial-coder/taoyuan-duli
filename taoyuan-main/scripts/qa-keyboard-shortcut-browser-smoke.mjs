@@ -392,6 +392,8 @@ const verifyNavigationShortcuts = async page => {
   await expectGameHash(page, 'upgrade')
   await pressShortcut(page, 'KeyY', 'y')
   await expectGameHash(page, 'fishpond')
+  await pressShortcut(page, 'KeyQ', 'q')
+  await expectGameHash(page, 'quarry')
 }
 
 const verifyGlobalGuardsAndRebinding = async page => {

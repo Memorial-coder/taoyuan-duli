@@ -387,6 +387,7 @@
               <span class="text-xs text-success">
                 <ChevronDown :size="12" class="inline" />
                 下一层
+                <kbd class="mining-combat-shortcut-badge" data-testid="mining-descend-shortcut">{{ getCombatShortcutLabel('miningDescend') }}</kbd>
               </span>
               <span v-if="!miningStore.stairsUsable" class="text-xs text-muted">楼梯不可用</span>
             </div>
@@ -1947,6 +1948,12 @@
       run: () => {
         showPresetListModal.value = true
       }
+    },
+    {
+      id: 'miningDescend',
+      priority: 70,
+      canRun: () => !miningStore.inCombat && !combatAnimLock.value && !showCombatItems.value && !showPresetListModal.value && !showPresetDetailModal.value && !showElevatorModal.value && !showMapModal.value && miningStore.stairsFound && miningStore.stairsUsable,
+      run: handleNextFloor
     }
   ])
 

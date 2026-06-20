@@ -83,11 +83,22 @@ const MAX_STACK = 999
 const TEMP_CAPACITY = INVENTORY_TEMP_CAPACITY
 export const MAX_EQUIPMENT_PRESETS = 10
 const INVENTORY_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+const FIXED_NORMAL_QUALITY_ITEM_CATEGORIES = new Set(['ore', 'gem'])
 type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
 type LockableEquipmentEntry = { locked?: boolean }
 type EnchantedEquipmentEntry = { defId: string; enchantmentId?: string | null; affixes?: ForgeAffixRoll[]; locked?: boolean }
 export type InventoryItemStackMeta = Pick<InventoryItem, 'origin' | 'purchaseDay' | 'purchaseUnitPrice'>
 type InventoryAddEntry = { itemId: string; quantity: number; quality?: Quality } & InventoryItemStackMeta
+
+export const normalizeInventoryItemQuality = (itemId: string, quality: Quality = 'normal'): Quality => {
+  const def = getItemById(itemId)
+  return def && FIXED_NORMAL_QUALITY_ITEM_CATEGORIES.has(def.category) ? 'normal' : quality
+}
+
+export const getInventoryQualitiesAtLeast = (minQuality: Quality = 'normal'): Quality[] => {
+  const minIndex = INVENTORY_QUALITY_ORDER.indexOf(minQuality)
+  return INVENTORY_QUALITY_ORDER.slice(Math.max(0, minIndex))
+}
 
 export const normalizeInventoryItemStackMeta = (source?: InventoryItemStackMeta | null): InventoryItemStackMeta => {
   if (!source || source.origin !== 'shop') return {}
@@ -103,7 +114,7 @@ export const createInventoryItemSlot = (
   quality: Quality,
   meta?: InventoryItemStackMeta | null
 ): InventoryItem => {
-  const slot: InventoryItem = { itemId, quantity, quality }
+  const slot: InventoryItem = { itemId, quantity, quality: normalizeInventoryItemQuality(itemId, quality) }
   Object.assign(slot, normalizeInventoryItemStackMeta(meta))
   return slot
 }
@@ -368,6 +379,11 @@ export const useInventoryStore = defineStore('inventory', () => {
           return Object.keys(snapshot.mysteryBoxes).length > 0
         case 'combat_mastery':
           return playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
+        case 'quarry_mine':
+          return (
+            playerStore.hasLifestyleDiscovery('lifestyleUnlocks', 'trinket_quarry_mine') ||
+            playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
+          )
         default:
           return false
       }
@@ -593,7 +609,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       capacity.value,
       cloneInventorySlots(tempItems.value),
       TEMP_CAPACITY,
-      [{ itemId, quantity, quality, ...normalizeInventoryItemStackMeta(meta) }],
+      [{ itemId, quantity, quality: normalizeInventoryItemQuality(itemId, quality), ...normalizeInventoryItemStackMeta(meta) }],
       includeTemp
     )
   }
@@ -611,7 +627,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       entries.map(entry => ({
         itemId: entry.itemId,
         quantity: entry.quantity,
-        quality: entry.quality ?? 'normal',
+        quality: normalizeInventoryItemQuality(entry.itemId, entry.quality ?? 'normal'),
         ...normalizeInventoryItemStackMeta(entry)
       })),
       includeTemp
@@ -759,6 +775,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     return getItemCount(itemId, quality) + getTempItemCount(itemId, quality)
   }
 
+  const getTotalItemCountAtLeast = (itemId: string, minQuality: Quality = 'normal'): number =>
+    getInventoryQualitiesAtLeast(minQuality).reduce((sum, quality) => sum + getTotalItemCount(itemId, quality), 0)
+
   /** 检查是否拥有足够数量 */
   const hasItem = (itemId: string, quantity: number = 1): boolean => {
     return getItemCount(itemId) >= quantity
@@ -868,6 +887,25 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (!entry) return false
     entry.locked = !entry.locked
     return true
+  }
+
+  const removeItemAnywhereAtLeast = (itemId: string, quantity: number = 1, minQuality: Quality = 'normal'): boolean => {
+    if (getTotalItemCountAtLeast(itemId, minQuality) < quantity) return false
+    let remaining = quantity
+    for (const currentQuality of getInventoryQualitiesAtLeast(minQuality)) {
+      if (remaining <= 0) break
+      const fromTempAtQuality = Math.min(remaining, getTempItemCount(itemId, currentQuality))
+      if (fromTempAtQuality > 0) {
+        removeItemFromTemp(itemId, fromTempAtQuality, currentQuality)
+        remaining -= fromTempAtQuality
+      }
+      const fromMainAtQuality = Math.min(remaining, getItemCount(itemId, currentQuality))
+      if (fromMainAtQuality > 0) {
+        removeItem(itemId, fromMainAtQuality, currentQuality)
+        remaining -= fromMainAtQuality
+      }
+    }
+    return remaining <= 0
   }
 
   /** 一键整理背包（按分类→物品ID→品质排序，合并同类栈） */
@@ -2217,15 +2255,18 @@ export const useInventoryStore = defineStore('inventory', () => {
     canAddItem,
     canAddItems,
     removeItem,
+    removeItemsWithRollback,
     getUnlockedItemCount,
     removeUnlockedItem,
     removeItemAtIndex,
     removeUnlockedItemAtIndex,
     removeItemFromTemp,
     removeItemAnywhere,
+    removeItemAnywhereAtLeast,
     getItemCount,
     getTempItemCount,
     getTotalItemCount,
+    getTotalItemCountAtLeast,
     hasItem,
     expandCapacity,
     expandCapacityExtra,

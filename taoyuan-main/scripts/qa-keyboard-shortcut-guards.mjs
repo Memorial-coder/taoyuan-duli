@@ -52,6 +52,7 @@ const {
 const packageJson = JSON.parse(readSource('package.json'))
 const keyboardShortcutsSource = readSource('src/data/keyboardShortcuts.ts')
 const shortcutComposableSource = readSource('src/composables/useKeyboardShortcuts.ts')
+const shortcutContextComposableSource = readSource('src/composables/useKeyboardShortcutContextActions.ts')
 const settingsStoreSource = readSource('src/stores/useSettingsStore.ts')
 const settingsDialogSource = readSource('src/components/game/SettingsDialog.vue')
 const gameLayoutSource = readSource('src/views/GameLayout.vue')
@@ -60,6 +61,20 @@ const regionMapViewSource = readSource('src/views/game/RegionMapView.vue')
 const inventoryViewSource = readSource('src/views/game/InventoryView.vue')
 const processingViewSource = readSource('src/views/game/ProcessingView.vue')
 const breedingViewSource = readSource('src/views/game/BreedingView.vue')
+const fishPondViewSource = readSource('src/views/game/FishPondView.vue')
+const guildViewSource = readSource('src/views/game/GuildView.vue')
+const hanhaiViewSource = readSource('src/views/game/HanhaiView.vue')
+const achievementViewSource = readSource('src/views/game/AchievementView.vue')
+const museumViewSource = readSource('src/views/game/MuseumView.vue')
+const decorationViewSource = readSource('src/views/game/DecorationView.vue')
+const shopViewSource = readSource('src/views/game/ShopView.vue')
+const mailViewSource = readSource('src/views/game/MailView.vue')
+const glossaryTabSource = readSource('src/components/game/GlossaryTab.vue')
+const farmViewSource = readSource('src/views/game/FarmView.vue')
+const cookingViewSource = readSource('src/views/game/CookingView.vue')
+const skillViewSource = readSource('src/views/game/SkillView.vue')
+const walletViewSource = readSource('src/views/game/WalletView.vue')
+const quarryViewSource = readSource('src/views/game/QuarryView.vue')
 
 const expectedDefaultBindings = {
   systemSettings: 'KeyO',
@@ -80,6 +95,7 @@ const expectedDefaultBindings = {
   navWorkshop: 'KeyT',
   navUpgrade: 'KeyU',
   navFishPond: 'KeyY',
+  navQuarry: 'KeyQ',
   toolVoidChest: 'KeyV',
   uiPrevSection: 'BracketLeft',
   uiNextSection: 'BracketRight',
@@ -92,10 +108,13 @@ const expectedDefaultBindings = {
   miningFlee: 'Digit3',
   miningItems: 'Digit4',
   miningPresets: 'Digit5',
+  miningDescend: 'KeyE',
   moveUp: 'ArrowUp',
   moveDown: 'ArrowDown',
   moveLeft: 'ArrowLeft',
-  moveRight: 'ArrowRight'
+  moveRight: 'ArrowRight',
+  systemSleepPrompt: 'F8',
+  uiCancel: 'Escape'
 }
 
 const expectedUnboundDefaults = [
@@ -111,7 +130,10 @@ const expectedUnboundDefaults = [
   'navGlossary',
   'navMuseum',
   'navGuild',
-  'navHanhai'
+  'navHanhai',
+  'uiFocusPrimary',
+  'uiQtyDecrease',
+  'uiQtyIncrease'
 ]
 
 assert.equal(KEYBOARD_SHORTCUT_SAVE_VERSION, 1, 'keyboard shortcut save payload should be versioned')
@@ -181,6 +203,7 @@ assert.match(keyboardShortcutsSource, /KEYBOARD_SHORTCUT_DEFINITIONS/, 'shortcut
 assert.match(keyboardShortcutsSource, /KEYBOARD_SHORTCUT_CATEGORY_LABELS/, 'shortcut categories should have labels for settings UI')
 assert.match(keyboardShortcutsSource, /ui: '.*?'/, 'ui shortcuts should have a settings category label')
 assert.match(keyboardShortcutsSource, /movement: '.*?'/, 'movement shortcuts should have a settings category label')
+assert.match(keyboardShortcutsSource, /uiInteraction: '.*?'/, 'uiInteraction shortcuts should have a settings category label')
 assert.match(keyboardShortcutsSource, /RESERVED_PLAIN_CODES/, 'plain reserved keys should be blocked')
 assert.match(keyboardShortcutsSource, /RESERVED_CTRL_CODES/, 'reserved Ctrl combinations should be blocked')
 
@@ -192,6 +215,15 @@ assert.match(shortcutComposableSource, /isEditableShortcutTarget/, 'shortcut dis
 assert.match(shortcutComposableSource, /event\.repeat/, 'shortcut dispatcher should ignore held-key repeats')
 assert.match(shortcutComposableSource, /matchMedia\('\(min-width: 768px\) and \(pointer: fine\)'\)/, 'shortcut dispatcher should stay desktop-only')
 assert.match(shortcutComposableSource, /sort\(\(left, right\) => \(right\.priority \?\? 0\) - \(left\.priority \?\? 0\)\)/, 'context shortcuts should be able to outrank global shortcuts')
+assert.match(shortcutComposableSource, /shouldAllowUiCancelBinding/, 'dispatcher should allow Escape through as a special-case ui-cancel binding')
+assert.match(shortcutContextComposableSource, /useKeyboardShortcutContextActions/, 'context shortcut helper should expose generic context actions')
+assert.match(shortcutContextComposableSource, /useKeyboardShortcutTabActions/, 'context shortcut helper should expose tab cycling actions')
+assert.match(shortcutContextComposableSource, /id: 'uiPrevSection'/, 'context helper should register previous-section action')
+assert.match(shortcutContextComposableSource, /id: 'uiNextSection'/, 'context helper should register next-section action')
+assert.match(shortcutContextComposableSource, /id: 'uiFocusSearch'/, 'context helper should register focus-search action')
+assert.match(shortcutContextComposableSource, /id: 'uiPageUp'/, 'context helper should register page-up action')
+assert.match(shortcutContextComposableSource, /id: 'uiPageDown'/, 'context helper should register page-down action')
+
 assert.match(settingsStoreSource, /keyboardShortcutsEnabled = ref\(true\)/, 'keyboard shortcuts should default to enabled')
 assert.match(settingsStoreSource, /keyboardShortcutBindings = ref<KeyboardShortcutBindingMap>\(createDefaultKeyboardShortcutBindings\(\)\)/, 'settings store should initialize default bindings')
 assert.match(settingsStoreSource, /keyboardShortcutsEnabled: keyboardShortcutsEnabled\.value/, 'settings serialization should save the master switch')
@@ -230,6 +262,7 @@ for (const [actionId, panelKey] of Object.entries({
   navWorkshop: 'workshop',
   navUpgrade: 'upgrade',
   navFishPond: 'fishpond',
+  navQuarry: 'quarry',
   navCottage: 'cottage',
   navDecoration: 'decoration',
   navForage: 'forage',
@@ -250,9 +283,79 @@ assert.match(gameLayoutSource, /id: 'toolVoidChest'/, 'game layout should bind t
 assert.match(gameLayoutSource, /warehouseStore\.hasVoidChest/, 'void chest shortcut should respect unlock state')
 assert.match(gameLayoutSource, /miningStore\.inCombat/, 'global shortcuts should defer while mining combat context is open')
 
+for (const [label, source] of Object.entries({
+  InventoryView: inventoryViewSource,
+  ProcessingView: processingViewSource,
+  BreedingView: breedingViewSource,
+  FishPondView: fishPondViewSource,
+  GuildView: guildViewSource,
+  HanhaiView: hanhaiViewSource,
+  AchievementView: achievementViewSource,
+  MuseumView: museumViewSource,
+  DecorationView: decorationViewSource,
+  ShopView: shopViewSource,
+  MailView: mailViewSource,
+  FarmView: farmViewSource
+})) {
+  assert.match(source, /useKeyboardShortcutTabActions/, `${label} should register tab/category context shortcuts`)
+  assert.match(source, /onPageUp: \(\) => scrollByViewport\(-1\)/, `${label} should bind PageUp to page scrolling`)
+  assert.match(source, /onPageDown: \(\) => scrollByViewport\(1\)/, `${label} should bind PageDown to page scrolling`)
+}
+assert.match(glossaryTabSource, /data-testid="glossary-search-input"/, 'glossary search input should expose a stable test id')
+assert.match(glossaryTabSource, /useKeyboardShortcutContextActions/, 'glossary should register generic context shortcuts')
+assert.match(glossaryTabSource, /focusSearch: \(\) =>/, 'glossary should bind focus-search shortcut')
+assert.match(glossaryTabSource, /scrollGlossaryListByViewport/, 'glossary should bind list page scrolling')
+
+for (const [label, source] of Object.entries({
+  CookingView: cookingViewSource,
+  SkillView: skillViewSource,
+  WalletView: walletViewSource
+})) {
+  assert.match(source, /useKeyboardShortcutContextActions/, `${label} should register context shortcuts`)
+  assert.match(source, /onPageUp: \(\) => scrollByViewport\(-1\)/, `${label} should bind PageUp to page scrolling`)
+  assert.match(source, /onPageDown: \(\) => scrollByViewport\(1\)/, `${label} should bind PageDown to page scrolling`)
+}
+assert.match(farmViewSource, /useKeyboardShortcutTabActions/, 'FarmView should register tab cycling shortcuts')
+assert.match(farmViewSource, /onPageUp: \(\) => scrollByViewport\(-1\)/, 'FarmView should bind PageUp to page scrolling')
+assert.match(farmViewSource, /onPageDown: \(\) => scrollByViewport\(1\)/, 'FarmView should bind PageDown to page scrolling')
+assert.match(quarryViewSource, /useKeyboardShortcutActions/, 'QuarryView should register combat shortcut actions')
+assert.match(quarryViewSource, /id: 'miningAttack'/, 'QuarryView should bind attack shortcut')
+assert.match(quarryViewSource, /id: 'miningDefend'/, 'QuarryView should bind defend shortcut')
+assert.match(quarryViewSource, /id: 'miningFlee'/, 'QuarryView should bind flee shortcut')
+assert.match(quarryViewSource, /useKeyboardShortcutContextActions/, 'QuarryView should register scroll shortcuts')
+assert.match(quarryViewSource, /onPageUp: \(\) => scrollByViewport\(-1\)/, 'QuarryView should bind PageUp to page scrolling')
+assert.match(quarryViewSource, /onPageDown: \(\) => scrollByViewport\(1\)/, 'QuarryView should bind PageDown to page scrolling')
+
 for (const action of ['attack', 'defend', 'flee', 'items', 'presets']) {
   assert.match(miningViewSource, new RegExp(`data-testid="mining-combat-action-${action}"`), `mining ${action} action should expose a test id`)
   assert.match(miningViewSource, new RegExp(`data-testid="mining-combat-shortcut-${action}"`), `mining ${action} shortcut badge should expose a test id`)
+}
+
+assert.match(miningViewSource, /id: 'miningDescend'/, 'mining view should register descend shortcut')
+assert.match(miningViewSource, /miningStore\.stairsFound && miningStore\.stairsUsable/, 'mining descend shortcut should require stairs found and usable')
+assert.match(miningViewSource, /handleNextFloor/, 'mining descend shortcut should call handleNextFloor')
+assert.match(miningViewSource, /data-testid="mining-descend-shortcut"/, 'mining descend button should expose a test id')
+assert.equal(formatKeyboardShortcutBinding(defaultBindings.miningDescend), 'E', 'mining descend shortcut should render as its letter label')
+
+// === v3: sleep confirm shortcut wiring ===
+assert.match(gameLayoutSource, /showSleepConfirm/, 'game layout should track sleep confirm state')
+assert.match(gameLayoutSource, /id: 'systemSleepPrompt'/, 'game layout should register sleep prompt shortcut')
+assert.match(gameLayoutSource, /showSleepConfirm\.value = true/, 'sleep prompt shortcut should open sleep confirm modal')
+assert.match(gameLayoutSource, /data-testid="sleep-confirm-modal"/, 'sleep confirm modal should expose a stable test id')
+assert.match(gameLayoutSource, /data-testid="sleep-confirm-cancel"/, 'sleep confirm cancel button should have a test id')
+assert.match(gameLayoutSource, /data-testid="sleep-confirm-confirm"/, 'sleep confirm confirm button should have a test id')
+assert.match(gameLayoutSource, /data-testid="sleep-button"/, 'sleep button should expose a stable test id')
+assert.match(gameLayoutSource, /getShortcutLabel\('systemSleepPrompt'\)/, 'sleep button should display its shortcut badge')
+assert.match(gameLayoutSource, /getShortcutLabel\('uiCancel'\)/, 'sleep confirm cancel should display its shortcut badge')
+assert.match(gameLayoutSource, /getShortcutLabel\('uiConfirm'\)/, 'sleep confirm confirm should display its shortcut badge')
+
+// === v3: void chest quantity shortcuts ===
+assert.match(gameLayoutSource, /id: 'uiQtyDecrease'/, 'qty decrease shortcut should be registered in game layout')
+assert.match(gameLayoutSource, /id: 'uiQtyIncrease'/, 'qty increase shortcut should be registered in game layout')
+
+// === v3: Escape cancel for various modals ===
+for (const modalVar of ['showSleepConfirm', 'showRecordCenter', 'showSavePrompt', 'showDailyDigestSummary', 'showVoidModal', 'showVoidDepositModal', 'voidQtyModal', 'voidItemDetail']) {
+  assert.match(gameLayoutSource, new RegExp(`id: 'uiCancel'[^}]*${modalVar}`), `uiCancel should be wired for ${modalVar}`)
 }
 
 assert.match(miningViewSource, /getCombatShortcutLabel/, 'mining combat buttons should display current shortcut bindings')

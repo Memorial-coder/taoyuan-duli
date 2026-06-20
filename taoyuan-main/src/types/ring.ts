@@ -1,4 +1,5 @@
 import type { ForgeAffixRoll } from './forgeAffix'
+import type { EquipmentQualityTier } from './item'
 
 /** 装备效果类型（戒指、帽子、鞋子通用） */
 export type EquipmentEffectType =
@@ -32,6 +33,8 @@ export type EquipmentEffectType =
   | 'camp_recovery_bonus'
   | 'boss_pressure_resist'
   | 'resource_find_bonus'
+  | 'durability_bonus'
+  | 'durability_consumption_reduction'
 
 /** 兼容别名 */
 export type RingEffectType = EquipmentEffectType
@@ -51,6 +54,7 @@ export interface RingDef {
   name: string
   description: string
   effects: RingEffect[]
+  qualityTier: EquipmentQualityTier
   /** 合成配方（null = 不可合成） */
   recipe: { itemId: string; quantity: number }[] | null
   /** 合成所需铜钱 */
@@ -66,6 +70,8 @@ export interface OwnedRing {
   defId: string
   enchantmentId?: string | null
   affixes?: ForgeAffixRoll[]
+  /** 耐久 */
+  durability?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }

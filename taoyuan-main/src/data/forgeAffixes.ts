@@ -35,6 +35,8 @@ export type ForgeAffixEffectType =
   | 'pickaxe_ore_bonus_chance'
   | 'pickaxe_ore_smelter_chance'
   | 'pickaxe_treasure_sense_chance'
+  | 'durability_bonus'
+  | 'durability_consumption_reduction'
 
 type ForgeAffixDisplayKind = 'flat' | 'percent' | 'reduction'
 

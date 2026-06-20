@@ -631,6 +631,7 @@
   import { COLLECTION_CATEGORY_NAMES, COLLECTION_CATEGORY_COLORS } from '@/data/collectionRegistry'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import type { ItemCategory, AchievementDef, CommunityBundleDef, SecretNoteDef, RegionId, Season, Weather } from '@/types'
 
   const achievementStore = useAchievementStore()
@@ -650,6 +651,7 @@
 
   type Tab = 'medals' | 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'chronicle' | 'glossary'
   const tab = ref<Tab>('medals')
+  const achievementTabs = ['medals', 'collection', 'achievements', 'bundles', 'shipping', 'notes', 'chronicle', 'glossary'] as const
   const glossaryPreset = ref<GlossaryOpenPreset | null>(null)
   const chronicleRegionFilter = ref<RegionId | 'all'>('all')
   const chronicleSeasonFilter = ref<Season | 'all'>('all')
@@ -734,6 +736,19 @@
   const activeShippingItem = computed(() => {
     if (!activeShippingId.value) return null
     return getItemById(activeShippingId.value) ?? null
+  })
+
+  useKeyboardShortcutTabActions({
+    tabs: achievementTabs,
+    current: tab,
+    hasBlockingModal: () => (
+      activeAchievement.value !== null ||
+      activeBundle.value !== null ||
+      activeNote.value !== null ||
+      activeShippingId.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
   })
 
   const getNoteCategory = (note: SecretNoteDef) => {

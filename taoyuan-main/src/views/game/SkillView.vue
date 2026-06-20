@@ -252,12 +252,19 @@
   import { Star, Wheat, TreePine, Fish, Pickaxe, Sword, Sparkles, Unlock, CheckCircle2, RotateCcw, X } from 'lucide-vue-next'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { addLog } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
   import { requestPerkSelection } from '@/composables/useDialogs'
   import { useSkillStore } from '@/stores/useSkillStore'
   import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, SkillPerkLevel, SkillMasteryNodeId } from '@/types'
 
   const skillStore = useSkillStore()
   const pendingRespec = ref<{ skillType: SkillType; level: SkillPerkLevel } | null>(null)
+
+  useKeyboardShortcutContextActions({
+    hasBlockingModal: () => !!pendingRespec.value,
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const SKILL_ICONS: Record<SkillType, Component> = {
     farming: Wheat,

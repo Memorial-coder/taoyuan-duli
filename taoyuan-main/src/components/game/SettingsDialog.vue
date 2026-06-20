@@ -697,7 +697,7 @@
     { key: 'shortcuts', label: '快捷键', icon: Keyboard }
   ]
 
-  const SHORTCUT_GROUP_ORDER: KeyboardShortcutCategory[] = ['system', 'navigation', 'tool', 'ui', 'miningCombat', 'movement']
+  const SHORTCUT_GROUP_ORDER: KeyboardShortcutCategory[] = ['system', 'navigation', 'tool', 'ui', 'uiInteraction', 'miningCombat', 'movement']
 
   const QMSG_POSITIONS: { value: QmsgPosition; label: string; icon: Component }[] = [
     { value: 'topleft', label: '左上', icon: ArrowUpLeft },

@@ -85,7 +85,8 @@ const router = createRouter({
         { path: 'hanhai', name: 'hanhai', component: () => import('@/views/game/HanhaiView.vue') },
         { path: 'region-map', name: 'region-map', component: () => import('@/views/game/RegionMapView.vue') },
         { path: 'fishpond', name: 'fishpond', component: () => import('@/views/game/FishPondView.vue') },
-        { path: 'decoration', name: 'decoration', component: () => import('@/views/game/DecorationView.vue') }
+        { path: 'decoration', name: 'decoration', component: () => import('@/views/game/DecorationView.vue') },
+        { path: 'quarry', name: 'quarry', component: () => import('@/views/game/QuarryView.vue') }
       ]
     }
   ]

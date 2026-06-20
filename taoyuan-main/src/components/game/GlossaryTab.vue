@@ -11,8 +11,10 @@
           <div class="relative">
             <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
             <input
+              ref="searchInputRef"
               v-model="search"
               type="text"
+              data-testid="glossary-search-input"
               placeholder="搜索名称、用途、解锁条件、礼物偏好…"
               class="w-full bg-transparent border border-accent/20 rounded-xs pl-6 pr-7 py-1 text-xs text-text placeholder:text-muted/50 outline-none focus:border-accent/50"
             />
@@ -262,6 +264,7 @@
   import NpcPortrait from '@/components/game/NpcPortrait.vue'
   import { getItemIconVariant, setItemIconVariant } from '@/composables/useItemIconPreferences'
   import { navigateToPanel } from '@/composables/useNavigation'
+  import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
   import { GLOSSARY, GLOSSARY_CATEGORY_LABELS, GLOSSARY_INTENT_LABELS } from '@/data/glossary'
   import { getItemById } from '@/data/items'
   import type { ItemIconVariant } from '@/composables/useItemIconManifest'
@@ -276,6 +279,7 @@
   }>()
 
   const search = ref('')
+  const searchInputRef = ref<HTMLInputElement | null>(null)
   const activeCategory = ref<GlossaryCategory | 'all'>('all')
   const activeIntent = ref<GlossaryIntentKey | 'all'>('all')
   const includeSpoilers = ref(false)
@@ -449,6 +453,27 @@
   const listRef = ref<HTMLElement | null>(null)
   const listScrollTop = ref(0)
   const listContainerHeight = ref(480)
+  const scrollGlossaryListByViewport = (direction: -1 | 1) => {
+    const element = listRef.value
+    if (!element) {
+      scrollByViewport(direction)
+      return
+    }
+    element.scrollBy({
+      top: Math.max(180, element.clientHeight * 0.82) * direction,
+      behavior: 'smooth'
+    })
+  }
+
+  useKeyboardShortcutContextActions({
+    priority: 70,
+    focusSearch: () => {
+      searchInputRef.value?.focus()
+      return !!searchInputRef.value
+    },
+    onPageUp: () => scrollGlossaryListByViewport(-1),
+    onPageDown: () => scrollGlossaryListByViewport(1)
+  })
   const ROW_H = 108
   const VBUFFER = 5
   let rafId = 0

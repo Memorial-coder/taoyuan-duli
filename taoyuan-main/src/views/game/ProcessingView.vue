@@ -121,6 +121,16 @@
             >
               全部取消 {{ group.processingCount }}
             </Button>
+            <Button
+              v-if="group.slots.length > 1"
+              class="text-[0.625rem]"
+              :icon="Trash2"
+              :icon-size="10"
+              :data-testid="`processing-batch-remove-${group.machineType}`"
+              @click.stop="openBatchRemoveModal(group.machineType)"
+            >
+              批量拆除 {{ group.slots.length }}
+            </Button>
           </div>
 
           <!-- 展开的机器明细 -->
@@ -206,7 +216,7 @@
                           <span v-if="option.inputItemName">
                             {{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }}
                           </span>
-                          <span v-else>{{ option.recipe.processingDays }}天</span>
+                          <span v-else>{{ option.effectiveDays }}天</span>
                           <span v-for="extra in option.extraInputs" :key="extra.key">
                             · {{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
                           </span>
@@ -821,7 +831,7 @@
                   <span v-if="option.substitutionText" class="text-accent/80">{{ option.substitutionText }}</span>
                 </span>
                 <span class="text-muted ml-2 whitespace-nowrap">
-                  {{ option.alchemyMetaText || `${option.recipe.processingDays}天` }}
+                  {{ option.alchemyMetaText || `${option.effectiveDays}天` }}
                 </span>
               </button>
               <p v-if="currentBatchOptions.length === 0" class="text-xs text-muted">
@@ -837,7 +847,7 @@
             </div>
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs">{{ currentBatchOption?.displayName ?? currentBatchRecipe.name }}{{ batchQualityLabel }}</span>
-              <span class="text-[0.625rem] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
+              <span class="text-[0.625rem] text-muted">{{ currentBatchOption?.effectiveDays ?? currentBatchRecipe.processingDays }}天/台</span>
             </div>
 
             <div class="processing-recipe-material-list mb-1.5" data-testid="processing-batch-recipe-materials">
@@ -888,6 +898,104 @@
       </div>
     </Transition>
 
+    <!-- 批量拆除弹窗 -->
+    <Transition name="panel-fade">
+      <div
+        v-if="batchRemoveModal"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="closeBatchRemoveModal"
+      >
+        <div class="game-panel max-w-sm w-full relative" data-testid="processing-batch-remove-modal">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closeBatchRemoveModal">
+            <X :size="14" />
+          </button>
+
+          <p class="text-sm text-danger mb-2">批量拆除 · {{ currentBatchRemoveMachineName }}</p>
+
+          <div class="border border-danger/20 rounded-xs p-2 mb-2" data-testid="processing-batch-remove-summary">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-muted">将拆除</span>
+              <span>{{ batchRemoveModal.preview.total }} 台</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1 mt-1.5 text-center">
+              <div class="rounded-xs border border-accent/10 px-1.5 py-1">
+                <p class="text-[0.625rem] text-muted">空闲</p>
+                <p class="text-xs text-text">{{ batchRemoveModal.preview.idle }}</p>
+              </div>
+              <div class="rounded-xs border border-accent/10 px-1.5 py-1">
+                <p class="text-[0.625rem] text-muted">加工中</p>
+                <p class="text-xs text-text">{{ batchRemoveModal.preview.processing }}</p>
+              </div>
+              <div class="rounded-xs border border-accent/10 px-1.5 py-1">
+                <p class="text-[0.625rem] text-muted">已完成</p>
+                <p class="text-xs text-text">{{ batchRemoveModal.preview.ready }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 mb-2" data-testid="processing-batch-remove-refunds">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <p class="text-xs text-muted">退回背包</p>
+              <span v-if="batchRemoveModal.preview.moneyRefund > 0" class="text-[0.625rem] text-accent">
+                {{ formatMoney(batchRemoveModal.preview.moneyRefund) }}
+              </span>
+            </div>
+            <div v-if="batchRemoveRefundLines.length > 0" class="processing-recipe-material-list max-h-32 overflow-y-auto">
+              <div
+                v-for="line in batchRemoveRefundLines"
+                :key="line.key"
+                class="processing-recipe-material-row"
+              >
+                <span class="processing-recipe-material-row__item">
+                  <ItemIcon :item="line.item" size="xs" :quality="line.quality" :show-badge="false" />
+                  <span class="truncate">{{ line.itemName }}{{ formatQualitySuffix(line.quality) }}</span>
+                </span>
+                <span>×{{ line.quantity }}</span>
+              </div>
+            </div>
+            <p v-else class="text-[0.625rem] text-muted">无需要占用背包的物品。</p>
+          </div>
+
+          <div
+            v-if="batchRemoveVoidOutputLines.length > 0"
+            class="border border-accent/10 rounded-xs p-2 mb-2"
+            data-testid="processing-batch-remove-void-outputs"
+          >
+            <p class="text-xs text-muted mb-1">直接进入虚空成品箱</p>
+            <div class="processing-recipe-material-list max-h-24 overflow-y-auto">
+              <div
+                v-for="line in batchRemoveVoidOutputLines"
+                :key="line.key"
+                class="processing-recipe-material-row"
+              >
+                <span class="processing-recipe-material-row__item">
+                  <ItemIcon :item="line.item" size="xs" :quality="line.quality" :show-badge="false" />
+                  <span class="truncate">{{ line.itemName }}{{ formatQualitySuffix(line.quality) }}</span>
+                </span>
+                <span>×{{ line.quantity }}</span>
+              </div>
+            </div>
+          </div>
+
+          <p v-if="!batchRemoveModal.preview.canRemove" class="text-[0.625rem] text-danger mb-2">
+            背包空间不足，无法完整退回拆除材料与产物。
+          </p>
+
+          <Button
+            class="w-full justify-center"
+            :class="{ '!bg-danger !text-bg': batchRemoveModal.preview.canRemove }"
+            :icon="Trash2"
+            :icon-size="12"
+            :disabled="!batchRemoveModal.preview.canRemove"
+            data-testid="processing-batch-remove-confirm"
+            @click="handleConfirmBatchRemove"
+          >
+            确认拆除 {{ batchRemoveModal.preview.total }} 台
+          </Button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 单机加工配方详情弹窗 -->
     <Transition name="panel-fade">
       <div
@@ -913,7 +1021,7 @@
                 <span v-if="currentRecipeDetailOption.qualityLabel" class="text-muted">{{ currentRecipeDetailOption.qualityLabel }}</span>
               </p>
               <p class="text-[0.625rem] text-muted mt-0.5">
-                {{ currentRecipeDetailMachineName }} · {{ currentRecipeDetailOption.recipe.processingDays }}天
+                {{ currentRecipeDetailMachineName }} · {{ currentRecipeDetailOption.effectiveDays }}天
               </p>
             </div>
           </div>
@@ -985,6 +1093,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { WORKSHOP_MAX_LEVEL, WORKSHOP_MILESTONES, useProcessingStore } from '@/stores/useProcessingStore'
+  import type { ProcessingMachineRemovalEntry, ProcessingMachineRemovalPreview } from '@/stores/useProcessingStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, getCombinedItemCountSignature, hasCombinedItems, removeCombinedItems } from '@/composables/useCombinedInventory'
@@ -1032,6 +1141,7 @@
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { buildScopedSingleKey, migrateLegacySingleValue } from '@/utils/accountStorage'
   import {
     formatCropUseSubstitutionSummary,
@@ -1051,6 +1161,7 @@
   const warehouseStore = useWarehouseStore()
 
   const activeTab = ref<'process' | 'craft'>('process')
+  const processingTabs = ['process', 'craft'] as const
   const ONLY_AVAILABLE_STORAGE_KEY = buildScopedSingleKey('taoyuanxiang_processing_only_available_')
 
   migrateLegacySingleValue('taoyuanxiang_processing_only_available', ONLY_AVAILABLE_STORAGE_KEY)
@@ -1113,6 +1224,7 @@
     recommendationText: string
     alchemyBlocked: boolean
     hiddenUndiscovered: boolean
+    effectiveDays: number
   }
 
   interface ProcessingRecipeDetailState {
@@ -1144,6 +1256,20 @@
     recipesLoading: boolean
     isEmpty: boolean
     emptyMessage: string
+  }
+
+  interface BatchRemoveModalState {
+    machineType: MachineType
+    preview: ProcessingMachineRemovalPreview
+  }
+
+  interface BatchRemoveRefundLine {
+    key: string
+    itemId: string
+    item: ItemDef | undefined
+    itemName: string
+    quality: Quality
+    quantity: number
   }
 
   type MachineGroupBaseViewModel = Omit<
@@ -1398,7 +1524,8 @@
       substitutionText,
       recommendationText,
       alchemyBlocked: !!alchemyLimit?.blocked,
-      hiddenUndiscovered
+      hiddenUndiscovered,
+      effectiveDays: processingStore.getEffectiveProcessingDays(recipe, recipe.machineType)
     }
   }
 
@@ -1642,6 +1769,65 @@
     if (canceled > 0) {
       addLog(`已取消${canceled}台${getMachineName(machineType)}的加工，原料已退回。`)
     }
+  }
+
+  const batchRemoveModal = ref<BatchRemoveModalState | null>(null)
+
+  const aggregateBatchRemoveEntries = (entries: ProcessingMachineRemovalEntry[]): BatchRemoveRefundLine[] => {
+    const lineMap = new Map<string, BatchRemoveRefundLine>()
+    for (const entry of entries) {
+      const quality = entry.quality ?? 'normal'
+      const key = `${entry.itemId}:${quality}`
+      const existing = lineMap.get(key)
+      if (existing) {
+        existing.quantity += entry.quantity
+      } else {
+        lineMap.set(key, {
+          key,
+          itemId: entry.itemId,
+          item: getItemById(entry.itemId),
+          itemName: getItemName(entry.itemId),
+          quality,
+          quantity: entry.quantity
+        })
+      }
+    }
+    return [...lineMap.values()]
+  }
+
+  const batchRemoveRefundLines = computed(() => aggregateBatchRemoveEntries(batchRemoveModal.value?.preview.refundEntries ?? []))
+  const batchRemoveVoidOutputLines = computed(() => aggregateBatchRemoveEntries(batchRemoveModal.value?.preview.voidOutputEntries ?? []))
+  const currentBatchRemoveMachineName = computed(() => batchRemoveModal.value ? getMachineName(batchRemoveModal.value.machineType) : '')
+
+  const formatQualitySuffix = (quality: Quality): string => quality === 'normal' ? '' : `（${QUALITY_NAMES[quality]}）`
+  const formatMoney = (amount: number): string => `${amount.toLocaleString()}文`
+
+  const openBatchRemoveModal = (machineType: MachineType) => {
+    const preview = processingStore.previewRemoveMachinesByType(machineType)
+    if (preview.total <= 0) return
+    batchRemoveModal.value = { machineType, preview }
+  }
+
+  const closeBatchRemoveModal = () => {
+    batchRemoveModal.value = null
+  }
+
+  const handleConfirmBatchRemove = () => {
+    const modal = batchRemoveModal.value
+    if (!modal) return
+    const result = processingStore.removeMachinesByType(modal.machineType)
+    if (result.removed > 0) {
+      sfxClick()
+      addLog(`批量拆除了${result.removed}台${getMachineName(modal.machineType)}，制作材料与铜钱已退还。`)
+      batchRemoveModal.value = null
+      return
+    }
+
+    batchRemoveModal.value = {
+      machineType: modal.machineType,
+      preview: processingStore.previewRemoveMachinesByType(modal.machineType)
+    }
+    addLog('背包空间不足，无法批量拆除机器。')
   }
 
   const batchProcessModal = ref<{ machineType: MachineType; recipeId: string | null; quality?: Quality } | null>(null)
@@ -2306,6 +2492,22 @@
   const craftModal = ref<CraftModalView | null>(null)
   const craftQuantity = ref(1)
 
+  useKeyboardShortcutTabActions({
+    tabs: processingTabs,
+    current: activeTab,
+    hasBlockingModal: () => (
+      batchRemoveModal.value !== null ||
+      batchProcessModal.value !== null ||
+      processingRecipeDetail.value !== null ||
+      showUpgradeModal.value ||
+      showUpgradeConfirm.value ||
+      showEnchantingForgeModal.value ||
+      craftModal.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
+
   const getCraftMaxBatch = (item: CraftableItem): number => {
     if (!item.batchable) return 1
     let max = 999
@@ -2941,7 +3143,7 @@
     if (processingStore.startProcessing(slotIndex, recipeId, quality)) {
       sfxClick()
       const qualityLabel = quality && quality !== 'normal' ? `(${QUALITY_NAMES[quality]})` : ''
-      addLog(`开始加工${recipe ? processingStore.getProcessingRecipeDisplayName(recipe.id) : recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。${substitutionText ? ` ${substitutionText}。` : ''}`)
+      addLog(`开始加工${recipe ? processingStore.getProcessingRecipeDisplayName(recipe.id) : recipeId}${qualityLabel}，需要${recipe ? processingStore.getEffectiveProcessingDays(recipe, recipe.machineType) : '?'}天。${substitutionText ? ` ${substitutionText}。` : ''}`)
       return true
     } else {
       if (recipe?.alchemy) {

@@ -7,6 +7,7 @@ import type {
   VillageProjectPhaseSegmentDefinition,
   VillageProjectPlayerSegmentDefinition
 } from '@/types/villageProject'
+import { QUARRY_PROJECT_ID, QUARRY_REQUIRED_PROJECT_ID } from './quarry'
 
 // WS01 anchor: village projects are the existing world-restoration layer that can
 // grow into route changes, service unlocks, and persistent village feedback.
@@ -1014,6 +1015,91 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
           type: 'service',
           title: '商路枢纽进入运营态',
           summary: '驿站二期会把额外委托、路线公告和后续来访承接到同一套村口服务里。'
+        }
+      ]
+    }
+  },
+  {
+    id: QUARRY_PROJECT_ID,
+    name: '旧采石场复开',
+    description: '把山脚旧采石场重新清道、加固支架并接回村里的矿料调度，让后期材料有一处慢速但稳定的补给点。',
+    benefitSummary: '解锁旧采石场：每天早晨少量刷新石材、矿石、宝石、木竹和极少深脉资源；每周清理可获得采石场管护潜能材料。',
+    moneyCost: 80000,
+    materials: [
+      { itemId: 'stone', quantity: 500 },
+      { itemId: 'wood', quantity: 200 },
+      { itemId: 'iron_ore', quantity: 100 },
+      { itemId: 'gold_ore', quantity: 60 },
+      { itemId: 'iridium_ore', quantity: 20 },
+      { itemId: 'void_ore', quantity: 10 }
+    ],
+    requirements: [
+      { type: 'mineFloor', target: 120, label: '云隐矿洞推进到第 120 层' },
+      { type: 'skullCavernFloor', target: 100, label: '骷髅矿穴最深到达第 100 层' },
+      { type: 'skillLevel', skillType: 'mining', target: 20, label: '采矿 Lv.20' },
+      { type: 'skillMasteryNodeCount', skillType: 'mining', target: 1, label: '至少解锁 1 个采矿精研节点' },
+      { type: 'villageProjectLevel', target: 6, label: '先完成 6 项村庄建设' }
+    ],
+    requiredProjectId: QUARRY_REQUIRED_PROJECT_ID,
+    requiredProjectText: '需要先完成「矿料棚与支架」，让村里具备矿料后勤承接点。',
+    fundingPhase: 'endgame',
+    linkedSystems: ['mining', 'potential', 'goal', 'quest', 'guild'],
+    auditTags: ['endgame_sink', 'material_infrastructure', 'mining_link', 'potential_source'],
+    buildMode: 'standard',
+    contentTier: 'P2',
+    unlockEffects: [
+      {
+        type: 'regionalFunctionUnlock',
+        summary: '旧采石场作为后期材料基础设施启用，解锁露天可见资源场、少量裂隙惊喜与采石场矿洞。',
+        linkedSystems: ['mining', 'potential']
+      }
+    ],
+    maintenancePlan: {
+      id: 'quarry_reopening_maintenance',
+      targetType: 'villageProject',
+      targetId: QUARRY_PROJECT_ID,
+      label: '采石场清道维护',
+      costMoney: 1200,
+      cycleDays: 7,
+      effectSummary: '维持清道、支架和矿料分拣，维护生效时采石场每日生成上限 +2。',
+      autoRenew: false
+    },
+    regionalEffects: [
+      {
+        areaId: 'mountain_old_quarry',
+        label: '山脚旧采石场',
+        summary: '旧采石场重新开放，成为矿洞之外的后期材料补给点。',
+        functionChanges: [
+          {
+            functionId: 'old_quarry_resource_grid',
+            type: 'serviceHub',
+            mode: 'unlock',
+            summary: '解锁 8×8 可见资源场、每日慢速刷新与采石场矿洞入口。'
+          }
+        ],
+        linkedSystems: ['mining', 'potential']
+      }
+    ],
+    restorationProfile: {
+      bundleIds: ['ore_bundle', 'gem_bundle'],
+      milestoneLabel: '旧采石场清道复开',
+      preRumors: ['阿石说旧采石场底子还在，只是支架塌了、碎石乱了，没有像样后勤前谁都不敢往里开工。'],
+      postComments: ['旧采石场重新清出来后，村里的矿料周转终于不只靠下矿当天撞运气。'],
+      crossEntryFeedback: ['野外菜单会新增独立旧采石场入口，潜能来源也会记录采石场管护。'],
+      worldChanges: [
+        {
+          id: 'old_quarry_panel_unlock',
+          type: 'entry',
+          title: '旧采石场入口启用',
+          summary: '野外菜单新增独立旧采石场入口，可清理露天资源、进入采石场矿洞，并查看每日上限、维护状态与周清理进度。',
+          targetPanel: 'quarry'
+        },
+        {
+          id: 'old_quarry_stewardship_unlock',
+          type: 'service',
+          title: '采石场管护纳入潜能来源',
+          summary: '每周清理采石场资源满 12 格后，可通过统一潜能来源获得心得与山野玉。',
+          targetPanel: 'potential'
         }
       ]
     }

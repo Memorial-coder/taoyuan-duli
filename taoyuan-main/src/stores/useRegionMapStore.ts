@@ -4780,6 +4780,26 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       const totalDamage = attackOutcome.totalDamage + supportDamage
       const effectiveDamage = getEffectiveDamage(phaseHpBefore, totalDamage)
       combat.phaseHp = Math.max(0, combat.phaseHp - totalDamage)
+
+      // Equipment durability consumption on attack
+      if (action === "attack") {
+        const equippedWeaponR = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
+        if (equippedWeaponR) {
+          const wRedR = calculateConsumptionReduction(equippedWeaponR.affixes ?? [], equippedWeaponR.enchantmentId, [])
+          const wMaxR = inventoryStore.getWeaponMaxDurability?.() ?? 100
+          consumeEquipmentDurability(equippedWeaponR, wMaxR, 1, wRedR)
+        }
+        for (const rSlot of [inventoryStore.equippedRingSlot1, inventoryStore.equippedRingSlot2]) {
+          if (rSlot >= 0) {
+            const rInst = inventoryStore.ownedRings[rSlot]
+            if (rInst) {
+              const rRedR = calculateConsumptionReduction(rInst.affixes ?? [], rInst.enchantmentId, [])
+              const rMaxR = inventoryStore.getRingMaxDurability?.(rSlot) ?? 100
+              consumeEquipmentDurability(rInst, rMaxR, 1, rRedR)
+            }
+          }
+        }
+      }
       if (action === 'press') {
         session.frontlinePrep = Math.max(0, session.frontlinePrep - 1)
         session.danger = clamp(session.danger - 2, 0, 100)

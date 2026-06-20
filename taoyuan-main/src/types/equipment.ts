@@ -1,4 +1,5 @@
 import type { EquipmentEffect } from './ring'
+import type { EquipmentQualityTier } from './item'
 import type { ForgeAffixRoll } from './forgeAffix'
 
 /** 帽子定义 */
@@ -6,6 +7,7 @@ export interface HatDef {
   id: string
   name: string
   description: string
+  qualityTier: EquipmentQualityTier
   effects: EquipmentEffect[]
   /** 商店购买价格（null = 不可购买，需合成） */
   shopPrice: number | null
@@ -24,6 +26,8 @@ export interface OwnedHat {
   defId: string
   enchantmentId?: string | null
   affixes?: ForgeAffixRoll[]
+  /** 耐久 */
+  durability?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }
@@ -33,6 +37,7 @@ export interface ShoeDef {
   id: string
   name: string
   description: string
+  qualityTier: EquipmentQualityTier
   effects: EquipmentEffect[]
   /** 商店购买价格（null = 不可购买，需合成） */
   shopPrice: number | null
@@ -51,6 +56,8 @@ export interface OwnedShoe {
   defId: string
   enchantmentId?: string | null
   affixes?: ForgeAffixRoll[]
+  /** 耐久 */
+  durability?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }

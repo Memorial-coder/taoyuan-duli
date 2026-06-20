@@ -230,21 +230,22 @@ const PERIOD_LABELS: Record<string, string> = {
 }
 
 const POTENTIAL_RESOURCE_GLOSSARY_DESCRIPTIONS: Partial<Record<string, string>> = {
-  potential_insight: '通用潜能材料，矿洞首领、高风险行旅、特殊订单、主题周、博物馆考据、仙灵记忆、节日出货箱和节会小游戏等长期结算都会少量沉淀。',
+  potential_insight: '通用潜能材料，矿洞首领、旧采石场周清理、高风险行旅、特殊订单、主题周、博物馆考据、仙灵记忆、节日出货箱和节会小游戏等长期结算都会少量沉淀。',
   spirit_breath: '偏向根骨与人和的轻灵潜能材料，主要来自仙灵结缘记忆归档、阿花或石头挚友后的童心甜点委托、日历节日当天的出货箱有效结算，或节会小游戏有效完成。',
   artisan_notes: '偏向巧作的手艺记录，可从特殊订单、博物馆考据和研究券兑换等经营研究线获得。',
-  mountain_jade: '偏向山行的山野凭证，主要来自矿洞首领、高层首领、高风险行旅和区域首领远征。',
+  mountain_jade: '偏向山行的山野凭证，主要来自矿洞首领、高层首领、旧采石场管护、高风险行旅和区域首领远征。',
 }
 
 const POTENTIAL_RESOURCE_SOURCE_HINTS: Partial<Record<string, string>> = {
-  potential_insight: '具体入口：矿洞或骷髅洞首领结算、高风险或精英行旅、特殊订单、主题周结算、博物馆捐赠里程碑/学者委托，以及仙灵记忆归档、节日当天出货箱结算或互动节日小游戏有效完成。',
+  potential_insight: '具体入口：矿洞或骷髅洞首领结算、旧采石场每周清理达标、高风险或精英行旅、特殊订单、主题周结算、博物馆捐赠里程碑/学者委托，以及仙灵记忆归档、节日当天出货箱结算或互动节日小游戏有效完成。',
   spirit_breath: '具体入口：NPC 页「仙灵」里把结缘记忆链推进到可收尾后点归档记忆；阿花或石头达到挚友后，告示板有概率刷出提交桂花糕、红枣糕等甜点的童心灵息委托；也可以在有日历节日的当天让出货箱结算产生收入，或完成互动节日小游戏并取得有效成绩。',
   artisan_notes: '具体入口：完成特殊订单/阶段性订单、领取博物馆捐赠里程碑或学者委托考据奖励；研究券也可在钱包兑换百工札记。',
-  mountain_jade: '具体入口：击败矿洞 Boss/骷髅洞高层首领，或完成区域地图里的高风险路线、精英路线、区域首领远征。',
+  mountain_jade: '具体入口：击败矿洞 Boss/骷髅洞高层首领、清理复开的旧采石场，或完成区域地图里的高风险路线、精英路线、区域首领远征。',
 }
 
 const POTENTIAL_SOURCE_ENTRY_HINTS: Partial<Record<string, string>> = {
   mine_boss_clear: '击败矿洞 Boss 或骷髅洞高层首领后，在战斗结算中少量获得。',
+  quarry_stewardship: '旧采石场复开后，在独立采石场页面清理露天可见资源、少量裂隙惊喜与采石场矿洞外围点位；每周累计清理满 12 格触发一次管护潜能奖励。',
   journey_high_risk: '完成区域地图里的高风险路线、精英路线或区域首领远征后获得。',
   special_order_finish: '在告示板完成特殊订单或阶段性订单提交时获得。',
   theme_week_settlement: '在目标页完成主题周或周目标收尾结算时，按表现发放。',

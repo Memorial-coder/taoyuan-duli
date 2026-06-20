@@ -35,6 +35,7 @@ import { useTutorialStore } from './useTutorialStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useDecorationStore } from './useDecorationStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useQuarryStore } from './useQuarryStore'
 import { useRegionMapStore } from './useRegionMapStore'
 import { useFrontierChronicleStore } from './useFrontierChronicleStore'
 import { usePlayerRecordCenterStore } from './usePlayerRecordCenterStore'
@@ -48,6 +49,7 @@ import {
 import { createDefaultMarketDynamicsState } from '@/data/market'
 import { createDefaultShopCatalogExpansionState } from '@/data/shopCatalog'
 import { createDefaultMuseumSaveData as createDefaultMuseumPayload } from '@/data/museum'
+import { createDefaultQuarrySaveData } from '@/data/quarry'
 import {
   WS12_AUTOMATED_REGRESSION_SUITES,
   WS12_COMPENSATION_MAIL_PRESETS,
@@ -468,6 +470,10 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       maintenanceStates: next.villageProject.maintenanceStates ?? {},
       donationStates: next.villageProject.donationStates ?? {}
     }
+  }
+
+  if (!next.quarry || typeof next.quarry !== 'object') {
+    next.quarry = createDefaultQuarrySaveData()
   }
 
   if (!next.tutorial || typeof next.tutorial !== 'object') {
@@ -1277,6 +1283,7 @@ export const useSaveStore = defineStore('save', () => {
     const hiddenNpcStore = useHiddenNpcStore()
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
+    const quarryStore = useQuarryStore()
     const regionMapStore = useRegionMapStore()
     const frontierChronicleStore = useFrontierChronicleStore()
     const playerRecordCenterStore = usePlayerRecordCenterStore()
@@ -1312,6 +1319,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpc: hiddenNpcStore.serialize(),
       decoration: decorationStore.serialize(),
       villageProject: villageProjectStore.serialize(),
+      quarry: quarryStore.serialize(),
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
@@ -1422,6 +1430,7 @@ export const useSaveStore = defineStore('save', () => {
     const hiddenNpcStore = useHiddenNpcStore()
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
+    const quarryStore = useQuarryStore()
     const regionMapStore = useRegionMapStore()
     const frontierChronicleStore = useFrontierChronicleStore()
     const playerRecordCenterStore = usePlayerRecordCenterStore()
@@ -1463,6 +1472,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpc: hiddenNpcStore.serialize(),
       decoration: decorationStore.serialize(),
       villageProject: villageProjectStore.serialize(),
+      quarry: quarryStore.serialize(),
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
@@ -1537,6 +1547,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpcStore.deserialize(emptyState)
       decorationStore.deserialize(emptyState)
       villageProjectStore.deserialize(emptyState)
+      quarryStore.deserialize(emptyState)
       regionMapStore.deserialize(emptyState)
       frontierChronicleStore.deserialize(emptyState)
       playerRecordCenterStore.deserialize(emptyState)
@@ -1574,6 +1585,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpcStore.deserialize(snapshot.hiddenNpc)
       decorationStore.deserialize(snapshot.decoration)
       villageProjectStore.deserialize(snapshot.villageProject)
+      quarryStore.deserialize(snapshot.quarry)
       regionMapStore.deserialize(snapshot.regionMap)
       frontierChronicleStore.deserialize(snapshot.frontierChronicle)
       playerRecordCenterStore.deserialize(snapshot.playerRecordCenter)
@@ -1618,6 +1630,7 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.hiddenNpc) hiddenNpcStore.deserialize(payload.hiddenNpc)
       if (payload.decoration) decorationStore.deserialize(payload.decoration)
       if (payload.villageProject) villageProjectStore.deserialize(payload.villageProject)
+      quarryStore.deserialize(payload.quarry ?? {})
       if (payload.regionMap) regionMapStore.deserialize(payload.regionMap)
       if (payload.frontierChronicle) frontierChronicleStore.deserialize(payload.frontierChronicle)
       else frontierChronicleStore.deserialize({})

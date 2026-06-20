@@ -1036,6 +1036,7 @@
   import { getTrinketById } from '@/data/trinkets'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
   import type { Quality, RingEffectType, ItemCategory, InventoryItem } from '@/types'
 
@@ -1064,6 +1065,7 @@
   // === 页签 ===
 
   const tab = ref<'items' | 'tools' | 'temp'>('items')
+  const inventoryTabs = ['items', 'tools', 'temp'] as const
 
   // === 物品筛选 ===
 
@@ -1656,6 +1658,23 @@
   // === 临时背包 ===
 
   const activeTempIdx = ref<number | null>(null)
+
+  useKeyboardShortcutTabActions({
+    tabs: inventoryTabs,
+    current: tab,
+    hasBlockingModal: () => (
+      showFilterModal.value ||
+      showPresetModal.value ||
+      openPresetActionId.value !== null ||
+      activeWeaponIdx.value !== null ||
+      activeRingIdx.value !== null ||
+      activeHatIdx.value !== null ||
+      activeShoeIdx.value !== null ||
+      activeTempIdx.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const activeTempItem = computed(() => {
     if (activeTempIdx.value === null) return null

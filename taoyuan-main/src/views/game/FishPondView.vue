@@ -669,6 +669,7 @@
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { handleEndDay } from '@/composables/useEndDay'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { POND_BUILD_COST, POND_UPGRADE_COSTS, POND_CAPACITY, PONDABLE_FISH, getPondableFish, FISH_BREEDING_DAYS } from '@/data/fishPond'
   import { getBreedById, getBreedsByGeneration, findBreedByParents, BREED_COUNTS } from '@/data/pondBreeds'
@@ -688,6 +689,7 @@
   }
 
   const currentTab = ref<'pond' | 'compendium'>('pond')
+  const fishPondTabs = ['pond', 'compendium'] as const
   const selectedBreedingFish = ref<PondFish | null>(null)
   const detailFish = ref<PondFish | null>(null)
   const detailBreed = ref<PondBreedDef | null>(null)
@@ -695,6 +697,18 @@
 
   /** 建造/升级统一弹窗 */
   const pondModal = ref<'build' | 'upgrade' | null>(null)
+
+  useKeyboardShortcutTabActions({
+    tabs: fishPondTabs,
+    current: currentTab,
+    hasBlockingModal: () => (
+      pondModal.value !== null ||
+      detailFish.value !== null ||
+      detailBreed.value !== null
+    ),
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const getItemName = (itemId: string): string => getItemById(itemId)?.name ?? itemId
   const getPondableFishName = (fishId: string): string => getPondableFish(fishId)?.name ?? fishId

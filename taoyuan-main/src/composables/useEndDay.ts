@@ -1,4 +1,4 @@
-import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
+﻿import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useFarmStore } from '@/stores/useFarmStore'
 import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -22,6 +22,7 @@ import { useTutorialStore } from '@/stores/useTutorialStore'
 import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 import { useMiningStore } from '@/stores/useMiningStore'
 import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
+import { useQuarryStore } from '@/stores/useQuarryStore'
 import { useMuseumStore } from '@/stores/useMuseumStore'
 import { useGuildStore } from '@/stores/useGuildStore'
 import { useRegionMapStore } from '@/stores/useRegionMapStore'
@@ -564,6 +565,7 @@ export const handleEndDay = () => {
   const tutorialStore = useTutorialStore()
   const goalStore = useGoalStore()
   const villageProjectStore = useVillageProjectStore()
+  const quarryStore = useQuarryStore()
   const museumStore = useMuseumStore()
   const guildStore = useGuildStore()
   const hanhaiStore = useHanhaiStore()
@@ -916,6 +918,7 @@ export const handleEndDay = () => {
   const currentWeekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
   const weekBoundaryEvent = getWeekBoundaryEvent(previousWeekInfo, currentWeekInfo)
   const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  quarryStore.dailyUpdate(currentDayTag)
   for (const log of npcStore.processPendingNpcActiveServices(currentDayTag)) {
     addLog(log)
   }

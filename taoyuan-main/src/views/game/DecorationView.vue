@@ -124,6 +124,7 @@
   import { DECORATIONS, DECORATION_CATEGORY_NAMES } from '@/data/decorations'
   import type { DecorationCategory } from '@/data/decorations'
   import { addLog } from '@/composables/useGameLog'
+  import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import type { ItemDef } from '@/types'
 
   const decorationStore = useDecorationStore()
@@ -146,6 +147,15 @@
     { value: 'all' as const, label: '全部' },
     ...Object.entries(DECORATION_CATEGORY_NAMES).map(([value, label]) => ({ value: value as DecorationCategory, label }))
   ]
+
+  const decorationCategoryTabs = categories.map(category => category.value)
+
+  useKeyboardShortcutTabActions({
+    tabs: decorationCategoryTabs,
+    current: activeCategory,
+    onPageUp: () => scrollByViewport(-1),
+    onPageDown: () => scrollByViewport(1)
+  })
 
   const filteredDecorations = computed(() =>
     activeCategory.value === 'all'

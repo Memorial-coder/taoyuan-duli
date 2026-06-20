@@ -69,6 +69,7 @@
     "qa:mining-hud-structure": "node scripts/qa-mining-hud-structure.mjs",
     "qa:mining-bomb-balance-guards": "node scripts/qa-mining-bomb-balance-guards.mjs",
     "qa:skull-cavern-depth-loot": "node scripts/qa-skull-cavern-depth-loot.mjs",
+    "qa:quarry-respawn-guards": "node scripts/qa-quarry-respawn-guards.mjs",
     "qa:village-project-clue-guards": "node scripts/qa-village-project-clue-guards.mjs",
     "qa:gameplay-log-guards": "node scripts/qa-gameplay-log-guards.mjs",
     "qa:region-helper-guards": "node scripts/qa-region-helper-guards.mjs",

@@ -43,6 +43,7 @@ import {
   Tent,
   Waves,
   Palette,
+  Mountain,
   Target,
   MessageCircle
 } from 'lucide-vue-next'
@@ -85,6 +86,7 @@ export type PanelKey =
   | 'fishpond'
   | 'cottage'
   | 'decoration'
+  | 'quarry'
 
 export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: () => Component }[] = [
   { key: 'farm', label: '农场', icon: Wheat },
@@ -123,6 +125,8 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'guild', label: '公会', icon: Swords },
   { key: 'hanhai', label: '瀚海', icon: Tent },
   { key: 'region-map', label: '行旅图', icon: Map }
+,
+  { key: 'quarry', label: '采石场', icon: Mountain }
 ]
 
 type NavigationClockSync = Pick<ReturnType<typeof useGameClock>, 'pauseClock' | 'resumeClock'>

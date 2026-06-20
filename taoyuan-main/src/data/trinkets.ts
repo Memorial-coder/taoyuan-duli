@@ -1,6 +1,6 @@
 import type { EquipmentEffect } from '@/types'
 
-export type TrinketUnlockRule = 'prize_progress' | 'mystery_box' | 'combat_mastery'
+export type TrinketUnlockRule = 'prize_progress' | 'mystery_box' | 'combat_mastery' | 'quarry_mine'
 
 export interface TrinketDef {
   id: string
@@ -45,9 +45,9 @@ export const TRINKETS: TrinketDef[] = [
     name: '灵器碎片·山鸣',
     familyLabel: '灵器碎片',
     description: '边缘残缺的灵器碎片，握在手里时像能听见矿脉深处的回声。',
-    sourceSummary: '偏向战斗精通、深层探索与后期冒险成长。',
-    unlockHint: '战斗精通后解锁。',
-    unlockRule: 'combat_mastery',
+    sourceSummary: '偏向采石场矿洞终点、战斗精通、深层探索与后期冒险成长。',
+    unlockHint: '完成采石场矿洞终点奖励或战斗精通后解锁。',
+    unlockRule: 'quarry_mine',
     effects: [
       { type: 'mining_stamina', value: 0.12 },
       { type: 'ore_bonus', value: 0.15 }
