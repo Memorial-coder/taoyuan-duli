@@ -7,6 +7,8 @@ import {
   QUARRY_GRID_SIZE,
   QUARRY_MINE_FINAL_TRINKET_ID,
   QUARRY_MINE_FINAL_UNLOCK_ID,
+  QUARRY_MINE_REFRESH_DAYS,
+  QUARRY_MINE_REPEAT_FINAL_REWARDS,
   QUARRY_MIN_GRID_SIZE,
   QUARRY_MONSTER_BASE_EXP,
   QUARRY_MONSTERS,
@@ -20,6 +22,7 @@ import {
   QUARRY_WEEKLY_STEWARDSHIP_TARGET,
   createDefaultQuarrySaveData,
   createDefaultQuarryMineSaveData,
+  createRefreshedQuarryMineNodes,
   createDefaultQuarryWeeklyProgress,
   createEmptyQuarryCellsSized,
   getQuarryDailySpawnCap,
@@ -29,6 +32,7 @@ import {
   seedInitialQuarryCells,
   spawnQuarryDailyResources
 } from '@/data/quarry'
+import { getQuarryMineElixirPrepOption } from '@/data/eliteElixirPrep'
 import { getItemById } from '@/data/items'
 import { getWeaponById } from '@/data/weapons'
 import type {
@@ -38,6 +42,7 @@ import type {
   QuarryCollectResult,
   QuarryCollectRewardEntry,
   QuarryCombatActionResult,
+  QuarryMineExploreMode,
   QuarryMineSaveData,
   QuarryMonsterDef,
   QuarrySaveData,
@@ -53,12 +58,14 @@ import {
   getLifestealHeal,
   rollAttackOutcome
 } from '@/utils/combatRuntime'
+import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
 import { getWeekCycleInfo } from '@/utils/weekCycle'
 import { useAchievementStore } from './useAchievementStore'
 import { useCookingStore } from './useCookingStore'
 import { useGameStore } from './useGameStore'
 import { useGuildStore } from './useGuildStore'
 import { useInventoryStore } from './useInventoryStore'
+import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { usePotentialStore } from './usePotentialStore'
 import { useQuestStore } from './useQuestStore'
@@ -102,6 +109,33 @@ const parseDayTag = (dayTag: string): { year: number; season: Season; day: numbe
   return { year, season: seasonText as Season, day }
 }
 
+const getAbsoluteDayIndex = (dayTag: string): number | null => {
+  const parsed = parseDayTag(dayTag)
+  if (!parsed) return null
+  const seasonIndex = SEASONS.indexOf(parsed.season)
+  if (seasonIndex < 0) return null
+  return (Math.max(1, parsed.year) - 1) * 112 + seasonIndex * 28 + Math.max(1, parsed.day)
+}
+
+const getDayDistance = (fromDayTag: string, toDayTag: string): number | null => {
+  const from = getAbsoluteDayIndex(fromDayTag)
+  const to = getAbsoluteDayIndex(toDayTag)
+  if (from === null || to === null) return null
+  return to - from
+}
+
+const normalizeQuarryMineExploreMode = (mode: QuarryMineExploreMode = 'steady'): QuarryMineExploreMode =>
+  mode === 'force' || mode === 'search' ? mode : 'steady'
+
+const getQuarryMineModeStaminaCost = (mode: QuarryMineExploreMode): number => {
+  if (mode === 'force') return QUARRY_COLLECT_STAMINA_COST + 1
+  if (mode === 'search') return QUARRY_COLLECT_STAMINA_COST + 2
+  return QUARRY_COLLECT_STAMINA_COST
+}
+
+const buildQuarryMineRewardEntries = (rewards: QuarryCollectRewardEntry[]) =>
+  rewards.map(reward => ({ ...reward, quality: 'normal' as const }))
+
 export const useQuarryStore = defineStore('quarry', () => {
   const defaults = createDefaultQuarrySaveData()
   const unlockedAtDayTag = ref(defaults.unlockedAtDayTag)
@@ -139,6 +173,7 @@ export const useQuarryStore = defineStore('quarry', () => {
   const cookingStore = useCookingStore()
   const guildStore = useGuildStore()
   const inventoryStore = useInventoryStore()
+  const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const potentialStore = usePotentialStore()
   const questStore = useQuestStore()
@@ -159,7 +194,7 @@ export const useQuarryStore = defineStore('quarry', () => {
   const isNight = computed(() => gameStore.timePeriod === 'night' || gameStore.timePeriod === 'late_night')
 
   const dailySpawnCap = computed(() =>
-    getQuarryDailySpawnCap(gameStore.year, unlockYear.value, {
+    getQuarryDailySpawnCap(gameStore.year, unlockYear.value, activeSize.value, {
       maintenanceActive: maintenanceActive.value,
       skullCavernBestFloor: achievementStore.stats.skullCavernBestFloor,
       miningMasteryNodeCount: getMiningMasteryNodeCount()
@@ -276,19 +311,30 @@ export const useQuarryStore = defineStore('quarry', () => {
     const nextNode = nodes.find(node => node.state !== 'cleared') ?? null
     const clearedCount = nodes.filter(node => node.state === 'cleared').length
     const enteredToday = quarryMine.value.lastRunDayTag === getCurrentDayTag()
+    const completedDistance = quarryMine.value.lastCompletedDayTag
+      ? getDayDistance(quarryMine.value.lastCompletedDayTag, getCurrentDayTag())
+      : null
+    const daysSinceCompletion = Math.max(0, completedDistance ?? 0)
+    const canRefresh = !!quarryMine.value.completed && daysSinceCompletion >= QUARRY_MINE_REFRESH_DAYS
     return {
       unlocked: quarryMine.value.unlocked,
       entered: quarryMine.value.entered,
       completed: quarryMine.value.completed,
       finalRewardClaimed: quarryMine.value.finalRewardClaimed,
       lastRunDayTag: quarryMine.value.lastRunDayTag,
+      lastCompletedDayTag: quarryMine.value.lastCompletedDayTag,
+      lastResetDayTag: quarryMine.value.lastResetDayTag,
+      runId: quarryMine.value.runId,
       nodes,
       nextNodeIndex: nextNode?.index ?? null,
       clearedCount,
       totalCount: nodes.length,
       canEnter: isUnlocked.value && quarryMine.value.unlocked && !quarryMine.value.completed && !enteredToday,
       enteredToday,
-      canClaimFinalReward: quarryMine.value.completed && !quarryMine.value.finalRewardClaimed
+      canClaimFinalReward: !quarryMine.value.completed && nextNode?.kind === 'final',
+      canRefresh,
+      daysUntilRefresh: quarryMine.value.completed ? Math.max(0, QUARRY_MINE_REFRESH_DAYS - daysSinceCompletion) : 0,
+      refreshDayCount: QUARRY_MINE_REFRESH_DAYS
     }
   })
 
@@ -325,11 +371,36 @@ export const useQuarryStore = defineStore('quarry', () => {
     return true
   }
 
+  const refreshQuarryMineIfReady = (dayTag = getCurrentDayTag()): boolean => {
+    if (!quarryMine.value.unlocked || !quarryMine.value.completed || !quarryMine.value.lastCompletedDayTag) return false
+    const distance = getDayDistance(quarryMine.value.lastCompletedDayTag, dayTag)
+    if (distance === null || distance < QUARRY_MINE_REFRESH_DAYS) return false
+    if (quarryMine.value.lastResetDayTag === dayTag) return false
+
+    const nextRunId = Math.max(1, quarryMine.value.runId + 1)
+    quarryMine.value = {
+      ...quarryMine.value,
+      entered: false,
+      completed: false,
+      lastRunDayTag: '',
+      lastResetDayTag: dayTag,
+      runId: nextRunId,
+      nodes: createRefreshedQuarryMineNodes(nextRunId)
+    }
+    addLog(`【旧采石场】旧支道岩层重新稳定，新的矿洞路线刷新了（第 ${nextRunId + 1} 轮）。`, {
+      category: 'village',
+      tags: ['late_game_cycle'],
+      meta: { dayTag, runId: nextRunId }
+    })
+    return true
+  }
+
   const dailyUpdate = (dayTag = getCurrentDayTag()) => {
     ensureUnlockedFromProject(dayTag, gameStore.year)
     if (!isUnlocked.value) return { unlocked: false, spawnedCount: 0, attemptedCount: 0 }
     setWeeklyProgressForDay(dayTag)
     if (!quarryMine.value.unlocked) quarryMine.value = { ...quarryMine.value, unlocked: true }
+    refreshQuarryMineIfReady(dayTag)
     if (lastRefreshDayTag.value === dayTag) {
       return { unlocked: true, spawnedCount: 0, attemptedCount: 0, skipped: true }
     }
@@ -411,7 +482,7 @@ export const useQuarryStore = defineStore('quarry', () => {
           )
     return {
       ...monsterDef,
-      hp: runtimeMaxHp,
+      hp: savedHp && savedHp > 0 ? Math.min(savedHp, runtimeMaxHp) : runtimeMaxHp,
       attack: Math.max(
         1,
         Math.floor(monsterDef.attack * (isNight.value ? QUARRY_NIGHT_MONSTER_ATK_MULT : 1)) +
@@ -686,6 +757,28 @@ export const useQuarryStore = defineStore('quarry', () => {
       ) * getWeaponCombatTimeMultiplier()
 
     combatMonsterHp.value = Math.max(0, combatMonsterHp.value - attackOutcome.totalDamage)
+
+    // Equipment durability consumption on attack
+    const durabilityNpcUnlocked = npcStore.isNpcFunctionEffectUnlocked('tackle_maintain') ? ['tackle_maintain'] : []
+    const equippedWeapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
+    if (equippedWeapon) {
+      const wAffixes = equippedWeapon.affixes ?? []
+      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked)
+      const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
+      consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
+    }
+    const ringSlots = [inventoryStore.equippedRingSlot1, inventoryStore.equippedRingSlot2]
+    for (const slot of ringSlots) {
+      if (slot >= 0) {
+        const ring = inventoryStore.ownedRings[slot]
+        if (ring) {
+          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked)
+          const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
+          consumeEquipmentDurability(ring, rMax, 1, rReduction)
+        }
+      }
+    }
+
     let message = `你命中了${monster.name}，造成${attackOutcome.damage}点伤害。`
     if (attackOutcome.isCrit) message = `暴击！${message}`
     if (attackOutcome.didExtraStrike) {
@@ -882,7 +975,7 @@ export const useQuarryStore = defineStore('quarry', () => {
       for (let col = 0; col < oldSize; col += 1) {
         const oldIndex = row * oldSize + col
         const newIndex = row * newSize + col
-        newCells[newIndex] = { ...oldCells[oldIndex], index: newIndex }
+        newCells[newIndex] = { ...(oldCells[oldIndex] ?? createExploredEmptyCell(oldIndex)), index: newIndex }
       }
     }
     activeSize.value = newSize
@@ -900,14 +993,19 @@ export const useQuarryStore = defineStore('quarry', () => {
 
   const enterQuarryMine = (): QuarryActionResult => {
     ensureUnlockedFromProject()
+    refreshQuarryMineIfReady()
     if (!isUnlocked.value || !quarryMine.value.unlocked) {
       return { success: false, message: '采石场矿洞尚未露出入口。' }
     }
-    if (quarryMine.value.finalRewardClaimed) {
-      return { success: false, message: '采石场矿洞的终点奖励已经取走，旧支道暂时不再开放。' }
-    }
     if (quarryMine.value.completed) {
-      return { success: false, message: '旧支道已经清到底了，去终点祭台领取奖励即可。' }
+      const daysUntilRefresh = quarryMineStatus.value.daysUntilRefresh
+      return {
+        success: false,
+        message:
+          daysUntilRefresh > 0
+            ? `本轮旧支道已经清完，岩层还需 ${daysUntilRefresh} 天稳定后刷新。`
+            : '本轮旧支道已经清完，明早刷新时会重新露出路线。'
+      }
     }
     if (quarryMine.value.lastRunDayTag === getCurrentDayTag()) {
       return { success: false, message: '今天已经进入过采石场矿洞，先把当前支道进度处理完。' }
@@ -917,7 +1015,10 @@ export const useQuarryStore = defineStore('quarry', () => {
       entered: true,
       lastRunDayTag: getCurrentDayTag()
     }
-    return { success: true, message: '你进入了采石场矿洞。这里是一条短而危险的旧支道，终点供着一枚灵器碎片。' }
+    const routeText = quarryMine.value.finalRewardClaimed
+      ? '岩层重新稳定后露出了一条新岔路，终点多半是旧矿工留下的补给。'
+      : '这里是一条短而危险的旧支道，终点供着一枚灵器碎片。'
+    return { success: true, message: `你进入了采石场矿洞。${routeText}` }
   }
 
   const markQuarryMineNodeCleared = (nodeIndex: number) => {
@@ -925,17 +1026,50 @@ export const useQuarryStore = defineStore('quarry', () => {
       ...quarryMine.value,
       nodes: quarryMine.value.nodes.map(node => (node.index === nodeIndex ? { ...node, state: 'cleared' } : node))
     }
-    if (quarryMine.value.nodes.every(node => node.state === 'cleared' || node.kind === 'final')) {
+    if (quarryMine.value.nodes.every(node => node.state === 'cleared')) {
       quarryMine.value = { ...quarryMine.value, completed: true }
     }
   }
 
-  const resolveQuarryMineNode = (index: number): QuarryCollectResult => {
+  const buildQuarryMineNodeRewards = (
+    node: QuarryMineSaveData['nodes'][number],
+    mode: QuarryMineExploreMode
+  ): QuarryCollectRewardEntry[] => {
+    const baseRewards =
+      node.kind === 'chest' && node.treasureItems?.length
+        ? node.treasureItems.map(item => ({ itemId: item.itemId, quantity: item.quantity }))
+        : node.itemId
+          ? [{ itemId: node.itemId, quantity: Math.max(1, node.quantity ?? 1) }]
+          : []
+    if (mode === 'search') {
+      return baseRewards.map(reward => ({
+        ...reward,
+        quantity: reward.quantity + (node.kind === 'chest' ? 1 : Math.max(1, Math.floor(reward.quantity * 0.25)))
+      }))
+    }
+    if (mode === 'force' && node.kind === 'ore' && node.itemId) {
+      return baseRewards.map(reward => ({ ...reward, quantity: reward.quantity + 1 }))
+    }
+    return baseRewards
+  }
+
+  const getQuarryMineModeMessagePrefix = (mode: QuarryMineExploreMode): string => {
+    if (mode === 'force') return '你选择强攻，快速压过危险点。'
+    if (mode === 'search') return '你选择细搜，沿支架和碎石缝多查了一遍。'
+    return '你稳步推进，尽量避开松动岩层。'
+  }
+
+  const resolveQuarryMineNode = (index: number, mode: QuarryMineExploreMode = 'steady', prepItemId: string | null = null): QuarryCollectResult => {
     ensureUnlockedFromProject()
     if (!isUnlocked.value || !quarryMine.value.unlocked) {
       return { success: false, message: '采石场矿洞尚未开放。', rewards: [] }
     }
 
+    const exploreMode = normalizeQuarryMineExploreMode(mode)
+    const elixirPrep = getQuarryMineElixirPrepOption(prepItemId)
+    if (prepItemId && !elixirPrep) {
+      return { success: false, message: '这种丹药暂时不能用于旧支道准备。', rewards: [] }
+    }
     const safeIndex = Math.floor(Number(index))
     const node = quarryMine.value.nodes[safeIndex]
     if (!node) return { success: false, message: '这条支道已经塌死了。', rewards: [] }
@@ -946,41 +1080,61 @@ export const useQuarryStore = defineStore('quarry', () => {
     if (node.state === 'cleared') return { success: false, message: '这里已经清理过了。', rewards: [] }
     if (node.kind === 'final') {
       const finalResult = claimQuarryMineFinalReward()
-      return { ...finalResult, rewards: [] }
+      return { ...finalResult, rewards: finalResult.rewards ?? [], exploreMode }
     }
     if (!quarryMine.value.entered || quarryMine.value.lastRunDayTag !== getCurrentDayTag()) {
       return { success: false, message: '今天还没有进入采石场矿洞，先从入口下去。', rewards: [] }
     }
+
+    if (elixirPrep && inventoryStore.getTotalItemCount(elixirPrep.itemId) < 1) {
+      const elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      return { success: false, message: `${elixirName}不足，无法作为旧支道准备物。`, rewards: [] }
+    }
+
+    const staminaCost = Math.max(1, getQuarryMineModeStaminaCost(exploreMode) - (elixirPrep?.staminaReduction ?? 0))
+    const consumeElixirPrep = (): string | null => {
+      if (!elixirPrep) return ''
+      const elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      if (!inventoryStore.removeItemAnywhere(elixirPrep.itemId, 1)) return null
+      return `消耗${elixirName}，${elixirPrep.logEffect}。`
+    }
+
     if (node.kind === 'monster') {
       const monster = QUARRY_MONSTERS.find(entry => entry.id === node.monsterId)
       if (!monster) return { success: false, message: '矿洞怪物数据异常。', rewards: [] }
-      if (!playerStore.consumeStamina(QUARRY_COLLECT_STAMINA_COST, { source: 'tool' })) {
+      if (!playerStore.consumeStamina(staminaCost, { source: 'tool' })) {
         return { success: false, message: '体力不足，无法继续推进采石场矿洞。', rewards: [] }
       }
-      const damage = Math.max(1, Math.floor(monster.attack * 0.5))
+      const elixirMessage = consumeElixirPrep()
+      if (elixirMessage === null) {
+        return { success: false, message: '丹药准备状态已变化，旧支道推进已中止。', rewards: [] }
+      }
+      const baseDamageRate = exploreMode === 'steady' ? 0.35 : exploreMode === 'force' ? 0.75 : 0.55
+      const damageRate = baseDamageRate * (elixirPrep?.monsterDamageMultiplier ?? 1)
+      const damage = Math.max(1, Math.floor(monster.attack * damageRate))
       const takenDamage = playerStore.takeDamage(damage)
       skillStore.addExp('combat', monster.expReward)
-      skillStore.addExp('mining', QUARRY_MONSTER_BASE_EXP)
+      skillStore.addExp('mining', QUARRY_MONSTER_BASE_EXP + (exploreMode === 'force' ? 2 : 0))
       markQuarryMineNodeCleared(node.index)
       return {
         success: true,
-        message: `你击退了${monster.name}，受到 ${takenDamage} 点伤害，旧支道继续向前延伸。`,
-        rewards: []
+        message: `${getQuarryMineModeMessagePrefix(exploreMode)}${elixirMessage ? ` ${elixirMessage}` : ''} 你击退了${monster.name}，受到 ${takenDamage} 点伤害，旧支道继续向前延伸。`,
+        rewards: [],
+        exploreMode
       }
     }
 
-    const rewards =
-      node.kind === 'chest' && node.treasureItems?.length
-        ? node.treasureItems.map(item => ({ itemId: item.itemId, quantity: item.quantity }))
-        : node.itemId
-          ? [{ itemId: node.itemId, quantity: Math.max(1, node.quantity ?? 1) }]
-          : []
-    const rewardEntries = rewards.map(reward => ({ ...reward, quality: 'normal' as const }))
+    const rewards = buildQuarryMineNodeRewards(node, exploreMode)
+    const rewardEntries = buildQuarryMineRewardEntries(rewards)
     if (rewardEntries.length > 0 && !inventoryStore.canAddItems(rewardEntries)) {
       return { success: false, message: '背包空间不足，矿洞里的发现会保留在原地。', rewards: [] }
     }
-    if (!playerStore.consumeStamina(QUARRY_COLLECT_STAMINA_COST, { source: 'tool' })) {
+    if (!playerStore.consumeStamina(staminaCost, { source: 'tool' })) {
       return { success: false, message: '体力不足，无法继续推进采石场矿洞。', rewards: [] }
+    }
+    const elixirMessage = consumeElixirPrep()
+    if (elixirMessage === null) {
+      return { success: false, message: '丹药准备状态已变化，旧支道推进已中止。', rewards: [] }
     }
     if (rewardEntries.length > 0 && !inventoryStore.addItemsExact(rewardEntries)) {
       return { success: false, message: '背包空间不足，矿洞里的发现会保留在原地。', rewards: [] }
@@ -990,8 +1144,9 @@ export const useQuarryStore = defineStore('quarry', () => {
     markQuarryMineNodeCleared(node.index)
     return {
       success: true,
-      message: `你清理了${node.label}${rewards.length > 0 ? `，获得${formatRewardLabels(rewards)}` : ''}。`,
-      rewards
+      message: `${getQuarryMineModeMessagePrefix(exploreMode)}${elixirMessage ? ` ${elixirMessage}` : ''} 你清理了${node.label}${rewards.length > 0 ? `，获得${formatRewardLabels(rewards)}` : ''}。`,
+      rewards,
+      exploreMode
     }
   }
 
@@ -1002,20 +1157,49 @@ export const useQuarryStore = defineStore('quarry', () => {
     }
     const blockingNode = quarryMine.value.nodes.find(node => node.kind !== 'final' && node.state !== 'cleared')
     if (blockingNode) return { success: false, message: '旧支道还没清到底，终点祭台够不着。' }
-    if (quarryMine.value.finalRewardClaimed) return { success: false, message: '采石场矿洞的终点奖励已经领取过了。' }
+    const finalNode = quarryMine.value.nodes.find(node => node.kind === 'final')
+    if (!finalNode || finalNode.state === 'cleared') return { success: false, message: '旧支道终点已经处理过了。' }
+    const currentDayTag = getCurrentDayTag()
 
-    playerStore.markLifestyleUnlock(QUARRY_MINE_FINAL_UNLOCK_ID, getCurrentDayTag())
+    if (quarryMine.value.finalRewardClaimed) {
+      const rewards = QUARRY_MINE_REPEAT_FINAL_REWARDS.map(reward => ({ itemId: reward.itemId, quantity: reward.quantity }))
+      const rewardEntries = buildQuarryMineRewardEntries(rewards)
+      if (!inventoryStore.canAddItems(rewardEntries)) {
+        return { success: false, message: '背包空间不足，旧支道终点的补给暂时保留在祭台旁。' }
+      }
+      if (!inventoryStore.addItemsExact(rewardEntries)) {
+        return { success: false, message: '背包空间不足，旧支道终点的补给暂时保留在祭台旁。' }
+      }
+      for (const reward of rewards) questStore.onItemObtained(reward.itemId, reward.quantity)
+      skillStore.addExp('mining', 12)
+      quarryMine.value = {
+        ...quarryMine.value,
+        completed: true,
+        lastCompletedDayTag: currentDayTag,
+        nodes: quarryMine.value.nodes.map(node => (node.kind === 'final' ? { ...node, state: 'cleared' } : node))
+      }
+      return {
+        success: true,
+        completed: true,
+        rewardClaimed: true,
+        rewards,
+        message: `你清点了旧支道尽头的回声祭台，获得${formatRewardLabels(rewards)}。岩层会在 ${QUARRY_MINE_REFRESH_DAYS} 天后重新稳定。`
+      }
+    }
+
+    playerStore.markLifestyleUnlock(QUARRY_MINE_FINAL_UNLOCK_ID, currentDayTag)
     quarryMine.value = {
       ...quarryMine.value,
       completed: true,
       finalRewardClaimed: true,
+      lastCompletedDayTag: currentDayTag,
       nodes: quarryMine.value.nodes.map(node => (node.kind === 'final' ? { ...node, state: 'cleared' } : node))
     }
     return {
       success: true,
       completed: true,
       rewardClaimed: true,
-      message: `你在采石场矿洞尽头取下了灵器碎片。若已解锁饰物槽，可在角色/背包中装备 ${QUARRY_MINE_FINAL_TRINKET_ID}。`
+      message: `你在采石场矿洞尽头取下了灵器碎片。若已解锁饰物槽，可在角色/背包中装备 ${QUARRY_MINE_FINAL_TRINKET_ID}。岩层会在 ${QUARRY_MINE_REFRESH_DAYS} 天后刷新出新的旧支道。`
     }
   }
 

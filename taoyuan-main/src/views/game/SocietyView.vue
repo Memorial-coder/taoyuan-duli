@@ -184,7 +184,12 @@
               >
                 <p class="text-[0.625rem] text-accent">{{ entry.label }}</p>
                 <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
-                <p class="text-[0.625rem] text-muted mt-1">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                <div class="mt-1 flex flex-wrap gap-1.5 text-[0.625rem] text-muted">
+                  <span v-for="cost in entry.costs" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                    <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                    <span class="truncate">{{ cost.label }}</span>
+                  </span>
+                </div>
               </button>
             </div>
             <div v-if="societyStore.mySociety.public_warehouse.items.length > 0" class="border-t border-accent/10 pt-2">
@@ -203,7 +208,13 @@
             <div v-if="societyStore.mySociety.public_warehouse.logs.length > 0" class="border-t border-accent/10 pt-2 space-y-1">
               <p class="text-[0.625rem] text-accent">最近入仓</p>
               <div v-for="entry in societyStore.mySociety.public_warehouse.logs.slice(0, 4)" :key="entry.id" class="text-[0.625rem] text-muted leading-4">
-                {{ entry.display_name }} 补入了 {{ entry.deposit_label }} · {{ entry.entries.map(cost => cost.label).join(' + ') }}
+                <span>{{ entry.display_name }} 补入了 {{ entry.deposit_label }} · </span>
+                <span class="inline-flex flex-wrap gap-1.5">
+                  <span v-for="cost in entry.entries" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                    <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                    <span>{{ cost.label }}</span>
+                  </span>
+                </span>
               </div>
             </div>
           </div>
@@ -481,7 +492,12 @@
                   >
                     <p class="text-[0.625rem] text-accent">{{ entry.label }} · +{{ entry.progress_gain }} 进度</p>
                     <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
-                    <p class="text-[0.625rem] text-muted mt-1">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                    <div class="mt-1 flex flex-wrap gap-1.5 text-[0.625rem] text-muted">
+                      <span v-for="cost in entry.costs" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                        <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                        <span class="truncate">{{ cost.label }}</span>
+                      </span>
+                    </div>
                   </button>
                 </div>
 
@@ -489,7 +505,13 @@
                   <p class="text-[0.625rem] text-accent mb-1">最近捐献</p>
                   <div class="space-y-1">
                     <div v-for="entry in project.recent_contributions" :key="entry.id" class="text-[0.625rem] text-muted leading-4">
-                      {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ entry.costs.map(cost => cost.label).join(' + ') }}
+                      <span>{{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · </span>
+                      <span class="inline-flex flex-wrap gap-1.5">
+                        <span v-for="cost in entry.costs" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                          <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                          <span>{{ cost.label }}</span>
+                        </span>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -651,7 +673,8 @@
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import { getItemById } from '@/data'
-  import type { SocietyProposalChoice, SocietyRole } from '@/utils/societyApi'
+  import type { SocietyCostEntry, SocietyProposalChoice, SocietyRole } from '@/utils/societyApi'
+  import type { ItemDef, Quality } from '@/types/item'
   import { ensureCurrentAccount } from '@/utils/accountStorage'
 
   const route = useRoute()
@@ -664,6 +687,16 @@
   const assignableRoleOptions = computed(() =>
     societyStore.roleOptions.filter(entry => entry.id !== 'president') as Array<{ id: Exclude<SocietyRole, 'president'>; label: string }>
   )
+
+  const getSocietyCostItem = (cost: SocietyCostEntry): ItemDef | null => {
+    if (cost.type !== 'item' || !cost.item_id) return null
+    return getItemById(cost.item_id) ?? null
+  }
+
+  const societyCostQuality = (cost: SocietyCostEntry): Quality => {
+    const quality = String(cost.quality || 'normal')
+    return ['normal', 'fine', 'excellent', 'supreme'].includes(quality) ? quality as Quality : 'normal'
+  }
 
   const currentWelfareProgressTotal = computed(() => {
     const society = societyStore.mySociety

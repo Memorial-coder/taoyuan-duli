@@ -112,7 +112,7 @@
           </div>
           <span class="text-[0.625rem] text-muted shrink-0">当前 HP {{ playerStore.hp }}/{{ playerStore.getMaxHp() }}</span>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
           <div>
             <p class="text-[0.625rem] text-muted mb-2">推进风格</p>
             <div class="flex flex-wrap gap-2">
@@ -148,6 +148,67 @@
               </button>
             </div>
             <p class="text-[0.625rem] text-muted mt-2 leading-4">{{ currentRetreatRuleDescription }}</p>
+          </div>
+          <div data-testid="region-expedition-elixir-prep">
+            <p class="text-[0.625rem] text-muted mb-2">丹药准备</p>
+            <div class="grid grid-cols-1 gap-2">
+              <button
+                class="border rounded-xs px-2 py-1 text-left text-[0.625rem] hover:bg-accent/5"
+                :class="selectedExpeditionElixirId === null ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
+                @click="selectedExpeditionElixirId = null"
+              >
+                <span class="block">不携带</span>
+                <span class="block mt-1 text-muted leading-4">不消耗丹药</span>
+              </button>
+              <button
+                v-for="option in expeditionElixirPrepOptions"
+                :key="`expedition-elixir-${option.itemId}`"
+                class="border rounded-xs px-2 py-1 text-left text-[0.625rem] hover:bg-accent/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                :class="selectedExpeditionElixirId === option.itemId ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
+                :disabled="option.count <= 0"
+                :title="`${option.effect}；库存 ${option.count}`"
+                @click="selectedExpeditionElixirId = option.itemId"
+              >
+                <span class="flex min-w-0 items-start gap-2">
+                  <ItemIcon :item="option.item" size="xs" :show-badge="false" />
+                  <span class="min-w-0">
+                    <span class="block truncate">{{ option.name }} · 库存 {{ option.count }}</span>
+                    <span class="block mt-1 text-muted leading-4">{{ option.effect }}</span>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div data-testid="region-expedition-elixir-prep-mobile">
+            <p class="text-[0.625rem] text-muted mb-2">丹药准备</p>
+            <div class="grid grid-cols-1 gap-2">
+              <button
+                class="border rounded-xs px-3 py-2 text-left hover:bg-accent/5"
+                :class="selectedExpeditionElixirId === null ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
+                @click="selectedExpeditionElixirId = null"
+              >
+                <p class="text-xs">不携带</p>
+                <p class="text-xs mt-1 leading-5 text-muted">不消耗丹药</p>
+              </button>
+              <button
+                v-for="option in expeditionElixirPrepOptions"
+                :key="`compact-expedition-elixir-${option.itemId}`"
+                class="border rounded-xs px-3 py-2 text-left hover:bg-accent/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                :class="selectedExpeditionElixirId === option.itemId ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
+                :disabled="option.count <= 0"
+                :title="`${option.effect}；库存 ${option.count}`"
+                @click="selectedExpeditionElixirId = option.itemId"
+              >
+                <span class="flex min-w-0 items-start gap-2">
+                  <ItemIcon :item="option.item" size="xs" :show-badge="false" />
+                  <span class="min-w-0">
+                    <span class="block truncate text-xs">{{ option.name }} · 库存 {{ option.count }}</span>
+                    <span class="block mt-1 text-xs leading-5 text-muted">{{ option.effect }}</span>
+                  </span>
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -399,7 +460,7 @@
             <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">远征筹备</p>
             <p class="text-xs text-accent mt-1">{{ currentSession ? `进行中：${currentSession.targetName}` : '先定推进风格，再发起探索。' }}</p>
             <p class="text-xs text-muted mt-1 leading-5">
-              已选 {{ currentApproachDescription ? expeditionApproachOptions.find(entry => entry.value === selectedApproach)?.label : '稳健推进' }} / {{ expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule)?.label ?? '平衡推进' }}
+              已选 {{ currentApproachDescription ? expeditionApproachOptions.find(entry => entry.value === selectedApproach)?.label : '稳健推进' }} / {{ expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule)?.label ?? '平衡推进' }} / {{ selectedExpeditionElixirName }}
             </p>
           </div>
           <button
@@ -1262,6 +1323,8 @@
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import RegionJourneyAftermathPanel from '@/components/game/regionMap/RegionJourneyAftermathPanel.vue'
   import RegionResourcePrepPanel from '@/components/game/regionMap/RegionResourcePrepPanel.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { REGION_EXPEDITION_ELIXIR_PREP_OPTIONS } from '@/data/eliteElixirPrep'
   import { getRareVisitorsForDay } from '@/data/bookseller'
   import { resolveEnvironmentWindow } from '@/data/environmentWindows'
   import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
@@ -1277,6 +1340,7 @@
   import { useGuildStore } from '@/stores/useGuildStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useQuestStore } from '@/stores/useQuestStore'
@@ -1310,6 +1374,7 @@
   const guildStore = useGuildStore()
   const goalStore = useGoalStore()
   const hanhaiStore = useHanhaiStore()
+  const inventoryStore = useInventoryStore()
   const museumStore = useMuseumStore()
   const playerStore = usePlayerStore()
   const questStore = useQuestStore()
@@ -1463,6 +1528,23 @@
   const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
   const selectedRetreatRule = ref<RegionExpeditionRetreatRule>('balanced')
+  const selectedExpeditionElixirId = ref<string | null>(null)
+  const expeditionElixirPrepOptions = computed(() =>
+    REGION_EXPEDITION_ELIXIR_PREP_OPTIONS.map(option => {
+      const item = getItemById(option.itemId)
+      return {
+        ...option,
+        item,
+        name: item?.name ?? option.label,
+        count: inventoryStore.getTotalItemCount(option.itemId)
+      }
+    })
+  )
+  const selectedExpeditionElixirName = computed(() =>
+    selectedExpeditionElixirId.value
+      ? expeditionElixirPrepOptions.value.find(option => option.itemId === selectedExpeditionElixirId.value)?.name ?? '已选丹药'
+      : '不携带丹药'
+  )
   const frontierMapAdvancedStateDefs: Array<{
     id: FrontierMapOverlayKind
     label: string
@@ -3931,6 +4013,11 @@
     handleNavigate(panelKey)
   }
 
+  const clearSelectedExpeditionElixirIfEmpty = () => {
+    const itemId = selectedExpeditionElixirId.value
+    if (itemId && inventoryStore.getTotalItemCount(itemId) <= 0) selectedExpeditionElixirId.value = null
+  }
+
   const handleRunRoute = (routeId: string) => {
     if (shouldAutoRunRoute(routeId)) {
       const result = regionMapStore.runRouteExpedition(routeId, currentDayTag.value)
@@ -3939,9 +4026,10 @@
       return
     }
 
-    const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
+    const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value, selectedExpeditionElixirId.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     if (result.success) {
+      clearSelectedExpeditionElixirIfEmpty()
       setRegionMapTab('today')
       settlementDialog.value = null
     } else {
@@ -4058,9 +4146,10 @@
       openSettlementDialog('无法出发', ['当前格子没有可发起的区域首领。'], 'danger')
       return
     }
-    const result = regionMapStore.startBossExpeditionSession(bossRegion, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
+    const result = regionMapStore.startBossExpeditionSession(bossRegion, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value, selectedExpeditionElixirId.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     if (result.success) {
+      clearSelectedExpeditionElixirIfEmpty()
       setRegionMapTab('today')
       settlementDialog.value = null
     } else {
@@ -4076,9 +4165,10 @@
     regionMapStore.regionBossAvailability.find(entry => entry.regionId === regionId)?.disabledReason ?? ''
 
   const handleRunBoss = (regionId: RegionId) => {
-    const result = regionMapStore.startBossExpeditionSession(regionId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
+    const result = regionMapStore.startBossExpeditionSession(regionId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value, selectedExpeditionElixirId.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     if (result.success) {
+      clearSelectedExpeditionElixirIfEmpty()
       setRegionMapTab('today')
       settlementDialog.value = null
     } else {

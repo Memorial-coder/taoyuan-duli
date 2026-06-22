@@ -7,17 +7,21 @@ export type ForgeAffixDirectionId =
   | 'weapon_survival'
   | 'weapon_efficiency'
   | 'weapon_slayer'
+  | 'weapon_durability'
   | 'pickaxe_efficiency'
   | 'pickaxe_yield'
   | 'ring_profit'
   | 'ring_combat'
   | 'ring_treasure'
+  | 'ring_durability'
   | 'hat_defense'
   | 'hat_farming'
   | 'hat_experience'
+  | 'hat_durability'
   | 'shoe_movement'
   | 'shoe_stamina'
   | 'shoe_mining'
+  | 'shoe_durability'
 
 export type ForgeAffixEffectType =
   | EquipmentEffectType
@@ -580,6 +584,163 @@ export const FORGE_AFFIXES: Record<string, ForgeAffixDef> = {
     defaultValue: percent(0.05),
     displayKind: 'reduction',
     description: '首领压力降低。'
+  },
+  // === 耐久词条 ===
+  durable_weapon: {
+    id: 'durable_weapon',
+    name: '坚韧',
+    target: 'weapon',
+    directions: ['weapon_durability'],
+    effectType: 'durability_bonus',
+    min: percent(0.10),
+    max: percent(0.30),
+    step: percent(0.01),
+    defaultValue: percent(0.20),
+    displayKind: 'percent',
+    description: '装备耐久上限提升。'
+  },
+  wear_resistant_weapon: {
+    id: 'wear_resistant_weapon',
+    name: '耐磨',
+    target: 'weapon',
+    directions: ['weapon_durability'],
+    effectType: 'durability_consumption_reduction',
+    min: percent(0.10),
+    max: percent(0.25),
+    step: percent(0.01),
+    defaultValue: percent(0.15),
+    displayKind: 'reduction',
+    description: '耐久消耗降低。'
+  },
+  fragile_weapon: {
+    id: 'fragile_weapon',
+    name: '易损',
+    target: 'weapon',
+    directions: [],
+    effectType: 'durability_bonus',
+    min: percent(-0.20),
+    max: percent(-0.10),
+    step: percent(0.01),
+    defaultValue: percent(-0.15),
+    displayKind: 'percent',
+    description: '装备耐久上限降低。'
+  },
+  durable_ring: {
+    id: 'durable_ring',
+    name: '坚韧',
+    target: 'ring',
+    directions: ['ring_durability'],
+    effectType: 'durability_bonus',
+    min: percent(0.10),
+    max: percent(0.30),
+    step: percent(0.01),
+    defaultValue: percent(0.20),
+    displayKind: 'percent',
+    description: '装备耐久上限提升。'
+  },
+  wear_resistant_ring: {
+    id: 'wear_resistant_ring',
+    name: '耐磨',
+    target: 'ring',
+    directions: ['ring_durability'],
+    effectType: 'durability_consumption_reduction',
+    min: percent(0.10),
+    max: percent(0.25),
+    step: percent(0.01),
+    defaultValue: percent(0.15),
+    displayKind: 'reduction',
+    description: '耐久消耗降低。'
+  },
+  fragile_ring: {
+    id: 'fragile_ring',
+    name: '易损',
+    target: 'ring',
+    directions: [],
+    effectType: 'durability_bonus',
+    min: percent(-0.20),
+    max: percent(-0.10),
+    step: percent(0.01),
+    defaultValue: percent(-0.15),
+    displayKind: 'percent',
+    description: '装备耐久上限降低。'
+  },
+  durable_hat: {
+    id: 'durable_hat',
+    name: '坚韧',
+    target: 'hat',
+    directions: ['hat_durability'],
+    effectType: 'durability_bonus',
+    min: percent(0.10),
+    max: percent(0.30),
+    step: percent(0.01),
+    defaultValue: percent(0.20),
+    displayKind: 'percent',
+    description: '装备耐久上限提升。'
+  },
+  wear_resistant_hat: {
+    id: 'wear_resistant_hat',
+    name: '耐磨',
+    target: 'hat',
+    directions: ['hat_durability'],
+    effectType: 'durability_consumption_reduction',
+    min: percent(0.10),
+    max: percent(0.25),
+    step: percent(0.01),
+    defaultValue: percent(0.15),
+    displayKind: 'reduction',
+    description: '耐久消耗降低。'
+  },
+  fragile_hat: {
+    id: 'fragile_hat',
+    name: '易损',
+    target: 'hat',
+    directions: [],
+    effectType: 'durability_bonus',
+    min: percent(-0.20),
+    max: percent(-0.10),
+    step: percent(0.01),
+    defaultValue: percent(-0.15),
+    displayKind: 'percent',
+    description: '装备耐久上限降低。'
+  },
+  durable_shoe: {
+    id: 'durable_shoe',
+    name: '坚韧',
+    target: 'shoe',
+    directions: ['shoe_durability'],
+    effectType: 'durability_bonus',
+    min: percent(0.10),
+    max: percent(0.30),
+    step: percent(0.01),
+    defaultValue: percent(0.20),
+    displayKind: 'percent',
+    description: '装备耐久上限提升。'
+  },
+  wear_resistant_shoe: {
+    id: 'wear_resistant_shoe',
+    name: '耐磨',
+    target: 'shoe',
+    directions: ['shoe_durability'],
+    effectType: 'durability_consumption_reduction',
+    min: percent(0.10),
+    max: percent(0.25),
+    step: percent(0.01),
+    defaultValue: percent(0.15),
+    displayKind: 'reduction',
+    description: '耐久消耗降低。'
+  },
+  fragile_shoe: {
+    id: 'fragile_shoe',
+    name: '易损',
+    target: 'shoe',
+    directions: [],
+    effectType: 'durability_bonus',
+    min: percent(-0.20),
+    max: percent(-0.10),
+    step: percent(0.01),
+    defaultValue: percent(-0.15),
+    displayKind: 'percent',
+    description: '装备耐久上限降低。'
   }
 }
 
@@ -599,6 +760,11 @@ export const FORGE_AFFIX_DIRECTIONS: ForgeAffixDirectionDef[] = [
   { id: 'shoe_movement', target: 'shoe', label: '移动', description: '旅行加速与耗时降低。', affixIds: ['shoe_swift', 'shoe_fleet'] },
   { id: 'shoe_stamina', target: 'shoe', label: '体力', description: '日常与行旅减耗。', affixIds: ['shoe_surefoot', 'shoe_breath'] },
   { id: 'shoe_mining', target: 'shoe', label: '矿洞', description: '矿洞体力与首领压力。', affixIds: ['shoe_mine_step', 'shoe_cavern_grip'] }
+,
+  { id: 'weapon_durability', target: 'weapon', label: '耐久', description: '耐久上限与消耗。', affixIds: ['durable_weapon', 'wear_resistant_weapon'] },
+  { id: 'ring_durability', target: 'ring', label: '耐久', description: '耐久上限与消耗。', affixIds: ['durable_ring', 'wear_resistant_ring'] },
+  { id: 'hat_durability', target: 'hat', label: '耐久', description: '耐久上限与消耗。', affixIds: ['durable_hat', 'wear_resistant_hat'] },
+  { id: 'shoe_durability', target: 'shoe', label: '耐久', description: '耐久上限与消耗。', affixIds: ['durable_shoe', 'wear_resistant_shoe'] }
 ]
 
 export const FORGE_AFFIX_MODE_DEFS: ForgeAffixModeDef[] = [

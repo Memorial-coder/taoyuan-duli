@@ -29,7 +29,10 @@
             :title="'点击移除'"
             @click="removeSelection(i)"
           >
-            <span class="truncate" :class="qualityClass(sel.quality)">{{ getItemById(sel.itemId)?.name }}</span>
+            <span class="flex min-w-0 items-center gap-1.5">
+              <ItemIcon :item="getItemById(sel.itemId)" size="xs" :quality="sel.quality" />
+              <span class="truncate" :class="qualityClass(sel.quality)">{{ getItemById(sel.itemId)?.name }}</span>
+            </span>
             <span class="flex items-center space-x-2 shrink-0 ml-2">
               <span class="text-muted">{{ getItemById(sel.itemId)?.sellPrice }}文</span>
               <span class="text-danger">移除</span>
@@ -59,7 +62,10 @@
             :disabled="selectedItems.length >= 5"
             @click="addSelection(item)"
           >
-            <span class="truncate" :class="qualityClass(item.quality)">{{ getItemById(item.itemId)?.name }}</span>
+            <span class="flex min-w-0 items-center gap-1.5">
+              <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
+              <span class="truncate" :class="qualityClass(item.quality)">{{ getItemById(item.itemId)?.name }}</span>
+            </span>
             <span class="flex items-center space-x-2 shrink-0 ml-2">
               <span class="text-muted">×{{ item.quantity }}</span>
               <span class="text-muted">{{ getItemById(item.itemId)?.sellPrice }}文</span>
@@ -109,7 +115,10 @@
           :key="i"
           class="flex items-center justify-between text-xs py-0.5 border-b border-accent/10 last:border-0"
         >
-          <span :class="qualityClass(d.quality) || 'text-accent'">{{ d.name }}</span>
+          <span class="flex min-w-0 items-center gap-1.5" :class="qualityClass(d.quality) || 'text-accent'">
+            <ItemIcon :item="getItemById(d.itemId)" size="xs" :quality="d.quality" />
+            <span class="truncate">{{ d.name }}</span>
+          </span>
           <span class="text-muted">{{ d.basePrice }}文 × {{ d.multiplier }} = {{ d.score }}分</span>
         </div>
         <div class="flex items-center justify-between text-xs mt-1.5 pt-1 border-t border-accent/20">
@@ -142,6 +151,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { getItemById } from '@/data'
   import type { Quality } from '@/types'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import {
     sfxRewardClaim,
     sfxItemSelect,
@@ -186,6 +196,7 @@
   }
 
   interface ScoreDetail {
+    itemId: string
     name: string
     quality: Quality
     basePrice: number
@@ -321,6 +332,7 @@
       const score = Math.round(def.sellPrice * mult)
       total += score
       details.push({
+        itemId: sel.itemId,
         name: def.name,
         quality: sel.quality,
         basePrice: def.sellPrice,

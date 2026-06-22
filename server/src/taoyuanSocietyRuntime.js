@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const taoyuanActivityRoomRuntime = require('./taoyuanActivityRoomRuntime');
+const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
@@ -2601,6 +2602,26 @@ async function ensureTargetUserExists(username) {
   return user;
 }
 
+async function resolveSocietyInviteTarget(payload = {}, inviter = '') {
+  const rawTargetUsername = normalizeUsername(payload?.target_username);
+  let { username: targetUsername, identity: targetIdentity } = resolveTargetBySaveIdOrUsername(payload, '请先填写要邀请的玩家或存档 ID');
+  let targetUser = await db.getUser(targetUsername);
+  if (!targetUser && rawTargetUsername && !targetIdentity) {
+    const friendTarget = await taoyuanSocialRuntime.resolveFriendTargetByAlias(inviter, rawTargetUsername);
+    if (friendTarget?.username) {
+      targetUsername = friendTarget.username;
+      targetIdentity = friendTarget.identity || targetIdentity;
+      targetUser = await db.getUser(targetUsername);
+    }
+  }
+  if (!targetUser) throw createError('目标玩家不存在', 404);
+  return {
+    username: targetUsername,
+    identity: targetIdentity,
+    user: targetUser,
+  };
+}
+
 function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请先填写要邀请的玩家') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
   const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
@@ -3553,9 +3574,8 @@ async function inviteToSociety(payload = {}, actor = {}) {
   ensureSocietyMemberRole(society, inviter, SOCIETY_MANAGER_ROLES, '只有社长或管事可以邀请成员');
   if ((society.members || []).length >= society.capacity) throw createError('当前村社人数已满');
 
-  const { username: targetUsername, identity: requestedTargetIdentity } = resolveTargetBySaveIdOrUsername(payload, '请先填写要邀请的玩家或存档 ID');
+  const { username: targetUsername, identity: requestedTargetIdentity } = await resolveSocietyInviteTarget(payload, inviter);
   if (targetUsername === inviter) throw createError('不能邀请自己');
-  await ensureTargetUserExists(targetUsername);
   const targetIdentity = requestedTargetIdentity || resolveActiveSocietySaveIdentity(targetUsername);
   if (findMemberSociety(store, targetUsername, targetIdentity)) throw createError('对方已经加入其他村社');
   if (hasPendingSocietyRequest(store, society.id, targetUsername, targetIdentity)) throw createError('该玩家已有待处理的申请或邀请');

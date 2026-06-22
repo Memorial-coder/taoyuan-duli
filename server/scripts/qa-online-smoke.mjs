@@ -2367,19 +2367,19 @@ try {
     createdFestivalRoomId = String(data.room.id)
   })
 
-  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/invite write path', async () => {
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/invite display-name alias path', async () => {
     const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/invite`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_save_id: secondarySaveIdentity.save_id,
+        target_username: secondarySessionState.displayName,
       }),
     })
     assert(response.ok, `festival room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
     const invitation = data?.room?.invitations?.find(item => item?.target_username === secondarySessionState.username)
-    assert(data?.ok === true && invitation?.target_save_id === secondarySaveIdentity.save_id, 'festival room invite did not persist target save id')
+    assert(data?.ok === true && invitation?.target_save_id === secondarySaveIdentity.save_id, 'festival room display-name invite did not resolve target save id')
     assert(invitation?.target_save_slot === secondarySaveIdentity.save_slot, 'festival room invite did not persist target save slot')
   })
 

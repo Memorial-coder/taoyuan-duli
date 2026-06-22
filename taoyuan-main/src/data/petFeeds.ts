@@ -131,6 +131,26 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     }
   },
   {
+    id: 'manor_edge_pet_bowl',
+    itemId: 'manor_edge_bundle',
+    label: '庄园边角小食',
+    shortLabel: '边角菜包',
+    taste: 'filling',
+    preferredPetTypes: ['cat', 'dog', 'spirit'],
+    friendshipGain: 5,
+    preferredBonus: 2,
+    rareFindChance: 0.02,
+    rareFindCooldownDays: 3,
+    rareFindPool: ['seed_cabbage', 'seed_rice', 'pine_cone'],
+    description: '把好友庄园整理出的边角作物切成小食，奖励不高，但能稳定消耗庄园互助产物。',
+    feedback: {
+      dog: '田犬把庄园边角小食吃得很快，随后叼回几片沾着泥土的叶子。差不多是在说院子今天很安全。',
+      cat: '猫闻了闻庄园边角小食，挑出最嫩的一口吃掉，剩下的也没有浪费。',
+      spirit: '灵宠绕着庄园边角小食转了一圈，像是记住了好友庄园带来的草木气味。',
+      default: '宠物吃过庄园边角小食后，第二天显得亲近了一点。'
+    }
+  },
+  {
     id: 'pumpkin_cozy_bowl',
     itemId: 'pumpkin',
     label: '南瓜亲密餐',

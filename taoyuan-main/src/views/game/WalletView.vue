@@ -8,7 +8,7 @@
       </div>
       <span class="text-xs text-muted">{{ unlockedCount }}/{{ WALLET_ITEMS.length }}</span>
     </div>
-    <p v-if="!isCompactMobile" class="text-xs text-muted mb-3">永久被动加成，满足条件后自动解锁。</p>
+    <p v-if="!isCompactMobile" class="text-xs text-muted mb-3">预算、票券、额度和被动效果集中管理。</p>
 
     <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="wallet-primary-action-card">
       <div class="flex items-start justify-between gap-3">
@@ -29,19 +29,32 @@
       </button>
     </div>
 
-    <div v-if="isCompactMobile" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
-      <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <p class="text-xs text-accent">钱袋提示</p>
-          <p class="text-xs text-muted mt-1 leading-5">先看本周预算和当前资金去向，需要时再展开高地战备、经济摘要和商圈豪华消费路线。</p>
-        </div>
-        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="walletPreludeExpanded = !walletPreludeExpanded">
-          {{ walletPreludeExpanded || walletPreludeForceOpen ? '收起' : '展开' }}
+    <div class="border border-accent/15 rounded-xs p-2 mb-3 bg-bg/40" data-testid="wallet-section-tabs">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+        <button
+          v-for="tab in walletSectionTabs"
+          :key="tab.key"
+          class="min-h-[4.25rem] border rounded-xs px-2 py-2 text-left transition-colors"
+          :class="isWalletTabActive(tab.key) ? 'border-accent bg-accent/10 text-accent' : 'border-accent/10 text-muted hover:border-accent/30 hover:bg-accent/5'"
+          :data-testid="`wallet-section-tab-${tab.key}`"
+          :aria-pressed="isWalletTabActive(tab.key)"
+          @click="setActiveWalletSection(tab.key)"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="inline-flex items-center gap-1 min-w-0">
+              <component :is="tab.icon" :size="13" class="shrink-0" />
+              <span class="text-xs truncate">{{ tab.label }}</span>
+            </span>
+            <span class="text-[0.625rem] shrink-0" :class="isWalletTabActive(tab.key) ? 'text-accent' : 'text-muted/80'">{{ tab.badge }}</span>
+          </div>
+          <p class="text-[0.625rem] leading-4 mt-1 break-words" :class="isWalletTabActive(tab.key) ? 'text-accent/80' : 'text-muted/80'">
+            {{ tab.summary }}
+          </p>
         </button>
       </div>
     </div>
 
-    <template v-if="!isCompactMobile || walletPreludeExpanded || walletPreludeForceOpen">
+    <template v-if="isWalletSectionVisible('overview')">
     <div v-if="cloudHighlandWalletPrep" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-accent">云岚高地战备</p>
@@ -180,6 +193,7 @@
     </template>
 
     <div
+      v-if="isWalletSectionVisible('weekly-budget')"
       class="border border-accent/20 rounded-xs p-3 mb-3"
       :class="promptSectionClass('weekly-budget')"
       :data-prompt-focus="buildPromptFocusAttr('weekly-budget')"
@@ -265,6 +279,7 @@
     </div>
 
     <div
+      v-if="isWalletSectionVisible('reward-ticket')"
       class="border border-accent/20 rounded-xs p-3 mb-3"
       :class="promptSectionClass('reward-ticket')"
       :data-prompt-focus="buildPromptFocusAttr('reward-ticket')"
@@ -272,22 +287,11 @@
       <div class="flex items-center justify-between gap-3 mb-2">
         <div class="min-w-0">
           <span class="text-sm text-accent">资源券 / 奖励记录</span>
-          <p v-if="isCompactMobile && !isWalletSectionOpen('reward-ticket')" class="mt-1 text-xs text-muted leading-5">
-            先看当前哪些票券已经到账，需要时再展开兑换列表。
-          </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="text-xs text-muted">{{ rewardTicketFilledCount }}/{{ rewardTicketEntries.length }} 已入账</span>
-          <button
-            v-if="isCompactMobile"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
-            @click="toggleWalletSection('reward-ticket')"
-          >
-            {{ isWalletSectionOpen('reward-ticket') ? '收起' : '展开' }}
-          </button>
         </div>
       </div>
-      <template v-if="!isCompactMobile || isWalletSectionOpen('reward-ticket')">
       <p class="text-xs text-muted mb-2">高阶经营奖励会逐步改为票券发放，可在这里查看余额并兑换对应的专项补给。</p>
 
       <div class="border border-accent/10 rounded-xs p-2 mb-3 bg-accent/5">
@@ -413,10 +417,10 @@
           </div>
         </div>
       </div>
-      </template>
     </div>
 
     <div
+      v-if="isWalletSectionVisible('quota-exchange')"
       class="border border-accent/20 rounded-xs p-3 mb-3"
       :class="promptSectionClass('quota-exchange')"
       :data-prompt-focus="buildPromptFocusAttr('quota-exchange')"
@@ -424,22 +428,11 @@
       <div class="flex items-center justify-between gap-3 mb-2">
         <div class="min-w-0">
           <span class="text-sm text-accent">额度兑换</span>
-          <p v-if="isCompactMobile && !isWalletSectionOpen('quota-exchange')" class="mt-1 text-xs text-muted leading-5">
-            需要时再展开额度明细和双向兑换操作。
-          </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="text-xs text-muted">{{ playerStore.money }}文</span>
-          <button
-            v-if="isCompactMobile"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
-            @click="toggleWalletSection('quota-exchange')"
-          >
-            {{ isWalletSectionOpen('quota-exchange') ? '收起' : '展开' }}
-          </button>
         </div>
       </div>
-      <template v-if="!isCompactMobile || isWalletSectionOpen('quota-exchange')">
       <p class="text-xs text-muted mb-2">桃源铜钱可与账号额度双向兑换，汇率由管理员统一配置。</p>
 
       <div class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -504,10 +497,10 @@
           {{ exporting ? '导出中...' : '导出铜钱→额度' }}
         </button>
       </div>
-      </template>
     </div>
 
     <div
+      v-if="isWalletSectionVisible('archetype-overview')"
       class="border border-accent/20 rounded-xs p-3 mb-3"
       :class="promptSectionClass('archetype-overview')"
       :data-prompt-focus="buildPromptFocusAttr('archetype-overview')"
@@ -515,22 +508,11 @@
       <div class="flex items-center justify-between gap-3 mb-2">
         <div class="min-w-0">
           <span class="text-sm text-accent">钱包流派</span>
-          <p v-if="isCompactMobile && !isWalletSectionOpen('archetype-overview')" class="mt-1 text-xs text-muted leading-5">
-            需要时再展开流派列表和节点路线。
-          </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <span class="text-xs text-muted">{{ walletStore.currentArchetype ? '已选择' : '未选择' }}</span>
-          <button
-            v-if="isCompactMobile"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
-            @click="toggleWalletSection('archetype-overview')"
-          >
-            {{ isWalletSectionOpen('archetype-overview') ? '收起' : '展开' }}
-          </button>
         </div>
       </div>
-      <template v-if="!isCompactMobile || isWalletSectionOpen('archetype-overview')">
       <p class="text-xs text-muted mb-3">在旧钱包被动之外，可额外选择一个经营流派，影响目标偏好与商店推荐。</p>
 
       <div class="grid grid-cols-1 gap-2 mb-3">
@@ -628,25 +610,33 @@
           <p class="text-[0.625rem] text-muted mt-1">条件：{{ walletStore.getNodeUnlockHint(node.id) }}</p>
         </div>
       </div>
-      </template>
     </div>
 
-    <div class="flex flex-col space-y-1.5">
-      <div
-        v-for="item in WALLET_ITEMS"
-        :key="item.id"
-        class="border rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
-        :class="walletStore.has(item.id) ? 'border-accent/20' : 'border-accent/10 opacity-50'"
-        @click="selectedItem = item"
-      >
-        <div class="flex items-center justify-between">
-          <span class="text-sm" :class="walletStore.has(item.id) ? 'text-accent' : 'text-muted'">
-            {{ item.name }}
-          </span>
-          <CircleCheck v-if="walletStore.has(item.id)" :size="14" class="text-success shrink-0" />
-          <Lock v-else :size="14" class="text-muted shrink-0" />
+    <div v-if="isWalletSectionVisible('passive-items')" class="border border-accent/20 rounded-xs p-3 mb-3" data-testid="wallet-passive-items">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div class="min-w-0">
+          <span class="text-sm text-accent">旧钱袋被动</span>
+          <p class="text-xs text-muted mt-1 leading-5">满足条件后自动解锁，点开可看效果和条件。</p>
         </div>
-        <p class="text-xs text-muted mt-0.5">{{ item.description }}</p>
+        <span class="text-xs text-muted shrink-0">{{ unlockedCount }}/{{ WALLET_ITEMS.length }}</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div
+          v-for="item in WALLET_ITEMS"
+          :key="item.id"
+          class="border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5 transition-colors"
+          :class="walletStore.has(item.id) ? 'border-accent/20 bg-bg/10' : 'border-accent/10 opacity-60'"
+          @click="selectedItem = item"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm truncate" :class="walletStore.has(item.id) ? 'text-accent' : 'text-muted'">
+              {{ item.name }}
+            </span>
+            <CircleCheck v-if="walletStore.has(item.id)" :size="14" class="text-success shrink-0" />
+            <Lock v-else :size="14" class="text-muted shrink-0" />
+          </div>
+          <p class="text-xs text-muted mt-1 leading-5">{{ item.description }}</p>
+        </div>
       </div>
     </div>
 
@@ -739,8 +729,8 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted } from 'vue'
-  import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store } from 'lucide-vue-next'
+  import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
+  import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store, Coins, Ticket, ArrowLeftRight, Compass, Sparkles } from 'lucide-vue-next'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
@@ -757,29 +747,60 @@
   import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
   import { exportTaoyuanToQuota, fetchTaoyuanExchangeContext, importQuotaToTaoyuan } from '@/utils/quotaExchangeApi'
 
+  type WalletSectionKey = 'overview' | 'weekly-budget' | 'reward-ticket' | 'quota-exchange' | 'archetype-overview' | 'passive-items'
+  type WalletSectionTab = {
+    key: WalletSectionKey
+    label: string
+    summary: string
+    badge: string
+    icon: Component
+  }
+
   const goalStore = useGoalStore()
   const shopStore = useShopStore()
   const walletStore = useWalletStore()
   const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
   const saveStore = useSaveStore()
-  const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('wallet')
   const isCompactMobile = ref(false)
-  const walletPreludeExpanded = ref(false)
-  const walletSectionExpandedState = ref<Record<string, boolean>>({})
+  const activeWalletSection = ref<WalletSectionKey>('overview')
+  const WALLET_SECTION_FOCUS_KEYS: Record<WalletSectionKey, string[]> = {
+    overview: ['economy-overview', 'recommended-consumption'],
+    'weekly-budget': ['weekly-budget'],
+    'reward-ticket': ['reward-ticket'],
+    'quota-exchange': ['quota-exchange'],
+    'archetype-overview': ['archetype-overview'],
+    'passive-items': []
+  }
+  const WALLET_FOCUS_SECTION_MAP: Record<string, WalletSectionKey> = {
+    'economy-overview': 'overview',
+    'recommended-consumption': 'overview',
+    'weekly-budget': 'weekly-budget',
+    'reward-ticket': 'reward-ticket',
+    'quota-exchange': 'quota-exchange',
+    'archetype-overview': 'archetype-overview'
+  }
+  const setActiveWalletSection = (sectionKey: WalletSectionKey) => {
+    activeWalletSection.value = sectionKey
+  }
+  const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('wallet', {
+    handlers: {
+      'economy-overview': () => setActiveWalletSection('overview'),
+      'recommended-consumption': () => setActiveWalletSection('overview'),
+      'weekly-budget': () => setActiveWalletSection('weekly-budget'),
+      'reward-ticket': () => setActiveWalletSection('reward-ticket'),
+      'quota-exchange': () => setActiveWalletSection('quota-exchange'),
+      'archetype-overview': () => setActiveWalletSection('archetype-overview')
+    }
+  })
+  const isWalletSectionPromptFocused = (sectionKey: WalletSectionKey) =>
+    WALLET_SECTION_FOCUS_KEYS[sectionKey].some(focusKey => isPromptFocusActive(focusKey))
+  const isWalletSectionVisible = (sectionKey: WalletSectionKey) =>
+    activeWalletSection.value === sectionKey || isWalletSectionPromptFocused(sectionKey)
+  const isWalletTabActive = (sectionKey: WalletSectionKey) =>
+    activeWalletSection.value === sectionKey || isWalletSectionPromptFocused(sectionKey)
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
-  }
-  const walletPreludeForceOpen = computed(() =>
-    ['economy-overview', 'recommended-consumption'].some(key => isPromptFocusActive(key))
-  )
-  const isWalletSectionOpen = (sectionKey: string) =>
-    !isCompactMobile.value || walletSectionExpandedState.value[sectionKey] || isPromptFocusActive(sectionKey)
-  const toggleWalletSection = (sectionKey: string) => {
-    walletSectionExpandedState.value = {
-      ...walletSectionExpandedState.value,
-      [sectionKey]: !isWalletSectionOpen(sectionKey)
-    }
   }
 
   const selectedItem = ref<WalletItemDef | null>(null)
@@ -820,6 +841,7 @@
   })
 
   const focusWalletSection = (focusKey: string, label: string) => {
+    setActiveWalletSection(WALLET_FOCUS_SECTION_MAP[focusKey] ?? 'overview')
     runPromptAction({
       id: `wallet-${focusKey}`,
       label,
@@ -1057,6 +1079,55 @@
     const limit = exchangeContext.value.dailyExportLimitMoney || 0
     if (limit <= 0) return true
     return (exchangeContext.value.todayExportedMoney || 0) + sanitizedExchangeMoney.value <= limit
+  })
+  const walletSectionTabs = computed<WalletSectionTab[]>(() => {
+    const affordableTicketOfferCount = rewardTicketExchangeOffers.value.filter(offer => offer.affordable).length
+    return [
+      {
+        key: 'overview',
+        label: '总览',
+        icon: TrendingUp,
+        badge: economyRiskLabel.value,
+        summary: walletCatalogRecommendedOffers.value.length > 0
+          ? `推荐 ${walletCatalogRecommendedOffers.value.length} 项消费路线`
+          : '资金观测与当前推荐'
+      },
+      {
+        key: 'weekly-budget',
+        label: '预算',
+        icon: Coins,
+        badge: `${weeklyBudgetActiveCount.value}/${weeklyBudgetChannels.value.length}`,
+        summary: weeklyBudgetTicketSummary.value
+      },
+      {
+        key: 'reward-ticket',
+        label: '票券',
+        icon: Ticket,
+        badge: rewardTicketFilledCount.value > 0 ? `${rewardTicketFilledCount.value}类` : '未入账',
+        summary: affordableTicketOfferCount > 0 ? `${affordableTicketOfferCount} 个补给可兑换` : '余额、奖池和密匣'
+      },
+      {
+        key: 'quota-exchange',
+        label: '额度',
+        icon: ArrowLeftRight,
+        badge: hasServerExchangeSession.value ? '已绑定' : '待绑定',
+        summary: hasServerExchangeSession.value ? `${quotaDisplay.value} quota` : '服务端会话状态'
+      },
+      {
+        key: 'archetype-overview',
+        label: '流派',
+        icon: Compass,
+        badge: walletStore.currentArchetype ? '已选' : '未选',
+        summary: walletStore.currentArchetype?.name ?? '选择经营偏好'
+      },
+      {
+        key: 'passive-items',
+        label: '被动',
+        icon: Sparkles,
+        badge: `${unlockedCount.value}/${WALLET_ITEMS.length}`,
+        summary: '旧钱袋自动解锁'
+      }
+    ]
   })
   const walletPrimaryActionCard = computed(() => {
     if (cloudHighlandWalletPrep.value) {

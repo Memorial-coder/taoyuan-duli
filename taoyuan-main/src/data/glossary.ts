@@ -1101,7 +1101,7 @@ const buildGlossary = (): GlossaryEntry[] => {
   for (const machine of PROCESSING_MACHINES) {
     const relatedEntryIds = uniqueStrings(PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.machineType === machine.id).flatMap(recipe => [
       ...(recipe.inputItemId ? [getGlossaryEntryIdForItemId(recipe.inputItemId)] : []),
-      getGlossaryEntryIdForItemId(recipe.outputItemId),
+      ...(recipe.outputItemId ? [getGlossaryEntryIdForItemId(recipe.outputItemId)] : []),
     ]))
     entries.push(makeEntry({
       id: `machine_${machine.id}`,

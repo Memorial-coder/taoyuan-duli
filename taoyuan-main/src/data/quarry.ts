@@ -18,7 +18,8 @@ export const QUARRY_TOTAL_CELLS = QUARRY_GRID_SIZE * QUARRY_GRID_SIZE
 export const QUARRY_INITIAL_RESOURCE_COUNT = 9
 export const QUARRY_DAILY_SPAWN_CHANCE = 0.12
 export const QUARRY_DAILY_BASE_CAP = 7
-export const QUARRY_DAILY_MAX_CAP = 16
+export const QUARRY_DAILY_MAX_CAP = 64
+export const QUARRY_DAILY_AREA_EXPONENT = 1.5
 export const QUARRY_MAINTENANCE_SPAWN_BONUS = 2
 export const QUARRY_SKULL_DEPTH_BONUS_FLOOR = 150
 export const QUARRY_SKULL_DEPTH_SPAWN_BONUS = 2
@@ -39,6 +40,12 @@ export const QUARRY_MONSTER_BASE_EXP = 6
 export const QUARRY_RUBBLE_BASE_EXP = 3
 export const QUARRY_MINE_FINAL_TRINKET_ID = 'trinket_quarry_shard'
 export const QUARRY_MINE_FINAL_UNLOCK_ID = 'trinket_quarry_mine'
+export const QUARRY_MINE_REFRESH_DAYS = 3
+export const QUARRY_MINE_REPEAT_FINAL_REWARDS = [
+  { itemId: 'gold_ore', quantity: 3 },
+  { itemId: 'jade', quantity: 1 },
+  { itemId: 'stone', quantity: 18 }
+] as const
 
 export const QUARRY_RESOURCE_CATEGORY_WEIGHTS: Record<QuarryResourceKind, number> = {
   rock: 52,
@@ -181,12 +188,80 @@ export const createDefaultQuarryMineNodes = (): QuarryMineNode[] => [
   { index: 5, kind: 'final', state: 'available', label: '灵器碎片祭台' }
 ]
 
+const QUARRY_MINE_REPEAT_ROUTES: readonly QuarryMineNode[][] = [
+  [
+    { index: 0, kind: 'ore', state: 'available', label: '新落碎矿', itemId: 'stone', quantity: 12 },
+    { index: 1, kind: 'ore', state: 'available', label: '潮湿铁脉', itemId: 'iron_ore', quantity: 5 },
+    { index: 2, kind: 'monster', state: 'available', label: '碎石蟹回巢', monsterId: 'quarry_crab' },
+    {
+      index: 3,
+      kind: 'chest',
+      state: 'available',
+      label: '塌方补给箱',
+      treasureItems: [
+        { itemId: 'gold_ore', quantity: 3 },
+        { itemId: 'quartz', quantity: 2 }
+      ]
+    },
+    { index: 4, kind: 'monster', state: 'available', label: '暗影虫裂隙', monsterId: 'quarry_shadow_bug' },
+    { index: 5, kind: 'final', state: 'available', label: '旧支道回声祭台' }
+  ],
+  [
+    { index: 0, kind: 'ore', state: 'available', label: '风化铜脉', itemId: 'copper_ore', quantity: 8 },
+    { index: 1, kind: 'monster', state: 'available', label: '野蜂窄口', monsterId: 'quarry_bee' },
+    { index: 2, kind: 'ore', state: 'available', label: '金砂夹层', itemId: 'gold_ore', quantity: 3 },
+    {
+      index: 3,
+      kind: 'chest',
+      state: 'available',
+      label: '旧绳吊箱',
+      treasureItems: [
+        { itemId: 'iron_ore', quantity: 5 },
+        { itemId: 'moonstone', quantity: 1 }
+      ]
+    },
+    { index: 4, kind: 'monster', state: 'available', label: '塌方蛇伏道', monsterId: 'quarry_snake' },
+    { index: 5, kind: 'final', state: 'available', label: '旧支道回声祭台' }
+  ],
+  [
+    { index: 0, kind: 'ore', state: 'available', label: '黑曜碎层', itemId: 'obsidian', quantity: 1 },
+    { index: 1, kind: 'ore', state: 'available', label: '深色矿线', itemId: 'shadow_ore', quantity: 2 },
+    { index: 2, kind: 'monster', state: 'available', label: '暗影虫巢', monsterId: 'quarry_shadow_bug' },
+    {
+      index: 3,
+      kind: 'chest',
+      state: 'available',
+      label: '封尘矿箱',
+      treasureItems: [
+        { itemId: 'gold_ore', quantity: 4 },
+        { itemId: 'jade', quantity: 1 }
+      ]
+    },
+    { index: 4, kind: 'monster', state: 'available', label: '碎石蟹夹道', monsterId: 'quarry_crab' },
+    { index: 5, kind: 'final', state: 'available', label: '旧支道回声祭台' }
+  ]
+]
+
+const cloneQuarryMineNodes = (nodes: readonly QuarryMineNode[]): QuarryMineNode[] =>
+  nodes.map(node => ({ ...node, treasureItems: node.treasureItems?.map(item => ({ ...item })) }))
+
+export const createRefreshedQuarryMineNodes = (runId = 1): QuarryMineNode[] => {
+  const routeIndex = (Math.max(1, Math.abs(Math.floor(Number(runId) || 1))) - 1) % QUARRY_MINE_REPEAT_ROUTES.length
+  return cloneQuarryMineNodes(QUARRY_MINE_REPEAT_ROUTES[routeIndex] ?? QUARRY_MINE_REPEAT_ROUTES[0]!)
+}
+
+export const createQuarryMineNodesForRun = (runId = 0, finalRewardClaimed = false): QuarryMineNode[] =>
+  runId > 0 || finalRewardClaimed ? createRefreshedQuarryMineNodes(runId) : createDefaultQuarryMineNodes()
+
 export const createDefaultQuarryMineSaveData = (): QuarryMineSaveData => ({
   unlocked: false,
   entered: false,
   completed: false,
   finalRewardClaimed: false,
   lastRunDayTag: '',
+  lastCompletedDayTag: '',
+  lastResetDayTag: '',
+  runId: 0,
   nodes: createDefaultQuarryMineNodes()
 })
 
@@ -342,6 +417,7 @@ export const seedInitialQuarryCells = (rng: () => number = Math.random): QuarryC
 export const normalizeQuarryCell = (rawCell: Partial<QuarryCell> | undefined, index: number): QuarryCell => {
   if (!rawCell) return { index, state: 'empty', kind: 'empty', isActiveSite: false, revealed: true }
   const rawState = rawCell.state
+  const legacyState = rawState as string | undefined
 
   if (rawState === 'monster' || rawCell.kind === 'monster') {
     return {
@@ -356,7 +432,7 @@ export const normalizeQuarryCell = (rawCell: Partial<QuarryCell> | undefined, in
     }
   }
 
-  if (rawState === 'hidden' || rawState === 'rubble') {
+  if (legacyState === 'hidden' || legacyState === 'rubble') {
     if (rawCell.kind === 'treasure' || rawCell.kind === 'artifact') {
       return {
         index,
@@ -426,7 +502,7 @@ export const normalizeQuarryCell = (rawCell: Partial<QuarryCell> | undefined, in
       treasureItems: rawCell.treasureItems
     }
   }
-  if (rawState !== 'resource' && rawState !== 'rock' && rawState !== 'ore' && rawState !== 'gem' && rawState !== 'wood' && rawState !== 'deep') {
+  if (legacyState !== 'resource' && legacyState !== 'rock' && legacyState !== 'ore' && legacyState !== 'gem' && legacyState !== 'wood' && legacyState !== 'deep') {
     return { index, state: 'empty', kind: 'empty', isActiveSite: false, revealed: true }
   }
   if (rawCell.kind === 'treasure' || rawCell.kind === 'artifact') {
@@ -453,8 +529,12 @@ export const normalizeQuarryCell = (rawCell: Partial<QuarryCell> | undefined, in
   }
 }
 
-const normalizeQuarryMineNode = (rawNode: Partial<QuarryMineNode> | undefined, index: number): QuarryMineNode => {
-  const fallback = createDefaultQuarryMineNodes()[index]
+const normalizeQuarryMineNode = (
+  rawNode: Partial<QuarryMineNode> | undefined,
+  index: number,
+  fallbackNodes: readonly QuarryMineNode[]
+): QuarryMineNode => {
+  const fallback = fallbackNodes[index]
   if (!fallback) {
     return {
       index,
@@ -485,15 +565,29 @@ export const normalizeQuarryMineSaveData = (
   unlocked = false
 ): QuarryMineSaveData => {
   const defaults = createDefaultQuarryMineSaveData()
+  const runId = clampInteger(data?.runId, defaults.runId, 9999)
+  const finalRewardClaimed = !!data?.finalRewardClaimed
+  const fallbackNodes = createQuarryMineNodesForRun(runId, finalRewardClaimed)
   const rawNodes = Array.isArray(data?.nodes) ? data.nodes : []
-  const nodes = defaults.nodes.map((_, index) => normalizeQuarryMineNode(rawNodes[index], index))
-  const completed = !!data?.completed || nodes.every(node => node.state === 'cleared')
+  const nodes = fallbackNodes.map((_, index) => normalizeQuarryMineNode(rawNodes[index], index, fallbackNodes))
+  const allNodesCleared = nodes.every(node => node.state === 'cleared')
+  const completed = finalRewardClaimed ? !!data?.completed || allNodesCleared : allNodesCleared
+  const lastRunDayTag = typeof data?.lastRunDayTag === 'string' ? data.lastRunDayTag : ''
+  const lastCompletedDayTag =
+    typeof data?.lastCompletedDayTag === 'string'
+      ? data.lastCompletedDayTag
+      : completed
+        ? lastRunDayTag || '1-spring-1'
+        : ''
   return {
     unlocked: !!data?.unlocked || unlocked,
     entered: !!data?.entered,
     completed,
-    finalRewardClaimed: !!data?.finalRewardClaimed,
-    lastRunDayTag: typeof data?.lastRunDayTag === 'string' ? data.lastRunDayTag : '',
+    finalRewardClaimed,
+    lastRunDayTag,
+    lastCompletedDayTag,
+    lastResetDayTag: typeof data?.lastResetDayTag === 'string' ? data.lastResetDayTag : '',
+    runId,
     nodes
   }
 }
@@ -527,14 +621,19 @@ export const normalizeQuarrySaveData = (data?: Partial<QuarrySaveData> | null): 
 export const getQuarryDailySpawnCap = (
   year: number,
   unlockYear: number,
+  activeSizeOrOptions: number | { maintenanceActive?: boolean; skullCavernBestFloor?: number; miningMasteryNodeCount?: number } = QUARRY_MIN_GRID_SIZE,
   options: { maintenanceActive?: boolean; skullCavernBestFloor?: number; miningMasteryNodeCount?: number } = {}
 ): number => {
+  const activeSize = typeof activeSizeOrOptions === 'number' ? activeSizeOrOptions : QUARRY_MIN_GRID_SIZE
+  const resolvedOptions = typeof activeSizeOrOptions === 'number' ? options : activeSizeOrOptions
+  const sizeScale = Math.max(1, clampInteger(activeSize, QUARRY_MIN_GRID_SIZE, QUARRY_MAX_GRID_SIZE) / QUARRY_MIN_GRID_SIZE)
+  const areaCap = Math.round(QUARRY_DAILY_BASE_CAP * Math.pow(sizeScale, QUARRY_DAILY_AREA_EXPONENT))
   const yearDelta = Math.max(0, clampInteger(year, 1, 999) - clampInteger(unlockYear, 1, 999))
   const bonus =
-    (options.maintenanceActive ? QUARRY_MAINTENANCE_SPAWN_BONUS : 0) +
-    ((options.skullCavernBestFloor ?? 0) >= QUARRY_SKULL_DEPTH_BONUS_FLOOR ? QUARRY_SKULL_DEPTH_SPAWN_BONUS : 0) +
-    ((options.miningMasteryNodeCount ?? 0) >= QUARRY_MASTERY_NODE_BONUS_THRESHOLD ? QUARRY_MASTERY_NODE_SPAWN_BONUS : 0)
-  return Math.min(QUARRY_DAILY_MAX_CAP, QUARRY_DAILY_BASE_CAP + yearDelta * 2 + bonus)
+    (resolvedOptions.maintenanceActive ? QUARRY_MAINTENANCE_SPAWN_BONUS : 0) +
+    ((resolvedOptions.skullCavernBestFloor ?? 0) >= QUARRY_SKULL_DEPTH_BONUS_FLOOR ? QUARRY_SKULL_DEPTH_SPAWN_BONUS : 0) +
+    ((resolvedOptions.miningMasteryNodeCount ?? 0) >= QUARRY_MASTERY_NODE_BONUS_THRESHOLD ? QUARRY_MASTERY_NODE_SPAWN_BONUS : 0)
+  return Math.min(QUARRY_DAILY_MAX_CAP, areaCap + yearDelta * 2 + bonus)
 }
 
 export const spawnQuarryDailyResources = (

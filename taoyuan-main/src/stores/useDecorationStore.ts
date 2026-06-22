@@ -3,10 +3,17 @@ import { defineStore } from 'pinia'
 import { DECORATIONS } from '@/data/decorations'
 import type { DecorationDef } from '@/data/decorations'
 import { usePlayerStore } from './usePlayerStore'
+import { useNpcStore } from './useNpcStore'
 
 const decorationById = new Map<string, DecorationDef>(DECORATIONS.map(def => [def.id, def]))
 
 export const useDecorationStore = defineStore('decoration', () => {
+  // ---- NPC功能解锁效果 ----
+  const npcStore = useNpcStore()
+  const npcCustomFurnitureUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('custom_furniture'))
+  const npcFarmhousePortraitBonus = computed(() => npcStore.getNpcFunctionEffectValue('farmhouse_portrait'))
+  const npcScenicPaintingsBonus = computed(() => npcStore.getNpcFunctionEffectValue('scenic_paintings'))
+
   const playerStore = usePlayerStore()
 
   const owned = ref<Record<string, number>>({})
@@ -17,6 +24,7 @@ export const useDecorationStore = defineStore('decoration', () => {
   const getOwnedCount = (id: string) => owned.value[id] ?? 0
 
   const isCatalogDecoration = (id: string) => getDecorationDef(id)?.purchaseMode === 'catalog'
+  const isCatalogDirectPurchaseUnlocked = (id: string) => isCatalogDecoration(id) && npcCustomFurnitureUnlocked.value
 
   const hasReachedMaxCount = (id: string) => {
     const def = getDecorationDef(id)
@@ -29,18 +37,19 @@ export const useDecorationStore = defineStore('decoration', () => {
       const def = getDecorationDef(id)
       if (def) total += def.beautyScore * count
     }
-    return total
+    return total + npcFarmhousePortraitBonus.value
   })
 
   const isUnlockedForDirectPurchase = (id: string) => {
     const def = getDecorationDef(id)
-    if (!def || def.purchaseMode === 'catalog') return false
+    if (!def) return false
+    if (def.purchaseMode === 'catalog') return isCatalogDirectPurchaseUnlocked(id)
     return beautyScore.value >= def.unlockBeauty
   }
 
   const canBuyDecoration = (id: string) => {
     const def = getDecorationDef(id)
-    if (!def || def.purchaseMode === 'catalog') return false
+    if (!def) return false
     if (!isUnlockedForDirectPurchase(id)) return false
     if (hasReachedMaxCount(id)) return false
     return playerStore.money >= def.price
@@ -55,7 +64,7 @@ export const useDecorationStore = defineStore('decoration', () => {
     return 0
   })
 
-  const dailyFriendshipBonus = computed(() => (beautyScore.value >= 50 ? 1 : 0))
+  const dailyFriendshipBonus = computed(() => (beautyScore.value >= 50 ? 1 : 0) + npcScenicPaintingsBonus.value)
   const shopDiscountBonus = computed(() => (beautyScore.value >= 200 ? 5 : 0))
 
   const grantDecoration = (id: string, count = 1): { success: boolean; message: string } => {
@@ -81,7 +90,7 @@ export const useDecorationStore = defineStore('decoration', () => {
     const def = getDecorationDef(id)
     if (!def) return { success: false, message: '装饰不存在。' }
 
-    if (def.purchaseMode === 'catalog') {
+    if (def.purchaseMode === 'catalog' && !isCatalogDirectPurchaseUnlocked(id)) {
       return { success: false, message: `${def.name}需要通过商店目录解锁。` }
     }
 
@@ -172,6 +181,7 @@ export const useDecorationStore = defineStore('decoration', () => {
     getPlacedCount,
     getOwnedCount,
     isCatalogDecoration,
+    isCatalogDirectPurchaseUnlocked,
     hasReachedMaxCount,
     isUnlockedForDirectPurchase,
     canBuyDecoration,

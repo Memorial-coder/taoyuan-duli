@@ -37,6 +37,7 @@ export * from './adminOnline'
 export * from './onlineRelease'
 export * from './onlineVisual'
 export * from './forgeAffix'
+export * from './itemLinkage'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,

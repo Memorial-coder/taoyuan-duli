@@ -125,6 +125,75 @@
       </div>
     </div>
 
+    <div
+      v-if="showCollaborationPanel"
+      class="space-y-2 border border-accent/10 bg-bg/10 p-2"
+      data-testid="online-visual-room-collaboration-panel"
+      aria-live="polite"
+    >
+      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div class="min-w-0">
+          <p class="text-[0.625rem] text-accent">协作推进</p>
+          <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-room-collaboration-progress">
+            {{ collaborationProgressLabel || '等待成员分工后显示共同目标。' }}
+          </p>
+        </div>
+        <span
+          v-if="collaborationScoreLabel"
+          class="w-fit shrink-0 border border-accent/15 bg-accent/5 px-2 py-1 text-[0.625rem] text-accent"
+          data-testid="online-visual-room-collaboration-score"
+        >
+          {{ collaborationScoreLabel }}
+        </span>
+      </div>
+      <div class="h-1.5 overflow-hidden bg-black/20" aria-hidden="true">
+        <div class="h-full bg-accent/80 transition-all" :style="{ width: `${safeCollaborationProgressPercent}%` }" />
+      </div>
+      <div v-if="collaborationSignals.length > 0" class="flex flex-wrap gap-1.5" data-testid="online-visual-room-collaboration-signals" role="list">
+        <span
+          v-for="signal in collaborationSignals"
+          :key="signal.id"
+          class="border px-2 py-1 text-[0.625rem] leading-4"
+          :class="collaborationSignalClass(signal.tone)"
+          data-testid="online-visual-room-collaboration-signal"
+          role="listitem"
+        >
+          {{ signal.label }}
+        </span>
+      </div>
+      <div v-if="collaborationRoles.length > 0" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" data-testid="online-visual-room-collaboration-roles" role="list">
+        <article
+          v-for="role in collaborationRoles"
+          :key="role.id"
+          class="border border-accent/10 bg-black/10 p-2"
+          data-testid="online-visual-room-collaboration-role"
+          role="listitem"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="truncate text-xs text-text">{{ role.label }}</p>
+              <p class="mt-1 truncate text-[0.625rem] text-accent">{{ role.ownerLabel }}</p>
+            </div>
+            <span v-if="role.statusLabel" class="shrink-0 text-[0.625rem] text-muted">{{ role.statusLabel }}</span>
+          </div>
+          <p class="mt-2 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ role.summary }}</p>
+        </article>
+      </div>
+      <div v-if="collaborationFeedback.length > 0" class="grid gap-1 md:grid-cols-2" data-testid="online-visual-room-collaboration-feedback" role="list">
+        <p
+          v-for="entry in collaborationFeedback"
+          :key="entry.id"
+          class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
+          :class="entry.tone === 'success' ? 'text-success' : entry.tone === 'warning' ? 'text-warning' : ''"
+          data-testid="online-visual-room-collaboration-feedback-item"
+          role="listitem"
+        >
+          <span class="text-accent">{{ entry.label }}</span>
+          <span v-if="entry.summary"> · {{ entry.summary }}</span>
+        </p>
+      </div>
+    </div>
+
     <div class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <div class="border border-accent/10 bg-bg/10 p-2" data-testid="online-visual-room-members">
         <div class="flex items-center justify-between gap-2">
@@ -187,6 +256,20 @@
           <p v-if="record.rewardLabel" class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-room-reward-label">
             {{ record.rewardLabel }}
           </p>
+          <div
+            v-if="record.rewardItems?.length"
+            class="mt-1 flex flex-wrap gap-1"
+            data-testid="online-visual-room-reward-items"
+          >
+            <span
+              v-for="item in record.rewardItems"
+              :key="`${record.id}-${item.itemId}-${item.quantity}`"
+              class="inline-flex min-w-0 items-center gap-1 border border-success/15 bg-success/5 px-1.5 py-0.5 text-[0.625rem] text-muted"
+            >
+              <ItemIcon v-if="getItemById(item.itemId)" :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+              <span class="truncate">{{ getRewardItemLabel(item) }} x{{ item.quantity }}</span>
+            </span>
+          </div>
         </article>
       </div>
     </div>
@@ -205,6 +288,8 @@
 
 <script setup lang="ts">
   import { computed } from 'vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { getItemById } from '@/data/items'
 
   export interface OnlineVisualRoomShellMember {
     username: string
@@ -220,6 +305,32 @@
     summary: string
     replayLabel?: string
     rewardLabel?: string
+    rewardItems?: Array<{
+      itemId: string
+      quantity: number
+      label?: string
+    }>
+  }
+
+  export interface OnlineVisualRoomShellCollaborationRole {
+    id: string
+    label: string
+    ownerLabel: string
+    summary: string
+    statusLabel?: string
+  }
+
+  export interface OnlineVisualRoomShellCollaborationFeedback {
+    id: string
+    label: string
+    summary?: string
+    tone?: 'default' | 'success' | 'warning'
+  }
+
+  export interface OnlineVisualRoomShellCollaborationSignal {
+    id: string
+    label: string
+    tone?: 'default' | 'success' | 'warning'
   }
 
   const props = withDefaults(defineProps<{
@@ -246,6 +357,12 @@
     memberLimit: number
     rewardPreview: string[]
     settlementRecords?: OnlineVisualRoomShellSettlementRecord[]
+    collaborationProgressLabel?: string
+    collaborationProgressPercent?: number
+    collaborationScoreLabel?: string
+    collaborationSignals?: OnlineVisualRoomShellCollaborationSignal[]
+    collaborationRoles?: OnlineVisualRoomShellCollaborationRole[]
+    collaborationFeedback?: OnlineVisualRoomShellCollaborationFeedback[]
   }>(), {
     phaseLabel: '',
     stateReason: '',
@@ -266,9 +383,17 @@
     countdownSeconds: 0,
     countdownRemainingSeconds: 0,
     settlementRecords: () => [],
+    collaborationProgressLabel: '',
+    collaborationProgressPercent: 0,
+    collaborationScoreLabel: '',
+    collaborationSignals: () => [],
+    collaborationRoles: () => [],
+    collaborationFeedback: () => [],
   })
 
   const normalizedStatus = computed(() => props.statusLabel.toLowerCase())
+  const getRewardItemLabel = (item: { itemId: string; label?: string }) =>
+    item.label || getItemById(item.itemId)?.name || item.itemId
   const statusClass = computed(() => {
     if (normalizedStatus.value.includes('结算') || normalizedStatus.value.includes('完成')) return 'border-success/30 bg-success/10 text-success'
     if (normalizedStatus.value.includes('倒计时') || normalizedStatus.value.includes('准备')) return 'border-warning/30 bg-warning/10 text-warning'
@@ -298,6 +423,28 @@
   const fallbackEntryStatus = computed(() =>
     props.fallbackEntryVisible ? '备用入口当前可用' : '主可视化入口优先'
   )
+
+  const showCollaborationPanel = computed(() =>
+    Boolean(props.collaborationProgressLabel)
+      || props.collaborationSignals.length > 0
+      || props.collaborationRoles.length > 0
+      || props.collaborationFeedback.length > 0
+  )
+  const collaborationSignalClass = (tone: OnlineVisualRoomShellCollaborationSignal['tone'] = 'default') => {
+    if (tone === 'success') return 'border-success/25 bg-success/10 text-success'
+    if (tone === 'warning') return 'border-warning/25 bg-warning/10 text-warning'
+    return 'border-accent/15 bg-accent/5 text-muted'
+  }
+  const safeCollaborationProgressPercent = computed(() =>
+    Math.max(0, Math.min(100, Math.round(Number(props.collaborationProgressPercent) || 0)))
+  )
+  const collaborationMobileLabel = computed(() => {
+    if (props.collaborationProgressLabel) return props.collaborationProgressLabel
+    if (props.collaborationSignals.length > 0) return props.collaborationSignals[0]?.label || '已有协作态势'
+    if (props.collaborationRoles.length > 0) return `已分工 ${props.collaborationRoles.length} 项`
+    if (props.collaborationFeedback.length > 0) return props.collaborationFeedback[0]?.summary || props.collaborationFeedback[0]?.label || '已有协作反馈'
+    return '等待协作信息'
+  })
 
   const mobileFeedbackLabel = computed(() => {
     if (props.actionFeedback) return props.actionFeedback
@@ -332,6 +479,12 @@
       valueClass: 'text-muted',
     },
     {
+      id: 'collaboration',
+      label: '协作',
+      value: collaborationMobileLabel.value,
+      valueClass: showCollaborationPanel.value ? 'text-accent' : 'text-muted',
+    },
+    {
       id: 'fallback',
       label: '备用入口',
       value: `${fallbackEntryStatus.value} · ${props.fallbackEntryLabel}`,
@@ -356,6 +509,10 @@
     if (props.phaseLabel) parts.push(`阶段 ${props.phaseLabel}`)
     if (countdownLabel.value) parts.push(countdownLabel.value)
     parts.push(`成员 ${props.readyMemberCount}/${props.memberLimit} 已准备`)
+    if (showCollaborationPanel.value) {
+      parts.push(`协作推进 ${props.collaborationProgressLabel || `${props.collaborationRoles.length} 项分工`}`)
+      if (props.collaborationFeedback.length > 0) parts.push(`协作反馈 ${props.collaborationFeedback[0]?.label || ''}`)
+    }
     parts.push(`奖励预览 ${props.rewardPreview.length} 项`)
     if (props.settlementRecords.length > 0) parts.push(`结算回看 ${props.settlementRecords.length} 条`)
     parts.push(`入口 ${props.visualContentLabel}`)

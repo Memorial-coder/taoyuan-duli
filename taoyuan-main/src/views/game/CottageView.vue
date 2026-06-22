@@ -65,6 +65,87 @@
       </div>
     </section>
 
+    <section
+      v-if="familyWishVisible"
+      class="border border-accent/20 rounded-xs p-3 mb-4 bg-bg/40"
+      data-testid="cottage-family-wish-panel"
+    >
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div class="min-w-0">
+          <p class="text-sm text-accent">
+            <Heart :size="14" class="inline" />
+            家庭心愿
+          </p>
+          <p v-if="activeFamilyWishDef" class="text-xs text-muted mt-1 truncate">{{ activeFamilyWishDef.title }}</p>
+          <p v-else class="text-xs text-muted mt-1">本周还没有安排新的家庭心愿。</p>
+        </div>
+        <span v-if="activeFamilyWishDef" class="text-[0.625rem] text-muted shrink-0">
+          {{ familyWishOverview.state.progress }}/{{ Math.max(1, familyWishOverview.state.targetValue) }}
+        </span>
+      </div>
+
+      <template v-if="activeFamilyWishDef">
+        <p class="text-[0.625rem] text-muted leading-4 mb-2">{{ activeFamilyWishDef.description }}</p>
+        <div class="h-1.5 bg-bg rounded-xs border border-accent/10 mb-2">
+          <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: familyWishProgressPercent + '%' }" />
+        </div>
+
+        <div
+          v-if="familyWishRequirementRows.length > 0"
+          class="border border-accent/10 rounded-xs p-2 space-y-1 mb-2"
+          data-testid="cottage-family-wish-requirements"
+        >
+          <div
+            v-for="row in familyWishRequirementRows"
+            :key="`${row.itemId}:${row.minQuality ?? 'any'}`"
+            class="flex items-center justify-between gap-2"
+            data-testid="cottage-family-wish-requirement-row"
+          >
+            <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+              <ItemIcon :item="getItemById(row.itemId)" size="xs" :quality="row.minQuality ?? 'normal'" />
+              <span class="truncate">
+                {{ row.itemName }}
+                <span v-if="row.minQuality && row.minQuality !== 'normal'" class="text-[0.625rem]">({{ row.qualityLabel }}及以上)</span>
+              </span>
+            </span>
+            <span class="text-xs shrink-0" :class="row.enough ? 'text-success' : 'text-danger'">
+              {{ row.available }}/{{ row.quantity }}
+            </span>
+          </div>
+        </div>
+
+        <p
+          v-if="familyWishCompletionBlockReason"
+          class="text-[0.625rem] text-danger leading-4 mb-2"
+          data-testid="cottage-family-wish-block-reason"
+        >
+          {{ familyWishCompletionBlockReason }}
+        </p>
+        <Button
+          class="w-full justify-center py-1"
+          :disabled="!!familyWishCompletionBlockReason"
+          data-testid="cottage-family-wish-complete"
+          @click="handleCompleteFamilyWish"
+        >
+          完成心愿
+        </Button>
+      </template>
+
+      <template v-else>
+        <div v-if="nextFamilyWishPreview" class="border border-accent/10 rounded-xs px-3 py-2 mb-2">
+          <p class="text-xs text-accent truncate">{{ nextFamilyWishPreview.title }}</p>
+          <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ nextFamilyWishPreview.rewardSummary }}</p>
+        </div>
+        <Button
+          class="w-full justify-center py-1"
+          data-testid="cottage-family-wish-activate"
+          @click="handleActivateFamilyWish"
+        >
+          安排心愿
+        </Button>
+      </template>
+    </section>
+
     <!-- 家人 -->
     <div v-if="npcStore.getSpouse()" class="border border-accent/20 rounded-xs p-3 mb-4">
       <p class="text-sm text-accent mb-2">
@@ -305,16 +386,19 @@
       <div v-if="homeStore.cellarSlots.length > 0" class="flex flex-col space-y-1.5 mb-3">
         <div v-for="(slot, idx) in homeStore.cellarSlots" :key="idx" class="border border-accent/10 rounded-xs p-2">
           <div class="flex items-center justify-between mb-1">
-            <span
-              class="text-xs"
-              :class="{
-                'text-quality-fine': slot.quality === 'fine',
-                'text-quality-excellent': slot.quality === 'excellent',
-                'text-quality-supreme': slot.quality === 'supreme',
-                'text-accent': slot.quality === 'normal'
-              }"
-            >
-              {{ getItemName(slot.itemId) }}
+            <span class="flex min-w-0 items-center gap-1.5">
+              <ItemIcon :item="getItemById(slot.itemId)" size="xs" :quality="slot.quality" />
+              <span
+                class="truncate text-xs"
+                :class="{
+                  'text-quality-fine': slot.quality === 'fine',
+                  'text-quality-excellent': slot.quality === 'excellent',
+                  'text-quality-supreme': slot.quality === 'supreme',
+                  'text-accent': slot.quality === 'normal'
+                }"
+              >
+                {{ getItemName(slot.itemId) }}
+              </span>
             </span>
             <Button class="py-0 px-1" @click="removeAgingConfirmIdx = idx">取出</Button>
           </div>
@@ -362,8 +446,11 @@
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2 space-y-1">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="mat in homeStore.nextUpgrade.materialCost" :key="mat.itemId" class="flex items-center justify-between">
-              <span class="text-xs text-muted">{{ getItemName(mat.itemId) }}</span>
+            <div v-for="mat in homeStore.nextUpgrade.materialCost" :key="mat.itemId" class="flex items-center justify-between gap-2">
+              <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemName(mat.itemId) }}</span>
+              </span>
               <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
                 {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
@@ -409,15 +496,18 @@
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
               @click="handleStartAgingFromModal(item.itemId, item.quality)"
             >
-              <span
-                class="text-xs"
-                :class="{
-                  'text-quality-fine': item.quality === 'fine',
-                  'text-quality-excellent': item.quality === 'excellent',
-                  'text-quality-supreme': item.quality === 'supreme'
-                }"
-              >
-                {{ getItemName(item.itemId) }}
+              <span class="flex min-w-0 items-center gap-1.5">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
+                <span
+                  class="truncate text-xs"
+                  :class="{
+                    'text-quality-fine': item.quality === 'fine',
+                    'text-quality-excellent': item.quality === 'excellent',
+                    'text-quality-supreme': item.quality === 'supreme'
+                  }"
+                >
+                  {{ getItemName(item.itemId) }}
+                </span>
               </span>
               <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
             </div>
@@ -600,6 +690,7 @@
               @click="handleSpouseGift(item.itemId, item.quality)"
             >
               <span class="flex items-center space-x-1">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
                 <span class="text-xs" :class="qualityTextClass(item.quality)">
                   {{ getItemById(item.itemId)?.name }}
                 </span>
@@ -767,6 +858,7 @@
   import { showChildProposal, triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
 
   const router = useRouter()
   const homeStore = useHomeStore()
@@ -778,9 +870,45 @@
   const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()
   const dailyBlessingPreview = computed(() => skillStore.dailyBlessingPreview)
+  const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
+  const activeFamilyWishId = computed(() => familyWishOverview.value.state.activeWishId ?? '')
+  const activeFamilyWishChain = computed(() => npcStore.getFamilyWishChainPreview(activeFamilyWishId.value))
+  const activeFamilyWishDef = computed(() => activeFamilyWishChain.value?.def ?? null)
+  const familyWishRequirementRows = computed(() =>
+    activeFamilyWishDef.value ? npcStore.getFamilyWishItemRequirementStatus(activeFamilyWishDef.value.id) : []
+  )
+  const familyWishCompletionBlockReason = computed(() =>
+    activeFamilyWishDef.value ? npcStore.getFamilyWishCompletionBlockReason(activeFamilyWishDef.value.id) : ''
+  )
+  const familyWishProgressPercent = computed(() => {
+    const target = Math.max(1, familyWishOverview.value.state.targetValue)
+    return Math.min(100, Math.floor((familyWishOverview.value.state.progress / target) * 100))
+  })
+  const hasFamilyWishCompanion = computed(() => Boolean(npcStore.getSpouse() || npcStore.getZhiji()))
+  const familyWishVisible = computed(() =>
+    hasFamilyWishCompanion.value && (familyWishOverview.value.defs.length > 0 || !!activeFamilyWishDef.value)
+  )
+  const nextFamilyWishPreview = computed(() =>
+    familyWishOverview.value.defs.find(def => !familyWishOverview.value.state.completedWishIds.includes(def.id)) ?? null
+  )
 
   const goToCohabitationManor = () => {
     void router.push({ name: 'online-cohabitation' })
+  }
+
+  const handleActivateFamilyWish = () => {
+    const result = npcStore.activateNextFamilyWishForCurrentDay()
+    addLog(result.message)
+  }
+
+  const handleCompleteFamilyWish = () => {
+    const wishId = activeFamilyWishDef.value?.id
+    if (!wishId) return
+    const completed = npcStore.completeFamilyWish(wishId)
+    if (!completed) {
+      const reason = npcStore.getFamilyWishCompletionBlockReason(wishId)
+      if (reason) addLog(`家庭心愿暂不能完成：${reason}`)
+    }
   }
 
   const releaseConfirmChildId = ref<number | null>(null)

@@ -128,6 +128,11 @@
             :member-limit="expeditionRoomStore.myRoom.member_limit"
             :reward-preview="expeditionRoomRewardPreview"
             :settlement-records="expeditionRoomSettlementRecords"
+            :collaboration-progress-label="expeditionRoomCollaborationProgressLabel"
+            :collaboration-progress-percent="expeditionRoomStore.myRoom.gameplay.progress_percent"
+            :collaboration-score-label="expeditionRoomCollaborationScoreLabel"
+            :collaboration-roles="expeditionRoomCollaborationRoles"
+            :collaboration-feedback="expeditionRoomCollaborationFeedback"
           >
             <template #actions>
               <Button
@@ -640,6 +645,7 @@
       title="邀请玩家加入远征队伍"
       description="可以一次输入多名玩家；失败项会保留在结果里，方便稍后重试。"
       :existing-members="expeditionInviteExistingMembers"
+      :recent-players="expeditionInviteSelectablePlayers"
       :results="expeditionInviteResults"
       :busy="expeditionRoomStore.actionRunning || expeditionInviteSubmitting"
       @invite="submitExpeditionInvites"
@@ -655,20 +661,31 @@
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
-  import OnlineInvitePanel, { type OnlineInviteResult } from '@/components/game/online/OnlineInvitePanel.vue'
+  import OnlineInvitePanel, { type OnlineInvitePlayerGroup, type OnlineInviteRecentPlayer, type OnlineInviteResult } from '@/components/game/online/OnlineInvitePanel.vue'
   import OnlineRoomLobbyDialog, { type OnlineRoomLobbyRoom } from '@/components/game/online/OnlineRoomLobbyDialog.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
-  import OnlineVisualRoomShell from '@/components/game/online/OnlineVisualRoomShell.vue'
+  import OnlineVisualRoomShell, {
+    type OnlineVisualRoomShellCollaborationFeedback,
+    type OnlineVisualRoomShellCollaborationRole,
+  } from '@/components/game/online/OnlineVisualRoomShell.vue'
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import OnlineRoomWizard, { type OnlineRoomWizardDraft } from '@/components/game/online/OnlineRoomWizard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import { useSocialStore } from '@/stores/useSocialStore'
+  import type { OnlineRelationCard } from '@/utils/onlineProfileApi'
+  import type {
+    ExpeditionCavernRoundLogSnapshot,
+    ExpeditionCavernRoleSnapshot,
+    ExpeditionGameplayContributionSnapshot,
+  } from '@/utils/expeditionRoomApi'
   import type { OnlineVisualNode, OnlineVisualTrack } from '@/types/onlineVisual'
 
   const route = useRoute()
   const expeditionRoomStore = useExpeditionRoomStore()
   const saveStore = useSaveStore()
+  const socialStore = useSocialStore()
   const selectedExpeditionVisualNodeId = ref('')
   const selectedExpeditionVisualTrackId = ref('')
   const selectedExpeditionVisualTrackCellId = ref('')
@@ -929,6 +946,127 @@
     }))
   })
 
+  const fallbackExpeditionCollaborationRoles = [
+    { id: 'gather', label: '采集', summary: '负责探索节点、收集资源和标记路线收益。' },
+    { id: 'escort', label: '护送 / 战斗', summary: '负责遭遇处理、风险压制和护送安全。' },
+    { id: 'submit', label: '加工 / 提交', summary: '负责整备补给、提交目标和触发撤离。' },
+    { id: 'support', label: '加成 / 支援', summary: '负责连携加成、补位和降低失败损失。' },
+  ]
+  const expeditionContributionLabel = (contribution?: ExpeditionGameplayContributionSnapshot) => {
+    if (!contribution) return ''
+    return `${contribution.action_count} 次 · ${contribution.progress_value} 贡献`
+  }
+  const expeditionContributionByUser = (contributions: ExpeditionGameplayContributionSnapshot[]) =>
+    new Map(contributions.map(contribution => [contribution.username, contribution]))
+  const buildAssignedExpeditionRoles = (
+    assignments: ExpeditionCavernRoleSnapshot[],
+    contributions: ExpeditionGameplayContributionSnapshot[],
+  ): OnlineVisualRoomShellCollaborationRole[] => {
+    const contributionMap = expeditionContributionByUser(contributions)
+    return assignments.slice(0, 4).map(role => {
+      const contribution = contributionMap.get(role.username)
+      return {
+        id: `${role.username}-${role.role_id}`,
+        label: role.role_label,
+        ownerLabel: role.display_name || role.username,
+        summary: role.role_summary || contribution?.last_action_label || '负责本轮远征目标的一部分。',
+        statusLabel: expeditionContributionLabel(contribution) || '待行动',
+      }
+    })
+  }
+  const buildFallbackExpeditionRoles = (
+    members: NonNullable<typeof expeditionRoomStore.myRoom>['members'],
+    contributions: ExpeditionGameplayContributionSnapshot[],
+  ): OnlineVisualRoomShellCollaborationRole[] => {
+    const contributionMap = expeditionContributionByUser(contributions)
+    return members.slice(0, 4).map((member, index) => {
+      const role = fallbackExpeditionCollaborationRoles[index % fallbackExpeditionCollaborationRoles.length]!
+      const contribution = contributionMap.get(member.username)
+      return {
+        id: `${member.username}-${role.id}`,
+        label: role.label,
+        ownerLabel: member.display_name || member.username,
+        summary: role.summary,
+        statusLabel: expeditionContributionLabel(contribution) || member.status_label,
+      }
+    })
+  }
+  const pushUniqueExpeditionFeedback = (
+    entries: OnlineVisualRoomShellCollaborationFeedback[],
+    seen: Set<string>,
+    entry: OnlineVisualRoomShellCollaborationFeedback,
+  ) => {
+    const key = `${entry.label}-${entry.summary || ''}`
+    if (!entry.label || !entry.summary || seen.has(key)) return
+    seen.add(key)
+    entries.push(entry)
+  }
+  const logToExpeditionFeedback = (entry: ExpeditionCavernRoundLogSnapshot): OnlineVisualRoomShellCollaborationFeedback => ({
+    id: `expedition-log-${entry.id}`,
+    label: [entry.actor_display_name, entry.action_label].filter(Boolean).join('完成了') || entry.role_label || '队友行动',
+    summary: entry.summary,
+    tone: 'success',
+  })
+  const expeditionRoomCollaborationProgressLabel = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return ''
+    return `${room.gameplay.objective_label} · ${room.gameplay.progress_text}`
+  })
+  const expeditionRoomCollaborationScoreLabel = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return ''
+    return [
+      `${room.gameplay.score_label} ${room.gameplay.score_value}`,
+      room.gameplay.cavern_state?.risk_text ? `风险 ${room.gameplay.cavern_state.risk_text}` : '',
+    ].filter(Boolean).join(' · ')
+  })
+  const expeditionRoomCollaborationRoles = computed<OnlineVisualRoomShellCollaborationRole[]>(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const assignments = room.gameplay.cavern_state?.role_assignments ?? []
+    if (assignments.length > 0) return buildAssignedExpeditionRoles(assignments, room.gameplay.contributions)
+    return buildFallbackExpeditionRoles(room.members, room.gameplay.contributions)
+  })
+  const expeditionRoomCollaborationFeedback = computed<OnlineVisualRoomShellCollaborationFeedback[]>(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const entries: OnlineVisualRoomShellCollaborationFeedback[] = []
+    const seen = new Set<string>()
+    const cavernState = room.gameplay.cavern_state
+    pushUniqueExpeditionFeedback(entries, seen, {
+      id: 'expedition-recent-feedback',
+      label: '队伍反馈',
+      summary: cavernState?.recent_feedback || room.visual_state.recent_feedback,
+      tone: 'success',
+    })
+    pushUniqueExpeditionFeedback(entries, seen, {
+      id: 'expedition-last-action',
+      label: room.gameplay.last_actor_display_name ? `${room.gameplay.last_actor_display_name}完成了${room.gameplay.last_action_id || '行动'}` : '最近行动',
+      summary: room.gameplay.last_action_summary,
+      tone: 'success',
+    })
+    for (const combo of (cavernState?.combo_records ?? []).slice(0, 3)) {
+      pushUniqueExpeditionFeedback(entries, seen, {
+        id: `expedition-combo-${combo.combo_id}`,
+        label: combo.label || '队伍达成连携',
+        summary: combo.summary || combo.resource_delta_text,
+        tone: 'success',
+      })
+    }
+    if (cavernState?.withdrawal_summary) {
+      pushUniqueExpeditionFeedback(entries, seen, {
+        id: 'expedition-withdrawal',
+        label: '撤离节点',
+        summary: cavernState.withdrawal_summary,
+        tone: 'warning',
+      })
+    }
+    for (const entry of (cavernState?.round_log ?? []).slice(0, 4)) {
+      pushUniqueExpeditionFeedback(entries, seen, logToExpeditionFeedback(entry))
+    }
+    return entries.slice(0, 5)
+  })
+
   const expeditionInviteExistingMembers = computed(() => {
     const room = expeditionRoomStore.myRoom
     if (!room) return []
@@ -940,6 +1078,72 @@
       statusLabel: member.status_label,
     }))
   })
+
+  const normalizeInviteCandidate = (value = '') => value.trim().toLowerCase()
+  const relationToInvitePlayer = (relation: OnlineRelationCard): OnlineInviteRecentPlayer | null => {
+    const profile = relation.profile
+    const username = profile.username.trim()
+    if (!username) return null
+    return {
+      id: `friend-${username}`,
+      username,
+      displayName: profile.display_name || profile.player_name || username,
+      group: 'friends',
+      subtitle: [
+        '好友',
+        profile.public_title || '',
+        profile.recent_activity || profile.season_progress || '',
+      ].filter(Boolean).join(' · '),
+    }
+  }
+  const discoveryInvitePlayerGroup = (player: typeof socialStore.friendDiscoveryPlayers[number]): OnlineInvitePlayerGroup => {
+    if (player.relation_status === 'blocked') return 'blocked'
+    if (player.relation_status === 'friend' && player.is_online) return 'online-friends'
+    if (player.relation_status === 'friend') return 'friends'
+    if (player.is_recently_active || player.is_online) return 'recent'
+    return 'recommended'
+  }
+  const mergeInvitePlayers = (
+    candidates: Array<OnlineInviteRecentPlayer | null>,
+    existingMembers: { id?: string; username?: string; displayName?: string; statusLabel?: string }[],
+  ) => {
+    const existingKeys = new Set(
+      existingMembers.flatMap(member => [member.id, member.username, member.displayName].map(value => normalizeInviteCandidate(value || '')))
+        .filter(Boolean)
+    )
+    const seen = new Set<string>()
+    const players: OnlineInviteRecentPlayer[] = []
+    for (const candidate of candidates) {
+      if (!candidate?.username.trim()) continue
+      const key = normalizeInviteCandidate(candidate.username)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      const disabled = existingKeys.has(key) || existingKeys.has(normalizeInviteCandidate(candidate.displayName || ''))
+      players.push({
+        ...candidate,
+        disabled: candidate.disabled || disabled,
+        reason: disabled ? '已在当前房间' : candidate.reason,
+      })
+      if (players.length >= 12) break
+    }
+    return players
+  }
+  const expeditionInviteSelectablePlayers = computed<OnlineInviteRecentPlayer[]>(() => mergeInvitePlayers([
+    ...socialStore.friendDiscoveryPlayers.map(player => ({
+      id: `discover-${player.save_identity.save_id}`,
+      username: player.profile.username,
+      displayName: player.profile.display_name || player.profile.player_name || player.profile.username,
+      group: discoveryInvitePlayerGroup(player),
+      subtitle: [
+        player.relation_status === 'friend' ? '好友大厅' : '最近玩家',
+        player.is_online ? '在线' : player.is_recently_active ? '近期活跃' : '',
+        player.recommendation_reasons[0] || '',
+      ].filter(Boolean).join(' · '),
+      disabled: player.relation_status === 'blocked',
+      reason: player.relation_status === 'blocked' ? '已屏蔽' : '',
+    })),
+    ...socialStore.friends.map(relationToInvitePlayer),
+  ], expeditionInviteExistingMembers.value))
 
   const expeditionLobbyIsHostUser = computed(() => {
     const room = expeditionRoomStore.myRoom
@@ -1079,13 +1283,13 @@
     if (!room) return []
     return room.settlement_receipts.slice(0, 4).map(receipt => {
       const routeReplay = receipt.route_replay
-      const rewardItems = receipt.reward_payload.items
-        .map(item => `${item.item_id} x${item.quantity}`)
-        .join('、')
+      const rewardItems = receipt.reward_payload.items.map(item => ({
+        itemId: item.item_id,
+        quantity: item.quantity,
+      }))
       const rewardParts = [
         receipt.reward_payload.money > 0 ? `${receipt.reward_payload.money} 铜钱` : '',
         receipt.reward_payload.reward_tickets > 0 ? `${receipt.reward_payload.reward_tickets} 张奖券` : '',
-        rewardItems,
       ].filter(Boolean)
       return {
         id: receipt.id,
@@ -1093,7 +1297,8 @@
         statusLabel: receipt.status_label,
         summary: receipt.summary,
         replayLabel: formatExpeditionRoomShellReplay(routeReplay),
-        rewardLabel: rewardParts.length > 0 ? `奖励已记录：${rewardParts.join('、')}` : '结算记录已生成，暂无额外物品记录。',
+        rewardLabel: rewardParts.length > 0 ? `奖励已记录：${rewardParts.join('、')}` : rewardItems.length > 0 ? '奖励已记录' : '结算记录已生成，暂无额外物品记录。',
+        rewardItems,
       }
     })
   })
@@ -1514,6 +1719,10 @@
   onMounted(() => {
     applyInviteRouteDraft()
     void refreshOverview()
+    void Promise.allSettled([
+      socialStore.refreshRelationships({ silent: true }),
+      socialStore.refreshFriendDiscovery({ silent: true }),
+    ])
   })
 
   watch(

@@ -298,6 +298,7 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     id: 'tofu_press',
     name: '豆腐坊',
     description: '将豆类磨制成豆腐和酱料。',
+    npcFunctionEffectType: 'tofu_workshop',
     craftCost: [
       { itemId: 'wood', quantity: 20 },
       { itemId: 'iron_ore', quantity: 3 },
@@ -343,6 +344,7 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     name: '铸魔炉',
     description: '为武器、镐子、戒指、帽子和鞋子随机铸入可波动词条。',
     workshopLevelRequired: 7,
+    npcFunctionEffectType: 'premium_forge',
     craftCost: [
       { itemId: 'bronze_bar', quantity: 8 },
       { itemId: 'mythril_bar', quantity: 4 },
@@ -364,6 +366,16 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
       { itemId: 'iridium_ore', quantity: 5 }
     ],
     craftMoney: 2000
+  },
+  {
+    id: 'repair_bench',
+    name: '修理台',
+    description: '修理破损或磨损的装备，恢复全部耐久。',
+    craftCost: [
+      { itemId: 'wood', quantity: 20 },
+      { itemId: 'iron_bar', quantity: 5 }
+    ],
+    craftMoney: 3000
   }
 ]
 
@@ -1532,6 +1544,25 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '将蚕丝织成华美丝绸。'
   },
   {
+    id: 'weave_ancient_silk',
+    machineType: 'loom',
+    name: '古法织造',
+    visibility: 'hidden',
+    hiddenMeta: {
+      unknownName: '古法织造',
+      familyId: 'npc_ancient_weave',
+      gate: { npcFunctionEffectType: 'ancient_weave' },
+      revealOn: 'collect'
+    },
+    inputItemId: 'silk',
+    inputQuantity: 2,
+    extraInputs: [{ itemId: 'dream_silk', quantity: 1 }],
+    outputItemId: 'silk_cloth',
+    outputQuantity: 3,
+    processingDays: 3,
+    description: '张婆婆传下的古法织造，用梦丝牵引出更细密的丝绸。'
+  },
+  {
     id: 'weave_alpaca',
     machineType: 'loom',
     name: '羊驼绒',
@@ -1830,6 +1861,25 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 1,
     description: '将药材干复研成稳定草药膏，继续进入清心莲丹和探索前药材准备。'
+  },
+  {
+    id: 'grind_calligraphy_ink',
+    machineType: 'herb_grinder',
+    name: '题字墨',
+    visibility: 'hidden',
+    hiddenMeta: {
+      unknownName: '题字墨',
+      familyId: 'npc_calligraphy',
+      gate: { npcFunctionEffectType: 'calligraphy' },
+      revealOn: 'collect'
+    },
+    inputItemId: 'charcoal',
+    inputQuantity: 3,
+    extraInputs: [{ itemId: 'paper', quantity: 1 }],
+    outputItemId: 'paper',
+    outputQuantity: 3,
+    processingDays: 1,
+    description: '丹青指点的题字用墨，可把普通纸张整理成更适合文书往来的纸张。'
   },
   {
     id: 'grind_ginseng',
@@ -2639,6 +2689,51 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 7,
     description: '蚕丝、月光石与五彩碎片织成的微型织机，能织出星光般的丝线。'
+  },
+  // === 修理配方 ===
+  {
+    id: 'repair_weapon',
+    machineType: 'repair_bench',
+    name: '修理武器',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: null,
+    outputQuantity: 0,
+    processingDays: 1,
+    description: '消耗铁锭修理武器，恢复全部耐久。'
+  },
+  {
+    id: 'repair_ring',
+    machineType: 'repair_bench',
+    name: '修理戒指',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: null,
+    outputQuantity: 0,
+    processingDays: 1,
+    description: '消耗铁锭修理戒指，恢复全部耐久。'
+  },
+  {
+    id: 'repair_hat',
+    machineType: 'repair_bench',
+    name: '修理帽子',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: null,
+    outputQuantity: 0,
+    processingDays: 1,
+    description: '消耗布料修理帽子，恢复全部耐久。'
+  },
+  {
+    id: 'repair_shoe',
+    machineType: 'repair_bench',
+    name: '修理鞋子',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: null,
+    outputQuantity: 0,
+    processingDays: 1,
+    description: '消耗皮革修理鞋子，恢复全部耐久。'
   }
 ]
 
@@ -3637,8 +3732,195 @@ export const getProcessingRecipeById = (id: string): ProcessingRecipeDef | undef
   return PROCESSING_RECIPES.find(r => r.id === id)
 }
 
+export const SUPPLEMENTAL_ALCHEMY_USE_RECIPES: ProcessingRecipeDef[] = [
+  {
+    id: 'shared_use_ley_crystal_focus_elixir',
+    machineType: 'alchemy_furnace',
+    name: '灵脉凝神丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'ley_crystal_focus_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的灵脉稀材丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'clear',
+      mainMaterialId: 'ley_crystal_shard',
+      supportMaterialIds: ['green_tea_drink', 'refined_quartz'],
+      primerItemId: 'ley_crystal_shard',
+      heat: 'gentle',
+      shortEffect: '远征与潜能研究前的凝神准备',
+      effect: {
+        description: '今日远征体力消耗-8%，行动耗时-8%，NPC 对话好感+2',
+        journeyStaminaReduction: 0.08,
+        actionSpeedBonus: 0.08,
+        dialogueAffinityBonus: 2
+      }
+    }
+  },
+  {
+    id: 'shared_use_wind_core_guard_pill',
+    machineType: 'alchemy_furnace',
+    name: '风蚀护脉丸',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'wind_core_guard_pill',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的高地护丹，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'spicy',
+      mainMaterialId: 'wind_etched_core',
+      supportMaterialIds: ['pickled_ginger', 'refined_quartz'],
+      primerItemId: 'wind_etched_core',
+      heat: 'strong',
+      shortEffect: '矿洞、采石场和风蚀远征前的防护',
+      effect: {
+        description: '今日采矿体力消耗-10%，远征体力消耗-5%，受到伤害-8%',
+        miningStaminaReduction: 0.1,
+        journeyStaminaReduction: 0.05,
+        defenseReduction: 0.08
+      }
+    }
+  },
+  {
+    id: 'shared_use_marsh_luminous_cleansing_elixir',
+    machineType: 'alchemy_furnace',
+    name: '泽光净息丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'marsh_luminous_cleansing_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的泽地稀材丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'clear',
+      mainMaterialId: 'marsh_spore_sample',
+      supportMaterialIds: ['herbal_paste', 'luminous_algae'],
+      primerItemId: 'luminous_algae',
+      heat: 'gentle',
+      shortEffect: '湿地远征、异常净息和夜间探索前的准备',
+      effect: {
+        description: '今日远征体力消耗-10%，采矿体力消耗-4%，受到伤害-5%',
+        journeyStaminaReduction: 0.1,
+        miningStaminaReduction: 0.04,
+        defenseReduction: 0.05
+      }
+    }
+  },
+  {
+    id: 'shared_use_moon_pearl_calm_elixir',
+    machineType: 'alchemy_furnace',
+    name: '月珠安神丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'moon_pearl_calm_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的月珠安神丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'support',
+      nature: 'clear',
+      mainMaterialId: 'moon_pearl',
+      supportMaterialIds: ['green_tea_drink', 'lotus_heart_powder'],
+      primerItemId: 'moon_pearl',
+      heat: 'gentle',
+      shortEffect: '夜巡、宠物安抚和长线探索前的稳定准备',
+      effect: {
+        description: '立即恢复40体力，今日远征体力消耗-6%，宠物安抚好感+4',
+        staminaRestore: 40,
+        journeyStaminaReduction: 0.06,
+        petCalmFriendshipBonus: 4
+      }
+    }
+  },
+  {
+    id: 'shared_use_jade_orchid_focus_elixir',
+    machineType: 'alchemy_furnace',
+    name: '玉兰凝心丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'jade_orchid_focus_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的玉兰凝心丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'fragrant',
+      mainMaterialId: 'jade_orchid',
+      supportMaterialIds: ['osmanthus_honey', 'lotus_heart_powder'],
+      primerItemId: 'jade_orchid',
+      heat: 'gentle',
+      shortEffect: '料理、工坊、节会筹备和高压协作前的专注',
+      effect: {
+        description: '今日行动耗时-10%，节会奖金×1.08，送礼好感×1.04',
+        actionSpeedBonus: 0.1,
+        festivalRewardMultiplier: 1.08,
+        giftBonusMultiplier: 1.04
+      }
+    }
+  },
+  {
+    id: 'shared_use_rare_lotus_guard_elixir',
+    machineType: 'alchemy_furnace',
+    name: '稀莲护心丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'rare_lotus_guard_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的稀莲护心丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'clear',
+      mainMaterialId: 'lotus_seed_rare',
+      supportMaterialIds: ['herbal_paste', 'lotus_heart_powder'],
+      primerItemId: 'lotus_seed_rare',
+      heat: 'steady',
+      shortEffect: '长线守护、采石场和高阶照料前的护心',
+      effect: {
+        description: '今日受到伤害-12%，采矿体力消耗-6%，宠物安抚好感+2',
+        defenseReduction: 0.12,
+        miningStaminaReduction: 0.06,
+        petCalmFriendshipBonus: 2
+      }
+    }
+  },
+  {
+    id: 'shared_use_jade_peach_spirit_elixir',
+    machineType: 'alchemy_furnace',
+    name: '翠桃醒神丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'jade_peach_spirit_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的翠桃醒神丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'spirit_fruit',
+      mainMaterialId: 'jade_peach',
+      supportMaterialIds: ['candied_peach', 'osmanthus_honey'],
+      primerItemId: 'jade_peach',
+      heat: 'gentle',
+      shortEffect: '社交、节会供品和远行备战前的醒神',
+      effect: {
+        description: '今日送礼好感×1.08，NPC 对话好感+2，节会奖金×1.05，远征体力消耗-4%',
+        giftBonusMultiplier: 1.08,
+        dialogueAffinityBonus: 2,
+        festivalRewardMultiplier: 1.05,
+        journeyStaminaReduction: 0.04
+      }
+    }
+  }
+]
+
 export const getAlchemyRecipeByOutputItemId = (itemId: string): ProcessingRecipeDef | undefined => {
   return PROCESSING_RECIPES.find(r => r.outputItemId === itemId && !!r.alchemy)
+    ?? SUPPLEMENTAL_ALCHEMY_USE_RECIPES.find(r => r.outputItemId === itemId && !!r.alchemy)
 }
 
 export const getRecipesForMachine = (machineType: string): ProcessingRecipeDef[] => {

@@ -598,11 +598,62 @@
           </div>
         </template>
 
-        <!-- ====== 万物铺 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'wanwupu'">
-          <ShopHeader name="万物铺" npc="陈伯" />
+        <template v-else>
+          <ShopHeader :name="currentShopLabel" :npc="currentShopNpcLabel" />
 
-          <div class="border border-accent/20 rounded-xs p-3 mb-4">
+          <div v-if="!activeShopShelf" class="mb-3">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <p class="text-sm text-accent">货架目录</p>
+                <p class="text-[0.625rem] text-muted mt-0.5">常用、材料、装备和补给按货架分区收束。</p>
+              </div>
+              <span class="text-[0.625rem] text-muted">{{ currentShopShelfCards.length }} 个分区</span>
+            </div>
+            <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <button
+                v-for="shelf in currentShopShelfCards"
+                :key="shelf.id"
+                type="button"
+                class="group flex min-h-20 items-center justify-between gap-3 rounded-xs border border-accent/20 bg-bg/30 px-3 py-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+                :data-testid="`shop-shelf-entry-${shelf.id}`"
+                @click="openShopShelf(shelf.id)"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <component :is="shelf.icon" :size="16" class="shrink-0 text-accent" />
+                  <span class="min-w-0">
+                    <span class="block text-sm text-text">{{ shelf.label }}</span>
+                    <span class="mt-1 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ shelf.summary }}</span>
+                  </span>
+                </span>
+                <span class="flex shrink-0 items-center gap-1.5 text-[0.625rem] text-accent">
+                  {{ shelf.count }}项
+                  <ChevronRight :size="14" class="transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="mb-3 rounded-xs border border-accent/15 bg-bg/40 p-2">
+            <div class="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                class="flex items-center gap-1.5 rounded-xs border border-accent/20 px-2 py-1 text-[0.625rem] text-accent transition-colors hover:bg-accent/5"
+                @click="returnToShopShelfDirectory"
+              >
+                <ChevronLeft :size="12" />
+                返回货架
+              </button>
+              <div class="min-w-0 text-right">
+                <p class="truncate text-xs text-accent">{{ activeShopShelfCard?.label ?? '当前货架' }}</p>
+                <p class="truncate text-[0.625rem] text-muted">{{ activeShopShelfCard?.summary ?? '查看当前货架商品。' }}</p>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ====== 万物铺 ====== -->
+        <template v-if="shopStore.currentShopId === 'wanwupu' && activeShopShelf">
+          <div v-if="activeShopShelf === 'wanwupu-catalog'" class="border border-accent/20 rounded-xs p-3 mb-4">
             <div class="flex items-center justify-between mb-2 gap-2">
               <div class="flex items-center gap-1.5 text-sm text-accent">
                 <Package :size="14" />
@@ -664,7 +715,27 @@
           </div>
           </div>
 
-          <div :class="promptSectionClass('recommended-consumption')" :data-prompt-focus="buildPromptFocusAttr('recommended-consumption')">
+          <section
+            v-if="activeShopShelf === 'wanwupu-recommendations'"
+            class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30"
+            :class="promptSectionClass('recommended-consumption')"
+            :data-prompt-focus="buildPromptFocusAttr('recommended-consumption')"
+          >
+            <div
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Star :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">推荐货架</span>
+                  <span class="block truncate text-[0.625rem] text-muted">周更惊喜、主题周承接和路线推荐集中在这里。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ wanwupuRecommendationCount }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
           <div v-if="shopStore.weeklySurpriseOffer" class="mb-4">
             <h4 class="text-accent text-sm mb-2">
               <Star :size="14" class="inline" />
@@ -758,113 +829,156 @@
               </div>
             </div>
           </div>
-          </div>
+            </div>
+          </section>
 
-          <h4 class="text-accent text-sm mb-2">
-            <Store :size="14" class="inline" />
-            本期货架
-          </h4>
-          <p class="text-muted text-xs mb-2">给中后期经营准备的消费货架：常驻、每周精选、季节限定、高价长期商品。</p>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-1.5 mb-3">
-            <Button
-              v-for="pool in catalogPools"
-              :key="pool.id"
-              class="justify-center"
-              :class="{ '!bg-accent !text-bg': featuredPool === pool.id }"
-              @click="selectCatalogPool(pool.id)"
-            >
-              {{ pool.label }}<span v-if="pool.id === 'weekly' && hasNewWeekly" class="ml-1 text-[0.625rem] text-danger font-bold">NEW</span>
-            </Button>
-          </div>
-          <p v-if="featuredPool === 'weekly'" class="text-[0.625rem] text-muted mb-2">{{ shopStore.weeklyCatalogRefreshText }}</p>
-          <div class="flex flex-col space-y-2 mb-4">
+          <section
+            v-if="activeShopShelf === 'wanwupu-catalog'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="offer in currentCatalogOffers"
-              :key="offer.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              :class="{
-                'opacity-60': offer.onceOnly && shopStore.isCatalogOwned(offer.id),
-                'border-warning/30 bg-warning/5': isCatalogOfferLocked(offer)
-              }"
-              @click="openCatalogOfferModal(offer)"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm flex items-center gap-1.5 flex-wrap">
-                  {{ offer.name }}
-                  <span v-if="shopStore.getCatalogOfferBadge(offer.id)" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
-                    {{ shopStore.getCatalogOfferBadge(offer.id) }}
-                  </span>
-                  <span v-if="offer.onceOnly && shopStore.isCatalogOwned(offer.id)" class="text-success text-xs ml-1">已拥有</span>
-                  <span v-else-if="isCatalogOfferLocked(offer)" class="text-warning text-xs ml-1">图鉴未解锁</span>
-                </p>
-                <p class="text-muted text-xs">{{ offer.description }}</p>
-                <p class="text-[0.625rem] text-muted/70 mt-0.5">{{ catalogOfferSubtitle(offer) }}</p>
-                <p v-if="catalogOfferEffectPreview(offer)" class="text-[0.625rem] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
-                <p v-if="shopStore.getCatalogOfferPreferenceReason(offer.id)" class="text-[0.625rem] text-success mt-0.5">
-                  {{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}
-                </p>
-                <p v-if="catalogOfferUnlockHint(offer)" class="text-[0.625rem] text-warning mt-0.5">🔒 {{ catalogOfferUnlockHint(offer) }}</p>
-                <p v-if="catalogOfferLimitHint(offer)" class="text-[0.625rem] text-warning mt-0.5">⚠ {{ catalogOfferLimitHint(offer) }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <Store :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">本期货架</span>
+                  <span class="block truncate text-[0.625rem] text-muted">常驻、每周精选、季节限定和高价长期商品。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ currentCatalogOffers.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-1.5 mb-3">
+                <Button
+                  v-for="pool in catalogPools"
+                  :key="pool.id"
+                  class="justify-center"
+                  :class="{ '!bg-accent !text-bg': featuredPool === pool.id }"
+                  @click="selectCatalogPool(pool.id)"
+                >
+                  {{ pool.label }}<span v-if="pool.id === 'weekly' && hasNewWeekly" class="ml-1 text-[0.625rem] text-danger font-bold">NEW</span>
+                </Button>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
-            </div>
-            <div v-if="currentCatalogOffers.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
-              <Package :size="24" class="text-muted/30 mb-2" />
-              <p class="text-xs">当前货架暂无商品</p>
-            </div>
-          </div>
-
-          <!-- 当季种子 -->
-          <h4 class="text-accent text-sm mb-2 mt-3">
-            <Sprout :size="14" class="inline" />
-            当季种子
-          </h4>
-          <div class="flex flex-col space-y-2">
-            <div
-              v-for="seed in shopStore.availableSeeds"
-              :key="seed.seedId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  seed.cropName + '种子',
-                  `${seed.season.map((s: Season) => SEASON_NAMES[s]).join('/')}季 · ${seed.growthDays}天成熟 → 售${seed.sellPrice}文`,
-                  discounted(seed.price),
-                  () => handleBuySeed(seed.seedId),
-                  () => playerStore.money >= discounted(seed.price),
-                  count => handleBatchBuySeed(seed.seedId, count),
-                  () => getMaxBuyable(discounted(seed.price)),
-                  seed.seedId
-                )
-              "
-            >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(seed.seedId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">
-                    {{ seed.cropName }}种子
-                    <span v-if="seed.regrowth" class="text-success text-xs ml-1">[多茬]</span>
-                  </p>
-                  <p class="truncate text-muted text-xs">
-                    {{ seed.season.map((s: Season) => SEASON_NAMES[s]).join('/') }}季 · {{ seed.growthDays }}天{{
-                      seed.regrowth ? ` · 每${seed.regrowthDays}天再收` : ''
-                    }}
-                    → 售{{ seed.sellPrice }}文
-                  </p>
+              <p v-if="featuredPool === 'weekly'" class="text-[0.625rem] text-muted mb-2">{{ shopStore.weeklyCatalogRefreshText }}</p>
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="offer in currentCatalogOffers"
+                  :key="offer.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  :class="{
+                    'opacity-60': offer.onceOnly && shopStore.isCatalogOwned(offer.id),
+                    'border-warning/30 bg-warning/5': isCatalogOfferLocked(offer)
+                  }"
+                  @click="openCatalogOfferModal(offer)"
+                >
+                  <div>
+                    <p class="text-sm flex items-center gap-1.5 flex-wrap">
+                      {{ offer.name }}
+                      <span v-if="shopStore.getCatalogOfferBadge(offer.id)" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
+                        {{ shopStore.getCatalogOfferBadge(offer.id) }}
+                      </span>
+                      <span v-if="offer.onceOnly && shopStore.isCatalogOwned(offer.id)" class="text-success text-xs ml-1">已拥有</span>
+                      <span v-else-if="isCatalogOfferLocked(offer)" class="text-warning text-xs ml-1">图鉴未解锁</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ offer.description }}</p>
+                    <p class="text-[0.625rem] text-muted/70 mt-0.5">{{ catalogOfferSubtitle(offer) }}</p>
+                    <p v-if="catalogOfferEffectPreview(offer)" class="text-[0.625rem] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
+                    <p v-if="shopStore.getCatalogOfferPreferenceReason(offer.id)" class="text-[0.625rem] text-success mt-0.5">
+                      {{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}
+                    </p>
+                    <p v-if="catalogOfferUnlockHint(offer)" class="text-[0.625rem] text-warning mt-0.5">🔒 {{ catalogOfferUnlockHint(offer) }}</p>
+                    <p v-if="catalogOfferLimitHint(offer)" class="text-[0.625rem] text-warning mt-0.5">⚠ {{ catalogOfferLimitHint(offer) }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
+                </div>
+                <div v-if="currentCatalogOffers.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
+                  <Package :size="24" class="text-muted/30 mb-2" />
+                  <p class="text-xs">当前货架暂无商品</p>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(seed.price) }}文</span>
             </div>
-            <div v-if="shopStore.availableSeeds.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
-              <Sprout :size="24" class="text-muted/30 mb-2" />
-              <p class="text-xs">本季没有种子出售</p>
+          </section>
+
+          <!-- 当季种子 -->
+          <section
+            v-if="activeShopShelf === 'wanwupu-seeds'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
+            <div
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Sprout :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">当季种子</span>
+                  <span class="block truncate text-[0.625rem] text-muted">只显示当前季节可种的作物种子。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.availableSeeds.length }}项</span>
+              </span>
             </div>
-          </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="seed in shopStore.availableSeeds"
+                  :key="seed.seedId"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      seed.cropName + '种子',
+                      `${seed.season.map((s: Season) => SEASON_NAMES[s]).join('/')}季 · ${seed.growthDays}天成熟 → 售${seed.sellPrice}文`,
+                      discounted(seed.price),
+                      () => handleBuySeed(seed.seedId),
+                      () => playerStore.money >= discounted(seed.price),
+                      count => handleBatchBuySeed(seed.seedId, count),
+                      () => getMaxBuyable(discounted(seed.price)),
+                      seed.seedId
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(seed.seedId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">
+                        {{ seed.cropName }}种子
+                        <span v-if="seed.regrowth" class="text-success text-xs ml-1">[多茬]</span>
+                      </p>
+                      <p class="truncate text-muted text-xs">
+                        {{ seed.season.map((s: Season) => SEASON_NAMES[s]).join('/') }}季 · {{ seed.growthDays }}天{{
+                          seed.regrowth ? ` · 每${seed.regrowthDays}天再收` : ''
+                        }}
+                        → 售{{ seed.sellPrice }}文
+                      </p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(seed.price) }}文</span>
+                </div>
+                <div v-if="shopStore.availableSeeds.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
+                  <Sprout :size="24" class="text-muted/30 mb-2" />
+                  <p class="text-xs">本季没有种子出售</p>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <!-- 杂货 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Package :size="14" class="inline" />
-            杂货
-          </h4>
+          <section
+            v-if="activeShopShelf === 'wanwupu-grocery'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
+            <div
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Package :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">杂货</span>
+                  <span class="block truncate text-[0.625rem] text-muted">扩容、树苗、干草、材料和天气道具。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ wanwupuGroceryCount }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
           <div class="flex flex-col space-y-2">
             <!-- 背包扩容 -->
             <div
@@ -1017,130 +1131,222 @@
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(RAIN_TOTEM_PRICE) }}文</span>
             </div>
-          </div>
-        </template>
 
-        <!-- ====== 铁匠铺 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'tiejiangpu'">
-          <ShopHeader name="铁匠铺" npc="孙铁匠" />
-
-          <div class="flex flex-col space-y-2">
             <div
-              v-for="item in shopStore.blacksmithItems"
-              :key="item.itemId"
-              class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer"
-              :class="item.locked || item.weeklyRemaining === 0 ? 'border-accent/10 opacity-70 hover:bg-accent/5' : 'border-accent/20 hover:bg-accent/5'"
+              v-for="item in shopStore.wanwupuNpcRareItems"
+              :key="`wanwupu-npc-${item.itemId}`"
+              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
               @click="
                 openBatchBuyModal(
                   item.name,
                   item.description,
                   discounted(item.price),
-                  () => handleBuyBlacksmithItem(item.itemId, item.price),
-                  () => canBuyBlacksmithItem(item.itemId, item.price),
-                  count => handleBatchBuyBlacksmithItem(item.itemId, item.price, count),
-                  () => getBlacksmithItemMaxBuyable(item.itemId, discounted(item.price)),
+                  () => handleBuyItem(item.itemId, item.price, item.name),
+                  () => playerStore.money >= discounted(item.price),
+                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
+                  () => getMaxBuyable(discounted(item.price)),
                   item.itemId,
-                  getBlacksmithItemExtraLines(item)
+                  item.limitLabel ? [item.limitLabel] : undefined
                 )
               "
             >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">
-                    {{ item.name }}
-                    <span v-if="item.limitLabel" class="ml-1 text-[0.625rem] text-muted">{{ item.limitLabel }}</span>
-                  </p>
-                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
-                </div>
+              <div>
+                <p class="text-sm">{{ item.name }}</p>
+                <p class="text-muted text-xs">{{ item.description }}</p>
+                <p v-if="item.limitLabel" class="text-[0.625rem] text-accent mt-0.5">{{ item.limitLabel }}</p>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
           </div>
+            </div>
+          </section>
+        </template>
+
+        <!-- ====== 铁匠铺 ====== -->
+        <template v-else-if="shopStore.currentShopId === 'tiejiangpu' && activeShopShelf">
+          <section
+            v-if="activeShopShelf === 'tiejiangpu-materials'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
+            <div
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Hammer :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">匠作材料</span>
+                  <span class="block truncate text-[0.625rem] text-muted">矿石、煤炭与每周限购的锻造补给。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.blacksmithItems.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="item in shopStore.blacksmithItems"
+                  :key="item.itemId"
+                  class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer"
+                  :class="item.locked || item.weeklyRemaining === 0 ? 'border-accent/10 opacity-70 hover:bg-accent/5' : 'border-accent/20 hover:bg-accent/5'"
+                  @click="
+                    openBatchBuyModal(
+                      item.name,
+                      item.description,
+                      discounted(item.price),
+                      () => handleBuyBlacksmithItem(item.itemId, item.price),
+                      () => canBuyBlacksmithItem(item.itemId, item.price),
+                      count => handleBatchBuyBlacksmithItem(item.itemId, item.price, count),
+                      () => getBlacksmithItemMaxBuyable(item.itemId, discounted(item.price)),
+                      item.itemId,
+                      getBlacksmithItemExtraLines(item)
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">
+                        {{ item.name }}
+                        <span v-if="item.limitLabel" class="ml-1 text-[0.625rem] text-muted">{{ item.limitLabel }}</span>
+                      </p>
+                      <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <!-- 戒指合成 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <CircleDot :size="14" class="inline" />
-            戒指合成
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'tiejiangpu-rings'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="ring in craftableRings"
-              :key="ring.id"
-              class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              :class="canCraftRing(ring) ? 'border-success/50 bg-success/5' : 'border-accent/20'"
-              @click="openRingModal(ring)"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm">
-                  {{ ring.name }}
-                  <span v-if="inventoryStore.hasRing(ring.id)" class="text-success text-xs ml-1">已拥有</span>
-                </p>
-                <p class="text-muted text-xs">{{ ring.description }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <CircleDot :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">戒指合成</span>
+                  <span class="block truncate text-[0.625rem] text-muted">消耗材料和铜钱打造功能戒指。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ craftableRings.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="ring in craftableRings"
+                  :key="ring.id"
+                  class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  :class="canCraftRing(ring) ? 'border-success/50 bg-success/5' : 'border-accent/20'"
+                  @click="openRingModal(ring)"
+                >
+                  <div>
+                    <p class="text-sm">
+                      {{ ring.name }}
+                      <span v-if="inventoryStore.hasRing(ring.id)" class="text-success text-xs ml-1">已拥有</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ ring.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ ring.recipeMoney }}文</span>
+                </div>
+                <div v-if="craftableRings.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
+                  <CircleDot :size="24" class="text-muted/30 mb-2" />
+                  <p class="text-xs">没有可合成的戒指</p>
+                </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ ring.recipeMoney }}文</span>
             </div>
-            <div v-if="craftableRings.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
-              <CircleDot :size="24" class="text-muted/30 mb-2" />
-              <p class="text-xs">没有可合成的戒指</p>
-            </div>
-          </div>
+          </section>
 
           <!-- 帽子合成 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Crown :size="14" class="inline" />
-            帽子合成
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'tiejiangpu-hats'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="hat in CRAFTABLE_HATS"
-              :key="hat.id"
-              class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              :class="canCraftHat(hat) ? 'border-success/50 bg-success/5' : 'border-accent/20'"
-              @click="openHatCraftModal(hat)"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm">
-                  {{ hat.name }}
-                  <span v-if="inventoryStore.hasHat(hat.id)" class="text-success text-xs ml-1">已拥有</span>
-                </p>
-                <p class="text-muted text-xs">{{ hat.description }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ hat.recipeMoney }}文</span>
+              <span class="flex min-w-0 items-center gap-2">
+                <Crown :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">帽子合成</span>
+                  <span class="block truncate text-[0.625rem] text-muted">外观与属性帽饰，适合有材料后再看。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ CRAFTABLE_HATS.length }}项</span>
+              </span>
             </div>
-          </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="hat in CRAFTABLE_HATS"
+                  :key="hat.id"
+                  class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  :class="canCraftHat(hat) ? 'border-success/50 bg-success/5' : 'border-accent/20'"
+                  @click="openHatCraftModal(hat)"
+                >
+                  <div>
+                    <p class="text-sm">
+                      {{ hat.name }}
+                      <span v-if="inventoryStore.hasHat(hat.id)" class="text-success text-xs ml-1">已拥有</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ hat.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ hat.recipeMoney }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <!-- 鞋子合成 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Footprints :size="14" class="inline" />
-            鞋子合成
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'tiejiangpu-shoes'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="shoe in CRAFTABLE_SHOES"
-              :key="shoe.id"
-              class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              :class="canCraftShoe(shoe) ? 'border-success/50 bg-success/5' : 'border-accent/20'"
-              @click="openShoeCraftModal(shoe)"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm">
-                  {{ shoe.name }}
-                  <span v-if="inventoryStore.hasShoe(shoe.id)" class="text-success text-xs ml-1">已拥有</span>
-                </p>
-                <p class="text-muted text-xs">{{ shoe.description }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ shoe.recipeMoney }}文</span>
+              <span class="flex min-w-0 items-center gap-2">
+                <Footprints :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">鞋子合成</span>
+                  <span class="block truncate text-[0.625rem] text-muted">移动和系统减耗类鞋具集中在这里。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ CRAFTABLE_SHOES.length }}项</span>
+              </span>
             </div>
-          </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="shoe in CRAFTABLE_SHOES"
+                  :key="shoe.id"
+                  class="flex items-center justify-between border rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  :class="canCraftShoe(shoe) ? 'border-success/50 bg-success/5' : 'border-accent/20'"
+                  @click="openShoeCraftModal(shoe)"
+                >
+                  <div>
+                    <p class="text-sm">
+                      {{ shoe.name }}
+                      <span v-if="inventoryStore.hasShoe(shoe.id)" class="text-success text-xs ml-1">已拥有</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ shoe.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ shoe.recipeMoney }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </template>
 
         <!-- ====== 镖局 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'biaoju'">
-          <ShopHeader name="镖局" npc="云飞" />
-
+        <template v-else-if="shopStore.currentShopId === 'biaoju' && activeShopShelf">
           <!-- 镖局承接 -->
-          <div class="border border-accent/20 rounded-xs p-3 mb-4 bg-accent/5" data-testid="biaoju-escort-services">
+          <div
+            v-if="activeShopShelf === 'biaoju-services'"
+            class="border border-accent/20 rounded-xs p-3 mb-4 bg-accent/5"
+            data-testid="biaoju-escort-services"
+          >
             <div class="flex items-center justify-between gap-2 mb-2">
               <div class="flex items-center gap-1.5 text-sm text-accent">
                 <Route :size="14" />
@@ -1181,356 +1387,517 @@
           </div>
 
           <!-- 武器 -->
-          <h4 class="text-accent text-sm mb-2">
-            <Sword :size="14" class="inline" />
-            武器
-          </h4>
-          <div class="flex flex-col space-y-2">
-            <div
-              v-for="w in SHOP_WEAPONS"
-              :key="w.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="openWeaponModal(w)"
-            >
-              <div>
-                <p class="text-sm">
-                  {{ w.name }}
-                  <span v-if="inventoryStore.hasWeapon(w.id)" class="text-success text-xs ml-1">已拥有</span>
-                </p>
-                <p class="text-muted text-xs">{{ WEAPON_TYPE_NAMES[w.type] }} · 攻击{{ w.attack }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(w.shopPrice!) }}文</span>
+          <section
+            v-if="activeShopShelf === 'biaoju-weapons'"
+            class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30"
+          >
+            <div class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left">
+              <span class="flex min-w-0 items-center gap-2">
+                <Sword :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">武器</span>
+                  <span class="block truncate text-[0.625rem] text-muted">战斗用武器与升级替换。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ SHOP_WEAPONS.length }}项</span>
+              </span>
             </div>
-          </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="w in SHOP_WEAPONS"
+                  :key="w.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="openWeaponModal(w)"
+                >
+                  <div>
+                    <p class="text-sm">
+                      {{ w.name }}
+                      <span v-if="inventoryStore.hasWeapon(w.id)" class="text-success text-xs ml-1">已拥有</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ WEAPON_TYPE_NAMES[w.type] }} · 攻击{{ w.attack }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(w.shopPrice!) }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </template>
 
         <!-- ====== 渔具铺 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'yugupu'">
-          <ShopHeader name="渔具铺" npc="秋月" />
-
+        <template v-else-if="shopStore.currentShopId === 'yugupu' && activeShopShelf">
           <!-- 鱼饵 -->
-          <h4 class="text-accent text-sm mb-2">
-            <Fish :size="14" class="inline" />
-            鱼饵
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'yugupu-baits'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="b in shopStore.shopBaits"
-              :key="b.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  b.name,
-                  b.description,
-                  discounted(b.price),
-                  () => handleBuyItem(b.id, b.price, b.name),
-                  () => playerStore.money >= discounted(b.price),
-                  count => handleBatchBuyItem(b.id, b.price, b.name, count),
-                  () => getMaxBuyable(discounted(b.price)),
-                  b.id
-                )
-              "
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm">{{ b.name }}</p>
-                <p class="text-muted text-xs">{{ b.description }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(b.price) }}文</span>
+              <span class="flex min-w-0 items-center gap-2">
+                <Fish :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">鱼饵</span>
+                  <span class="block truncate text-[0.625rem] text-muted">常用垂钓消耗，适合批量补货。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.shopBaits.length }}项</span>
+              </span>
             </div>
-          </div>
-
-          <!-- 浮漂 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Fish :size="14" class="inline" />
-            浮漂
-          </h4>
-          <div class="flex flex-col space-y-2">
-            <div
-              v-for="t in shopStore.shopTackles"
-              :key="t.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  t.name,
-                  t.description,
-                  discounted(t.price),
-                  () => handleBuyItem(t.id, t.price, t.name),
-                  () => playerStore.money >= discounted(t.price),
-                  count => handleBatchBuyItem(t.id, t.price, t.name, count),
-                  () => getMaxBuyable(discounted(t.price)),
-                  t.id
-                )
-              "
-            >
-              <div>
-                <p class="text-sm">{{ t.name }}</p>
-                <p class="text-muted text-xs">{{ t.description }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(t.price) }}文</span>
-            </div>
-          </div>
-
-          <!-- 其他 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Fish :size="14" class="inline" />
-            其他
-          </h4>
-          <div class="flex flex-col space-y-2">
-            <div
-              v-for="item in shopStore.fishingShopItems"
-              :key="item.itemId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  item.name,
-                  item.description,
-                  discounted(item.price),
-                  () => handleBuyItem(item.itemId, item.price, item.name),
-                  () => playerStore.money >= discounted(item.price),
-                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
-                  () => getMaxBuyable(discounted(item.price)),
-                  item.itemId
-                )
-              "
-            >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">{{ item.name }}</p>
-                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="b in shopStore.shopBaits"
+                  :key="b.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      b.name,
+                      b.description,
+                      discounted(b.price),
+                      () => handleBuyItem(b.id, b.price, b.name),
+                      () => playerStore.money >= discounted(b.price),
+                      count => handleBatchBuyItem(b.id, b.price, b.name, count),
+                      () => getMaxBuyable(discounted(b.price)),
+                      b.id
+                    )
+                  "
+                >
+                  <div>
+                    <p class="text-sm">{{ b.name }}</p>
+                    <p class="text-muted text-xs">{{ b.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(b.price) }}文</span>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
-          </div>
+          </section>
+
+          <!-- 浮漂 -->
+          <section
+            v-if="activeShopShelf === 'yugupu-tackles'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
+            <div
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Fish :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">浮漂</span>
+                  <span class="block truncate text-[0.625rem] text-muted">钓鱼过程辅助道具，按当前目标展开查看。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.shopTackles.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="t in shopStore.shopTackles"
+                  :key="t.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      t.name,
+                      t.description,
+                      discounted(t.price),
+                      () => handleBuyItem(t.id, t.price, t.name),
+                      () => playerStore.money >= discounted(t.price),
+                      count => handleBatchBuyItem(t.id, t.price, t.name, count),
+                      () => getMaxBuyable(discounted(t.price)),
+                      t.id
+                    )
+                  "
+                >
+                  <div>
+                    <p class="text-sm">{{ t.name }}</p>
+                    <p class="text-muted text-xs">{{ t.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(t.price) }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 其他 -->
+          <section
+            v-if="activeShopShelf === 'yugupu-other'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
+            <div
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
+            >
+              <span class="flex min-w-0 items-center gap-2">
+                <Package :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">其他</span>
+                  <span class="block truncate text-[0.625rem] text-muted">鱼线、补给和其他渔具杂项。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.fishingShopItems.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="item in shopStore.fishingShopItems"
+                  :key="item.itemId"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      item.name,
+                      item.description,
+                      discounted(item.price),
+                      () => handleBuyItem(item.itemId, item.price, item.name),
+                      () => playerStore.money >= discounted(item.price),
+                      count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
+                      () => getMaxBuyable(discounted(item.price)),
+                      item.itemId
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">{{ item.name }}</p>
+                      <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </template>
 
         <!-- ====== 药铺 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'yaopu'">
-          <ShopHeader name="药铺" npc="林老" />
-
+        <template v-else-if="shopStore.currentShopId === 'yaopu' && activeShopShelf">
           <!-- 肥料 -->
-          <h4 class="text-accent text-sm mb-2">
-            <Leaf :size="14" class="inline" />
-            肥料
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'yaopu-fertilizers'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="f in shopStore.shopFertilizers"
-              :key="f.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  f.name,
-                  f.description,
-                  discounted(f.price),
-                  () => handleBuyItem(f.id, f.price, f.name),
-                  () => playerStore.money >= discounted(f.price),
-                  count => handleBatchBuyItem(f.id, f.price, f.name, count),
-                  () => getMaxBuyable(discounted(f.price)),
-                  f.id
-                )
-              "
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(f.id)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">{{ f.name }}</p>
-                  <p class="truncate text-muted text-xs">{{ f.description }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <Leaf :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">肥料</span>
+                  <span class="block truncate text-[0.625rem] text-muted">种植前最常用的药铺消耗。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.shopFertilizers.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="f in shopStore.shopFertilizers"
+                  :key="f.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      f.name,
+                      f.description,
+                      discounted(f.price),
+                      () => handleBuyItem(f.id, f.price, f.name),
+                      () => playerStore.money >= discounted(f.price),
+                      count => handleBatchBuyItem(f.id, f.price, f.name, count),
+                      () => getMaxBuyable(discounted(f.price)),
+                      f.id
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(f.id)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">{{ f.name }}</p>
+                      <p class="truncate text-muted text-xs">{{ f.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(f.price) }}文</span>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(f.price) }}文</span>
             </div>
-          </div>
+          </section>
 
           <!-- 草药 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Sprout :size="14" class="inline" />
-            草药
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'yaopu-herbs'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="item in shopStore.apothecaryItems"
-              :key="item.itemId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  item.name,
-                  item.description,
-                  discounted(item.price),
-                  () => handleBuyItem(item.itemId, item.price, item.name),
-                  () => playerStore.money >= discounted(item.price),
-                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
-                  () => getMaxBuyable(discounted(item.price)),
-                  item.itemId
-                )
-              "
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">{{ item.name }}</p>
-                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <Sprout :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">草药</span>
+                  <span class="block truncate text-[0.625rem] text-muted">炼制、赠礼和补给用药材。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.apothecaryItems.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="item in shopStore.apothecaryItems"
+                  :key="item.itemId"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      item.name,
+                      item.description,
+                      discounted(item.price),
+                      () => handleBuyItem(item.itemId, item.price, item.name),
+                      () => playerStore.money >= discounted(item.price),
+                      count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
+                      () => getMaxBuyable(discounted(item.price)),
+                      item.itemId
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">{{ item.name }}</p>
+                      <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
-          </div>
+          </section>
         </template>
 
         <!-- ====== 绸缎庄 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'chouduanzhuang'">
-          <ShopHeader name="绸缎庄" npc="素素" />
-
-          <div class="flex flex-col space-y-2">
+        <template v-else-if="shopStore.currentShopId === 'chouduanzhuang' && activeShopShelf">
+          <section
+            v-if="activeShopShelf === 'chouduanzhuang-textiles'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="item in shopStore.textileItems"
-              :key="item.itemId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  item.name,
-                  item.description,
-                  discounted(item.price),
-                  () => handleBuyItem(item.itemId, item.price, item.name),
-                  () => playerStore.money >= discounted(item.price),
-                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
-                  () => getMaxBuyable(discounted(item.price)),
-                  item.itemId
-                )
-              "
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">{{ item.name }}</p>
-                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <Package :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">布料</span>
+                  <span class="block truncate text-[0.625rem] text-muted">丝线、布匹和裁缝基础材料。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ shopStore.textileItems.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="item in shopStore.textileItems"
+                  :key="item.itemId"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      item.name,
+                      item.description,
+                      discounted(item.price),
+                      () => handleBuyItem(item.itemId, item.price, item.name),
+                      () => playerStore.money >= discounted(item.price),
+                      count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
+                      () => getMaxBuyable(discounted(item.price)),
+                      item.itemId
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">{{ item.name }}</p>
+                      <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
-          </div>
+          </section>
 
           <!-- 帽子 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Crown :size="14" class="inline" />
-            帽子
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'chouduanzhuang-hats'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="hat in SHOP_HATS"
-              :key="hat.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="openHatShopModal(hat)"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm">
-                  {{ hat.name }}
-                  <span v-if="inventoryStore.hasHat(hat.id)" class="text-success text-xs ml-1">已拥有</span>
-                </p>
-                <p class="text-muted text-xs">{{ hat.description }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(hat.shopPrice!) }}文</span>
+              <span class="flex min-w-0 items-center gap-2">
+                <Crown :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">帽子</span>
+                  <span class="block truncate text-[0.625rem] text-muted">已成品帽饰，适合换装或补属性。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ SHOP_HATS.length }}项</span>
+              </span>
             </div>
-          </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="hat in SHOP_HATS"
+                  :key="hat.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="openHatShopModal(hat)"
+                >
+                  <div>
+                    <p class="text-sm">
+                      {{ hat.name }}
+                      <span v-if="inventoryStore.hasHat(hat.id)" class="text-success text-xs ml-1">已拥有</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ hat.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(hat.shopPrice!) }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <!-- 鞋子 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <Footprints :size="14" class="inline" />
-            鞋子
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'chouduanzhuang-shoes'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="shoe in SHOP_SHOES"
-              :key="shoe.id"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="openShoeShopModal(shoe)"
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div>
-                <p class="text-sm">
-                  {{ shoe.name }}
-                  <span v-if="inventoryStore.hasShoe(shoe.id)" class="text-success text-xs ml-1">已拥有</span>
-                </p>
-                <p class="text-muted text-xs">{{ shoe.description }}</p>
-              </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(shoe.shopPrice!) }}文</span>
+              <span class="flex min-w-0 items-center gap-2">
+                <Footprints :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">鞋子</span>
+                  <span class="block truncate text-[0.625rem] text-muted">已成品鞋具，按需要展开挑选。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ SHOP_SHOES.length }}项</span>
+              </span>
             </div>
-          </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="shoe in SHOP_SHOES"
+                  :key="shoe.id"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="openShoeShopModal(shoe)"
+                >
+                  <div>
+                    <p class="text-sm">
+                      {{ shoe.name }}
+                      <span v-if="inventoryStore.hasShoe(shoe.id)" class="text-success text-xs ml-1">已拥有</span>
+                    </p>
+                    <p class="text-muted text-xs">{{ shoe.description }}</p>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(shoe.shopPrice!) }}文</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </template>
 
         <!-- ====== 醉桃源酒馆 ====== -->
-        <template v-else-if="shopStore.currentShopId === 'jiuguan'">
-          <ShopHeader name="醉桃源酒馆" npc="老掌柜" />
-
+        <template v-else-if="shopStore.currentShopId === 'jiuguan' && activeShopShelf">
           <p class="text-muted text-xs mb-3">酒馆供应自酿酒水与小食，可恢复体力与HP，适合出门前补充。</p>
 
           <!-- 酒水 -->
-          <h4 class="text-accent text-sm mb-2">
-            <Droplets :size="14" class="inline" />
-            酒水
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'jiuguan-drinks'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="item in shopStore.tavernItems.filter((i: { itemId: string }) => ['tavern_rice_wine','tavern_plum_wine','tavern_herbal_brew','tavern_premium_brew'].includes(i.itemId))"
-              :key="item.itemId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  item.name,
-                  item.description,
-                  discounted(item.price),
-                  () => handleBuyItem(item.itemId, item.price, item.name),
-                  () => playerStore.money >= discounted(item.price),
-                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
-                  () => getMaxBuyable(discounted(item.price)),
-                  item.itemId
-                )
-              "
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">{{ item.name }}</p>
-                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <Droplets :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">酒水</span>
+                  <span class="block truncate text-[0.625rem] text-muted">恢复体力与HP的主货架。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ tavernDrinkItems.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="item in tavernDrinkItems"
+                  :key="item.itemId"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      item.name,
+                      item.description,
+                      discounted(item.price),
+                      () => handleBuyItem(item.itemId, item.price, item.name),
+                      () => playerStore.money >= discounted(item.price),
+                      count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
+                      () => getMaxBuyable(discounted(item.price)),
+                      item.itemId
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">{{ item.name }}</p>
+                      <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
-          </div>
+          </section>
 
           <!-- 小食 -->
-          <h4 class="text-accent text-sm mb-2 mt-4">
-            <UtensilsCrossed :size="14" class="inline" />
-            小食
-          </h4>
-          <div class="flex flex-col space-y-2">
+          <section
+            v-if="activeShopShelf === 'jiuguan-food'" class="mb-3 overflow-hidden rounded-xs border border-accent/15 bg-bg/30">
             <div
-              v-for="item in shopStore.tavernItems.filter((i: { itemId: string }) => ['tavern_snack_plate','tavern_braised_pork'].includes(i.itemId))"
-              :key="item.itemId"
-              class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-              @click="
-                openBatchBuyModal(
-                  item.name,
-                  item.description,
-                  discounted(item.price),
-                  () => handleBuyItem(item.itemId, item.price, item.name),
-                  () => playerStore.money >= discounted(item.price),
-                  count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
-                  () => getMaxBuyable(discounted(item.price)),
-                  item.itemId
-                )
-              "
+              class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-accent/5"
             >
-              <div class="flex min-w-0 items-center gap-2">
-                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
-                  <p class="truncate text-sm">{{ item.name }}</p>
-                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+              <span class="flex min-w-0 items-center gap-2">
+                <UtensilsCrossed :size="14" class="shrink-0 text-accent" />
+                <span class="min-w-0">
+                  <span class="block text-sm text-accent">小食</span>
+                  <span class="block truncate text-[0.625rem] text-muted">轻量补给，出门前按需展开。</span>
+                </span>
+              </span>
+              <span class="flex shrink-0 items-center gap-2 text-[0.625rem] text-muted">
+                <span>{{ tavernFoodItems.length }}项</span>
+              </span>
+            </div>
+            <div class="border-t border-accent/10 p-3">
+              <div class="flex flex-col space-y-2">
+                <div
+                  v-for="item in tavernFoodItems"
+                  :key="item.itemId"
+                  class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
+                  @click="
+                    openBatchBuyModal(
+                      item.name,
+                      item.description,
+                      discounted(item.price),
+                      () => handleBuyItem(item.itemId, item.price, item.name),
+                      () => playerStore.money >= discounted(item.price),
+                      count => handleBatchBuyItem(item.itemId, item.price, item.name, count),
+                      () => getMaxBuyable(discounted(item.price)),
+                      item.itemId
+                    )
+                  "
+                >
+                  <div class="flex min-w-0 items-center gap-2">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <p class="truncate text-sm">{{ item.name }}</p>
+                      <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                    </div>
+                  </div>
+                  <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
                 </div>
               </div>
-              <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
-          </div>
+          </section>
         </template>
         </template>
       </div>
@@ -1892,7 +2259,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
   import {
     ShoppingCart,
     Coins,
@@ -2016,14 +2383,56 @@
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
+  type ShopShelfId =
+    | 'wanwupu-recommendations'
+    | 'wanwupu-catalog'
+    | 'wanwupu-seeds'
+    | 'wanwupu-grocery'
+    | 'tiejiangpu-materials'
+    | 'tiejiangpu-rings'
+    | 'tiejiangpu-hats'
+    | 'tiejiangpu-shoes'
+    | 'biaoju-services'
+    | 'biaoju-weapons'
+    | 'yugupu-baits'
+    | 'yugupu-tackles'
+    | 'yugupu-other'
+    | 'yaopu-fertilizers'
+    | 'yaopu-herbs'
+    | 'chouduanzhuang-textiles'
+    | 'chouduanzhuang-hats'
+    | 'chouduanzhuang-shoes'
+    | 'jiuguan-drinks'
+    | 'jiuguan-food'
+
+  type ShopShelfCard = {
+    id: ShopShelfId
+    label: string
+    summary: string
+    count: number
+    icon: Component
+  }
+
+  const activeShopShelf = ref<ShopShelfId | null>(null)
+
+  const openShopShelf = (shelfId: ShopShelfId) => {
+    activeShopShelf.value = shelfId
+  }
+
+  const returnToShopShelfDirectory = () => {
+    activeShopShelf.value = null
+  }
+
   const selectShopTab = (tabId: ShopTabId) => {
     shopActiveTab.value = tabId
     if (tabId !== 'trade') {
       shopStore.currentShopId = null
+      activeShopShelf.value = null
     }
   }
   const returnToShopOverview = () => {
     shopStore.currentShopId = null
+    activeShopShelf.value = null
     shopActiveTab.value = 'trade'
   }
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
@@ -2110,34 +2519,42 @@
     handlers: {
       'economy-overview': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'economy'
       },
       'market-overview': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'market'
       },
       'recommended-consumption': () => {
         shopActiveTab.value = 'trade'
         shopStore.currentShopId = 'wanwupu'
+        activeShopShelf.value = 'wanwupu-recommendations'
       },
       'weekly-exchange-station': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'governance'
       },
       'festival-stall': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'governance'
       },
       'neighbor-consignment': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'governance'
       },
       'market-governance': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'governance'
       },
       'exchange-ledger': () => {
         shopStore.currentShopId = null
+        activeShopShelf.value = null
         shopActiveTab.value = 'governance'
       }
     }
@@ -2146,21 +2563,25 @@
   const selectShopTabForFocus = (focusKey: string) => {
     if (focusKey === 'economy-overview') {
       shopStore.currentShopId = null
+      activeShopShelf.value = null
       shopActiveTab.value = 'economy'
       return
     }
     if (focusKey === 'market-overview') {
       shopStore.currentShopId = null
+      activeShopShelf.value = null
       shopActiveTab.value = 'market'
       return
     }
     if (focusKey === 'recommended-consumption') {
       shopActiveTab.value = 'trade'
       shopStore.currentShopId = 'wanwupu'
+      activeShopShelf.value = 'wanwupu-recommendations'
       return
     }
     if (['weekly-exchange-station', 'festival-stall', 'neighbor-consignment', 'market-governance', 'exchange-ledger'].includes(focusKey)) {
       shopStore.currentShopId = null
+      activeShopShelf.value = null
       shopActiveTab.value = 'governance'
       return
     }
@@ -2188,6 +2609,7 @@
   watch(hasMarketGovernanceBlocker, blocked => {
     if (!blocked) return
     shopStore.currentShopId = null
+    activeShopShelf.value = null
     shopActiveTab.value = 'governance'
   })
 
@@ -2332,7 +2754,6 @@
 
   const showSellAllConfirm = ref(false)
   const featuredPool = ref<'basic' | 'weekly' | 'seasonal' | 'premium'>('basic')
-
   const hasNewWeekly = computed(() => shopStore.weeklyCatalogOffers.length > 0 && String(shopStore.currentWeekId) !== (window.localStorage.getItem('taoyuan_last_weekly_seen_week') ?? '-1'))
 
   const catalogPools = [
@@ -2348,6 +2769,81 @@
     if (featuredPool.value === 'seasonal') return shopStore.seasonalCatalogOffers
     return shopStore.premiumCatalogOffers
   })
+
+  const wanwupuRecommendationCount = computed(() => {
+    return (
+      (shopStore.weeklySurpriseOffer ? 1 : 0) +
+      shopStore.themeWeekRewardPoolOfferRecommendations.length +
+      shopStore.recommendedCatalogOffers.length
+    )
+  })
+
+  const wanwupuGroceryCount = computed(() => {
+    return (
+      (canExpandBag.value ? 1 : 0) +
+      (warehouseStore.unlocked && warehouseStore.baseMaxChests < warehouseStore.MAX_CHESTS_CAP ? 1 : 0) +
+      (farmExpandInfo.value ? 1 : 0) +
+      FRUIT_TREE_DEFS.length +
+      3 +
+      shopStore.wanwupuNpcRareItems.length
+    )
+  })
+
+  const tavernDrinkItemIds = ['tavern_rice_wine', 'tavern_plum_wine', 'tavern_herbal_brew', 'tavern_premium_brew'] as const
+  const tavernFoodItemIds = ['tavern_snack_plate', 'tavern_braised_pork'] as const
+  const tavernDrinkItems = computed(() => shopStore.tavernItems.filter((item: { itemId: string }) => tavernDrinkItemIds.includes(item.itemId as typeof tavernDrinkItemIds[number])))
+  const tavernFoodItems = computed(() => shopStore.tavernItems.filter((item: { itemId: string }) => tavernFoodItemIds.includes(item.itemId as typeof tavernFoodItemIds[number])))
+
+  const currentShopLabel = computed(() => SHOPS.find(shop => shop.id === shopStore.currentShopId)?.name ?? '当前商铺')
+  const currentShopNpcLabel = computed(() => SHOPS.find(shop => shop.id === shopStore.currentShopId)?.npcName ?? '')
+  const currentShopShelfCards = computed<ShopShelfCard[]>(() => {
+    switch (shopStore.currentShopId) {
+      case 'wanwupu':
+        return [
+          { id: 'wanwupu-recommendations', label: '推荐货架', summary: '周更惊喜、主题周承接和路线推荐。', count: wanwupuRecommendationCount.value, icon: Star },
+          { id: 'wanwupu-catalog', label: '本期货架', summary: '常驻、每周精选、季节限定和高价长期商品。', count: currentCatalogOffers.value.length, icon: Store },
+          { id: 'wanwupu-seeds', label: '当季种子', summary: '当前季节可种的作物种子。', count: shopStore.availableSeeds.length, icon: Sprout },
+          { id: 'wanwupu-grocery', label: '杂货', summary: '扩容、树苗、干草、材料和天气道具。', count: wanwupuGroceryCount.value, icon: Package }
+        ]
+      case 'tiejiangpu':
+        return [
+          { id: 'tiejiangpu-materials', label: '匠作材料', summary: '矿石、煤炭与每周限购的锻造补给。', count: shopStore.blacksmithItems.length, icon: Hammer },
+          { id: 'tiejiangpu-rings', label: '戒指合成', summary: '消耗材料和铜钱打造功能戒指。', count: craftableRings.value.length, icon: CircleDot },
+          { id: 'tiejiangpu-hats', label: '帽子合成', summary: '外观与属性帽饰。', count: CRAFTABLE_HATS.length, icon: Crown },
+          { id: 'tiejiangpu-shoes', label: '鞋子合成', summary: '移动和系统减耗类鞋具。', count: CRAFTABLE_SHOES.length, icon: Footprints }
+        ]
+      case 'biaoju':
+        return [
+          { id: 'biaoju-services', label: '镖局承接', summary: '每日限办的押运路签、补给和回执整理。', count: BIAOJU_ESCORT_SERVICES.length, icon: Route },
+          { id: 'biaoju-weapons', label: '武器', summary: '战斗用武器与升级替换。', count: SHOP_WEAPONS.length, icon: Sword }
+        ]
+      case 'yugupu':
+        return [
+          { id: 'yugupu-baits', label: '鱼饵', summary: '常用垂钓消耗，适合批量补货。', count: shopStore.shopBaits.length, icon: Fish },
+          { id: 'yugupu-tackles', label: '浮漂', summary: '钓鱼过程辅助道具。', count: shopStore.shopTackles.length, icon: Fish },
+          { id: 'yugupu-other', label: '其他', summary: '鱼线、补给和其他渔具杂项。', count: shopStore.fishingShopItems.length, icon: Package }
+        ]
+      case 'yaopu':
+        return [
+          { id: 'yaopu-fertilizers', label: '肥料', summary: '种植前最常用的药铺消耗。', count: shopStore.shopFertilizers.length, icon: Leaf },
+          { id: 'yaopu-herbs', label: '草药', summary: '炼制、赠礼和补给用药材。', count: shopStore.apothecaryItems.length, icon: Sprout }
+        ]
+      case 'chouduanzhuang':
+        return [
+          { id: 'chouduanzhuang-textiles', label: '布料', summary: '丝线、布匹和裁缝基础材料。', count: shopStore.textileItems.length, icon: Package },
+          { id: 'chouduanzhuang-hats', label: '帽子', summary: '已成品帽饰，适合换装或补属性。', count: SHOP_HATS.length, icon: Crown },
+          { id: 'chouduanzhuang-shoes', label: '鞋子', summary: '已成品鞋具，按需要挑选。', count: SHOP_SHOES.length, icon: Footprints }
+        ]
+      case 'jiuguan':
+        return [
+          { id: 'jiuguan-drinks', label: '酒水', summary: '恢复体力与 HP 的主货架。', count: tavernDrinkItems.value.length, icon: Droplets },
+          { id: 'jiuguan-food', label: '小食', summary: '轻量补给，出门前按需挑选。', count: tavernFoodItems.value.length, icon: UtensilsCrossed }
+        ]
+      default:
+        return []
+    }
+  })
+  const activeShopShelfCard = computed(() => currentShopShelfCards.value.find(shelf => shelf.id === activeShopShelf.value) ?? null)
 
   const selectCatalogPool = (poolId: typeof featuredPool.value) => {
     featuredPool.value = poolId
@@ -2367,7 +2863,6 @@
     pool?: ShopCatalogOfferDef['pool']
   }
 
-  const currentShopLabel = computed(() => SHOPS.find(shop => shop.id === shopStore.currentShopId)?.name ?? '当前商铺')
   const shopPrimaryCatalogOffer = computed<ShopCatalogOfferDef | null>(() => {
     return (
       shopStore.weeklySurpriseOffer ??
@@ -2562,7 +3057,7 @@
     if (action.action === 'recommended-catalog' && action.pool) {
       selectCatalogPool(action.pool)
     }
-    enterShop('wanwupu')
+    enterShop('wanwupu', action.action === 'recommended-catalog' ? 'wanwupu-recommendations' : null)
   }
 
   const catalogSummaryCards = computed(() => {
@@ -2923,7 +3418,13 @@
     return data ? resolveBuyModalText(data.description) : ''
   })
 
-  const buyModalExtraLines = computed(() => buyModalData.value?.extraLines ?? [])
+  const buyModalExtraLines = computed(() => {
+    const lines = buyModalData.value?.extraLines ?? []
+    if (buyModalData.value?.itemId && shopStore.currentShopId === 'wanwupu' && !shopStore.npcBulkBuyUnlocked) {
+      return [...lines, '陈伯 T1「批量采购权」解锁后可使用数量购买。']
+    }
+    return lines
+  })
 
   const buyModalPrice = computed(() => {
     const data = buyModalData.value
@@ -3098,6 +3599,7 @@
       return itemId ? Math.min(baseMaxCount, getMaxCarryableQuantity(itemId, baseMaxCount)) : baseMaxCount
     }
     buyQuantity.value = 1
+    const allowBatchBuy = shopStore.currentShopId !== 'wanwupu' || shopStore.npcBulkBuyUnlocked
     shopModal.value = {
       type: 'buy',
       name,
@@ -3106,7 +3608,9 @@
       onBuy: onBuySingle,
       canBuy: () => canBuy() && getResolvedMaxCount() > 0,
       extraLines,
-      batchBuy: { onBuy: count => batchOnBuy(Math.min(count, Math.max(1, getResolvedMaxCount()))), maxCount: getResolvedMaxCount },
+      batchBuy: allowBatchBuy
+        ? { onBuy: count => batchOnBuy(Math.min(count, Math.max(1, getResolvedMaxCount()))), maxCount: getResolvedMaxCount }
+        : undefined,
       itemId
     }
   }
@@ -3300,6 +3804,7 @@
     if (breakdown.relationshipDiscount > 0 && breakdown.relationshipNpcName) {
       parts.push(`${breakdown.relationshipNpcName}·${breakdown.relationshipStageText ?? '熟客'} -${Math.round(breakdown.relationshipDiscount * 100)}%`)
     }
+    if (breakdown.npcFunctionDiscount > 0) parts.push(`NPC功能-${Math.round(breakdown.npcFunctionDiscount * 100)}%`)
     return parts.length > 0 ? `折扣生效中：${parts.join('，')}（合计 -${discountPercent.value}%）` : `折扣生效中：所有购物价格 -${discountPercent.value}%`
   })
 
@@ -3350,8 +3855,9 @@
     return getShopClosedReason(shop, gameStore.day, gameStore.hour, gameStore.weather, gameStore.season)
   }
 
-  const enterShop = (shopId: string) => {
+  const enterShop = (shopId: string, shelfId: ShopShelfId | null = null) => {
     shopStore.currentShopId = shopId
+    activeShopShelf.value = shelfId
   }
 
   // === 旅行商人 ===
@@ -3902,7 +4408,9 @@
     journey_event_bonus: '远征事件',
     camp_recovery_bonus: '扎营恢复',
     boss_pressure_resist: '首领抗压',
-    resource_find_bonus: '资源回收'
+    resource_find_bonus: '资源回收',
+    durability_bonus: '耐久上限',
+    durability_consumption_reduction: '耐久减耗'
   }
 
   const craftableRings = computed(() => CRAFTABLE_RINGS)

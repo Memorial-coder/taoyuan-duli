@@ -8,6 +8,8 @@ const readSource = relativePath => readFileSync(resolve(root, relativePath), 'ut
 
 const fishPondStore = readSource('src/stores/useFishPondStore.ts')
 const fishPondView = readSource('src/views/game/FishPondView.vue')
+const inventoryStore = readSource('src/stores/useInventoryStore.ts')
+const itemTypes = readSource('src/types/item.ts')
 
 assert.match(
   fishPondStore,
@@ -36,3 +38,14 @@ assert.match(fishPondView, /findBreedByParents/, 'Breeding preview should use th
 assert.match(fishPondView, /可升代/, 'Breeding preview should explicitly label upgrade pairings.')
 assert.match(fishPondView, /保代滚基因/, 'Breeding preview should explicitly label non-upgrade pairings.')
 assert.match(fishPondView, /升代取决于品系配方/, 'Empty breeding state should not imply every same-species pair upgrades generation.')
+assert.match(fishPondView, /inventoryStore\.getUnlockedItemCount\(def\.fishId\)/, 'Fishpond stocking list should only count fish slots that can actually be consumed.')
+
+assert.match(itemTypes, /export interface InventoryPondFishMeta/, 'Inventory items should persist fishpond individual metadata.')
+assert.match(itemTypes, /pondFish\?: InventoryPondFishMeta/, 'InventoryItem should be able to carry one returned pond fish.')
+assert.match(inventoryStore, /'pondFish'/, 'Inventory stack metadata should include pondFish.')
+assert.match(inventoryStore, /getInventoryPondFishStackKey\(leftMeta\.pondFish\) === getInventoryPondFishStackKey\(rightMeta\.pondFish\)/, 'Returned pond fish should not merge with unrelated fish stacks.')
+assert.match(inventoryStore, /if \(normalizedMeta\.pondFish\?\.fishId !== itemId\)[\s\S]*delete normalizedMeta\.pondFish/, 'Inventory should drop mismatched pondFish metadata.')
+assert.doesNotMatch(fishPondStore, /returnedFishPool/, 'Fishpond should not keep detached returned-fish state after fish leave inventory.')
+assert.match(fishPondStore, /buildInventoryPondFishMeta\(fish\)/, 'Removing a pond fish should attach its individual state to the inventory slot.')
+assert.match(fishPondStore, /removeUnlockedItemAtIndex\(slotIndex, 1\)/, 'Adding fish to the pond should consume the exact selected inventory slot.')
+assert.match(fishPondStore, /removed\.pondFish\?\.fishId === fishId \? removed\.pondFish : null/, 'Adding fish to the pond should restore metadata only from the consumed slot.')

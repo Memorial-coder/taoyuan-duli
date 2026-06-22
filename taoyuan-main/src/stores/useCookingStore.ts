@@ -19,12 +19,14 @@ import {
   resolveCropUseSubstitutionPlan,
   type CropUseSubstitutionPlan
 } from '@/utils/cropUseSubstitution'
+import { useNpcStore } from './useNpcStore'
 
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 const QUALITY_MULTIPLIER: Record<Quality, number> = { normal: 1, fine: 1.25, excellent: 1.5, supreme: 2 }
 const QUALITY_LABEL: Record<Quality, string> = { normal: '', fine: '优良', excellent: '精品', supreme: '极品' }
 const PHILOSOPHER_FOOD_BUFF_MULTIPLIER = 1.25
 const PHILOSOPHER_FOOD_BUFF_DURATION_DAYS = 2
+const NPC_SECRET_RECIPE_IDS = ['longevity_soup', 'chef_special', 'collectors_banquet']
 
 const VALID_BUFF_TYPES = new Set<NonNullable<RecipeDef['effect']['buff']>['type']>([
   'fishing',
@@ -39,6 +41,7 @@ const VALID_BUFF_TYPES = new Set<NonNullable<RecipeDef['effect']['buff']>['type'
 ])
 
 const normalizeActiveBuff = (value: unknown): RecipeDef['effect']['buff'] | null => {
+  // ---- NPC功能解锁效果 ----
   if (!value || typeof value !== 'object') return null
   const raw = value as Partial<NonNullable<RecipeDef['effect']['buff']>>
   if (!raw.type || !VALID_BUFF_TYPES.has(raw.type)) return null
@@ -230,6 +233,7 @@ export const useCookingStore = defineStore('cooking', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
+  const npcStore = useNpcStore()
 
   /** 已解锁的食谱ID列表 */
   const unlockedRecipes = ref<string[]>([
@@ -317,7 +321,20 @@ export const useCookingStore = defineStore('cooking', () => {
   }
 
   /** 已解锁的食谱定义 */
-  const recipes = computed(() => unlockedRecipes.value.map(id => getRecipeById(id)).filter((r): r is RecipeDef => r !== undefined))
+  const npcSecretRecipesUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('secret_recipes'))
+  const knownRecipeIds = computed(() => {
+    const ids = new Set(unlockedRecipes.value)
+    if (npcSecretRecipesUnlocked.value) {
+      for (const recipeId of NPC_SECRET_RECIPE_IDS) ids.add(recipeId)
+    }
+    return ids
+  })
+  const isRecipeKnown = (recipeId: string): boolean => knownRecipeIds.value.has(recipeId)
+  const recipes = computed(() =>
+    Array.from(knownRecipeIds.value)
+      .map(id => getRecipeById(id))
+      .filter((r): r is RecipeDef => r !== undefined)
+  )
 
   const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
 
@@ -353,7 +370,7 @@ export const useCookingStore = defineStore('cooking', () => {
   const canCook = (recipeId: string): boolean => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return false
-    if (!unlockedRecipes.value.includes(recipeId)) return false
+    if (!isRecipeKnown(recipeId)) return false
     // 检查技能等级门槛
     if (recipe.requiredSkill) {
       const skill = skillStore.getSkill(recipe.requiredSkill.type)
@@ -366,7 +383,7 @@ export const useCookingStore = defineStore('cooking', () => {
   const maxCookable = (recipeId: string): number => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return 0
-    if (!unlockedRecipes.value.includes(recipeId)) return 0
+    if (!isRecipeKnown(recipeId)) return 0
     if (recipe.requiredSkill) {
       const skill = skillStore.getSkill(recipe.requiredSkill.type)
       if (skill.level < recipe.requiredSkill.level) return 0
@@ -410,7 +427,7 @@ export const useCookingStore = defineStore('cooking', () => {
   const cook = (recipeId: string, quantity: number = 1): { success: boolean; message: string } => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return { success: false, message: '食谱不存在。' }
-    if (!unlockedRecipes.value.includes(recipeId)) return { success: false, message: '尚未解锁此食谱。' }
+    if (!isRecipeKnown(recipeId)) return { success: false, message: '尚未解锁此食谱。' }
     if (!Number.isInteger(quantity) || quantity <= 0) return { success: false, message: '请输入有效的烹饪份数。' }
     if (recipe.requiredSkill) {
       const skill = skillStore.getSkill(recipe.requiredSkill.type)
@@ -470,7 +487,7 @@ export const useCookingStore = defineStore('cooking', () => {
     if (!recipe) return { success: false, message: '食谱数据丢失。' }
 
     const foodItemId = `food_${recipeId}`
-    if (!inventoryStore.removeUnlockedItem(foodItemId, 1, quality)) {
+    if (!inventoryStore.removeItemForEating(foodItemId, 1, quality)) {
       return { success: false, message: '背包中没有这个食物。' }
     }
 

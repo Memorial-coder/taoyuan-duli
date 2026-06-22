@@ -35,6 +35,7 @@ import {
   updateNeighborNotice,
   unblockPlayer
 } from '@/utils/onlineProfileApi'
+import { useNpcStore } from './useNpcStore'
 
 export interface PublicProfile {
   username: string
@@ -137,6 +138,13 @@ export interface PublicProfile {
 }
 
 export const useSocialStore = defineStore('onlineSocial', () => {
+  // ---- NPC功能解锁效果 ----
+  const npcLetterWritingUnlocked = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('letter_writing'))
+  const effectiveNeighborCapacityDraft = computed(() => {
+    const extraCapacity = npcLetterWritingUnlocked.value ? 1 : 0
+    return Math.max(2, Math.floor(Number(neighborCapacityDraft.value) || 12) + extraCapacity)
+  })
+
   const loading = ref(false)
   const saving = ref(false)
   const lastLoadedAt = ref(0)
@@ -535,7 +543,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
         name: neighborNameDraft.value,
         summary: neighborSummaryDraft.value,
         notice: neighborNoticeDraft.value,
-        capacity: neighborCapacityDraft.value
+        capacity: effectiveNeighborCapacityDraft.value
       })
       neighborNameDraft.value = ''
       neighborSummaryDraft.value = ''
@@ -752,6 +760,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     neighborSummaryDraft,
     neighborNoticeDraft,
     neighborCapacityDraft,
+    effectiveNeighborCapacityDraft,
     neighborInviteUsernameDraft,
     subscriptionsLoading,
     subscriptionsActionRunning,

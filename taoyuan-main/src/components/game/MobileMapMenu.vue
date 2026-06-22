@@ -114,7 +114,7 @@
               <span class="quick-link-chip-title">{{ t.label }}</span>
               <span
                 class="quick-link-chip-tag"
-                :class="{ 'quick-link-chip-tag-alert': (t.key === 'friend-station' && pendingFriendRequestCount > 0) || (t.key === 'friend-chat' && friendChatStore.totalUnreadCount > 0) }"
+                :class="{ 'quick-link-chip-tag-alert': (t.key === 'festival' && pendingOnlineRoomInviteCount > 0) || (t.key === 'friend-station' && pendingFriendRequestCount > 0) || (t.key === 'friend-chat' && friendChatStore.totalUnreadCount > 0) }"
               >
                 {{ getOnlineShortcutTag(t.key) }}
               </span>
@@ -229,15 +229,19 @@
   import type { PanelKey } from '@/composables/useNavigation'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useFriendChatStore } from '@/stores/useFriendChatStore'
+  import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
+  import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { MAX_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore } from '@/stores/useSettingsStore'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
 
-  const props = defineProps<{ open: boolean; current: string; hasVoidChest?: boolean }>()
+  const props = defineProps<{ open: boolean; current: string; hasVoidChest?: boolean; onlineRoomInviteCount?: number }>()
   const emit = defineEmits<{ close: []; 'open-settings': []; 'open-log': []; 'open-void': [] }>()
   const goalStore = useGoalStore()
+  const festivalRoomStore = useFestivalRoomStore()
+  const expeditionRoomStore = useExpeditionRoomStore()
   const friendChatStore = useFriendChatStore()
   const mailboxStore = useMailboxStore()
   const regionMapStore = useRegionMapStore()
@@ -318,6 +322,12 @@
     return map[normalized] ?? null
   }
   const weeklyPlanQuestActionNodes = computed(() => getWeeklyPlanQuestActionNodes(goalStore.weeklyPlanSnapshot))
+  const pendingOnlineRoomInviteCount = computed(() =>
+    props.onlineRoomInviteCount ?? (festivalRoomStore.invitedRooms.length + expeditionRoomStore.invitedRooms.length)
+  )
+  const onlineRoomInviteTarget = computed<PanelKey>(() =>
+    festivalRoomStore.invitedRooms.length > 0 || expeditionRoomStore.invitedRooms.length > 0 ? 'festival' : 'online'
+  )
 
   const quickEntries = computed<QuickEntry[]>(() => {
     const entries: QuickEntry[] = []
@@ -326,6 +336,15 @@
       if (!entry || seen.has(entry.key)) return
       entries.push(entry)
       seen.add(entry.key)
+    }
+
+    if (pendingOnlineRoomInviteCount.value > 0) {
+      pushEntry({
+        key: onlineRoomInviteTarget.value,
+        title: '处理联机邀请',
+        summary: `有 ${pendingOnlineRoomInviteCount.value} 个节会或远征房间邀请待确认。`,
+        tag: '待处理'
+      })
     }
 
     if (regionMapStore.hasActiveExpedition) {
@@ -420,7 +439,7 @@
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
   const onlineCenterGroup = computed(() => pick(['online']))
-  const onlineShortcutGroup = computed(() => pick(['friend-station', 'friend-chat']))
+  const onlineShortcutGroup = computed(() => pick(['festival', 'friend-station', 'friend-chat']))
   const villageGroup = computed(() => pick(['village', 'shop', 'quest', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map', 'quarry']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
@@ -432,6 +451,7 @@
   }
 
   const getOnlineShortcutTag = (key: PanelKey) => {
+    if (key === 'festival' && pendingOnlineRoomInviteCount.value > 0) return `${pendingOnlineRoomInviteCount.value > 99 ? '99+' : pendingOnlineRoomInviteCount.value} 邀请`
     if (key === 'friend-station' && pendingFriendRequestCount.value > 0) return `${friendRequestBadgeLabel.value} 申请`
     if (key === 'friend-chat' && friendChatStore.totalUnreadCount > 0) {
       return `${friendChatStore.totalUnreadCount > 99 ? '99+' : friendChatStore.totalUnreadCount} 未读`

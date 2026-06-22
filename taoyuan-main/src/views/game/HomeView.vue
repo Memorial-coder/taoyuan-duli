@@ -53,6 +53,17 @@
         <p class="text-xs text-muted">眼下没有新的建设能立刻开工，先去看看维护安排、捐赠计划，或者补一补前面的进度。</p>
       </div>
 
+      <div v-if="villageNpcPreviewProjects.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2" data-testid="npc-village-project-preview">
+        <p class="text-xs text-accent mb-1">柳村长的建设预览</p>
+        <div v-for="project in villageNpcPreviewProjects" :key="`npc-preview-${project.id}`" class="mt-1 first:mt-0">
+          <div class="flex items-center justify-between gap-2">
+            <span class="min-w-0 truncate text-[0.625rem]">{{ project.name }}</span>
+            <span class="shrink-0 text-[0.625rem]" :class="project.available ? 'text-success' : 'text-muted'">{{ project.available ? '可推进' : project.fundingPhase }}</span>
+          </div>
+          <p class="text-[0.625rem] text-muted leading-4">{{ project.blockedReason ?? '材料和铜钱都够了，现在就能动工。' }}</p>
+        </div>
+      </div>
+
     <div v-if="villageWorldChangeHighlights.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
         <p class="text-xs text-muted mb-1">世界变化</p>
         <div v-for="entry in villageWorldChangeHighlights" :key="entry.id" class="mt-1 first:mt-0">
@@ -76,9 +87,17 @@
               <span>{{ summary.plan.label }}</span>
               <span class="text-accent">{{ Math.round(summary.progressRate * 100) }}%</span>
             </div>
-            <p v-if="summary.acceptedItems.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
-              当前可捐：{{ summary.acceptedItems.map(item => `${item.itemName} x${getCombinedItemCount(item.itemId)}`).join('、') }}
-            </p>
+            <div v-if="summary.acceptedItems.length > 0" class="mt-1 flex flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+              <span>当前可捐：</span>
+              <span
+                v-for="item in summary.acceptedItems"
+                :key="`${summary.projectId}-${item.itemId}`"
+                class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1 py-0.5"
+              >
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <span>{{ item.itemName }} x{{ getCombinedItemCount(item.itemId) }}</span>
+              </span>
+            </div>
             <div class="flex flex-wrap gap-2 mt-2">
               <Button
                 v-if="getFirstAvailableDonationItem(summary.projectId)"
@@ -141,7 +160,17 @@
             <span :class="entry.unlocked ? 'text-success text-[0.625rem]' : 'text-muted text-[0.625rem]'">{{ entry.unlocked ? '已完成' : `需 ${entry.cost} 文` }}</span>
           </div>
           <p class="text-[0.625rem] text-muted mt-1">解锁：{{ entry.featureLabels.join(' / ') }}</p>
-          <p class="text-[0.625rem] text-muted mt-1">材料：{{ getHomeRenovationMaterialText(entry.materialCost) }}</p>
+          <div class="mt-1 flex flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+            <span>材料：</span>
+            <span
+              v-for="mat in entry.materialCost"
+              :key="`${entry.id}-${mat.itemId}`"
+              class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1 py-0.5"
+            >
+              <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+              <span>{{ getItemName(mat.itemId) }} x{{ mat.quantity }}</span>
+            </span>
+          </div>
           <div class="flex items-center justify-between gap-2 mt-2">
             <p class="text-[0.625rem]" :class="entry.available ? 'text-success' : 'text-muted'">
               {{ entry.unlocked ? '这处扩建已经收拾妥当，平时会一直陪着你用。' : entry.blockedReason || '材料和铜钱都够了，现在就能开工。' }}
@@ -378,7 +407,7 @@
                 </button>
               </div>
               <div class="flex items-center space-x-1.5">
-                <span class="text-[0.625rem] text-muted">{{ chest.items.length }}/{{ CHEST_DEFS[chest.tier].capacity }}</span>
+                <span class="text-[0.625rem] text-muted">{{ warehouseStore.getChestUsedSlots(chest.id) }}/{{ warehouseStore.getChestCapacity(chest.id) }}</span>
                 <button class="text-muted hover:text-danger" @click.stop="openDismantleConfirm(chest.id)">
                   <Trash2 :size="10" />
                 </button>
@@ -533,7 +562,7 @@
               </span>
               <p class="text-sm text-accent">{{ currentOpenChest.label }}</p>
               <span class="text-[0.625rem] text-muted">
-                {{ currentOpenChest.items.length }}/{{ CHEST_DEFS[currentOpenChest.tier].capacity }}
+                {{ warehouseStore.getChestUsedSlots(currentOpenChest.id) }}/{{ warehouseStore.getChestCapacity(currentOpenChest.id) }}
               </span>
             </div>
             <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="openChestId = null" />
@@ -904,11 +933,10 @@
   const getItemName = (itemId: string): string => {
     return getItemById(itemId)?.name ?? itemId
   }
-  const getHomeRenovationMaterialText = (materials: { itemId: string; quantity: number }[]) =>
-    materials.map(mat => `${getItemName(mat.itemId)}×${mat.quantity}`).join('、')
 
   const villageOverview = computed(() => villageProjectStore.overviewSummary)
   const villageAvailableProjects = computed(() => villageProjectStore.queryProjects({ completed: false }).filter(project => project.available).slice(0, 3))
+  const villageNpcPreviewProjects = computed(() => villageProjectStore.npcVillageProjectPreviewProjects)
   const villageWorldChangeHighlights = computed(() => villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked).slice(0, 3))
   const villageMaintenanceHighlights = computed(() => villageProjectStore.maintenanceSummaries.filter(summary => summary.unlocked).slice(0, 2))
   const villageDonationHighlights = computed(() => villageProjectStore.donationSummaries.filter(summary => summary.unlocked).slice(0, 2))

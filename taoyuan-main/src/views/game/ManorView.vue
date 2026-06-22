@@ -380,9 +380,17 @@
           </div>
           <p class="text-[0.625rem] text-muted mt-1">来访行为：{{ entry.summary }}</p>
           <p v-if="entry.feedback" class="text-[0.625rem] text-muted mt-1">来访反馈：{{ entry.feedback }}</p>
-          <p v-if="entry.carried_items.length > 0" class="text-[0.625rem] text-muted mt-1">
-            带走委托：{{ entry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
-          </p>
+          <div v-if="entry.carried_items.length > 0" class="mt-1 flex flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+            <span>带走委托：</span>
+            <span
+              v-for="item in entry.carried_items"
+              :key="`${entry.id}-${item.itemId}`"
+              class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1 py-0.5"
+            >
+              <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+              <span>{{ getItemById(item.itemId)?.name ?? item.itemId }} x{{ item.quantity }}</span>
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -454,9 +462,11 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { useManorStore } from '@/stores/useManorStore'
+  import { getItemById } from '@/data'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
   import type { OnlineVisualObject } from '@/types/onlineVisual'

@@ -1214,8 +1214,22 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
   const getQuestMoneyBonusRate = () => getCompletedEffectTotal('questMoneyBonusRate')
   const getQuestFriendshipBonus = () => getCompletedEffectTotal('questFriendshipBonus')
   const getDailyRecoveryBonus = () => getCompletedEffectTotal('dailyRecoveryBonusRate')
-  const getDailyQuestBoardBonus = () => getCompletedEffectTotal('dailyQuestBoardBonus')
+  const getDailyQuestBoardBonus = () => {
+    const base = getCompletedEffectTotal('dailyQuestBoardBonus')
+    const npcStore = useNpcStore()
+    return base + npcStore.getNpcFunctionEffectValue('village_quest_speed')
+  }
   const getQuestCapacityBonus = () => getCompletedEffectTotal('questCapacityBonus')
+
+    /** NPC功能解锁：提前1天预览下一个建设项目 */
+  const npcVillageProjectPreviewUnlocked = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('village_project_preview'))
+  const npcVillageProjectPreviewProjects = computed(() => {
+    if (!useNpcStore().isNpcFunctionEffectUnlocked('village_project_preview')) return []
+    return projectSummaries.value
+      .filter(project => !project.completed && project.unlocked)
+      .sort((left, right) => Number(right.available) - Number(left.available))
+      .slice(0, 3)
+  })
 
   const getDebugSnapshot = (): VillageProjectDebugSnapshot => ({
     saveVersion: VILLAGE_PROJECT_SAVE_VERSION,
@@ -1327,6 +1341,8 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     getQuestFriendshipBonus,
     getDailyRecoveryBonus,
     getDailyQuestBoardBonus,
+    npcVillageProjectPreviewUnlocked,
+    npcVillageProjectPreviewProjects,
     getQuestCapacityBonus,
     getDebugSnapshot,
     serialize,

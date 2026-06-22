@@ -51,7 +51,10 @@
             :data-testid="`online-cohabitation-fund-buy-${option.itemId}`"
             @click="emit('buy', option)"
           >
-            <span>{{ option.label }}</span>
+            <span class="inline-flex min-w-0 items-center gap-1.5">
+              <ItemIcon :item="getItemById(option.itemId)" size="xs" :show-badge="false" />
+              <span class="truncate">{{ option.label }}</span>
+            </span>
             <span>{{ option.amount }} 文</span>
           </button>
         </div>
@@ -159,6 +162,8 @@
 
 <script setup lang="ts">
   import { ClipboardList, Wallet } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { getItemById } from '@/data/items'
 
   type FundMediumSpendPurpose = 'processing_materials' | 'building_materials'
   type FundMediumSpendOption = {

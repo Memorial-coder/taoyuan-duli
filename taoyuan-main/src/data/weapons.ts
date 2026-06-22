@@ -165,6 +165,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 商店可购买 ===
   wooden_stick: {
     id: 'wooden_stick',
+    qualityTier: 'common',
     name: '木棒',
     type: 'club',
     attack: 5,
@@ -176,6 +177,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   copper_sword: {
     id: 'copper_sword',
+    qualityTier: 'fine',
     name: '铜剑',
     type: 'sword',
     attack: 12,
@@ -187,6 +189,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   iron_blade: {
     id: 'iron_blade',
+    qualityTier: 'fine',
     name: '铁刀',
     type: 'sword',
     attack: 18,
@@ -198,6 +201,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   war_hammer: {
     id: 'war_hammer',
+    qualityTier: 'excellent',
     name: '战锤',
     type: 'club',
     attack: 22,
@@ -209,6 +213,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   gold_halberd: {
     id: 'gold_halberd',
+    qualityTier: 'excellent',
     name: '金戟',
     type: 'sword',
     attack: 28,
@@ -221,6 +226,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 怪物掉落 ===
   bone_dagger: {
     id: 'bone_dagger',
+    qualityTier: 'common',
     name: '骨匕',
     type: 'dagger',
     attack: 9,
@@ -232,6 +238,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   frost_dagger: {
     id: 'frost_dagger',
+    qualityTier: 'fine',
     name: '冰锋匕',
     type: 'dagger',
     attack: 16,
@@ -243,6 +250,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   shadow_blade: {
     id: 'shadow_blade',
+    qualityTier: 'excellent',
     name: '暗影之刃',
     type: 'dagger',
     attack: 24,
@@ -255,6 +263,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === BOSS 掉落（固定附魔） ===
   mud_king_fang: {
     id: 'mud_king_fang',
+    qualityTier: 'fine',
     name: '泥王之牙',
     type: 'sword',
     attack: 20,
@@ -266,6 +275,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   frost_queen_sting: {
     id: 'frost_queen_sting',
+    qualityTier: 'excellent',
     name: '冰霜之刺',
     type: 'dagger',
     attack: 19,
@@ -277,6 +287,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   lava_lord_maul: {
     id: 'lava_lord_maul',
+    qualityTier: 'supreme',
     name: '熔岩之锤',
     type: 'club',
     attack: 38,
@@ -289,6 +300,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 新区域怪物掉落 ===
   crystal_shard_dagger: {
     id: 'crystal_shard_dagger',
+    qualityTier: 'supreme',
     name: '晶棘匕',
     type: 'dagger',
     attack: 30,
@@ -300,6 +312,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   shadow_katana: {
     id: 'shadow_katana',
+    qualityTier: 'supreme',
     name: '暗影太刀',
     type: 'sword',
     attack: 35,
@@ -311,6 +324,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   void_hammer: {
     id: 'void_hammer',
+    qualityTier: 'supreme',
     name: '虚空战锤',
     type: 'club',
     attack: 48,
@@ -323,6 +337,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 新区域商店武器 ===
   crystal_blade: {
     id: 'crystal_blade',
+    qualityTier: 'supreme',
     name: '水晶长剑',
     type: 'sword',
     attack: 35,
@@ -334,6 +349,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   shadow_mace: {
     id: 'shadow_mace',
+    qualityTier: 'supreme',
     name: '暗影锤',
     type: 'club',
     attack: 42,
@@ -345,6 +361,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   void_katana: {
     id: 'void_katana',
+    qualityTier: 'supreme',
     name: '虚空太刀',
     type: 'sword',
     attack: 52,
@@ -357,6 +374,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 新区域BOSS掉落（固定附魔） ===
   crystal_king_blade: {
     id: 'crystal_king_blade',
+    qualityTier: 'supreme',
     name: '晶王圣剑',
     type: 'sword',
     attack: 45,
@@ -368,6 +386,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   shadow_sovereign_fang: {
     id: 'shadow_sovereign_fang',
+    qualityTier: 'supreme',
     name: '暗影之牙',
     type: 'dagger',
     attack: 38,
@@ -379,6 +398,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   abyss_dragon_mace: {
     id: 'abyss_dragon_mace',
+    qualityTier: 'supreme',
     name: '龙王权杖',
     type: 'club',
     attack: 60,
@@ -392,6 +412,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 新增商店武器 ===
   bamboo_staff: {
     id: 'bamboo_staff',
+    qualityTier: 'common',
     name: '竹杖',
     type: 'club',
     attack: 10,
@@ -403,6 +424,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   iron_dagger: {
     id: 'iron_dagger',
+    qualityTier: 'fine',
     name: '铁匕',
     type: 'dagger',
     attack: 14,
@@ -414,6 +436,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   golden_fan: {
     id: 'golden_fan',
+    qualityTier: 'excellent',
     name: '金扇',
     type: 'sword',
     attack: 26,
@@ -425,6 +448,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   obsidian_blade: {
     id: 'obsidian_blade',
+    qualityTier: 'supreme',
     name: '黑曜刀',
     type: 'sword',
     attack: 38,
@@ -438,6 +462,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 新增怪物掉落武器 ===
   slime_mace: {
     id: 'slime_mace',
+    qualityTier: 'common',
     name: '粘液锤',
     type: 'club',
     attack: 7,
@@ -449,6 +474,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   magma_blade: {
     id: 'magma_blade',
+    qualityTier: 'excellent',
     name: '熔岩刃',
     type: 'sword',
     attack: 21,
@@ -460,6 +486,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   prism_dagger: {
     id: 'prism_dagger',
+    qualityTier: 'excellent',
     name: '棱晶匕',
     type: 'dagger',
     attack: 28,
@@ -471,6 +498,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   void_fang_dagger: {
     id: 'void_fang_dagger',
+    qualityTier: 'supreme',
     name: '虚空之牙',
     type: 'dagger',
     attack: 42,
@@ -484,6 +512,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 新增宝箱掉落武器 ===
   jade_sword: {
     id: 'jade_sword',
+    qualityTier: 'excellent',
     name: '翡翠长剑',
     type: 'sword',
     attack: 22,
@@ -495,6 +524,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   ancient_blade: {
     id: 'ancient_blade',
+    qualityTier: 'supreme',
     name: '古神剑',
     type: 'sword',
     attack: 50,
@@ -508,6 +538,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   // === 公会专属 ===
   ancient_road_wayblade: {
     id: 'ancient_road_wayblade',
+    qualityTier: 'supreme',
     name: '古驿行军剑',
     type: 'sword',
     attack: 44,
@@ -519,6 +550,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   marsh_whisper_dagger: {
     id: 'marsh_whisper_dagger',
+    qualityTier: 'supreme',
     name: '泽雾低语匕',
     type: 'dagger',
     attack: 40,
@@ -530,6 +562,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   highland_bastion_maul: {
     id: 'highland_bastion_maul',
+    qualityTier: 'supreme',
     name: '云岚壁垒锤',
     type: 'club',
     attack: 52,
@@ -541,6 +574,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
   guild_war_blade: {
     id: 'guild_war_blade',
+    qualityTier: 'supreme',
     name: '公会战刃',
     type: 'sword',
     attack: 36,

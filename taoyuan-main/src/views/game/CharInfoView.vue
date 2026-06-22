@@ -141,14 +141,17 @@
                 :class="index === inventoryStore.equippedWeaponIndex ? 'border-accent/30' : 'border-accent/10'"
                 @click="handleEquipWeapon(index)"
               >
-                <div class="min-w-0">
-                  <span class="text-xs" :class="index === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
-                    {{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}
-                  </span>
-                  <p class="text-[0.625rem] text-muted truncate">
-                    攻{{ getWeaponStats(weapon).attack }} · 暴击{{ Math.round(getWeaponStats(weapon).critRate * 100) }}%
-                    <template v-if="formatAffixSummary(weapon.affixes)">· {{ formatAffixSummary(weapon.affixes) }}</template>
-                  </p>
+                <div class="char-equipment-option-main">
+                  <ItemIcon :item="getItemById(weapon.defId)" size="xs" :show-badge="false" />
+                  <div class="min-w-0">
+                    <span class="text-xs" :class="index === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
+                      {{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}
+                    </span>
+                    <p class="text-[0.625rem] text-muted truncate">
+                      攻{{ getWeaponStats(weapon).attack }} · 暴击{{ Math.round(getWeaponStats(weapon).critRate * 100) }}%
+                      <template v-if="formatAffixSummary(weapon.affixes)">· {{ formatAffixSummary(weapon.affixes) }}</template>
+                    </p>
+                  </div>
                 </div>
                 <span v-if="index === inventoryStore.equippedWeaponIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
               </div>
@@ -176,9 +179,12 @@
                   :class="isRingInCurrentSlot(idx) ? 'border-accent/30' : 'border-accent/10'"
                   @click="handleEquipRingFromPopup(idx)"
                 >
-                  <div class="min-w-0">
-                    <span class="text-xs" :class="isRingInCurrentSlot(idx) ? 'text-accent' : ''">{{ ring.name }}</span>
-                    <p class="text-[0.625rem] text-muted truncate">{{ ring.effectText }}</p>
+                  <div class="char-equipment-option-main">
+                    <ItemIcon :item="getItemById(ring.defId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <span class="text-xs" :class="isRingInCurrentSlot(idx) ? 'text-accent' : ''">{{ ring.name }}</span>
+                      <p class="text-[0.625rem] text-muted truncate">{{ ring.effectText }}</p>
+                    </div>
                   </div>
                   <span v-if="isRingInCurrentSlot(idx)" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
                   <span v-else-if="isRingInOtherSlot(idx)" class="text-[0.625rem] text-muted shrink-0 ml-1">
@@ -209,9 +215,12 @@
                   :class="hat.index === inventoryStore.equippedHatIndex ? 'border-accent/30' : 'border-accent/10'"
                   @click="handleEquipHatFromPopup(hat.index)"
                 >
-                  <div class="min-w-0">
-                    <span class="text-xs" :class="hat.index === inventoryStore.equippedHatIndex ? 'text-accent' : ''">{{ hat.name }}</span>
-                    <p class="text-[0.625rem] text-muted truncate">{{ hat.effectText }}</p>
+                  <div class="char-equipment-option-main">
+                    <ItemIcon :item="getItemById(hat.defId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <span class="text-xs" :class="hat.index === inventoryStore.equippedHatIndex ? 'text-accent' : ''">{{ hat.name }}</span>
+                      <p class="text-[0.625rem] text-muted truncate">{{ hat.effectText }}</p>
+                    </div>
                   </div>
                   <span v-if="hat.index === inventoryStore.equippedHatIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
                 </div>
@@ -239,11 +248,14 @@
                   :class="shoe.index === inventoryStore.equippedShoeIndex ? 'border-accent/30' : 'border-accent/10'"
                   @click="handleEquipShoeFromPopup(shoe.index)"
                 >
-                  <div class="min-w-0">
-                    <span class="text-xs" :class="shoe.index === inventoryStore.equippedShoeIndex ? 'text-accent' : ''">
-                      {{ shoe.name }}
-                    </span>
-                    <p class="text-[0.625rem] text-muted truncate">{{ shoe.effectText }}</p>
+                  <div class="char-equipment-option-main">
+                    <ItemIcon :item="getItemById(shoe.defId)" size="xs" :show-badge="false" />
+                    <div class="min-w-0">
+                      <span class="text-xs" :class="shoe.index === inventoryStore.equippedShoeIndex ? 'text-accent' : ''">
+                        {{ shoe.name }}
+                      </span>
+                      <p class="text-[0.625rem] text-muted truncate">{{ shoe.effectText }}</p>
+                    </div>
                   </div>
                   <span v-if="shoe.index === inventoryStore.equippedShoeIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
                 </div>
@@ -374,6 +386,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { User, X } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
@@ -384,7 +397,7 @@
   import { useGuildStore } from '@/stores/useGuildStore'
   import { useMiningStore } from '@/stores/useMiningStore'
   import { usePotentialStore } from '@/stores/usePotentialStore'
-  import { TOOL_NAMES, TIER_NAMES, getNpcById } from '@/data'
+  import { TOOL_NAMES, TIER_NAMES, getItemById, getNpcById } from '@/data'
   import { formatPotentialEffectValue } from '@/data/potential'
   import { getWeaponById, getWeaponDisplayName } from '@/data/weapons'
   import { formatForgeAffixSummary, getForgeAffixEffectValue, getForgeAffixEquipmentEffects } from '@/data/forgeAffixes'
@@ -566,7 +579,9 @@
     journey_event_bonus: '远征事件',
     camp_recovery_bonus: '扎营恢复',
     boss_pressure_resist: '首领抗压',
-    resource_find_bonus: '资源回收'
+    resource_find_bonus: '资源回收',
+    durability_bonus: '耐久',
+    durability_consumption_reduction: '耐久减耗'
   }
 
   const formatRingEffects = (defId: string, affixes?: OwnedWeapon['affixes']): string => {
@@ -594,6 +609,7 @@
   const ownedRingList = computed(() =>
     inventoryStore.ownedRings.map((ring, index) => ({
       index,
+      defId: ring.defId,
       name: getRingById(ring.defId)?.name ?? ring.defId,
       effectText: formatRingEffects(ring.defId, ring.affixes)
     }))
@@ -650,6 +666,7 @@
       const def = getHatById(hat.defId)
       return {
         index,
+        defId: hat.defId,
         name: def?.name ?? hat.defId,
         effectText: def ? formatEquipEffects(def.effects, hat.affixes) : ''
       }
@@ -686,6 +703,7 @@
       const def = getShoeById(shoe.defId)
       return {
         index,
+        defId: shoe.defId,
         name: def?.name ?? shoe.defId,
         effectText: def ? formatEquipEffects(def.effects, shoe.affixes) : ''
       }
@@ -850,3 +868,18 @@
     navigateToPanel('potential')
   }
 </script>
+
+<style scoped>
+  .char-equipment-option-main {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .char-equipment-option-main :deep(.item-icon--xs) {
+    width: 1.55rem !important;
+    height: 1.55rem !important;
+  }
+</style>

@@ -199,6 +199,50 @@
         </div>
 
         <div class="space-y-3">
+          <div class="game-panel-muted p-3" data-testid="online-orders-manor-edge-board">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">邻里边角备料单</p>
+              <span class="text-[0.625rem] text-muted">{{ manorEdgeOrderCycleLabel }}</span>
+            </div>
+            <div class="mt-2 flex min-w-0 items-center gap-2 text-[0.625rem] leading-4 text-muted">
+              <ItemIcon :item="getItemById(MANOR_EDGE_ORDER_ITEM_ID)" size="xs" :show-badge="false" />
+              <p class="min-w-0">
+                提交{{ getOrderItemLabel(MANOR_EDGE_ORDER_ITEM_ID) }} ×{{ MANOR_EDGE_ORDER_QUANTITY }}，用于公共仓备料。每个游戏周限交一次。
+              </p>
+            </div>
+            <div class="mt-3 grid gap-2 text-xs">
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[0.625rem] text-muted">当前库存</p>
+                <p class="mt-1 inline-flex items-center gap-1 text-accent">
+                  <ItemIcon :item="getItemById(MANOR_EDGE_ORDER_ITEM_ID)" size="xs" :show-badge="false" />
+                  <span>{{ manorEdgeBundleCount }} / {{ MANOR_EDGE_ORDER_QUANTITY }}</span>
+                </p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[0.625rem] text-muted">完成奖励</p>
+                <p class="mt-1 text-accent">商队票券 ×{{ MANOR_EDGE_ORDER_CARAVAN_TICKETS }}</p>
+              </div>
+            </div>
+            <p v-if="manorEdgeOrderCompleted" class="mt-2 text-[0.625rem] leading-4 text-success">
+              本周已提交，下一周会重新开放。
+            </p>
+            <p v-else-if="manorEdgeBundleCount < MANOR_EDGE_ORDER_QUANTITY" class="mt-2 text-[0.625rem] leading-4 text-muted">
+              还差 {{ MANOR_EDGE_ORDER_QUANTITY - manorEdgeBundleCount }} 份边角菜包。
+            </p>
+            <div class="mt-3 flex justify-end">
+              <button
+                data-testid="online-orders-manor-edge-submit"
+                class="online-action-btn online-action-btn--compact"
+                type="button"
+                :disabled="!canSubmitManorEdgeOrder"
+                @click="submitManorEdgeOrder"
+              >
+                <Handshake :size="12" />
+                提交备料
+              </button>
+            </div>
+          </div>
+
           <div class="game-panel-muted p-3" data-testid="online-orders-society-board">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">村社公共订单板</p>
@@ -359,9 +403,16 @@
                   </div>
                   <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
                 </div>
-                <p class="mt-2 text-[0.625rem] text-muted">
-                  {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
-                </p>
+                <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+                  <span>{{ getCoopOrderTypeLabel(stage.preferred_order_type) }}</span>
+                  <span>· 目标</span>
+                  <span v-if="stage.target_item_id" class="inline-flex min-w-0 items-center gap-1">
+                    <ItemIcon v-if="getItemById(stage.target_item_id)" :item="getItemById(stage.target_item_id)" size="xs" :show-badge="false" />
+                    <span class="truncate">{{ getOrderItemLabel(stage.target_item_id) }}</span>
+                  </span>
+                  <span v-else>未指定资源</span>
+                  <span>×{{ stage.target_quantity }}</span>
+                </div>
                 <p v-if="stage.assignee_username" class="mt-1 text-[0.625rem] text-success">
                   当前阶段接单人：{{ stage.assignee_display_name || stage.assignee_username }}
                 </p>
@@ -528,9 +579,16 @@
                     </div>
                     <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
                   </div>
-                  <p class="mt-2 text-[0.625rem] text-muted">
-                    {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
-                  </p>
+                  <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+                    <span>{{ getCoopOrderTypeLabel(stage.preferred_order_type) }}</span>
+                    <span>· 目标</span>
+                    <span v-if="stage.target_item_id" class="inline-flex min-w-0 items-center gap-1">
+                      <ItemIcon v-if="getItemById(stage.target_item_id)" :item="getItemById(stage.target_item_id)" size="xs" :show-badge="false" />
+                      <span class="truncate">{{ getOrderItemLabel(stage.target_item_id) }}</span>
+                    </span>
+                    <span v-else>未指定资源</span>
+                    <span>×{{ stage.target_quantity }}</span>
+                  </div>
                   <div v-if="stage.delivery_status === 'none'" class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_100px]">
                     <input
                       v-model="coopOrderStore.ensureDeliveryDraft(order.id, stage.id).itemId"
@@ -682,9 +740,20 @@
               <p class="mt-1 text-[0.625rem] text-accent">
                 回报：{{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }} {{ receipt.reward_label ? `· ${receipt.reward_label}` : '' }}
               </p>
-              <p class="mt-1 text-[0.625rem] text-muted">
-                交付资源：{{ formatDeliveredItems(receipt.delivered_items) }}
-              </p>
+              <div class="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+                <span>交付资源：</span>
+                <template v-if="receipt.delivered_items.length > 0">
+                  <span
+                    v-for="item in receipt.delivered_items"
+                    :key="`${receipt.id}-${item.item_id}-${item.quantity}`"
+                    class="inline-flex min-w-0 items-center gap-1 border border-accent/10 bg-bg/30 px-1.5 py-0.5"
+                  >
+                    <ItemIcon v-if="getItemById(item.item_id)" :item="getItemById(item.item_id)" size="xs" :show-badge="false" />
+                    <span class="truncate">{{ getOrderItemLabel(item.item_id) }} ×{{ item.quantity }}</span>
+                  </span>
+                </template>
+                <span v-else>无</span>
+              </div>
               <p class="mt-1 text-[0.625rem] text-muted">
                 交付说明：{{ receipt.result_note || '未填写额外交付说明。' }}
               </p>
@@ -914,9 +983,16 @@
               </div>
               <span class="w-fit shrink-0 text-[0.625rem] text-success">可接力</span>
             </div>
-            <p class="mt-2 text-[0.625rem] text-muted">
-              {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
-            </p>
+            <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1 text-[0.625rem] text-muted">
+              <span>{{ getCoopOrderTypeLabel(stage.preferred_order_type) }}</span>
+              <span>· 目标</span>
+              <span v-if="stage.target_item_id" class="inline-flex min-w-0 items-center gap-1">
+                <ItemIcon v-if="getItemById(stage.target_item_id)" :item="getItemById(stage.target_item_id)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getOrderItemLabel(stage.target_item_id) }}</span>
+              </span>
+              <span v-else>未指定资源</span>
+              <span>×{{ stage.target_quantity }}</span>
+            </div>
             <div class="mt-2 flex justify-end">
               <button
                 data-testid="online-orders-stage-accept-submit"
@@ -972,14 +1048,21 @@
   import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import OnlineOrderWizard from '@/components/game/online/OnlineOrderWizard.vue'
   import OnlineOrderStoryFlowPanel from '@/components/game/online/OnlineOrderStoryFlowPanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
+  import { getItemById } from '@/data/items'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
+  import { useGameStore } from '@/stores/useGameStore'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import { useWalletStore } from '@/stores/useWalletStore'
+  import { addLog } from '@/composables/useGameLog'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import type { OnlineCoopCompensationEntry, OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderStageEntry, OnlineCoopOrderType, OnlineCoopReceiptEntry, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
@@ -999,12 +1082,19 @@
   const route = useRoute()
   const coopOrderStore = useCoopOrderStore()
   const cohabitationStore = useCohabitationStore()
+  const gameStore = useGameStore()
+  const inventoryStore = useInventoryStore()
+  const playerStore = usePlayerStore()
   const saveStore = useSaveStore()
+  const walletStore = useWalletStore()
   const lastRefreshAttemptAt = ref(0)
   const orderWizardOpen = ref(false)
   const orderActionConfirm = ref<OrderActionConfirm | null>(null)
   const selectedAvailableOrderId = ref('')
   const orderBoardFilter = ref<'all' | 'single' | 'relay'>('all')
+  const MANOR_EDGE_ORDER_ITEM_ID = 'manor_edge_bundle'
+  const MANOR_EDGE_ORDER_QUANTITY = 3
+  const MANOR_EDGE_ORDER_CARAVAN_TICKETS = 1
   const FAMILY_SHARED_FUND_TYPES = new Set(['oath_manor', 'business_partner'])
   const orderBoardFilterOptions: Array<{ id: 'all' | 'single' | 'relay'; label: string }> = [
     { id: 'all', label: '全部' },
@@ -1127,6 +1217,40 @@
     const saveId = coopOrderStore.targetSaveIdDraft ? `（存档 ID ${coopOrderStore.targetSaveIdDraft}）` : ''
     return `这张求助单会面向 ${target}${saveId}，系统仍会按存档级关系确认。`
   })
+  const manorEdgeOrderWeekIndex = computed(() => Math.ceil(Math.max(1, Number(gameStore.day) || 1) / 7))
+  const manorEdgeOrderDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
+  const manorEdgeOrderLockId = computed(() =>
+    `online_manor_edge_bundle:${gameStore.year}:${gameStore.season}:w${manorEdgeOrderWeekIndex.value}`
+  )
+  const manorEdgeOrderCycleLabel = computed(() => `${gameStore.year}年${gameStore.seasonName}第${manorEdgeOrderWeekIndex.value}周`)
+  const manorEdgeBundleCount = computed(() => inventoryStore.getUnlockedItemCount(MANOR_EDGE_ORDER_ITEM_ID))
+  const manorEdgeOrderCompleted = computed(() =>
+    playerStore.hasLifestyleDiscovery('lifestyleUnlocks', manorEdgeOrderLockId.value)
+  )
+  const canSubmitManorEdgeOrder = computed(() =>
+    !manorEdgeOrderCompleted.value && manorEdgeBundleCount.value >= MANOR_EDGE_ORDER_QUANTITY
+  )
+  const submitManorEdgeOrder = () => {
+    if (manorEdgeOrderCompleted.value) {
+      addLog('【线上订单】本周已经提交过邻里边角备料单。')
+      return
+    }
+    if (manorEdgeBundleCount.value < MANOR_EDGE_ORDER_QUANTITY) {
+      addLog(`【线上订单】庄园边角作物包不足，还需要 ${MANOR_EDGE_ORDER_QUANTITY - manorEdgeBundleCount.value} 份。`)
+      return
+    }
+    if (!inventoryStore.removeUnlockedItem(MANOR_EDGE_ORDER_ITEM_ID, MANOR_EDGE_ORDER_QUANTITY)) {
+      addLog('【线上订单】扣除庄园边角作物包失败，备料单未提交。')
+      return
+    }
+    const grantedTickets = walletStore.addRewardTickets(
+      { caravan: MANOR_EDGE_ORDER_CARAVAN_TICKETS },
+      { applyMultiplier: false, source: 'online_manor_edge_bundle_order' }
+    )
+    playerStore.markLifestyleUnlock(manorEdgeOrderLockId.value, manorEdgeOrderDayTag.value)
+    const ticketCount = grantedTickets.caravan ?? MANOR_EDGE_ORDER_CARAVAN_TICKETS
+    addLog(`【线上订单】提交 庄园边角作物包×${MANOR_EDGE_ORDER_QUANTITY}，公共仓备料进度+1，获得商队票券×${ticketCount}。`)
+  }
 
   const getRouteQueryText = (value: unknown) => {
     const raw = Array.isArray(value) ? value[0] : value
@@ -1168,6 +1292,10 @@
     COOP_ORDER_SCOPE_OPTIONS.find(option => option.id === scope)?.label || scope
   const getCoopRewardTypeLabel = (rewardType: OnlineCoopRewardType) =>
     COOP_REWARD_TYPE_OPTIONS.find(option => option.id === rewardType)?.label || rewardType
+  const getOrderItemLabel = (itemId?: string | null) => {
+    const normalizedItemId = typeof itemId === 'string' ? itemId.trim() : ''
+    return normalizedItemId ? getItemById(normalizedItemId)?.name ?? normalizedItemId : '未指定资源'
+  }
   const getCoopOrderStatusLabel = (status: 'open' | 'closed' | 'expired') => {
     if (status === 'open') return '进行中'
     if (status === 'expired') return '已过期'
@@ -1194,10 +1322,6 @@
   }
   const getRelaySettlementRouteLabel = (route: 'personal' | 'shared_fund') =>
     route === 'shared_fund' ? '共同基金' : '个人铜钱'
-  const formatDeliveredItems = (items: Array<{ item_id: string; quantity: number }>) => {
-    if (items.length === 0) return '未登记资源'
-    return items.map(item => `${item.item_id} ×${item.quantity}`).join('、')
-  }
   const receiptTechnicalCopyValue = (receipt: OnlineCoopReceiptEntry): string[] => [
     receipt.id,
     receipt.order_id,
@@ -1366,8 +1490,9 @@
     stage ? `阶段 ${stage.sequence} · ${stage.title}` : '整单'
   const getDeliveryDraftSummary = (orderId: string, stageId = '') => {
     const draft = coopOrderStore.ensureDeliveryDraft(orderId, stageId)
-    const item = draft.itemId.trim()
-      ? `${draft.itemId.trim()} ×${Math.max(1, Math.floor(Number(draft.quantity) || 1))}`
+    const itemId = draft.itemId.trim()
+    const item = itemId
+      ? `${getOrderItemLabel(itemId)} ×${Math.max(1, Math.floor(Number(draft.quantity) || 1))}`
       : '未登记资源'
     const note = draft.note.trim() || '未填写说明'
     return `${item} · ${note}`

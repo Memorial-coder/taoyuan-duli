@@ -1249,6 +1249,7 @@
         id: username,
         username,
         displayName: entry.profile.display_name || entry.profile.player_name || username,
+        group: 'friends',
         subtitle: entry.profile.public_title || entry.profile.manor_name || '好友',
         disabled: alreadyMember,
         reason: alreadyMember ? '已在邻里' : undefined,

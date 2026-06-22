@@ -1001,7 +1001,8 @@ export const useBreedingStore = defineStore('breeding', () => {
     slot.parentB = seedB.genetics
     slot.daysProcessed = 0
     const highGenReduction = Math.min(seedA.genetics.generation, seedB.genetics.generation) >= highGenThreshold.value ? 1 : 0
-    slot.totalDays = Math.max(1, BREEDING_DAYS - highGenReduction)
+    const npcBreedingBoost = npcStore.getNpcFunctionEffectValue('breeding_boost')
+    slot.totalDays = Math.max(1, BREEDING_DAYS - highGenReduction - Math.floor(npcBreedingBoost / 15))
     slot.result = null
     slot.ready = false
     pruneContestRegistrations()

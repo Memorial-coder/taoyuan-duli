@@ -33,7 +33,10 @@
         <span v-if="isForestFarm" class="text-[0.625rem] text-success">森林农场：经验×1.25</span>
         <span v-if="rareSignalBonus > 0" class="text-[0.625rem] text-success">稀有信号：稀有概率+{{ Math.round(rareSignalBonus * 100) }}%</span>
         <span v-if="weatherWindowBonus > 0 && environmentWindow.forage.active" class="text-[0.625rem] text-success">天候窗口：窗口概率+{{ Math.round(weatherWindowBonus * 100) }}%</span>
-        <span v-if="mountainHunchUnlocked && mountainHunchItem" class="text-[0.625rem] text-success">山路预感：{{ mountainHunchItem.name }}</span>
+        <span v-if="mountainHunchUnlocked && mountainHunchItem" class="inline-flex items-center gap-1 text-[0.625rem] text-success">
+          <ItemIcon :item="getItemById(mountainHunchItem.itemId)" size="xs" :show-badge="false" />
+          山路预感：{{ mountainHunchItem.name }}
+        </span>
       </div>
       <div v-if="environmentWindow.forage.active" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
         <div class="flex items-center justify-between gap-2">
@@ -45,7 +48,10 @@
       </div>
       <div v-if="mountainHunchUnlocked && mountainHunchItem" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-[0.625rem] text-accent">山路预感</p>
+          <p class="inline-flex items-center gap-1 text-[0.625rem] text-accent">
+            <ItemIcon :item="getItemById(mountainHunchItem.itemId)" size="xs" :show-badge="false" />
+            <span>山路预感</span>
+          </p>
           <span class="text-[0.625rem] text-muted">信息型精研</span>
         </div>
         <p class="text-[0.625rem] text-muted leading-4 mt-1">
@@ -68,7 +74,10 @@
           :class="r.itemId ? 'cursor-pointer hover:bg-accent/5' : ''"
           @click="r.itemId && (selectedResult = r)"
         >
-          <span class="text-xs" :class="r.failed ? 'text-danger' : r.quality ? QUALITY_COLORS[r.quality] : ''">{{ r.label }}</span>
+          <span class="forage-entry-main text-xs" :class="r.failed ? 'text-danger' : r.quality ? QUALITY_COLORS[r.quality] : ''">
+            <ItemIcon v-if="r.itemId" :item="getItemById(r.itemId)" size="xs" :quality="r.quality ?? 'normal'" />
+            <span class="truncate">{{ r.label }}</span>
+          </span>
           <span v-if="r.itemId" class="text-xs text-muted/50">详情 ›</span>
         </div>
       </div>
@@ -90,10 +99,13 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm mb-2" :class="selectedResult.quality ? QUALITY_COLORS[selectedResult.quality] : 'text-accent'">
-            {{ selectedResultDef.name }}
-            <span v-if="selectedResult.quantity > 1" class="text-muted">×{{ selectedResult.quantity }}</span>
-          </p>
+          <div class="forage-detail-header mb-2">
+            <ItemIcon :item="selectedResultDef" size="sm" :quality="selectedResult.quality ?? 'normal'" />
+            <p class="min-w-0 truncate pr-5 text-sm" :class="selectedResult.quality ? QUALITY_COLORS[selectedResult.quality] : 'text-accent'">
+              {{ selectedResultDef.name }}
+              <span v-if="selectedResult.quantity > 1" class="text-muted">×{{ selectedResult.quantity }}</span>
+            </p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ selectedResultDef.description }}</p>
@@ -140,7 +152,8 @@
           :key="item.itemId"
           class="flex items-center justify-between border border-accent/10 rounded-xs px-3 py-1.5"
         >
-          <div>
+          <div class="forage-entry-main">
+            <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
             <span class="text-xs">{{ item.name }}</span>
             <span class="text-[0.625rem] text-muted ml-2">+{{ item.expReward }}经验</span>
           </div>
@@ -154,6 +167,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { TreePine, Search, X } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
@@ -164,6 +178,7 @@
   import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWalletStore } from '@/stores/useWalletStore'
+  import { useNpcStore } from '@/stores/useNpcStore'
   import type { Quality } from '@/types'
   import { getForageItems, getItemById, getItemSource, resolveEnvironmentWindow } from '@/data'
   import { WEATHER_FORAGE_MODIFIER } from '@/data/forage'
@@ -192,6 +207,7 @@
   const cookingStore = useCookingStore()
   const walletStore = useWalletStore()
   const goalStore = useGoalStore()
+  const npcStore = useNpcStore()
 
   interface ForageResult {
     label: string
@@ -297,6 +313,11 @@
   const weatherWindowBonus = computed(() => skillStore.getSkillMasteryEffectValue('weather_window'))
   const mountainHunchUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('mountain_hunch') > 0)
   const herbSampleUnlocked = computed(() => skillStore.getSkillMasteryEffectValue('herb_sample') > 0)
+  const npcNightGatherBonus = computed(() => npcStore.getNpcFunctionEffectValue('night_gather_bonus') / 100)
+  const npcNightDropBonus = computed(() => npcStore.getNpcFunctionEffectValue('night_drop_bonus') / 100)
+  const npcHerbGatherBonus = computed(() => npcStore.getNpcFunctionEffectValue('herb_gather_bonus'))
+  const npcHiddenGatherSpotsUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('hidden_gather_spots'))
+  const isNpcHerbItem = (itemId: string) => itemId === 'herb' || itemId === 'ginseng' || itemId === 'moon_herb'
   const mountainHunchItem = computed(() => {
     if (!mountainHunchUnlocked.value) return null
     const candidates = currentForage.value
@@ -403,6 +424,7 @@
       const cookingBuff = cookingStore.activeBuff?.type === 'luck' ? cookingStore.activeBuff.value / 100 : 0
       const rareSignalMult = item.chance <= 0.12 ? 1 + rareSignalBonus.value : 1
       const weatherWindowMult = environmentWindow.value.forage.active ? 1 + weatherWindowBonus.value : 1
+      const npcNightGatherMult = gameStore.hour >= 20 ? 1 + npcNightGatherBonus.value : 1
       const adjustedChance = Math.min(
         1,
         item.chance *
@@ -410,6 +432,7 @@
           environmentWindow.value.forage.forageChanceMultiplier *
           rareSignalMult *
           weatherWindowMult *
+          npcNightGatherMult *
           herbalistBonus *
           (1 + cookingBuff)
       )
@@ -427,7 +450,8 @@
         const worldTreeMult = skill.perk20 === 'world_tree' ? 3 : 1
         const qty = (forestFarm && Math.random() < 0.2 ? 2 : 1) * worldTreeMult
         // 仙缘能力：药知（yue_tu_1）草药采集双倍
-        const finalQty = herbDouble && (item.itemId === 'herb' || item.itemId === 'ginseng') ? qty * 2 : qty
+        const finalQty = (herbDouble && (item.itemId === 'herb' || item.itemId === 'ginseng') ? qty * 2 : qty) +
+          (isNpcHerbItem(item.itemId) ? npcHerbGatherBonus.value : 0)
         attemptGather(item.itemId, finalQty, quality, {
           trackQuest: true,
           expReward: item.expReward,
@@ -452,6 +476,19 @@
       const trackerAllSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
       const quality = skillStore.rollForageQuality(trackerAllSkillsBuff)
       attemptGather(randomItem.itemId, extraItemQty, quality, { sampleEligible: randomItem.chance <= 0.12 })
+    }
+
+    if (npcHiddenGatherSpotsUnlocked.value && items.length > 0) {
+      for (let i = 0; i < 3; i++) {
+        const hiddenItem = items[Math.floor(Math.random() * items.length)]!
+        const hiddenQuality = skillStore.rollForageQuality(cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0)
+        attemptGather(hiddenItem.itemId, 1, hiddenQuality, { sampleEligible: hiddenItem.chance <= 0.12 })
+      }
+    }
+
+    if (gameStore.hour >= 20 && npcNightDropBonus.value > 0 && items.length > 0 && Math.random() < npcNightDropBonus.value) {
+      const nightItem = items[Math.floor(Math.random() * items.length)]!
+      attemptGather(nightItem.itemId, 1, 'normal', { sampleEligible: nightItem.chance <= 0.12 })
     }
 
     // 仙缘能力：月华（yue_tu_3）采集概率获得月草，夜间或每月14日概率更高
@@ -531,3 +568,31 @@
     if (tr.passedOut) handleEndDay()
   }
 </script>
+
+<style scoped>
+  .forage-entry-main {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .forage-entry-main :deep(.item-icon--xs),
+  .text-success :deep(.item-icon--xs),
+  .text-accent :deep(.item-icon--xs) {
+    width: 1.45rem !important;
+    height: 1.45rem !important;
+  }
+
+  .forage-detail-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .forage-detail-header :deep(.item-icon--sm) {
+    width: 2.625rem !important;
+    height: 2.625rem !important;
+  }
+</style>

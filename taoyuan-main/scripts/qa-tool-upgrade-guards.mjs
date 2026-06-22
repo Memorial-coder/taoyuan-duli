@@ -18,6 +18,7 @@ const source = fs.readFileSync(path.join(projectRoot, 'src/stores/useInventorySt
 const farmViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/FarmView.vue'), 'utf8')
 const farmStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useFarmStore.ts'), 'utf8')
 const endDaySource = fs.readFileSync(path.join(projectRoot, 'src/composables/useEndDay.ts'), 'utf8')
+const farmGrowthSource = fs.readFileSync(path.join(projectRoot, 'src/utils/farmGrowth.ts'), 'utf8')
 const toolUpgradeViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ToolUpgradeView.vue'), 'utf8')
 
 const getSourceBetween = (body, startMarker, endMarker) => {
@@ -150,10 +151,16 @@ assert(
   'greenhouse batch harvest should not charge per harvested crop.'
 )
 assert(
-  farmStoreSource.includes('const greenhouseDailyUpdate = (extraGrowthProgress: number = 0): void =>') &&
-    farmStoreSource.includes('const currentCropGrowth = getCurrentCropGrowthBonus()') &&
+  farmStoreSource.includes('const greenhouseDailyUpdate = (extraGrowthProgress: number = 0, extraCropGrowthBonus: number = 0): void =>') &&
+    farmStoreSource.includes('const currentCropGrowth = getCurrentCropGrowthBonus(extraCropGrowthBonus)') &&
     farmStoreSource.includes('plot.growthDays += 1 + progressBonus'),
-  'greenhouse crop daily growth should share global crop speedup and accept extra ring growth progress.'
+  'greenhouse crop daily growth should share global crop speedup and keep the green-rain extra progress hook.'
+)
+assert(
+  farmGrowthSource.includes('return Math.max(1, Number(days) || 1)') &&
+    farmGrowthSource.includes('return Math.max(1, cycleDays * (1 - Math.max(0, Number(speedup) || 0)))') &&
+    !farmGrowthSource.includes('Math.floor(cycleDays * (1 - Math.max(0, Number(speedup) || 0)))'),
+  'crop effective growth days should keep fractional thresholds instead of rounding maturity days.'
 )
 assert(
   farmStoreSource.includes('getPlotEffectiveGrowthDays(plot, crop, speedup)') &&
@@ -161,13 +168,18 @@ assert(
   'regrowing crops should restart progress from 0 and mature against regrowthDays, not a prefilled first-growth threshold.'
 )
 assert(
-  endDaySource.includes('farmStore.greenhouseDailyUpdate(ringGrowthBonus)'),
-  'end-day flow should pass crop growth ring progress into greenhouse daily growth.'
+  endDaySource.includes("const equipmentCropGrowthBonus = inventoryStore.getRingEffectValue('crop_growth_bonus')") &&
+    endDaySource.includes('farmStore.dailyUpdate(gameStore.isRainy || landGodActive, equipmentCropGrowthBonus)') &&
+    endDaySource.includes('farmStore.greenhouseDailyUpdate(0, equipmentCropGrowthBonus)') &&
+    farmViewSource.includes("farmStore.reconcileMatureCrops(inventoryStore.getRingEffectValue('crop_growth_bonus'))") &&
+    !endDaySource.includes('plot.growthDays += ringGrowthBonus') &&
+    farmStoreSource.includes('const cropGrowthBonus = getCurrentCropGrowthBonus(extraCropGrowthBonus)'),
+  'equipment crop growth should reduce the shared maturity threshold, not add rounded extra daily progress.'
 )
 assert(
   farmViewSource.includes('const currentCropGrowthBonus = computed(() =>') &&
     farmViewSource.includes('hiddenNpcStore.getAbilityValue') &&
-    farmViewSource.includes('walletStore.getCropGrowthBonus() + spiritGrowth'),
+    farmViewSource.includes("walletStore.getCropGrowthBonus() + spiritGrowth + inventoryStore.getRingEffectValue('crop_growth_bonus')"),
   'farm growth displays should use the same wallet and spirit crop growth speedup as store growth logic.'
 )
 

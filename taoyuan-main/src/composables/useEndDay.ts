@@ -28,7 +28,6 @@ import { useGuildStore } from '@/stores/useGuildStore'
 import { useRegionMapStore } from '@/stores/useRegionMapStore'
 import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
 import { getItemById, getTodayEvent, getNpcById, getCropById, getForageItems } from '@/data'
-import { getFertilizerById } from '@/data/processing'
 import { FISH } from '@/data/fish'
 import { RECIPES } from '@/data/recipes'
 import { CAVE_UNLOCK_EARNINGS } from '@/data/buildings'
@@ -41,7 +40,6 @@ import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
 import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
-import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
 import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone, Quality, WeeklyBudgetSelection } from '@/types'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import {
@@ -104,6 +102,60 @@ const NPC_NAME_MAP: Record<string, string> = {
 
 const getNpcName = (npcId: string): string => {
   return NPC_NAME_MAP[npcId] ?? npcId
+}
+
+const NPC_DAILY_FUNCTION_REWARDS = [
+  { effectType: 'daily_tofu', itemId: 'tofu', quantity: 1, label: '胖婶送来了一份豆腐。' }
+] as const
+
+const NPC_WEEKLY_FUNCTION_REWARDS = [
+  { effectType: 'weekly_surprise', itemIds: ['sugar_berry', 'honey', 'tofu'], label: '阿花带回了一份小礼物' },
+  { effectType: 'rare_wine', itemIds: ['tavern_rice_wine', 'tavern_plum_wine', 'peach_wine', 'osmanthus_wine'], label: '老陆送来了一瓶好酒' },
+  { effectType: 'private_tea', itemIds: ['green_tea_drink', 'ginseng_tea', 'herbal_tea_blend'], label: '春兰送来了一罐私藏茶' },
+  { effectType: 'premium_embroidery', itemIds: ['silk_cloth', 'dream_silk'], label: '慧娘送来了一份绣庄精品' }
+] as const
+
+const grantNpcFunctionRewardItem = (itemId: string, quantity: number, label: string) => {
+  const inventoryStore = useInventoryStore()
+  const itemName = getItemById(itemId)?.name ?? itemId
+  if (inventoryStore.addItemExact(itemId, quantity)) {
+    addLog(`${label}（${itemName}×${quantity}）`)
+  } else {
+    addLog(`${label}，但背包空间不足，未能领取${itemName}。`)
+  }
+}
+
+const grantNpcDailyFunctionRewards = () => {
+  const npcStore = useNpcStore()
+  for (const reward of NPC_DAILY_FUNCTION_REWARDS) {
+    if (npcStore.isNpcFunctionEffectUnlocked(reward.effectType)) {
+      grantNpcFunctionRewardItem(reward.itemId, reward.quantity, reward.label)
+    }
+  }
+}
+
+const grantNpcWeeklyFunctionRewards = () => {
+  const npcStore = useNpcStore()
+  const inventoryStore = useInventoryStore()
+  for (const reward of NPC_WEEKLY_FUNCTION_REWARDS) {
+    if (!npcStore.isNpcFunctionEffectUnlocked(reward.effectType)) continue
+    const itemId = reward.itemIds[Math.floor(Math.random() * reward.itemIds.length)]!
+    grantNpcFunctionRewardItem(itemId, 1, reward.label)
+  }
+  if (npcStore.isNpcFunctionEffectUnlocked('spouse_tea_bonus') && npcStore.getSpouse()) {
+    grantNpcFunctionRewardItem('ginseng_tea', 1, '春兰与你共备了一盏同饮茶')
+  }
+  if (npcStore.isNpcFunctionEffectUnlocked('free_tool_repair')) {
+    const repaired = inventoryStore.repairLowestDurabilityEquipment()
+    if (repaired) addLog(`阿铁帮你免费修好了${repaired}。`)
+  }
+  if (npcStore.isNpcFunctionEffectUnlocked('free_cloth_repair')) {
+    const repaired = inventoryStore.repairLowestDurabilityEquipment(['hat', 'shoe', 'ring'])
+    if (repaired) addLog(`张婆婆帮你免费修补了${repaired}。`)
+  }
+  if (npcStore.isNpcFunctionEffectUnlocked('discovery_clues')) {
+    addLog('阿花帮你整理了一条隐藏物品线索：本周外出时更容易注意村里的传闻。')
+  }
 }
 
 /** NPC 好感度 → 食谱解锁映射（多层级） */
@@ -319,18 +371,34 @@ const applyEventEffects = (
   const effects = event.effects
 
   if (effects.friendshipBonus) {
+    const musicBonus = npcStore.getNpcFunctionEffectValue('festival_music') / 100
+    const finalFriendshipBonus = Math.max(0, Math.floor(effects.friendshipBonus * (1 + musicBonus)))
     for (const state of npcStore.npcStates) {
       const cap = state.married ? 4000 : 2500
-      state.friendship = Math.min(state.friendship + effects.friendshipBonus, cap)
+      state.friendship = Math.min(state.friendship + finalFriendshipBonus, cap)
+    }
+  }
+  if (npcStore.isNpcFunctionEffectUnlocked('special_perform')) {
+    const performBonus = Math.max(0, Math.floor(npcStore.getNpcFunctionEffectValue('special_perform')))
+    if (performBonus > 0) {
+      for (const state of npcStore.npcStates) {
+        const cap = state.married ? 4000 : 2500
+        state.friendship = Math.min(state.friendship + performBonus, cap)
+      }
+      addLog(`【${event.name}】墨白登台特别演出，全村好感+${performBonus}。`)
     }
   }
   if (effects.moneyReward && !options.skipPrizePoolRewards) {
-    playerStore.earnMoney(effects.moneyReward)
-    showFloat(`+${effects.moneyReward}文`, 'accent')
+    const tofuFeastBonus = npcStore.getNpcFunctionEffectValue('festival_tofu_feast') / 100
+    const moneyReward = Math.max(0, Math.floor(effects.moneyReward * (1 + tofuFeastBonus)))
+    playerStore.earnMoney(moneyReward)
+    showFloat(`+${moneyReward}文`, 'accent')
   }
   if (effects.staminaBonus) {
-    playerStore.restoreStamina(effects.staminaBonus)
-    showFloat(`+${effects.staminaBonus}体力`, 'success')
+    const tofuFeastBonus = npcStore.getNpcFunctionEffectValue('festival_tofu_feast') / 100
+    const staminaBonus = Math.max(0, Math.floor(effects.staminaBonus * (1 + tofuFeastBonus)))
+    playerStore.restoreStamina(staminaBonus)
+    showFloat(`+${staminaBonus}体力`, 'success')
   }
   if (effects.itemReward && !options.skipPrizePoolRewards) {
     const rewardItems = effects.itemReward.map((item: { itemId: string; quantity: number }) => ({
@@ -617,7 +685,8 @@ export const handleEndDay = () => {
     activeRouteIds: [...tutorialStore.guidanceDigestState.activeRouteIds]
   }
   const highValueOrderTypes = new Set<string>()
-  const { wateredPlotIdsBeforeReset, ...pestResult } = farmStore.dailyUpdate(gameStore.isRainy || landGodActive)
+  const equipmentCropGrowthBonus = inventoryStore.getRingEffectValue('crop_growth_bonus')
+  const { wateredPlotIdsBeforeReset, ...pestResult } = farmStore.dailyUpdate(gameStore.isRainy || landGodActive, equipmentCropGrowthBonus)
   const wateredPlotsBeforeReset = new Set(wateredPlotIdsBeforeReset)
   processingStore.dailyUpdate()
 
@@ -625,42 +694,14 @@ export const handleEndDay = () => {
   const breedingStore = useBreedingStore()
   breedingStore.dailyUpdate()
 
-  // 戒指效果：作物生长加速
-  const ringGrowthBonus = inventoryStore.getRingEffectValue('crop_growth_bonus')
-  const walletGrowthBonus = useWalletStore().getCropGrowthBonus()
-  if (ringGrowthBonus > 0) {
-    for (const plot of farmStore.plots) {
-      if ((plot.state === 'growing' || plot.state === 'planted') && wateredPlotsBeforeReset.has(plot.id)) {
-        plot.growthDays += ringGrowthBonus
-        const crop = getCropById(plot.cropId!)
-        if (crop) {
-          const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
-          const speedup = (fertDef?.growthSpeedup ?? 0) + walletGrowthBonus
-          const effectiveDays = getPlotEffectiveGrowthDays(plot, crop, speedup)
-          if (plot.growthDays >= effectiveDays) {
-            plot.state = 'harvestable'
-          }
-        }
-      }
-    }
-  }
-
   // 绿雨额外效果：作物加速生长 + 野树加速
   if (gameStore.weather === 'green_rain') {
     for (const plot of farmStore.plots) {
       if ((plot.state === 'growing' || plot.state === 'planted') && wateredPlotsBeforeReset.has(plot.id)) {
         plot.growthDays += 0.5
-        const crop = getCropById(plot.cropId!)
-        if (crop) {
-          const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
-          const speedup = (fertDef?.growthSpeedup ?? 0) + walletGrowthBonus
-          const effectiveDays = getPlotEffectiveGrowthDays(plot, crop, speedup)
-          if (plot.growthDays >= effectiveDays) {
-            plot.state = 'harvestable'
-          }
-        }
       }
     }
+    farmStore.reconcileMatureCrops(equipmentCropGrowthBonus)
     for (const tree of farmStore.wildTrees) {
       if (!tree.mature) {
         tree.growthDays += 1
@@ -837,6 +878,7 @@ export const handleEndDay = () => {
 
   npcStore.dailyReset()
   cookingStore.dailyReset()
+  grantNpcDailyFunctionRewards()
   hanhaiStore.resetDailyBets()
 
   // 仙灵每日处理
@@ -943,6 +985,16 @@ export const handleEndDay = () => {
   }
   if (weekBoundaryEvent.startedNewWeek) {
     fishPondContestStore.refreshWeeklyContest(currentWeekInfo.seasonWeekId, currentWeekInfo.absoluteWeek)
+  }
+  if (weekBoundaryEvent.startedNewWeek) {
+    grantNpcWeeklyFunctionRewards()
+  }
+  if (seasonChanged && npcStore.isNpcFunctionEffectUnlocked('apprentice_craft')) {
+    const toolType = inventoryStore.grantRandomIronToolUpgrade()
+    if (toolType) addLog(`阿铁的学徒替你打好了一件铁制${TOOL_NAMES[toolType]}。`)
+  }
+  if (seasonChanged && npcStore.isNpcFunctionEffectUnlocked('spouse_forge_bonus') && npcStore.getSpouse()) {
+    grantNpcFunctionRewardItem('iron_bar', 2, '双人锻造整理出了一份副产物')
   }
   const outgoingWeeklyPlanSnapshot = {
     ...goalStore.weeklyPlanSnapshot,
@@ -1322,7 +1374,7 @@ export const handleEndDay = () => {
 
   // 温室更新
   if (homeStore.greenhouseUnlocked) {
-    farmStore.greenhouseDailyUpdate(ringGrowthBonus)
+    farmStore.greenhouseDailyUpdate(0, equipmentCropGrowthBonus)
   }
 
   // 酒窖更新

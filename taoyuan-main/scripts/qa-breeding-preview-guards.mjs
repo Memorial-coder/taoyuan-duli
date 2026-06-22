@@ -71,10 +71,49 @@ const breedingViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', '
 const breedingStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useBreedingStore.ts'), 'utf8')
 const breedingTypesSource = fs.readFileSync(path.join(srcRoot, 'types', 'breeding.ts'), 'utf8')
 const breedingData = await import(pathToFileURL(path.join(srcRoot, 'data', 'breeding.ts')).href)
+const cropsData = await import(pathToFileURL(path.join(srcRoot, 'data', 'crops.ts')).href)
+
+const tierCounts = [100, 50, 50, 50, 25, 25, 25, 25, 25, 27]
+let tierOffset = 0
+const highTierHybridRows = []
+for (let tier = 1; tier <= tierCounts.length; tier += 1) {
+  for (let index = 0; index < tierCounts[tier - 1]; index += 1) {
+    const hybrid = breedingData.HYBRID_DEFS[tierOffset + index]
+    if (hybrid && tier >= 8) highTierHybridRows.push({ tier, hybrid })
+  }
+  tierOffset += tierCounts[tier - 1]
+}
+const highTierCropRows = highTierHybridRows.map(row => ({
+  tier: row.tier,
+  hybridId: row.hybrid.id,
+  crop: cropsData.getCropById(row.hybrid.resultCropId)
+}))
+const winterAdaptiveHighTierRows = highTierCropRows.filter(row => row.crop?.season.includes('winter'))
+const winterAdaptiveTiers = new Set(winterAdaptiveHighTierRows.map(row => row.tier))
+const highTierCropIds = new Set(highTierCropRows.map(row => row.crop?.id).filter(Boolean))
+const explicitWinterAdaptiveCropIds = cropsData.HIGH_TIER_BREEDING_WINTER_ADAPTIVE_CROP_IDS ?? []
 
 assert(
   breedingData.findPossibleHybrid('cabbage', 'ancient_fruit') === null,
   'cabbage + ancient_fruit should remain a no-recipe cross for this guard.'
+)
+assert(
+  Array.isArray(explicitWinterAdaptiveCropIds) &&
+    explicitWinterAdaptiveCropIds.length >= 30 &&
+    explicitWinterAdaptiveCropIds.every(cropId => cropsData.getCropById(cropId) && highTierCropIds.has(cropId)),
+  'High-tier breeding winter adaptation must stay explicit and cover a meaningful subset of T8+ crops.'
+)
+assert(
+  winterAdaptiveHighTierRows.length >= 30 && winterAdaptiveHighTierRows.length < highTierCropRows.length,
+  'T8+ breeding crops should include a meaningful winter-adaptive subset without making every ultimate crop winter-safe.'
+)
+assert(
+  [8, 9, 10].every(tier => winterAdaptiveTiers.has(tier)),
+  'Winter-adaptive high-tier breeding crops must span T8, T9, and T10.'
+)
+assert(
+  highTierCropRows.every(row => row.crop),
+  'Every T8+ hybrid result crop must resolve to a crop definition.'
 )
 assert(
   breedingTypesSource.includes("'crop'") &&
@@ -148,4 +187,4 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log('Breeding preview guard QA passed: no-recipe crosses no longer show averaged offspring stats.')
+console.log('Breeding preview guard QA passed: cross previews and high-tier winter adaptation are covered.')

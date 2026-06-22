@@ -3,6 +3,7 @@ import type { Quality } from './item'
 import type { FriendshipLevel, RelationshipStage } from './npc'
 import type { RewardTicketType } from './economy'
 import type { BreedingCommercialTag, BreedingStabilityRank } from './breeding'
+import type { ProcessedItemGroupId } from './itemLinkage'
 
 /** 任务类型 */
 export type QuestType = 'delivery' | 'fishing' | 'mining' | 'gathering' | 'special_order' | 'cooking' | 'errand' | 'festival_prep'
@@ -144,6 +145,8 @@ export interface OrderGenerationTraceCandidate {
   tier: number
   themeTag?: QuestThemeTag
   activitySourceId?: string
+  processedItemGroupId?: ProcessedItemGroupId
+  processedItemGroupLabel?: string
   requiredHybridId?: string
   preferredSeasons?: Season[]
   finalWeight: number
@@ -267,6 +270,9 @@ export interface QuestInstance {
   /** 活动 / 周主题来源 */
   activitySourceId?: string
   activitySourceLabel?: string
+  /** 加工品分组来源 */
+  processedItemGroupId?: ProcessedItemGroupId
+  processedItemGroupLabel?: string
   /** 单阶段 / 阶段链 / 组合交付 */
   orderStageType?: SpecialOrderStageType
   /** 阶段化定义 */

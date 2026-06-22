@@ -10,6 +10,35 @@
 
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
 
+    <section
+      v-if="animalStore.npcAnimalTrackerSummary.length > 0"
+      class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/30"
+      data-testid="npc-animal-tracker-panel"
+    >
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs text-accent">阿福的牧场追踪</p>
+        <span class="text-[0.625rem] text-muted">{{ animalStore.npcAnimalTrackerSummary.length }}只</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div
+          v-for="entry in animalStore.npcAnimalTrackerSummary"
+          :key="entry.id"
+          class="border border-accent/10 rounded-xs px-2 py-1.5"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="min-w-0 truncate text-xs">{{ entry.name }} · {{ entry.typeName }}</span>
+            <span class="shrink-0 text-[0.625rem] text-accent">{{ entry.productStatus }}</span>
+          </div>
+          <p class="mt-1 text-[0.625rem] text-muted">
+            {{ entry.buildingLabel }} · 好感 {{ entry.friendship }}/1000 · 心情 {{ getMoodText(entry.mood) }}
+          </p>
+          <p class="mt-0.5 text-[0.625rem]" :class="entry.alerts.length > 0 ? 'text-warning' : 'text-success'">
+            {{ entry.alerts.length > 0 ? entry.alerts.join('、') : '状态稳定' }}
+          </p>
+        </div>
+      </div>
+    </section>
+
     <div class="desktop-adaptive-grid" data-testid="animal-layout">
     <!-- 宠物区域 -->
     <div class="border border-accent/20 rounded-xs p-3">

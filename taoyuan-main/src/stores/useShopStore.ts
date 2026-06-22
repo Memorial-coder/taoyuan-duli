@@ -154,6 +154,21 @@ const BLACKSMITH_QUARTZ_PRICE = 220
 const BLACKSMITH_QUARTZ_WEEKLY_LIMIT = 4
 const BLACKSMITH_QUARTZ_REQUIRED_STAGE: RelationshipStage = 'friend'
 
+export const NPC_SHOP_RARE_STOCK: ShopItemEntry[] = [
+  { itemId: 'preservation_seal', name: '保鲜封签', price: 180, description: '陈伯商路带回的储运耗材，适合高价值供货。', limitLabel: 'NPC解锁' },
+  { itemId: 'moon_herb', name: '月草', price: 900, description: '钱娘托药商留下的珍稀药材。', limitLabel: 'NPC解锁' },
+  { itemId: 'magic_bait', name: '魔法鱼饵', price: 700, description: '秋月渠道偶尔能买到的特制鱼饵。', limitLabel: 'NPC解锁' },
+  { itemId: 'targeted_bait', name: '定向鱼饵', price: 1200, description: '商队预订留下的高阶鱼饵，适合追困难鱼。', limitLabel: 'NPC解锁' },
+  { itemId: 'monster_lure', name: '怪物诱饵', price: 2200, description: '吴婶私下收来的稀缺冒险消耗品。', limitLabel: 'NPC解锁' },
+  { itemId: 'slayer_charm', name: '猎魔符', price: 1800, description: '吴婶稀缺渠道偶尔到货的护符。', limitLabel: 'NPC解锁' }
+]
+
+export const NPC_CARAVAN_PREORDER_STOCK: ShopItemEntry[] = [
+  { itemId: 'dragon_jade', name: '龙玉', price: 3600, description: '马六帮你提前压下的商队珍货。', limitLabel: '预订' },
+  { itemId: 'prismatic_shard', name: '五彩碎片', price: 5200, description: '商队稀有预订货，数量极少。', limitLabel: '预订' },
+  { itemId: 'ancient_waybill', name: '驿路关券', price: 1500, description: '随商队文书一起带回的古道凭证。', limitLabel: '预订' }
+]
+
 type RecentShippingItemSummary = {
   itemId: string
   name: string
@@ -205,6 +220,7 @@ const MARKET_TREND_PRIORITY: Record<MarketTrend, number> = {
   crash: 1
 }
 const ALL_MARKET_CATEGORIES = Object.keys(MARKET_CATEGORY_NAMES) as MarketCategory[]
+const NPC_RARE_COMMISSION_MULTIPLIER = 1.2
 const BASE_WAREHOUSE_CHEST_SLOTS = 3
 
 const buildDayKeyFromAbsoluteDay = (absoluteDay: number): string => {
@@ -1122,6 +1138,39 @@ export const useShopStore = defineStore('shop', () => {
   const activeMarketSubstituteRewards = computed(() => marketDynamics.value.substituteRewards)
   const activeMarketThemeEncouragement = computed(() => marketDynamics.value.themeEncouragement)
   const currentMarketPriceInfos = computed(() => getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, getMarketPressureAdjustedShipping(getRecentShipping())))
+  const npcPriceIntelLines = computed(() => {
+    if (!npcStore.isNpcFunctionEffectUnlocked('price_intel')) return []
+    return [...currentMarketPriceInfos.value]
+      .filter(info => info.trend !== 'stable')
+      .sort((a, b) => Math.abs(b.multiplier - 1) - Math.abs(a.multiplier - 1))
+      .slice(0, 1)
+      .map(info => {
+        const direction = info.multiplier >= 1 ? '上涨' : '回落'
+        return `${MARKET_CATEGORY_NAMES[info.category]}${direction} ${Math.round(Math.abs(info.multiplier - 1) * 100)}%，今日出货可优先参考。`
+      })
+  })
+  const npcWeeklyRareHintLine = computed(() => {
+    if (!npcStore.isNpcFunctionEffectUnlocked('weekly_rare_hint')) return ''
+    const orderedCategories = [...currentMarketPriceInfos.value].sort((a, b) => b.multiplier - a.multiplier)
+    const topCategory = orderedCategories[0]
+    if (!topCategory) return '石头今天没有打听到明确风声。'
+    return `石头的稀有资源线索：本周优先留意${MARKET_CATEGORY_NAMES[topCategory.category]}相关采集和出货。`
+  })
+  const npcCaravanIntelLines = computed(() => {
+    const lines: string[] = []
+    if (npcStore.isNpcFunctionEffectUnlocked('caravan_map')) {
+      lines.push(isMerchantHere.value ? '商路地图：旅行商人今日抵达，先查看限时货。' : '商路地图：旅行商人不在村里，可提前准备铜钱与空格。')
+    }
+    if (npcStore.isNpcFunctionEffectUnlocked('caravan_alert')) {
+      const daysUntilMerchant = Array.from({ length: 7 }, (_, index) => index + 1).find(offset => isTravelingMerchantDay(gameStore.day + offset))
+      if (daysUntilMerchant === 1) lines.push('商队联络：旅行商人明天会到。')
+      else if (daysUntilMerchant) lines.push(`商队联络：旅行商人约 ${daysUntilMerchant} 天后到。`)
+    }
+    if (npcStore.isNpcFunctionEffectUnlocked('caravan_preorder')) {
+      lines.push('稀有商品预订：旅行商库存会额外保留一件预订珍货。')
+    }
+    return lines
+  })
   const villageResidentShelfNotes = computed(() => {
     const lifestyleSnapshot = playerStore.getLifestyleDiscoverySnapshot()
     const unlockContext = {
@@ -1848,7 +1897,8 @@ export const useShopStore = defineStore('shop', () => {
     const spiritDiscount = useHiddenNpcStore().getAbilityValue('hu_xian_1') / 100
     const relationshipDiscount = getRelationshipDiscountRate(shopId)
     const decorationDiscount = useDecorationStore().shopDiscountBonus / 100
-    return 1 - (1 - walletDiscount) * (1 - ringDiscount) * (1 - blessingDiscount) * (1 - spiritDiscount) * (1 - relationshipDiscount) * (1 - decorationDiscount)
+    const npcFunctionDiscount = npcStore.getNpcFunctionEffectValue('shop_discount_bonus') / 100
+    return 1 - (1 - walletDiscount) * (1 - ringDiscount) * (1 - blessingDiscount) * (1 - spiritDiscount) * (1 - relationshipDiscount) * (1 - decorationDiscount) * (1 - npcFunctionDiscount)
   }
 
   const getDiscountBreakdown = (shopId?: string | null) => {
@@ -1862,6 +1912,7 @@ export const useShopStore = defineStore('shop', () => {
       spiritDiscount: useHiddenNpcStore().getAbilityValue('hu_xian_1') / 100,
       relationshipDiscount: getRelationshipDiscountRate(effectiveShopId),
       decorationDiscount: useDecorationStore().shopDiscountBonus / 100,
+      npcFunctionDiscount: npcStore.getNpcFunctionEffectValue('shop_discount_bonus') / 100,
       relationshipNpcId: relationNpcId,
       relationshipNpcName: relationNpcId ? (getNpcById(relationNpcId)?.name ?? relationNpcId) : undefined,
       relationshipStageText: relationNpcId ? npcStore.getRelationshipStageText(relationNpcId) : undefined
@@ -2152,6 +2203,45 @@ export const useShopStore = defineStore('shop', () => {
     return BLACKSMITH_QUARTZ_WEEKLY_LIMIT
   }
 
+  const getSeededNpcShopEntry = (entries: ShopItemEntry[], seedSuffix: string): ShopItemEntry | null => {
+    if (entries.length === 0) return null
+    const seed = `${gameStore.year}:${gameStore.seasonIndex}:${currentWeekId.value}:${seedSuffix}`
+    const index = Math.floor(getSeededOrderScore(seed, 'npc-shop-stock') * entries.length) % entries.length
+    return entries[index] ?? null
+  }
+
+  const getNpcShopEntry = (effectType: string, entries: ShopItemEntry[], seedSuffix: string): ShopItemEntry[] => {
+    if (!npcStore.isNpcFunctionEffectUnlocked(effectType)) return []
+    const entry = getSeededNpcShopEntry(entries, `${effectType}:${seedSuffix}`)
+    return entry ? [entry] : []
+  }
+
+  const getNpcRareCommissionCategory = (): MarketCategory | null => {
+    if (!npcStore.isNpcFunctionEffectUnlocked('rare_commission')) return null
+    const seed = `${gameStore.year}:${gameStore.seasonIndex}:${currentWeekId.value}:rare-commission`
+    const index = Math.floor(getSeededOrderScore(seed, 'npc-rare-commission') * MARKET_CATEGORY_IDS.length) % MARKET_CATEGORY_IDS.length
+    return MARKET_CATEGORY_IDS[index] ?? null
+  }
+
+  const npcBulkBuyUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('bulk_buy'))
+  const npcRareCommissionLine = computed(() => {
+    const category = getNpcRareCommissionCategory()
+    if (!category) return ''
+    return `何掌柜本周稀有委托：${MARKET_CATEGORY_NAMES[category]}寄售成交价 +${Math.round((NPC_RARE_COMMISSION_MULTIPLIER - 1) * 100)}%。`
+  })
+  const wanwupuNpcRareItems = computed<ShopItemEntry[]>(() => [
+    ...getNpcShopEntry('proxy_buy', [
+      { itemId: 'paper', name: '纸张', price: 40, description: '吴婶代买回来的日常文书耗材。', limitLabel: '代买' },
+      { itemId: 'preservation_seal', name: '保鲜封签', price: 160, description: '吴婶顺手带回的储运耗材。', limitLabel: '代买' }
+    ], 'proxy-buy'),
+    ...getNpcShopEntry('rare_shop_stock', NPC_SHOP_RARE_STOCK, 'rare-shop-stock'),
+    ...getNpcShopEntry('rare_consumable', [
+      { itemId: 'combat_tonic', name: '战斗药剂', price: 1400, description: '吴婶稀缺渠道带回的冒险补给。', limitLabel: '稀有消耗品' },
+      { itemId: 'monster_lure', name: '怪物诱饵', price: 2200, description: '适合矿洞冒险前备下的特殊消耗品。', limitLabel: '稀有消耗品' },
+      { itemId: 'slayer_charm', name: '猎魔符', price: 1800, description: '冒险者之间流通的稀缺护符。', limitLabel: '稀有消耗品' }
+    ], 'rare-consumable')
+  ])
+
   const getBlacksmithItemWeeklyRemaining = (itemId: string): number | null => {
     const limit = getBlacksmithItemWeeklyLimit(itemId)
     if (limit === null) return null
@@ -2254,7 +2344,15 @@ export const useShopStore = defineStore('shop', () => {
     { itemId: 'fish_feed', name: '鱼饲料', price: 30, description: '鱼塘专用饲料' },
     { itemId: 'water_purifier', name: '水质改良剂', price: 100, description: '改善鱼塘水质' },
     { itemId: 'advanced_water_purifier', name: '高级净水剂', price: 240, description: '高阶鱼塘养护用净水剂' },
-    { itemId: 'preservation_seal', name: '保鲜封签', price: 90, description: '高价值供货用储运封签' }
+    { itemId: 'preservation_seal', name: '保鲜封签', price: 90, description: '高价值供货用储运封签' },
+    ...getNpcShopEntry('herb_preorder', [
+      { itemId: 'moon_herb', name: '月草', price: 850, description: '钱娘帮你代购的稀有药材。', limitLabel: '药材代购' }
+    ], 'apothecary-preorder'),
+    ...getNpcShopEntry('rare_herb_channel', [
+      { itemId: 'ginseng_extract', name: '人参精华', price: 1800, description: '钱娘珍稀药材渠道每季会留一份。', limitLabel: '珍稀渠道' },
+      { itemId: 'antler_velvet', name: '鹿茸', price: 1600, description: '珍稀药材采购渠道带回的补材。', limitLabel: '珍稀渠道' },
+      { itemId: 'moon_herb', name: '月草', price: 900, description: '珍稀药材采购渠道带回的灵草。', limitLabel: '珍稀渠道' }
+    ], 'rare-herb')
   ])
 
   // === 渔具铺 (秋月) ===
@@ -2283,7 +2381,10 @@ export const useShopStore = defineStore('shop', () => {
   const fishingShopItems = computed<ShopItemEntry[]>(() => [
     { itemId: 'crab_pot', name: '蟹笼', price: 1500, description: '放置在钓鱼地点，每日自动捕获水产（需鱼饵）' },
     { itemId: 'ornamental_feed', name: '观赏饲料', price: 120, description: '提升高评分样鱼的观赏状态与周赛表现' },
-    { itemId: 'advanced_water_purifier', name: '高级净水剂', price: 260, description: '为展示鱼和周赛鱼提供额外净水与隔离效果' }
+    { itemId: 'advanced_water_purifier', name: '高级净水剂', price: 260, description: '为展示鱼和周赛鱼提供额外净水与隔离效果' },
+    ...getNpcShopEntry('deep_water_spot', [
+      { itemId: 'targeted_bait', name: '定向鱼饵', price: 1100, description: '深水线索带来的高阶鱼饵补给。', limitLabel: '深水线索' }
+    ], 'deep-water-shop')
   ])
 
   // === 绸缎庄 (素素) ===
@@ -2361,6 +2462,8 @@ export const useShopStore = defineStore('shop', () => {
     const hiddenNpcStore = useHiddenNpcStore()
     const sellBonusData = hiddenNpcStore.getBondBonusByType('sell_bonus')
     const spiritSellBonus = sellBonusData?.type === 'sell_bonus' ? sellBonusData.percent / 100 : 0
+    const rareCommissionCategory = getNpcRareCommissionCategory()
+    if (rareCommissionCategory && itemDef.category === rareCommissionCategory) bonus *= NPC_RARE_COMMISSION_MULTIPLIER
     return Math.floor(itemDef.sellPrice * quantity * QUALITY_PRICE_MULTIPLIERS[quality] * bonus * (1 + ringSelBonus + blessingSellBonus) * (1 + spiritSellBonus))
   }
 
@@ -2471,6 +2574,17 @@ export const useShopStore = defineStore('shop', () => {
       multiplier: 1 + spiritSellBonus,
       description: `仙缘效果 +${Math.round(spiritSellBonus * 100)}%`
     })
+
+    const rareCommissionCategory = getNpcRareCommissionCategory()
+    if (rareCommissionCategory && itemDef.category === rareCommissionCategory) {
+      pushStep({
+        id: 'npc_rare_commission',
+        label: 'NPC：稀有委托',
+        category: 'bond',
+        multiplier: NPC_RARE_COMMISSION_MULTIPLIER,
+        description: `${MARKET_CATEGORY_NAMES[rareCommissionCategory]}寄售成交价 +${Math.round((NPC_RARE_COMMISSION_MULTIPLIER - 1) * 100)}%`
+      })
+    }
 
     if (isMarketCategory(itemDef.category)) {
       const recentVolume = getRecentShipping()[itemDef.category] ?? 0
@@ -2818,6 +2932,21 @@ export const useShopStore = defineStore('shop', () => {
           itemId: pick.itemId,
           name: pick.name,
           price,
+          quantity: 1
+        })
+      }
+    }
+    if (npcStore.isNpcFunctionEffectUnlocked('caravan_preorder')) {
+      const existingIds = new Set(travelingStock.value.map(s => s.itemId))
+      const preorder = getSeededNpcShopEntry(
+        NPC_CARAVAN_PREORDER_STOCK.filter(entry => !existingIds.has(entry.itemId)),
+        'caravan-preorder'
+      )
+      if (preorder) {
+        travelingStock.value.push({
+          itemId: preorder.itemId,
+          name: preorder.name,
+          price: preorder.price,
           quantity: 1
         })
       }
@@ -3303,6 +3432,10 @@ export const useShopStore = defineStore('shop', () => {
     ]
 
     const shelfInfluenceLines = [
+      ...npcPriceIntelLines.value,
+      ...(npcWeeklyRareHintLine.value ? [npcWeeklyRareHintLine.value] : []),
+      ...npcCaravanIntelLines.value,
+      ...(npcRareCommissionLine.value ? [npcRareCommissionLine.value] : []),
       `${seasonLabel}季货架会优先露出当季种子、季节限定包与本周精选。`,
       topLongTermCategory
         ? `长期出货偏向${topLongTermCategory.categoryLabel}，店内会多提同类补给、加工承接或寄售位置。`
@@ -3603,6 +3736,12 @@ export const useShopStore = defineStore('shop', () => {
     marketDynamicsRoutingDefs,
     currentMarketDynamicsPhase,
     currentMarketPriceInfos,
+    npcPriceIntelLines,
+    npcWeeklyRareHintLine,
+    npcCaravanIntelLines,
+    npcRareCommissionLine,
+    npcBulkBuyUnlocked,
+    wanwupuNpcRareItems,
     villageResidentShelfNotes,
     commerceEchoSummary,
     marketDynamicsOverview,

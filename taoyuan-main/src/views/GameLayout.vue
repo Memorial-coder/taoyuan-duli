@@ -43,6 +43,7 @@
           <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
           <span v-if="pendingFriendRequestCount > 0" class="friend-request-badge">{{ friendRequestBadgeLabel }}</span>
           <span v-if="friendChatStore.totalUnreadCount > 0" class="friend-chat-badge">{{ mobileChatUnreadLabel }}</span>
+          <span v-if="pendingOnlineRoomInviteCount > 0" class="online-room-invite-badge">{{ onlineRoomInviteBadgeLabel }}</span>
         </button>
         <button
           v-if="isFullscreenSupported"
@@ -105,6 +106,7 @@
       :open="showMobileMap"
       :current="currentPanel"
       :has-void-chest="warehouseStore.hasVoidChest"
+      :online-room-invite-count="pendingOnlineRoomInviteCount"
       @close="showMobileMap = false"
       @open-settings="openSettingsFromMenu"
       @open-log="openLogFromMenu"
@@ -237,15 +239,15 @@
                     成品箱
                   </span>
                 </div>
-                <span class="text-[0.625rem] text-muted">{{ vc.items.length }}/{{ voidChestCapacity }}</span>
+                <span class="text-[0.625rem] text-muted">{{ warehouseStore.getChestUsedSlots(vc.id) }}/{{ warehouseStore.getChestCapacity(vc.id) }}</span>
               </div>
 
               <!-- 展开的物品列表 -->
               <template v-if="expandedVoidChestId === vc.id">
-                <div v-if="vc.items.length > 0" class="flex flex-col space-y-0.5 mb-1.5 max-h-36 overflow-y-auto">
+                <div v-if="getVisibleVoidChestItems(vc.id).length > 0" class="flex flex-col space-y-0.5 mb-1.5 max-h-36 overflow-y-auto">
                   <div
-                    v-for="(item, idx) in vc.items"
-                    :key="idx"
+                    v-for="item in getVisibleVoidChestItems(vc.id)"
+                    :key="getVisibleInventoryItemKey(item)"
                     class="flex items-center justify-between px-2 py-0.5 border border-accent/5 rounded-xs mr-1"
                     @click.stop="voidItemDetail = { itemId: item.itemId, quality: item.quality, quantity: item.quantity }"
                   >
@@ -499,7 +501,7 @@
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
   import { useHomeStore } from '@/stores/useHomeStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
@@ -513,6 +515,8 @@
   import { useFriendChatStore } from '@/stores/useFriendChatStore'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useFarmStore } from '@/stores/useFarmStore'
+  import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
+  import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
   import { handleEndDay } from '@/composables/useEndDay'
@@ -526,7 +530,6 @@
     SHORT_REST_OPTIONS
   } from '@/data/timeConstants'
   import { getNpcById, getItemById, getCropById } from '@/data'
-  import { CHEST_DEFS } from '@/data/items'
   import { useGameClock } from '@/composables/useGameClock'
   import { navigateToPanel, syncNavigationClockPauseForRoute, type PanelKey } from '@/composables/useNavigation'
   import { useAudio } from '@/composables/useAudio'
@@ -594,6 +597,8 @@
   const announcementStore = useAnnouncementStore()
   const friendChatStore = useFriendChatStore()
   const socialStore = useSocialStore()
+  const festivalRoomStore = useFestivalRoomStore()
+  const expeditionRoomStore = useExpeditionRoomStore()
   const { switchToSeasonalBgm } = useAudio()
   const gameLayoutRoot = ref<HTMLDivElement | null>(null)
   const contentViewport = ref<HTMLDivElement | null>(null)
@@ -602,9 +607,12 @@
   const isFullscreenSupported = ref(false)
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
   const pendingFriendRequestCount = computed(() => socialStore.incomingRequests.length)
+  const pendingOnlineRoomInviteCount = computed(() => festivalRoomStore.invitedRooms.length + expeditionRoomStore.invitedRooms.length)
   const friendRequestBadgeLabel = computed(() => pendingFriendRequestCount.value > 99 ? '99+' : String(pendingFriendRequestCount.value))
+  const onlineRoomInviteBadgeLabel = computed(() => pendingOnlineRoomInviteCount.value > 99 ? '99+' : String(pendingOnlineRoomInviteCount.value))
   const mobileChatUnreadLabel = computed(() => friendChatStore.totalUnreadCount > 99 ? '99+' : String(friendChatStore.totalUnreadCount))
   const mobileHubTitle = computed(() => {
+    if (pendingOnlineRoomInviteCount.value > 0) return `地图（${pendingOnlineRoomInviteCount.value} 个联机房间邀请待处理）`
     if (pendingFriendRequestCount.value > 0) return `地图（${pendingFriendRequestCount.value} 个好友申请待处理）`
     if (friendChatStore.totalUnreadCount > 0) return `地图（${friendChatStore.totalUnreadCount} 条私聊未读）`
     return '地图'
@@ -1015,12 +1023,15 @@
     void mailboxStore.refreshList({ silent: true }).catch(() => {})
     void friendChatStore.refreshConversations({ silent: true }).catch(() => {})
     void socialStore.refreshRelationships({ silent: true }).catch(() => {})
+    void festivalRoomStore.refreshOverview({ silent: true }).catch(() => {})
+    void expeditionRoomStore.refreshOverview({ silent: true }).catch(() => {})
   }
 
   const runBackgroundAutoSave = async () => {
     if (backgroundAutoSaveInFlight.value) return
     if (showSaveManager.value || showSavePrompt.value) return
     if (saveStore.getSaveBlockReason()) return
+    if (saveStore.serverSaveConflict) return
 
     backgroundAutoSaveInFlight.value = true
     try {
@@ -1081,6 +1092,8 @@
     void mailboxStore.refreshList().catch(() => {})
     void friendChatStore.refreshConversations({ silent: true }).catch(() => {})
     void socialStore.refreshRelationships({ silent: true }).catch(() => {})
+    void festivalRoomStore.refreshOverview({ silent: true }).catch(() => {})
+    void expeditionRoomStore.refreshOverview({ silent: true }).catch(() => {})
     mailboxVisibilityHandler = () => {
       if (document.visibilityState !== 'visible') return
       refreshMobileBadgesOnResume()
@@ -1324,8 +1337,6 @@
   const voidDepositChestId = ref<string | null>(null)
 
   const voidChests = computed(() => warehouseStore.getVoidChests())
-  const voidChestCapacity = CHEST_DEFS.void.capacity
-
   const getItemName = (itemId: string): string => getItemById(itemId)?.name ?? itemId
 
   const VOID_QUALITY_LABEL: Record<Quality, string> = {
@@ -1351,6 +1362,11 @@
     showVoidDepositModal.value = true
   }
 
+  const getVisibleVoidChestItems = (chestId: string) => {
+    const chest = warehouseStore.getChest(chestId)
+    return chest ? mergeVisibleInventoryItems(chest.items) : []
+  }
+
   const voidDepositableItems = computed(() =>
     inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
@@ -1364,12 +1380,12 @@
     if (!expandedVoidChestId.value) return []
     const chest = warehouseStore.getChest(expandedVoidChestId.value)
     if (!chest) return []
-    const chestItemIds = new Set(chest.items.map(i => i.itemId))
+    const chestItemKeys = new Set(getVisibleVoidChestItems(chest.id).map(getVisibleInventoryItemKey))
     return inventoryStore.visibleItems.filter(i => {
       if (i.locked) return false
       const def = getItemById(i.itemId)
       if (!def || def.category === 'seed') return false
-      return chestItemIds.has(i.itemId)
+      return chestItemKeys.has(getVisibleInventoryItemKey(i))
     })
   })
 
@@ -1859,6 +1875,22 @@
     border-radius: 999px;
     background: var(--color-accent);
     color: rgb(var(--color-bg));
+    font-size: 0.625rem;
+    line-height: 18px;
+    text-align: center;
+    border: 1px solid rgba(15, 18, 30, 0.8);
+  }
+
+  .online-room-invite-badge {
+    position: absolute;
+    left: -6px;
+    bottom: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: #111827;
     font-size: 0.625rem;
     line-height: 18px;
     text-align: center;

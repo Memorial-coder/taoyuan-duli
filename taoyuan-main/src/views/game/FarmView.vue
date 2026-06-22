@@ -1113,8 +1113,11 @@
               <span class="text-muted">费用</span>
               <span :class="playerStore.money >= nextGhUpgrade.cost ? 'text-success' : 'text-danger'">{{ nextGhUpgrade.cost }}文</span>
             </div>
-            <div v-for="mat in nextGhUpgrade.materialCost" :key="mat.itemId" class="flex items-center justify-between text-xs">
-              <span class="text-muted">{{ getItemName(mat.itemId) }}</span>
+            <div v-for="mat in nextGhUpgrade.materialCost" :key="mat.itemId" class="flex items-center justify-between gap-2 text-xs">
+              <span class="flex min-w-0 items-center gap-1.5 text-muted">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemName(mat.itemId) }}</span>
+              </span>
               <span :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
                 {{ inventoryStore.getItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
@@ -1148,7 +1151,7 @@
                 <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                 <input
                   v-model="ghBatchSeedSearch"
-                  class="w-full rounded-xs border border-accent/20 bg-bg/70 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-accent"
+                  class="online-input w-full rounded-xs border border-accent/20 bg-bg/70 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-accent"
                   placeholder="搜索作物或种子"
                 />
               </div>
@@ -1324,7 +1327,7 @@
                 <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
                 <input
                   v-model="ghSeedSearch"
-                  class="w-full rounded-xs border border-accent/20 bg-bg/70 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-accent"
+                  class="online-input w-full rounded-xs border border-accent/20 bg-bg/70 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-accent"
                   placeholder="搜索作物或种子"
                 />
               </div>
@@ -1568,7 +1571,7 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import { harvestFarmPlotWithRewards, harvestGreenhousePlotWithRewards } from '@/composables/useFarmHarvest'
   import { getShopById, isShopAvailable, getShopClosedReason } from '@/data/shops'
-  import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
+  import { getCropEffectiveGrowthDays, getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
   import {
     handlePlotClick,
     useFarmActions,
@@ -1612,7 +1615,7 @@
   const walletStore = useWalletStore()
 
   onMounted(() => {
-    farmStore.reconcileMatureCrops()
+    farmStore.reconcileMatureCrops(inventoryStore.getRingEffectValue('crop_growth_bonus'))
   })
 
   // === 田庄特殊功能 ===
@@ -1893,8 +1896,13 @@
 
   const currentCropGrowthBonus = computed(() => {
     const spiritGrowth = gameStore.season === 'spring' ? hiddenNpcStore.getAbilityValue('tao_yao_2') / 100 : 0
-    return walletStore.getCropGrowthBonus() + spiritGrowth
+    return walletStore.getCropGrowthBonus() + spiritGrowth + inventoryStore.getRingEffectValue('crop_growth_bonus')
   })
+
+  const formatCropGrowthDays = (days: number | string): string => {
+    if (typeof days !== 'number' || !Number.isFinite(days)) return String(days)
+    return Number(days.toFixed(2)).toString()
+  }
 
   const plotCropGrowthDays = computed(() => {
     if (!activePlot.value?.cropId) return '?'
@@ -1902,7 +1910,7 @@
     if (!crop) return '?'
     const fertDef = activePlot.value.fertilizer ? getFertilizerById(activePlot.value.fertilizer) : null
     const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-    return getPlotEffectiveGrowthDays(activePlot.value, crop, speedup)
+    return formatCropGrowthDays(getPlotEffectiveGrowthDays(activePlot.value, crop, speedup))
   })
 
   const plotCropRegrowth = computed(() => {
@@ -1921,7 +1929,7 @@
     if (!crop) return '?'
     const fertDef = activeGhPlot.value.fertilizer ? getFertilizerById(activeGhPlot.value.fertilizer) : null
     const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-    return getPlotEffectiveGrowthDays(activeGhPlot.value, crop, speedup)
+    return formatCropGrowthDays(getPlotEffectiveGrowthDays(activeGhPlot.value, crop, speedup))
   })
 
   const ghPlotCropRegrowth = computed(() => {
@@ -2127,7 +2135,7 @@
     if (!crop) return null
     const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
     const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-    return getPlotEffectiveGrowthDays(plot, crop, speedup)
+    return getCropEffectiveGrowthDays(crop, speedup)
   }
 
   const requestPlantSeasonRiskConfirm = (
@@ -2150,7 +2158,7 @@
     plantSeasonRiskConfirm.value = {
       cropId,
       cropName: crop.name,
-      requiredDays: Math.max(...riskyDays),
+      requiredDays: Number(Math.max(...riskyDays).toFixed(2)),
       daysLeft,
       riskyPlotCount: riskyDays.length,
       action
@@ -2390,8 +2398,8 @@
       const crop = getCropById(plot.cropId!)
       const fertDef = plot.fertilizer ? getFertilizerById(plot.fertilizer) : null
       const speedup = (fertDef?.growthSpeedup ?? 0) + currentCropGrowthBonus.value
-      const effectiveDays = crop ? getPlotEffectiveGrowthDays(plot, crop, speedup) : '?'
-      tip = `${crop?.name ?? ''} ${plot.growthDays}/${effectiveDays}天 ${plot.watered ? '已浇水' : '需浇水'}`
+      const effectiveDays = crop ? formatCropGrowthDays(getPlotEffectiveGrowthDays(plot, crop, speedup)) : '?'
+      tip = `${crop?.name ?? ''} ${formatCropGrowthDays(plot.growthDays)}/${effectiveDays}天 ${plot.watered ? '已浇水' : '需浇水'}`
     }
     if (hasSprinkler(plot.id)) tip += ' [洒水器]'
     if (plot.fertilizer) {

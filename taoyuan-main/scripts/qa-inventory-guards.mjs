@@ -256,7 +256,7 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
       hp: playerStore.hp,
       maxHp: playerStore.getMaxHp()
     },
-    removeItem: () => inventoryStore.removeUnlockedItem(itemId, 1, quality),
+    removeItem: () => inventoryStore.removeItemForEating(itemId, 1, quality),
     restoreStamina: amount => playerStore.restoreStamina(amount),
     restoreHealth: amount => playerStore.restoreHealth(amount)
   })
@@ -293,18 +293,28 @@ assert(
   'Inventory item detail modal should track visible item id + quality instead of underlying batch index.'
 )
 assert(
-  inventoryViewSource.includes(':disabled="activeItem.locked || isEatBlocked(activeItem.itemId)"') &&
+  inventoryViewSource.includes(':disabled="isEatBlocked(activeItem.itemId)"') &&
     inventoryViewSource.includes(':disabled="activeItem.locked || isUseBlocked(activeItem.itemId)"') &&
     inventoryViewSource.includes('const isVisibleInventoryItemLocked = (itemId: string, quality: Quality): boolean =>') &&
-    inventoryViewSource.includes("addLog('物品已锁定，先解锁才能食用。')") &&
+    !inventoryViewSource.includes(':disabled="activeItem.locked || isEatBlocked(activeItem.itemId)"') &&
     inventoryViewSource.includes("addLog('物品已锁定，先解锁才能使用。')"),
-  'Inventory item detail modal must block eat/use actions while the visible merged stack is locked.'
+  'Inventory item detail modal must allow locked food eating while locked generic use stays blocked.'
 )
 assert(
   inventoryViewSource.includes(':key="`${entry.itemId}-${entry.quality}`"') &&
     inventoryViewSource.includes('@click="openInventoryItem(entry.itemId, entry.quality)"') &&
     inventoryViewSource.includes('quality: item.quality'),
   'Inventory crop-use recommendation entries must keep quality in their key and detail target.'
+)
+assert(
+  inventoryViewSource.includes("import { getCropBySeedId, getItemById, getItemSource } from '@/data'") &&
+    inventoryViewSource.includes("import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'") &&
+    inventoryViewSource.includes("if (activeItemDef.value?.category !== 'seed' || !activeItem.value) return null") &&
+    inventoryViewSource.includes('return getCropBySeedId(activeItem.value.itemId) ?? null') &&
+    inventoryViewSource.includes('{{ activeSeedSeasonLabel }}') &&
+    inventoryViewSource.includes('{{ activeSeedGrowthLabel }}') &&
+    inventoryViewSource.includes('{{ activeSeedRegrowthLabel }}'),
+  'Inventory seed detail modal must derive planting season and growth days from crop definitions.'
 )
 assert(
   inventoryStoreSource.includes("const FIXED_NORMAL_QUALITY_ITEM_CATEGORIES = new Set(['ore', 'gem'])") &&
@@ -316,18 +326,36 @@ assert(
 assert(
   warehouseStoreSource.includes('const compactChestItems = (sourceItems: InventoryItem[]): InventoryItem[]') &&
     warehouseStoreSource.includes('chest.items = compactChestItems(chest.items)') &&
+    warehouseStoreSource.includes('const getVisibleChestSlotCountFromItems = (sourceItems: InventoryItem[]): number =>') &&
+    warehouseStoreSource.includes('const getChestUsedSlots = (chestId: string): number =>') &&
+    warehouseStoreSource.includes('return getVisibleChestSlotCountFromItems(simulatedItems) <= cap') &&
+    warehouseStoreSource.includes('const actual = getAddableQuantityToChest(chestId, slot.itemId, requested, slot.quality, slot)') &&
     warehouseStoreSource.includes('items: compactChestItems((Array.isArray(chest.items) ? chest.items : [])'),
-  'Warehouse chests must compact legacy same-stack slots before capacity checks and during save migration.'
+  'Warehouse chests must compact legacy same-stack slots and count capacity by visible item-quality stacks while preserving hidden source batches.'
 )
 assert(
   homeViewSource.includes("import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore } from '@/stores/useInventoryStore'") &&
     homeViewSource.includes('const currentOpenChestItems = computed(() => currentOpenChest.value ? mergeVisibleInventoryItems(currentOpenChest.value.items) : [])') &&
+    homeViewSource.includes('{{ warehouseStore.getChestUsedSlots(chest.id) }}/{{ warehouseStore.getChestCapacity(chest.id) }}') &&
+    homeViewSource.includes('{{ warehouseStore.getChestUsedSlots(currentOpenChest.id) }}/{{ warehouseStore.getChestCapacity(currentOpenChest.id) }}') &&
     homeViewSource.includes('v-if="currentOpenChestItems.length > 0"') &&
     homeViewSource.includes('v-for="item in currentOpenChestItems"') &&
     homeViewSource.includes(':key="getVisibleInventoryItemKey(item)"') &&
     homeViewSource.includes('const chestItemKeys = new Set(currentOpenChestItems.value.map(getVisibleInventoryItemKey))') &&
     homeViewSource.includes('return chestItemKeys.has(getVisibleInventoryItemKey(i))'),
   'Home chest and void chest views should merge visible item-quality rows while preserving batch-level calculations in the store.'
+)
+assert(
+  gameLayoutSource.includes("import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore } from '@/stores/useInventoryStore'") &&
+    gameLayoutSource.includes('const getVisibleVoidChestItems = (chestId: string) =>') &&
+    gameLayoutSource.includes('return chest ? mergeVisibleInventoryItems(chest.items) : []') &&
+    gameLayoutSource.includes('{{ warehouseStore.getChestUsedSlots(vc.id) }}/{{ warehouseStore.getChestCapacity(vc.id) }}') &&
+    gameLayoutSource.includes('v-if="getVisibleVoidChestItems(vc.id).length > 0"') &&
+    gameLayoutSource.includes('v-for="item in getVisibleVoidChestItems(vc.id)"') &&
+    gameLayoutSource.includes(':key="getVisibleInventoryItemKey(item)"') &&
+    gameLayoutSource.includes('const chestItemKeys = new Set(getVisibleVoidChestItems(chest.id).map(getVisibleInventoryItemKey))') &&
+    gameLayoutSource.includes('return chestItemKeys.has(getVisibleInventoryItemKey(i))'),
+  'Global void chest modal must merge visible item-quality rows and duplicate-deposit keys while keeping raw slot metadata for withdrawal and pricing.'
 )
 assert(
   inventoryViewSource.includes('Math.max(0, inventoryStore.capacity - filteredItems.length)'),
@@ -351,19 +379,20 @@ assert(
   'Gift and offering detail/list views must hide locked visible stacks and avoid raw batch lookups.'
 )
 assert(
-  inventoryViewSource.includes('removeItem: () => inventoryStore.removeUnlockedItem(itemId, 1, quality)') &&
+  inventoryViewSource.includes('removeItem: () => inventoryStore.removeItemForEating(itemId, 1, quality)') &&
     inventoryViewSource.includes('if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) return') &&
     inventoryViewSource.includes('if (!inventoryStore.removeUnlockedItem(itemId, qty, quality)) return') &&
-    cookingStoreSource.includes('inventoryStore.removeUnlockedItem(foodItemId, 1, quality)') &&
+    cookingStoreSource.includes('inventoryStore.removeItemForEating(foodItemId, 1, quality)') &&
     cookingStoreSource.includes('inventoryStore.removeUnlockedItem(itemId, 1, quality)') &&
     miningStoreSource.includes("inventoryStore.removeUnlockedItem('guild_badge', 1, quality)") &&
     miningStoreSource.includes("inventoryStore.removeUnlockedItem('slayer_charm')") &&
     miningStoreSource.includes("inventoryStore.removeUnlockedItem('monster_lure')") &&
-    miningStoreSource.includes('inventoryStore.getUnlockedItemCount(itemId, q)') &&
+    miningStoreSource.includes('inventoryStore.getItemCount(itemId, q)') &&
+    miningStoreSource.includes('inventoryStore.removeItemForEating(itemId, 1, quality)') &&
     npcStoreSource.includes('inventoryStore.removeUnlockedItem(itemId, 1, quality)') &&
     hiddenNpcStoreSource.includes('inventoryStore.removeUnlockedItem(itemId, 1, quality)') &&
     homeStoreSource.includes('inventoryStore.removeUnlockedItem(itemId, 1, quality)'),
-  'Inventory detail/use/gift/offering/cellar consumption must respect locked item stacks.'
+  'Inventory eating should allow locked food while use/gift/offering/cellar consumption keeps locked item protection.'
 )
 
 {
@@ -608,6 +637,38 @@ assert(
 }
 
 {
+  const { inventoryStore, warehouseStore } = freshInventoryAndWarehouseStores()
+  const shopMeta = { origin: 'shop', purchaseDay: '2_1_9', purchaseUnitPrice: 800 }
+  assert(warehouseStore.addChest('wood', 'QA') === true, 'Warehouse visible-capacity test chest should be created.')
+  const chestId = warehouseStore.chests[0]?.id
+  assert(typeof chestId === 'string', 'Warehouse visible-capacity chest id should exist.')
+
+  warehouseStore.chests[0].items = [
+    { itemId: 'dragon_jade', quantity: 1, quality: 'normal' },
+    { itemId: 'dragon_jade', quantity: 1, quality: 'normal', ...shopMeta },
+    { itemId: 'prismatic_shard', quantity: 1, quality: 'normal' },
+    { itemId: 'copper_ore', quantity: 1, quality: 'normal' },
+    { itemId: 'iron_ore', quantity: 1, quality: 'normal' },
+    { itemId: 'gold_ore', quantity: 1, quality: 'normal' },
+    { itemId: 'iridium_ore', quantity: 1, quality: 'normal' },
+    { itemId: 'quartz', quantity: 1, quality: 'normal' },
+    { itemId: 'ruby', quantity: 1, quality: 'normal' },
+    { itemId: 'jade', quantity: 1, quality: 'normal' }
+  ]
+  inventoryStore.items = [
+    { itemId: 'dragon_jade', quantity: 1, quality: 'normal', ...shopMeta },
+    { itemId: 'stone', quantity: 1, quality: 'normal' }
+  ]
+
+  assert(warehouseStore.getChestCapacity(chestId) === 9, 'Wood chest capacity should stay at 9 visible slots before NPC bonuses.')
+  assert(warehouseStore.getChestUsedSlots(chestId) === 9, 'Shop-origin and self-acquired dragon jade should share one visible warehouse slot.')
+  assert(warehouseStore.isChestFull(chestId) === false, 'A full visible chest with partial stacks should still allow merging into existing visible item-quality rows.')
+  assert(warehouseStore.depositInventorySlotToChest(chestId, 0, 1) === 1, 'Warehouse should accept same item-quality stock even when hidden source batches already fill raw slot count.')
+  assert(warehouseStore.getChestItemCount(chestId, 'dragon_jade', 'normal') === 3, 'Warehouse merged-capacity deposit should preserve source-aware raw batches but increase visible total.')
+  assert(warehouseStore.depositInventorySlotToChest(chestId, 0, 1) === 0, 'Warehouse should reject a new visible item-quality row once visible capacity is full.')
+}
+
+{
   const { warehouseStore } = freshInventoryAndWarehouseStores()
   warehouseStore.deserialize({
     unlocked: true,
@@ -737,9 +798,9 @@ assert(
 
   const result = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'combat_tonic' })
   assert(inventoryUseRulesModule.hasItemRecovery(def), 'Locked HP-only item fixture should still be a recovery item.')
-  assert(result.success === false && result.consumed === false, 'Locked HP-only recovery item should not be consumed through inventory recovery.')
-  assert(inventoryStore.getItemCount('combat_tonic') === 1, 'Locked HP-only recovery item quantity should stay unchanged.')
-  assert(playerStore.hp === maxHp - 40, 'Locked HP-only recovery item should not restore HP.')
+  assert(result.success === true && result.consumed === true, 'Locked HP-only recovery item should be edible through inventory recovery.')
+  assert(inventoryStore.getItemCount('combat_tonic') === 0, 'Locked HP-only recovery item quantity should be consumed.')
+  assert(playerStore.hp === maxHp - 10, 'Locked HP-only recovery item should restore HP.')
 }
 
 {
@@ -837,8 +898,9 @@ assert(
   playerStore.stamina = Math.max(0, playerStore.maxStamina - 30)
   inventoryStore.items = [{ itemId: 'food_stir_fried_cabbage', quantity: 1, quality: 'normal', locked: true }]
   const lockedFood = cookingStore.eat('stir_fried_cabbage', 'normal')
-  assert(lockedFood.success === false, 'Locked cooked food should not be consumed by cookingStore.eat.')
-  assert(inventoryStore.getItemCount('food_stir_fried_cabbage') === 1, 'Locked cooked food quantity should stay unchanged.')
+  assert(lockedFood.success === true, 'Locked cooked food should be consumed by cookingStore.eat.')
+  assert(inventoryStore.getItemCount('food_stir_fried_cabbage') === 0, 'Locked cooked food quantity should be consumed.')
+  assert(playerStore.stamina > playerStore.maxStamina - 30, 'Locked cooked food should still restore stamina.')
 }
 
 {
@@ -874,7 +936,7 @@ assert(
   miningStore.isExploring = true
   playerStore.hp = maxHp - 30
   playerStore.stamina = playerStore.maxStamina - 30
-  inventoryStore.items = [{ itemId: 'adventurer_ration', quantity: 3, quality: 'normal' }]
+  inventoryStore.items = [{ itemId: 'adventurer_ration', quantity: 3, quality: 'normal', locked: true }]
 
   const result = miningStore.useCombatItem('adventurer_ration', 3)
   assert(result.success === true, '矿洞批量吃冒险口粮应成功')

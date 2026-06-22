@@ -1,6 +1,7 @@
+import { calculateEffectiveMaxDurability, repairEquipment, getCurrentDurability } from '@/composables/useDurability'
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { ForgeAffixRoll, InventoryItem, Quality, Tool, ToolType, ToolTier, OwnedWeapon, OwnedRing, RingEffectType, OwnedHat, OwnedShoe } from '@/types'
+import type { ForgeAffixRoll, InventoryItem, InventoryPondFishMeta, Quality, Tool, ToolType, ToolTier, OwnedWeapon, OwnedRing, RingEffectType, OwnedHat, OwnedShoe } from '@/types'
 import type { ForgeAffixEffectType, ForgeAffixTarget } from '@/data/forgeAffixes'
 
 /** 装备方案 */
@@ -63,6 +64,7 @@ import {
   getForgeAffixSignature,
   getLegacyAffixSignature,
   migrateLegacyEnchantmentToAffixes,
+  rollForgeAffixes,
   sanitizeForgeAffixes
 } from '@/data/forgeAffixes'
 import { TRINKETS, getTrinketById, type TrinketDef } from '@/data/trinkets'
@@ -70,6 +72,7 @@ import { EQUIPMENT_SETS } from '@/data/equipmentSets'
 import { usePlayerStore } from './usePlayerStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useSkillStore } from './useSkillStore'
+import { useNpcStore } from './useNpcStore'
 import {
   INVENTORY_INITIAL_CAPACITY,
   INVENTORY_REGULAR_MAX_CAPACITY,
@@ -86,8 +89,14 @@ const INVENTORY_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supr
 const FIXED_NORMAL_QUALITY_ITEM_CATEGORIES = new Set(['ore', 'gem'])
 type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
 type LockableEquipmentEntry = { locked?: boolean }
-type EnchantedEquipmentEntry = { defId: string; enchantmentId?: string | null; affixes?: ForgeAffixRoll[]; locked?: boolean }
-export type InventoryItemStackMeta = Pick<InventoryItem, 'origin' | 'purchaseDay' | 'purchaseUnitPrice'>
+type EnchantedEquipmentEntry = {
+  defId: string
+  enchantmentId?: string | null
+  affixes?: ForgeAffixRoll[]
+  durabilityWearProgress?: number
+  locked?: boolean
+}
+export type InventoryItemStackMeta = Pick<InventoryItem, 'origin' | 'purchaseDay' | 'purchaseUnitPrice' | 'pondFish'>
 type InventoryAddEntry = { itemId: string; quantity: number; quality?: Quality } & InventoryItemStackMeta
 
 export const normalizeInventoryItemQuality = (itemId: string, quality: Quality = 'normal'): Quality => {
@@ -101,11 +110,53 @@ export const getInventoryQualitiesAtLeast = (minQuality: Quality = 'normal'): Qu
 }
 
 export const normalizeInventoryItemStackMeta = (source?: InventoryItemStackMeta | null): InventoryItemStackMeta => {
-  if (!source || source.origin !== 'shop') return {}
-  const purchaseDay = typeof source.purchaseDay === 'string' ? source.purchaseDay : ''
-  const purchaseUnitPrice = Math.max(0, Math.floor(Number(source.purchaseUnitPrice)))
-  if (!purchaseDay || !Number.isFinite(purchaseUnitPrice)) return {}
-  return { origin: 'shop', purchaseDay, purchaseUnitPrice }
+  if (!source) return {}
+  const normalized: InventoryItemStackMeta = {}
+  if (source.origin === 'shop') {
+    const purchaseDay = typeof source.purchaseDay === 'string' ? source.purchaseDay : ''
+    const purchaseUnitPrice = Math.max(0, Math.floor(Number(source.purchaseUnitPrice)))
+    if (purchaseDay && Number.isFinite(purchaseUnitPrice)) {
+      Object.assign(normalized, { origin: 'shop' as const, purchaseDay, purchaseUnitPrice })
+    }
+  }
+  const pondFish = normalizeInventoryPondFishMeta(source.pondFish)
+  if (pondFish) normalized.pondFish = pondFish
+  return normalized
+}
+
+const clampInventoryNumber = (value: unknown, min: number, max: number): number => {
+  const rounded = Math.round(Number(value))
+  if (!Number.isFinite(rounded)) return min
+  return Math.max(min, Math.min(max, rounded))
+}
+
+export const normalizeInventoryPondFishMeta = (source?: InventoryPondFishMeta | null): InventoryPondFishMeta | undefined => {
+  if (!source || typeof source !== 'object') return undefined
+  const instanceId = typeof source.instanceId === 'string' ? source.instanceId : ''
+  const fishId = typeof source.fishId === 'string' ? source.fishId : ''
+  if (!instanceId || !fishId) return undefined
+  return {
+    instanceId,
+    fishId,
+    name: typeof source.name === 'string' ? source.name : fishId,
+    genetics: {
+      weight: clampInventoryNumber(source.genetics?.weight, 0, 100),
+      growthRate: clampInventoryNumber(source.genetics?.growthRate, 0, 100),
+      diseaseRes: clampInventoryNumber(source.genetics?.diseaseRes, 0, 100),
+      qualityGene: clampInventoryNumber(source.genetics?.qualityGene, 0, 100),
+      mutationRate: clampInventoryNumber(source.genetics?.mutationRate, 1, 50)
+    },
+    daysInPond: Math.max(0, Math.floor(Number(source.daysInPond) || 0)),
+    mature: source.mature === true,
+    sick: source.sick === true,
+    sickDays: Math.max(0, Math.floor(Number(source.sickDays) || 0)),
+    breedId: typeof source.breedId === 'string' ? source.breedId : null
+  }
+}
+
+const getInventoryPondFishStackKey = (source?: InventoryPondFishMeta | null): string => {
+  const meta = normalizeInventoryPondFishMeta(source)
+  return meta?.instanceId ?? ''
 }
 
 export const createInventoryItemSlot = (
@@ -115,7 +166,11 @@ export const createInventoryItemSlot = (
   meta?: InventoryItemStackMeta | null
 ): InventoryItem => {
   const slot: InventoryItem = { itemId, quantity, quality: normalizeInventoryItemQuality(itemId, quality) }
-  Object.assign(slot, normalizeInventoryItemStackMeta(meta))
+  const normalizedMeta = normalizeInventoryItemStackMeta(meta)
+  if (normalizedMeta.pondFish?.fishId !== itemId) {
+    delete normalizedMeta.pondFish
+  }
+  Object.assign(slot, normalizedMeta)
   return slot
 }
 
@@ -136,7 +191,8 @@ export const inventoryStacksMatch = (
     left.quality === right.quality &&
     (leftMeta.origin ?? '') === (rightMeta.origin ?? '') &&
     (leftMeta.purchaseDay ?? '') === (rightMeta.purchaseDay ?? '') &&
-    (leftMeta.purchaseUnitPrice ?? -1) === (rightMeta.purchaseUnitPrice ?? -1)
+    (leftMeta.purchaseUnitPrice ?? -1) === (rightMeta.purchaseUnitPrice ?? -1) &&
+    getInventoryPondFishStackKey(leftMeta.pondFish) === getInventoryPondFishStackKey(rightMeta.pondFish)
   )
 }
 
@@ -168,6 +224,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const playerStore = usePlayerStore()
   const items = ref<InventoryItem[]>([])
   const visibleItems = computed(() => mergeVisibleInventoryItems(items.value))
+  const npcCustomEquipUnlocked = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('custom_equip'))
   const capacity = ref(INITIAL_CAPACITY)
   const tools = ref<Tool[]>([
     { type: 'wateringCan', tier: 'basic' },
@@ -217,6 +274,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const pendingUpgrade = ref<{ toolType: ToolType; targetTier: ToolTier; daysRemaining: number } | null>(null)
   const TOOL_TIER_ORDER: ToolTier[] = ['basic', 'iron', 'steel', 'iridium']
   const TOOL_TYPES: ToolType[] = ['wateringCan', 'hoe', 'pickaxe', 'fishingRod', 'scythe', 'axe', 'pan']
+  const IRON_TOOL_TYPES: ToolType[] = ['wateringCan', 'hoe', 'pickaxe', 'fishingRod', 'scythe', 'axe', 'pan']
 
   const isFull = computed(() => items.value.length >= capacity.value)
 
@@ -252,6 +310,11 @@ export const useInventoryStore = defineStore('inventory', () => {
   const cloneOwnedShoes = (source: OwnedShoe[]) => source.map(shoe => ({ ...shoe, affixes: cloneForgeAffixes(shoe.affixes) }))
   const cloneEquipmentPresets = (source: EquipmentPreset[]) => source.map(preset => ({ ...preset }))
   const readLockedFlag = (entry: { locked?: unknown }): boolean | undefined => entry.locked === true ? true : undefined
+  const readDurabilityWearProgress = (entry: { durabilityWearProgress?: unknown }): number | undefined => {
+    const value = Number(entry.durabilityWearProgress)
+    if (!Number.isFinite(value) || value <= 0) return undefined
+    return value % 1
+  }
   const pushEquipmentMigrationLog = (message: string) => {
     equipmentMigrationLogs.value.push(message)
   }
@@ -460,6 +523,242 @@ export const useInventoryStore = defineStore('inventory', () => {
     return getForgeAffixEffectValue(getEquippedWeapon().affixes, effectType)
   }
 
+
+
+  /** 获取当前装备武器的最大耐久（含词条/附魔/NPC加成） */
+
+  const getWeaponMaxDurability = (): number => {
+
+    const owned = getEquippedWeapon()
+
+    const def = getWeaponById(owned.defId)
+
+    if (!def) return 100
+
+    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+
+    return calculateEffectiveMaxDurability(
+
+      def.qualityTier,
+
+      def.shopMaterials?.length ? def.shopMaterials : null,
+
+      def.shopPrice ?? 0,
+
+      owned.affixes,
+
+      owned.enchantmentId,
+
+      npcUnlocked
+
+    )
+
+  }
+
+
+
+  /** 获取指定戒指的最大耐久（含词条/附魔/NPC加成） */
+
+  const getRingMaxDurability = (index: number): number => {
+
+    const ring = index >= 0 ? ownedRings.value[index] : null
+
+    if (!ring) return 100
+
+    const def = getRingById(ring.defId)
+
+    if (!def) return 100
+
+    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+
+    return calculateEffectiveMaxDurability(
+
+      def.qualityTier,
+
+      def.recipe ?? null,
+
+      def.recipeMoney ?? 0,
+
+      ring.affixes,
+
+      ring.enchantmentId,
+
+      npcUnlocked
+
+    )
+
+  }
+
+
+
+  /** 获取指定帽子的最大耐久 */
+
+  const getHatMaxDurability = (index?: number): number => {
+
+    const idx = index ?? equippedHatIndex.value
+
+    const hat = idx >= 0 ? ownedHats.value[idx] : null
+
+    if (!hat) return 100
+
+    const def = getHatById(hat.defId)
+
+    if (!def) return 100
+
+    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+
+    return calculateEffectiveMaxDurability(
+
+      def.qualityTier,
+
+      def.recipe ?? null,
+
+      def.recipeMoney ?? 0,
+
+      hat.affixes,
+
+      hat.enchantmentId,
+
+      npcUnlocked
+
+    )
+
+  }
+
+
+
+  /** 获取指定鞋子的最大耐久 */
+
+  const getShoeMaxDurability = (index?: number): number => {
+
+    const idx = index ?? equippedShoeIndex.value
+
+    const shoe = idx >= 0 ? ownedShoes.value[idx] : null
+
+    if (!shoe) return 100
+
+    const def = getShoeById(shoe.defId)
+
+    if (!def) return 100
+
+    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+
+    return calculateEffectiveMaxDurability(
+
+      def.qualityTier,
+
+      def.recipe ?? null,
+
+      def.recipeMoney ?? 0,
+
+      shoe.affixes,
+
+      shoe.enchantmentId,
+
+      npcUnlocked
+
+    )
+
+  }
+
+  /** 通过类型和索引修复装备（修理台使用） */
+  const repairOwnedEquipment = (equipType: string, index: number): boolean => {
+    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    if (equipType === 'weapon') {
+      const w = ownedWeapons.value[index]
+      if (!w) return false
+      const def = getWeaponById(w.defId)
+      if (!def) return false
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.shopMaterials?.length ? def.shopMaterials : null, def.shopPrice ?? 0, w.affixes, w.enchantmentId, npcUnlocked)
+      repairEquipment(w, maxDur)
+      return true
+    }
+    if (equipType === 'ring') {
+      const r = ownedRings.value[index]
+      if (!r) return false
+      const def = getRingById(r.defId)
+      if (!def) return false
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, r.affixes, r.enchantmentId, npcUnlocked)
+      repairEquipment(r, maxDur)
+      return true
+    }
+    if (equipType === 'hat') {
+      const h = ownedHats.value[index]
+      if (!h) return false
+      const def = getHatById(h.defId)
+      if (!def) return false
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, h.affixes, h.enchantmentId, npcUnlocked)
+      repairEquipment(h, maxDur)
+      return true
+    }
+    if (equipType === 'shoe') {
+      const s = ownedShoes.value[index]
+      if (!s) return false
+      const def = getShoeById(s.defId)
+      if (!def) return false
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, s.affixes, s.enchantmentId, npcUnlocked)
+      repairEquipment(s, maxDur)
+      return true
+    }
+    return false
+  }
+
+  /** 获取装备当前耐久（修理台列表用） */
+  const getOwnedEquipmentDurability = (equipType: string, index: number): { current: number; max: number } | null => {
+    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    if (equipType === 'weapon') {
+      const w = ownedWeapons.value[index]
+      if (!w) return null
+      const def = getWeaponById(w.defId)
+      if (!def) return null
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.shopMaterials?.length ? def.shopMaterials : null, def.shopPrice ?? 0, w.affixes, w.enchantmentId, npcUnlocked)
+      return { current: getCurrentDurability(w, maxDur), max: maxDur }
+    }
+    if (equipType === 'ring') {
+      const r = ownedRings.value[index]
+      if (!r) return null
+      const def = getRingById(r.defId)
+      if (!def) return null
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, r.affixes, r.enchantmentId, npcUnlocked)
+      return { current: getCurrentDurability(r, maxDur), max: maxDur }
+    }
+    if (equipType === 'hat') {
+      const h = ownedHats.value[index]
+      if (!h) return null
+      const def = getHatById(h.defId)
+      if (!def) return null
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, h.affixes, h.enchantmentId, npcUnlocked)
+      return { current: getCurrentDurability(h, maxDur), max: maxDur }
+    }
+    if (equipType === 'shoe') {
+      const s = ownedShoes.value[index]
+      if (!s) return null
+      const def = getShoeById(s.defId)
+      if (!def) return null
+      const maxDur = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, s.affixes, s.enchantmentId, npcUnlocked)
+      return { current: getCurrentDurability(s, maxDur), max: maxDur }
+    }
+    return null
+  }
+
+  const repairLowestDurabilityEquipment = (allowedTypes: string[] = ['weapon', 'ring', 'hat', 'shoe']): string | null => {
+    const candidates: { type: string; index: number; current: number; max: number; name: string }[] = []
+    const pushCandidate = (type: string, index: number, defId: string) => {
+      if (!allowedTypes.includes(type)) return
+      const durability = getOwnedEquipmentDurability(type, index)
+      if (!durability || durability.current >= durability.max) return
+      candidates.push({ type, index, current: durability.current, max: durability.max, name: defId })
+    }
+    ownedWeapons.value.forEach((entry, index) => pushCandidate('weapon', index, entry.defId))
+    ownedRings.value.forEach((entry, index) => pushCandidate('ring', index, entry.defId))
+    ownedHats.value.forEach((entry, index) => pushCandidate('hat', index, entry.defId))
+    ownedShoes.value.forEach((entry, index) => pushCandidate('shoe', index, entry.defId))
+    candidates.sort((a, b) => (a.current / Math.max(1, a.max)) - (b.current / Math.max(1, b.max)))
+    const target = candidates[0]
+    if (!target || !repairOwnedEquipment(target.type, target.index)) return null
+    return target.name
+  }
+
   /** 添加武器到收藏 */
   const addWeapon = (defId: string, enchantmentId: string | null = null, affixes?: ForgeAffixRoll[] | null): boolean => {
     const normalizedAffixes = normalizeForgeAffixesForTarget('weapon', affixes, enchantmentId)
@@ -494,6 +793,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 装备武器（按索引） */
   const equipWeapon = (index: number): boolean => {
     if (index < 0 || index >= ownedWeapons.value.length) return false
+    if (ownedWeapons.value[index]!.durability === 0) return false
     if (equippedWeaponIndex.value !== index) clearActivePreset()
     equippedWeaponIndex.value = index
     return true
@@ -711,6 +1011,10 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
     }
     return true
+  }
+
+  const removeItemForEating = (itemId: string, quantity: number = 1, quality?: Quality): boolean => {
+    return removeItem(itemId, quantity, quality)
   }
 
   const removeItemAtIndex = (index: number, quantity: number = 1): InventoryItem | null => {
@@ -1143,6 +1447,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     const nextTier = getNextToolTier(tool.tier)
     if (!nextTier) return false
     tool.tier = nextTier
+    if (type === 'pickaxe' && useNpcStore().isNpcFunctionEffectUnlocked('tool_bonus_slot') && (!tool.affixes || tool.affixes.length <= 0)) {
+      const bonusAffixes = rollForgeAffixes({ target: 'pickaxe', workshopLevel: 7 }).slice(0, 1)
+      if (bonusAffixes.length > 0) tool.affixes = bonusAffixes
+    }
     return true
   }
 
@@ -1187,8 +1495,19 @@ export const useInventoryStore = defineStore('inventory', () => {
     const tool = getTool(type)
     const nextTier = tool ? getNextToolTier(tool.tier) : null
     if (!nextTier || targetTier !== nextTier) return false
-    pendingUpgrade.value = { toolType: type, targetTier, daysRemaining: 2 }
+    const speedReduction = Math.max(0, Math.floor(useNpcStore().getNpcFunctionEffectValue('tool_upgrade_speed')))
+    pendingUpgrade.value = { toolType: type, targetTier, daysRemaining: Math.max(1, 2 - speedReduction) }
     return true
+  }
+
+  const grantRandomIronToolUpgrade = (): ToolType | null => {
+    const candidates = IRON_TOOL_TYPES.filter(type => getTool(type)?.tier === 'basic')
+    const picked = candidates[Math.floor(Math.random() * candidates.length)]
+    if (!picked) return null
+    const tool = getTool(picked)
+    if (!tool) return null
+    tool.tier = 'iron'
+    return picked
   }
 
   /** 每日升级进度更新，返回完成的工具名（若有） */
@@ -1227,6 +1546,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   /** 装备戒指到指定槽位（0 或 1），禁止两个槽位装备同defId戒指 */
   const equipRing = (ringIndex: number, slot: 0 | 1): boolean => {
+    if (ownedRings.value[ringIndex]?.durability === 0) return false
     if (ringIndex < 0 || ringIndex >= ownedRings.value.length) return false
     const targetSlot = slot === 0 ? equippedRingSlot1 : equippedRingSlot2
     const otherSlot = slot === 0 ? equippedRingSlot2 : equippedRingSlot1
@@ -1336,6 +1656,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 套装奖励
     for (const b of activeSetBonuses.value) {
       if (b.type === effectType) total += b.value
+    }
+    if (useNpcStore().isNpcFunctionEffectUnlocked('embroidery_craft')) {
+      if (effectType === 'defense_bonus') total += 0.02
+    }
+    if (useNpcStore().isNpcFunctionEffectUnlocked('embroidery_boost')) {
+      if (effectType === 'max_hp_bonus') total += 10
+      if (effectType === 'defense_bonus') total += 0.03
     }
     return total
   }
@@ -1464,6 +1791,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 装备帽子 */
   const equipHat = (index: number): boolean => {
     if (index < 0 || index >= ownedHats.value.length) return false
+    if (ownedHats.value[index]!.durability === 0) return false
     if (equippedHatIndex.value !== index) clearActivePreset()
     equippedHatIndex.value = index
     return true
@@ -1552,6 +1880,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 装备鞋子 */
   const equipShoe = (index: number): boolean => {
     if (index < 0 || index >= ownedShoes.value.length) return false
+    if (ownedShoes.value[index]!.durability === 0) return false
     if (equippedShoeIndex.value !== index) clearActivePreset()
     equippedShoeIndex.value = index
     return true
@@ -1836,7 +2165,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (preset.weaponDefId) {
       const weaponSignature = preset.weaponAffixSignature ?? getLegacyAffixSignature('weapon', preset.weaponEnchantmentId)
       const idx = ownedWeapons.value.findIndex(
-        w => w.defId === preset.weaponDefId && getEntryAffixSignature('weapon', w) === weaponSignature
+        w => w.defId === preset.weaponDefId && w.durability !== 0 && getEntryAffixSignature('weapon', w) === weaponSignature
       )
       if (idx >= 0) equipWeapon(idx)
       else {
@@ -1849,7 +2178,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     let ring1Idx = -1
     if (preset.ringSlot1DefId) {
       const ring1Signature = preset.ringSlot1AffixSignature ?? getLegacyAffixSignature('ring', preset.ringSlot1EnchantmentId)
-      ring1Idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot1DefId && getEntryAffixSignature('ring', r) === ring1Signature)
+      ring1Idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot1DefId && r.durability !== 0 && getEntryAffixSignature('ring', r) === ring1Signature)
       if (ring1Idx >= 0) {
         if (!equipRing(ring1Idx, 0)) {
           unequipRing(0)
@@ -1871,7 +2200,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         missing.push('戒指2（不可与槽1相同）')
       } else {
         const ring2Signature = preset.ringSlot2AffixSignature ?? getLegacyAffixSignature('ring', preset.ringSlot2EnchantmentId)
-        const idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot2DefId && getEntryAffixSignature('ring', r) === ring2Signature)
+        const idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot2DefId && r.durability !== 0 && getEntryAffixSignature('ring', r) === ring2Signature)
         if (idx >= 0) {
           if (!equipRing(idx, 1)) {
             unequipRing(1)
@@ -1889,7 +2218,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 帽子
     if (preset.hatDefId) {
       const hatSignature = preset.hatAffixSignature ?? getLegacyAffixSignature('hat', preset.hatEnchantmentId)
-      const idx = ownedHats.value.findIndex(h => h.defId === preset.hatDefId && getEntryAffixSignature('hat', h) === hatSignature)
+      const idx = ownedHats.value.findIndex(h => h.defId === preset.hatDefId && h.durability !== 0 && getEntryAffixSignature('hat', h) === hatSignature)
       if (idx >= 0) equipHat(idx)
       else {
         unequipHat()
@@ -1902,7 +2231,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 鞋子
     if (preset.shoeDefId) {
       const shoeSignature = preset.shoeAffixSignature ?? getLegacyAffixSignature('shoe', preset.shoeEnchantmentId)
-      const idx = ownedShoes.value.findIndex(s => s.defId === preset.shoeDefId && getEntryAffixSignature('shoe', s) === shoeSignature)
+      const idx = ownedShoes.value.findIndex(s => s.defId === preset.shoeDefId && s.durability !== 0 && getEntryAffixSignature('shoe', s) === shoeSignature)
       if (idx >= 0) equipShoe(idx)
       else {
         unequipShoe()
@@ -1994,13 +2323,19 @@ export const useInventoryStore = defineStore('inventory', () => {
         if (rawEnchantmentId && !enchantmentId) {
           pushEquipmentMigrationLog(`清空武器 ${defId} 的无效附魔：${rawEnchantmentId}。`)
         }
-        validWeapons.push({
-          defId,
-          enchantmentId: null,
-          affixes: normalizeForgeAffixesForTarget('weapon', rawWeapon.affixes, enchantmentId),
-          locked: readLockedFlag(rawWeapon),
-          rawIndex
-        })
+        {
+          const weaponDurability = typeof rawWeapon.durability === 'number' ? Math.max(0, rawWeapon.durability) : undefined
+          const wearProgress = readDurabilityWearProgress(rawWeapon)
+          validWeapons.push({
+            defId,
+            enchantmentId: null,
+            affixes: normalizeForgeAffixesForTarget('weapon', rawWeapon.affixes, enchantmentId),
+            locked: readLockedFlag(rawWeapon),
+            ...(weaponDurability != null ? { durability: weaponDurability } : {}),
+            ...(wearProgress != null ? { durabilityWearProgress: wearProgress } : {}),
+            rawIndex
+          })
+        }
       })
 
       if (validWeapons.length <= 0) {
@@ -2029,13 +2364,20 @@ export const useInventoryStore = defineStore('inventory', () => {
           return
         }
         const enchantmentId = normalizeEquipmentEnchantmentId('ring', (entry as { enchantmentId?: unknown }).enchantmentId, `戒指 ${defId}`)
-        validRings.push({
-          defId,
-          enchantmentId: null,
-          affixes: normalizeForgeAffixesForTarget('ring', (entry as { affixes?: unknown }).affixes, enchantmentId),
-          locked: readLockedFlag(entry as { locked?: unknown }),
-          rawIndex
-        })
+        {
+          const rawDurability = (entry as { durability?: unknown }).durability
+          const ringDurability = typeof rawDurability === 'number' ? Math.max(0, rawDurability) : undefined
+          const wearProgress = readDurabilityWearProgress(entry as { durabilityWearProgress?: unknown })
+          validRings.push({
+            defId,
+            enchantmentId: null,
+            affixes: normalizeForgeAffixesForTarget('ring', (entry as { affixes?: unknown }).affixes, enchantmentId),
+            locked: readLockedFlag(entry as { locked?: unknown }),
+            ...(ringDurability != null ? { durability: ringDurability } : {}),
+            ...(wearProgress != null ? { durabilityWearProgress: wearProgress } : {}),
+            rawIndex
+          })
+        }
       })
 
       const remapRingSlot = (slotValue: unknown, label: string) => {
@@ -2077,13 +2419,20 @@ export const useInventoryStore = defineStore('inventory', () => {
           return
         }
         const enchantmentId = normalizeEquipmentEnchantmentId(slot, (entry as { enchantmentId?: unknown }).enchantmentId, `${label} ${defId}`)
-        validEntries.push({
-          defId,
-          enchantmentId: null,
-          affixes: normalizeForgeAffixesForTarget(EQUIPMENT_SLOT_FORGE_TARGET[slot], (entry as { affixes?: unknown }).affixes, enchantmentId),
-          locked: readLockedFlag(entry as { locked?: unknown }),
-          rawIndex
-        })
+        {
+          const rawDurability = (entry as { durability?: unknown }).durability
+          const equipDurability = typeof rawDurability === 'number' ? Math.max(0, rawDurability) : undefined
+          const wearProgress = readDurabilityWearProgress(entry as { durabilityWearProgress?: unknown })
+          validEntries.push({
+            defId,
+            enchantmentId: null,
+            affixes: normalizeForgeAffixesForTarget(EQUIPMENT_SLOT_FORGE_TARGET[slot], (entry as { affixes?: unknown }).affixes, enchantmentId),
+            locked: readLockedFlag(entry as { locked?: unknown }),
+            ...(equipDurability != null ? { durability: equipDurability } : {}),
+            ...(wearProgress != null ? { durabilityWearProgress: wearProgress } : {}),
+            rawIndex
+          })
+        }
       })
       const remappedIndex = validEntries.findIndex(entry => entry.rawIndex === equippedRawIndex)
       if (equippedRawIndex >= 0 && remappedIndex < 0) {
@@ -2258,6 +2607,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     removeItemsWithRollback,
     getUnlockedItemCount,
     removeUnlockedItem,
+    removeItemForEating,
     removeItemAtIndex,
     removeUnlockedItemAtIndex,
     removeItemFromTemp,
@@ -2293,10 +2643,16 @@ export const useInventoryStore = defineStore('inventory', () => {
     isToolAvailable,
     startUpgrade,
     dailyUpgradeUpdate,
+    grantRandomIronToolUpgrade,
     getWeaponAttack,
     getWeaponCritRate,
     getEquippedWeaponAffixes,
     getWeaponAffixEffectValue,
+    getWeaponMaxDurability,
+    getRingMaxDurability,
+    getHatMaxDurability,
+    getShoeMaxDurability,
+    npcCustomEquipUnlocked,
     getEquippedWeapon,
     addWeapon,
     setWeaponAffixes,
@@ -2358,6 +2714,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     renameEquipmentPreset,
     saveCurrentToPreset,
     applyEquipmentPreset,
+    repairOwnedEquipment,
+    getOwnedEquipmentDurability,
+    repairLowestDurabilityEquipment,
     serialize,
     deserialize
   }

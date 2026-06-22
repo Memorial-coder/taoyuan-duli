@@ -13,6 +13,7 @@ import type {
   QuestThemeTag,
   QuestType,
   Quality,
+  ProcessedItemGroupId,
   OrderGenerationTraceAttempt,
   ReleaseChecklistItem,
   RelationshipStage,
@@ -33,6 +34,11 @@ import { getBreedById } from './pondBreeds'
 import { getItemById } from './items'
 import { SECRET_NOTES } from './secretNotes'
 import { isRelationshipStageAtLeast, NPC_VILLAGER_QUEST_PROFILES } from './npcWorld'
+import {
+  getProcessedItemDemandCandidates,
+  getProcessedItemGroupDef,
+  getProcessedItemGroupIdsForItem
+} from './processedItemGroups'
 
 // WS05 anchor: the quest pool and special orders already provide the base surface
 // for character-flavored orders, seasonal windows, and long-tail reward loops.
@@ -217,6 +223,8 @@ interface SpecialOrderTemplate {
   /** 活动来源 */
   activitySourceId?: string
   activitySourceLabel?: string
+  /** 按加工品分组登记的订单来源 */
+  processedItemGroupId?: ProcessedItemGroupId
   /** 单阶段 / 阶段链 / 组合交付 */
   orderStageType?: SpecialOrderStageType
   /** 阶段定义 */
@@ -621,8 +629,79 @@ export const createDefaultActivityQuestWindowState = (): ActivityQuestWindowStat
 export const CHILD_SPIRIT_SPECIAL_ORDER_ACTIVITY_SOURCE_ID = 'child_spirit_sweets'
 export const CHILD_SPIRIT_SPECIAL_ORDER_NPC_IDS = ['a_hua', 'shi_tou'] as const
 
+const PROCESSED_GROUP_SPECIAL_ORDER_SEEDS: {
+  groupId: ProcessedItemGroupId
+  itemId: string
+  orderName: string
+  npcId: string
+  quantity: number
+  tier: number
+  seasons?: Season[]
+  itemReward?: { itemId: string; quantity: number }[]
+  ticketReward?: Partial<Record<RewardTicketType, number>>
+}[] = [
+  { groupId: 'flour', itemId: 'rice_flour', orderName: '米粉糕点备料', npcId: 'liu_niang', quantity: 4, tier: 2, itemReward: [{ itemId: 'honey', quantity: 1 }], ticketReward: { caravan: 1 } },
+  { groupId: 'pickled', itemId: 'pickled_ginger', orderName: '节前腌姜小单', npcId: 'chen_bo', quantity: 3, tier: 2, itemReward: [{ itemId: 'rice_vinegar', quantity: 1 }], ticketReward: { exhibit: 1 } },
+  { groupId: 'dried', itemId: 'dried_crop_bundle', orderName: '冬储干货周转', npcId: 'lin_lao', quantity: 3, tier: 2, itemReward: [{ itemId: 'standard_bait', quantity: 6 }], ticketReward: { caravan: 1 } },
+  { groupId: 'sweet', itemId: 'honey', orderName: '茶席甜味补给', npcId: 'dan_qing', quantity: 4, tier: 2, itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }], ticketReward: { exhibit: 1 } },
+  { groupId: 'animal_processed', itemId: 'mayonnaise', orderName: '凉菜酱料备单', npcId: 'wang_dashen', quantity: 3, tier: 2, itemReward: [{ itemId: 'egg', quantity: 3 }], ticketReward: { caravan: 1 } },
+  { groupId: 'fish_processed', itemId: 'smoked_fish', orderName: '烟熏鱼行囊', npcId: 'qiu_yue', quantity: 3, tier: 3, itemReward: [{ itemId: 'fish_feed', quantity: 4 }], ticketReward: { research: 1 } },
+  { groupId: 'medicine_processed', itemId: 'herbal_paste', orderName: '药膏巡护备箱', npcId: 'lin_lao', quantity: 3, tier: 2, itemReward: [{ itemId: 'herb', quantity: 4 }], ticketReward: { research: 1 } },
+  { groupId: 'fermented', itemId: 'tavern_rice_wine', orderName: '夜席酒水备单', npcId: 'mo_bai', quantity: 4, tier: 3, itemReward: [{ itemId: 'processed_osmanthus_tea', quantity: 1 }], ticketReward: { exhibit: 1 } },
+  { groupId: 'tea', itemId: 'processed_osmanthus_tea', orderName: '待客茶盏补给', npcId: 'mo_bai', quantity: 3, tier: 2, itemReward: [{ itemId: 'osmanthus', quantity: 2 }], ticketReward: { exhibit: 1 } },
+  { groupId: 'tofu', itemId: 'tofu', orderName: '斋席豆制备料', npcId: 'wang_dashen', quantity: 4, tier: 2, itemReward: [{ itemId: 'sesame_powder', quantity: 2 }], ticketReward: { caravan: 1 } },
+  { groupId: 'feed', itemId: 'premium_feed', orderName: '牧场精饲调拨', npcId: 'da_niu', quantity: 4, tier: 2, itemReward: [{ itemId: 'hay', quantity: 8 }], ticketReward: { construction: 1 } },
+  { groupId: 'textile', itemId: 'cloth', orderName: '节棚布料修补', npcId: 'su_su', quantity: 3, tier: 2, itemReward: [{ itemId: 'silk_ribbon', quantity: 1 }], ticketReward: { construction: 1 } },
+  { groupId: 'incense', itemId: 'rustic_incense', orderName: '香案合香短单', npcId: 'xue_qin', quantity: 2, tier: 2, itemReward: [{ itemId: 'pine_resin', quantity: 2 }], ticketReward: { exhibit: 1 } },
+  { groupId: 'refined_material', itemId: 'bronze_bar', orderName: '工坊精材周转', npcId: 'sun_tiejiang', quantity: 3, tier: 3, itemReward: [{ itemId: 'charcoal', quantity: 3 }], ticketReward: { construction: 1 } }
+]
+
+const createProcessedGroupSpecialOrderTemplates = (): SpecialOrderTemplate[] =>
+  PROCESSED_GROUP_SPECIAL_ORDER_SEEDS.map(seed => {
+    const candidate = getProcessedItemDemandCandidates('quest', seed.groupId).find(entry => entry.itemId === seed.itemId)
+    const group = getProcessedItemGroupDef(seed.groupId)
+    const item = getItemById(seed.itemId)
+    const itemName = item?.name ?? seed.itemId
+    const groupLabel = group?.label ?? seed.groupId
+    const moneyReward = Math.max(600, Math.floor((item?.sellPrice ?? 120) * seed.quantity * (2 + seed.tier * 0.35)))
+    return {
+      name: seed.orderName,
+      targetItemId: candidate?.itemId ?? seed.itemId,
+      targetItemName: itemName,
+      quantity: seed.quantity,
+      days: 7,
+      moneyReward,
+      itemReward: seed.itemReward ?? [],
+      ticketReward: seed.ticketReward,
+      seasons: seed.seasons ?? [],
+      npcId: seed.npcId,
+      tier: seed.tier,
+      rewardProfileId: 'operations_mix',
+      orderVersion: '3.0',
+      activitySourceId: `processed_group_${seed.groupId}_${seed.itemId}`,
+      activitySourceLabel: `${groupLabel}周需`,
+      processedItemGroupId: seed.groupId,
+      orderStageType: 'single',
+      stageDefinitions: createSingleStageDefinitions({
+        title: `交付${groupLabel}`,
+        description: `本周按${groupLabel}分组抽取加工品需求，用于验证加工产物能进入周期消耗网络。`,
+        targetItemId: seed.itemId,
+        targetItemName: itemName,
+        quantity: seed.quantity
+      }),
+      orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+      antiRepeatTags: ['processed_group', seed.groupId, seed.itemId],
+      antiRepeatCooldownWeeks: 2,
+      bonusSummary: [
+        `来自加工分组「${groupLabel}」的周订单候选。`,
+        group?.summary ?? '后续可继续从同组候选物中扩展订单。'
+      ]
+    }
+  })
+
 /** 按梯度分层的特殊订单模板 */
 const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
+  ...createProcessedGroupSpecialOrderTemplates(),
   // === 第1梯度 (第7天): 简单, 7天时限, 数量少, 奖励适中 ===
   {
     name: '铜矿采购',
@@ -711,6 +790,36 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['winter'],
     npcId: 'chen_bo',
     tier: 2
+  },
+  {
+    name: '家常油料补给',
+    targetItemId: 'mixed_seed_oil',
+    targetItemName: '杂籽油',
+    quantity: 3,
+    days: 7,
+    moneyReward: 960,
+    itemReward: [{ itemId: 'rice_flour', quantity: 2 }],
+    ticketReward: { caravan: 1 },
+    seasons: [],
+    npcId: 'liu_niang',
+    tier: 2,
+    rewardProfileId: 'operations_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'linkage_oil_supply_week',
+    activitySourceLabel: '油料备餐周',
+    processedItemGroupId: 'oil',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '交付家常油料',
+      description: '村里把杂籽油列入备餐清单，要求能稳定送来几瓶通用食用油。',
+      targetItemId: 'mixed_seed_oil',
+      targetItemName: '杂籽油',
+      quantity: 3
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['linkage', 'oil', 'mixed_seed_oil'],
+    antiRepeatCooldownWeeks: 2,
+    bonusSummary: ['消耗隐藏榨油产物，补上油料加工品的周期出口。', '适合与杂油拌面、节庆油糕一起备货。']
   },
   {
     name: '翡翠萝卜尝鲜单',
@@ -2039,9 +2148,26 @@ const getSpecialOrderCropUseSummaries = (template: SpecialOrderTemplate): string
   return summaries
 }
 
+const getPrimaryProcessedItemGroupId = (itemId: string, explicitGroupId?: ProcessedItemGroupId): ProcessedItemGroupId | undefined =>
+  explicitGroupId ?? getProcessedItemGroupIdsForItem(itemId)[0]
+
+const getProcessedItemGroupSummary = (itemId: string, explicitGroupId?: ProcessedItemGroupId): string | undefined => {
+  const groupId = getPrimaryProcessedItemGroupId(itemId, explicitGroupId)
+  const group = groupId ? getProcessedItemGroupDef(groupId) : undefined
+  return group ? `加工分组：${group.label}` : undefined
+}
+
+const getProcessedItemGroupDemandHint = (itemId: string, explicitGroupId?: ProcessedItemGroupId): string | undefined => {
+  const groupId = getPrimaryProcessedItemGroupId(itemId, explicitGroupId)
+  const group = groupId ? getProcessedItemGroupDef(groupId) : undefined
+  return group ? `${group.label}池：${group.summary}` : undefined
+}
+
 const getVillagerQuestUseWeight = (template: VillagerQuestTemplate): number => {
   const profile = getCropUseProfile(template.targetItemId)
   const marketCategory = getQuestMarketCategoryByItemId(template.targetItemId)
+  const processedGroupId = getPrimaryProcessedItemGroupId(template.targetItemId, template.processedItemGroupId)
+  if (processedGroupId && (template.category === 'festival_prep' || template.category === 'cooking' || template.category === 'errand')) return 2
   if (!profile) {
     if (template.category === 'cooking' && (marketCategory === 'processed' || marketCategory === 'animal_product')) return 1
     if (template.category === 'festival_prep' && (marketCategory === 'processed' || marketCategory === 'animal_product' || marketCategory === 'fish')) return 1
@@ -2150,6 +2276,7 @@ interface VillagerQuestTemplate {
   buildingClueId?: string
   buildingClueText?: string
   sourceLabel?: string
+  processedItemGroupId?: ProcessedItemGroupId
   descriptionTemplate?: string
   rumorTask?: boolean
   ticketReward?: Partial<Record<RewardTicketType, number>>
@@ -2742,6 +2869,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     rewardMultiplier: 8,
     friendshipReward: 10,
     itemReward: [{ itemId: 'egg', quantity: 3 }],
+    processedItemGroupId: 'animal_processed',
     bonusSummary: ['家宴凉菜差一味拌酱，王大婶会把多余鸡蛋回你。']
   },
   {
@@ -2894,6 +3022,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     rewardMultiplier: 8,
     friendshipReward: 10,
     itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    processedItemGroupId: 'sweet',
     bonusSummary: ['她说蜂蜜能帮节前点心和待客茶都稳住口感。']
   },
   {
@@ -2909,6 +3038,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     rewardMultiplier: 9,
     friendshipReward: 12,
     itemReward: [{ itemId: 'processed_osmanthus_tea', quantity: 1 }],
+    processedItemGroupId: 'fermented',
     bonusSummary: ['墨白说夜里的席面酒和暖盏得同时到位，气氛才压得住。']
   },
   {
@@ -2924,6 +3054,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     rewardMultiplier: 9,
     friendshipReward: 10,
     itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }],
+    processedItemGroupId: 'tea',
     bonusSummary: ['墨白偏爱席前那一道清香热茶，拿来压住夜风最好。']
   },
   {
@@ -3456,6 +3587,8 @@ export const generateVillagerQuest = (
       : template.category === 'cooking'
         ? getCropUseTagMatchedSummary(template.targetItemId, ['food', 'order'])
         : getCropUseTagMatchedSummary(template.targetItemId, ['order'])
+  const processedGroupId = getPrimaryProcessedItemGroupId(template.targetItemId, template.processedItemGroupId)
+  const processedGroup = processedGroupId ? getProcessedItemGroupDef(processedGroupId) : undefined
 
   questCounter++
   return {
@@ -3485,6 +3618,8 @@ export const generateVillagerQuest = (
     accepted: false,
     sourceCategory: template.category,
     sourceLabel: template.sourceLabel,
+    processedItemGroupId: processedGroupId,
+    processedItemGroupLabel: processedGroup?.label,
     rumorTask: template.rumorTask,
     variantLabel: isRepeatVariant ? '熟客加急' : undefined,
     relationshipStageRequired: template.minStage,
@@ -3494,6 +3629,7 @@ export const generateVillagerQuest = (
     buildingClueText: template.buildingClueText,
     bonusSummary: [
       ...(template.bonusSummary ?? []),
+      ...(processedGroup ? [`加工分组：${processedGroup.label}。`] : []),
       ...(getQuestMinQualityLabel(template.minQuality) ? [`品质要求：${getQuestMinQualityLabel(template.minQuality)}。`] : []),
       ...(cropUseSummary ? [cropUseSummary] : []),
       ...(isRepeatVariant ? ['这是做过同类委托后的熟客加急版。'] : [])
@@ -3711,6 +3847,10 @@ export const generateSpecialOrder = (
     if (template.comboRequirements?.length) {
       summary.push(`组合交付：${template.comboRequirements.map(requirement => formatQuestRequirementTarget(requirement.itemName, requirement.quantity, requirement.minQuality)).join('、')}`)
     }
+    const processedGroupSummary = getProcessedItemGroupSummary(template.targetItemId, template.processedItemGroupId)
+    if (processedGroupSummary) {
+      summary.push(processedGroupSummary)
+    }
     return summary
   }
 
@@ -3840,9 +3980,15 @@ export const generateSpecialOrder = (
     const weightReasons = ['基础权重 1']
     const marketCategory = getQuestMarketCategoryByItemId(template.targetItemId)
     const cropUseSummaries = getSpecialOrderCropUseSummaries(template)
+    const processedGroupId = getPrimaryProcessedItemGroupId(template.targetItemId, template.processedItemGroupId)
+    const processedGroup = processedGroupId ? getProcessedItemGroupDef(processedGroupId) : undefined
     if (BREEDING_SPECIAL_ORDER_TUNING_CONFIG.featureFlags.themeWeekBiasEnabled && options?.preferredThemeTag && template.themeTag === options.preferredThemeTag) {
       weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredThemeWeightBonus
       weightReasons.push(`主题周偏好 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredThemeWeightBonus}`)
+    }
+    if (processedGroup) {
+      weight += 1
+      weightReasons.push(`加工分组 ${processedGroup.label} +1`)
     }
     if (cropUseSummaries.length > 0) {
       weight += 1
@@ -3889,23 +4035,32 @@ export const generateSpecialOrder = (
     candidateCount: candidateTraces.length,
     selectedTemplateName: template.name,
     selectedTargetItemId: template.targetItemId,
-    candidates: candidateTraces.map(candidate => ({
-      templateName: candidate.template.name,
-      targetItemId: candidate.template.targetItemId,
-      tier: candidate.template.tier,
-      themeTag: candidate.template.themeTag,
-      activitySourceId: candidate.template.activitySourceId,
-      requiredHybridId: candidate.template.requiredHybridId,
-      preferredSeasons: candidate.template.preferredSeasons,
-      finalWeight: candidate.finalWeight,
-      weightReasons: candidate.weightReasons
-    }))
+    candidates: candidateTraces.map(candidate => {
+      const processedItemGroupId = getPrimaryProcessedItemGroupId(candidate.template.targetItemId, candidate.template.processedItemGroupId)
+      const processedItemGroup = processedItemGroupId ? getProcessedItemGroupDef(processedItemGroupId) : undefined
+      return {
+        templateName: candidate.template.name,
+        targetItemId: candidate.template.targetItemId,
+        tier: candidate.template.tier,
+        themeTag: candidate.template.themeTag,
+        activitySourceId: candidate.template.activitySourceId,
+        processedItemGroupId,
+        processedItemGroupLabel: processedItemGroup?.label,
+        requiredHybridId: candidate.template.requiredHybridId,
+        preferredSeasons: candidate.template.preferredSeasons,
+        finalWeight: candidate.finalWeight,
+        weightReasons: candidate.weightReasons
+      }
+    })
   })
   const npcDef = getNpcById(template.npcId)
   const npcName = npcDef?.name ?? template.npcId
   const tierLabel = TIER_LABELS[clampedTier - 1]
   const specialOrderCropUseSummaries = getSpecialOrderCropUseSummaries(template)
-  const demandHints = [template.bonusSummary?.[0], ...specialOrderCropUseSummaries].filter((line): line is string => !!line)
+  const processedGroupId = getPrimaryProcessedItemGroupId(template.targetItemId, template.processedItemGroupId)
+  const processedGroup = processedGroupId ? getProcessedItemGroupDef(processedGroupId) : undefined
+  const processedGroupDemandHint = getProcessedItemGroupDemandHint(template.targetItemId, processedGroupId)
+  const demandHints = [template.bonusSummary?.[0], processedGroupDemandHint, ...specialOrderCropUseSummaries].filter((line): line is string => !!line)
   const rewardQuality = getSpecialOrderRewardQuality(template)
   const qualityRewardMultiplier = getQuestQualityRewardMultiplier(rewardQuality)
   const targetItemName = getQuestTargetNameWithMinQuality(template.targetItemName, template.minQuality)
@@ -3936,6 +4091,8 @@ export const generateSpecialOrder = (
     themeTag: template.themeTag,
     activitySourceId: template.activitySourceId,
     activitySourceLabel: template.activitySourceLabel,
+    processedItemGroupId: processedGroupId,
+    processedItemGroupLabel: processedGroup?.label,
     orderStageType: template.orderStageType,
     demandHint: demandHints.length > 0 ? demandHints.join('；') : undefined,
     stageDefinitions: cloneStageDefinitions(template.stageDefinitions),
@@ -3954,6 +4111,7 @@ export const generateSpecialOrder = (
     preferredSeasons: template.preferredSeasons,
     bonusSummary: [
       ...(template.bonusSummary ?? []),
+      ...(processedGroup ? [`加工分组：${processedGroup.label}。`] : []),
       ...(getQuestMinQualityLabel(rewardQuality) ? [`品质要求：${getQuestMinQualityLabel(rewardQuality)}。`] : []),
       ...specialOrderCropUseSummaries
     ],

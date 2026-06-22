@@ -452,7 +452,12 @@
                   <p class="text-[0.625rem] text-accent">{{ entry.label }}</p>
                   <p class="mt-1 text-[0.625rem] text-muted">{{ entry.category_label }} · 本周 +{{ entry.weekly_points }} 分</p>
                   <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
-                  <p class="mt-1 text-[0.625rem] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                  <div class="mt-1 flex flex-wrap gap-1.5 text-[0.625rem] text-muted">
+                    <span v-for="cost in entry.costs" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                      <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                      <span class="truncate">{{ cost.label }}</span>
+                    </span>
+                  </div>
                 </button>
               </div>
               <div
@@ -476,7 +481,13 @@
                   >
                     <p class="text-[0.625rem] text-warning">{{ entry.label }}</p>
                     <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
-                    <p class="mt-1 text-[0.625rem] text-muted">消耗：{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                    <div class="mt-1 flex flex-wrap gap-1.5 text-[0.625rem] text-muted">
+                      <span class="shrink-0">消耗：</span>
+                      <span v-for="cost in entry.costs" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                        <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                        <span class="truncate">{{ cost.label }}</span>
+                      </span>
+                    </div>
                     <p v-if="entry.room_preload_hint" class="mt-1 text-[0.625rem] leading-4 text-warning">{{ entry.room_preload_hint }}</p>
                     <p v-if="entry.asset_boundary" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.asset_boundary }}</p>
                   </button>
@@ -519,7 +530,8 @@
                 </div>
               </div>
               <div v-if="currentSociety.public_warehouse.items.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                <span v-for="entry in currentSociety.public_warehouse.items" :key="entry.item_id" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
+                <span v-for="entry in currentSociety.public_warehouse.items" :key="entry.item_id" class="inline-flex min-w-0 items-center gap-1 border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
+                  <ItemIcon :item="getItemById(entry.item_id)" size="xs" :show-badge="false" />
                   {{ entry.label }}
                 </span>
               </div>
@@ -1214,7 +1226,13 @@
           </div>
           <div v-if="selectedPublicProjectDetail && selectedPublicProjectDetail.recent_contributions.length > 0" class="mt-2 space-y-2">
             <div v-for="entry in selectedPublicProjectDetail.recent_contributions" :key="entry.id" class="text-[0.625rem] leading-4 text-muted">
-              {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ costListText(entry.costs) }}
+              <span>{{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · </span>
+              <span class="inline-flex flex-wrap gap-1.5">
+                <span v-for="cost in entry.costs" :key="`${entry.id}-${cost.label}`" class="inline-flex min-w-0 items-center gap-1">
+                  <ItemIcon v-if="getSocietyCostItem(cost)" :item="getSocietyCostItem(cost)" size="xs" :quality="societyCostQuality(cost)" :show-badge="false" />
+                  <span>{{ cost.label }}</span>
+                </span>
+              </span>
             </div>
           </div>
           <p v-else class="mt-2 text-[0.625rem] leading-4 text-muted">当前还没有新的贡献记录。</p>
@@ -1421,6 +1439,7 @@
       domain="society"
       title="邀请村社成员"
       description="可一次输入多个玩家名或存档 ID；已在村社里的玩家会被跳过，失败项可单独重试。"
+      :recent-players="societyInviteSelectablePlayers"
       :results="societyInviteResults"
       :busy="societyInviteBusy"
       @invite="inviteSocietyRecipients"
@@ -1544,14 +1563,20 @@
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineInvitePanel, {
+    type OnlineInviteRecentPlayer,
     type OnlineInviteResult,
   } from '@/components/game/online/OnlineInvitePanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
+  import { useSocialStore } from '@/stores/useSocialStore'
+  import { getItemById } from '@/data'
+  import type { OnlineRelationCard } from '@/utils/onlineProfileApi'
   import type { OnlineVisualAsyncProject, OnlineVisualAsyncStage } from '@/types/onlineVisual'
   import type {
     SocietyProjectCompletionRewardSnapshot,
+    SocietyCostEntry,
     SocietyProjectPackageSnapshot,
     SocietyPublicProjectSnapshot,
     SocietyProposalChoice,
@@ -1562,6 +1587,7 @@
     SocietyWarehouseLogSnapshot,
     SocietySnapshot,
   } from '@/utils/societyApi'
+  import type { ItemDef, Quality } from '@/types/item'
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
   type SocietyTabMeta = { key: SocietyTabKey; label: string; summary: string }
@@ -1570,6 +1596,7 @@
 
   const route = useRoute()
   const societyStore = useSocietyStore()
+  const socialStore = useSocialStore()
   const memberRoleDrafts = reactive<Record<string, Exclude<SocietyRole, 'president'>>>({})
   const proposalResolutionNotes = reactive<Record<string, string>>({})
   const selectedAsyncCommunityProjectId = ref('')
@@ -1678,6 +1705,14 @@
   })
   const activeCompletionRewardText = (rewards: SocietyProjectCompletionRewardSnapshot[] = []) =>
     rewards.filter(entry => entry.active).map(entry => entry.label).filter(Boolean).join(' / ')
+  const getSocietyCostItem = (cost: SocietyCostEntry): ItemDef | null => {
+    if (cost.type !== 'item' || !cost.item_id) return null
+    return getItemById(cost.item_id) ?? null
+  }
+  const societyCostQuality = (cost: SocietyCostEntry): Quality => {
+    const quality = String(cost.quality || 'normal')
+    return ['normal', 'fine', 'excellent', 'supreme'].includes(quality) ? quality as Quality : 'normal'
+  }
   const costListText = (costs: Array<{ label: string }> = []) =>
     costs.length > 0 ? costs.map(cost => cost.label).filter(Boolean).join(' + ') : '无需材料'
   const selectedWarehouseConsumeCostText = computed(() =>
@@ -1787,6 +1822,31 @@
       .map(value => value.trim().toLowerCase())
       .filter(Boolean)
   ))
+  const relationToSocietyInvitePlayer = (relation: OnlineRelationCard): OnlineInviteRecentPlayer | null => {
+    const profile = relation.profile
+    const username = profile.username.trim()
+    if (!username) return null
+    const alreadyMember = societyMemberInviteKeys.value.has(username.toLowerCase())
+    return {
+      id: `friend-${username}`,
+      username,
+      displayName: profile.display_name || profile.player_name || username,
+      group: 'friends',
+      subtitle: [
+        '好友',
+        profile.public_title || '',
+        profile.recent_activity || profile.season_progress || '',
+      ].filter(Boolean).join(' · '),
+      disabled: alreadyMember,
+      reason: alreadyMember ? '已在村社' : undefined,
+    }
+  }
+  const societyInviteSelectablePlayers = computed<OnlineInviteRecentPlayer[]>(() =>
+    socialStore.friends
+      .map(relationToSocietyInvitePlayer)
+      .filter((player): player is OnlineInviteRecentPlayer => Boolean(player))
+      .slice(0, 12)
+  )
   const hasSocietyAdminActions = computed(() => Boolean(
     currentSociety.value?.can_invite ||
     currentSociety.value?.can_review_requests ||
@@ -1899,7 +1959,10 @@
   })
 
   const refreshSocietyModule = async () => {
-    await societyStore.refreshOverview().catch(() => {})
+    await Promise.allSettled([
+      societyStore.refreshOverview(),
+      socialStore.refreshRelationships({ silent: true }),
+    ])
   }
 
   const getRouteQueryText = (value: unknown) => {

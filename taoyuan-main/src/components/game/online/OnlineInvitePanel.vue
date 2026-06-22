@@ -43,24 +43,48 @@
       </div>
 
       <section v-if="recentPlayers.length > 0 || $slots['recent-players']" class="space-y-2" aria-labelledby="online-invite-recent-title">
-        <p id="online-invite-recent-title" class="text-[0.625rem] leading-4 text-muted">最近联机</p>
+        <div class="flex items-center justify-between gap-2">
+          <p id="online-invite-recent-title" class="text-[0.625rem] leading-4 text-muted">可直接选择</p>
+          <span class="text-[0.625rem] leading-4 text-muted">{{ selectablePlayerCount }} 人可选</span>
+        </div>
         <slot name="recent-players" :recent-players="recentPlayers" :add="addRecentPlayer">
-          <div class="grid gap-2 sm:grid-cols-2" data-testid="online-invite-recent-list">
-            <button
-              v-for="player in recentPlayers"
-              :key="playerKey(player)"
-              type="button"
-              class="game-panel-muted min-h-[54px] p-2 text-left transition-colors"
-              :class="player.disabled ? 'opacity-60' : 'hover:border-accent/35'"
-              :disabled="busy || player.disabled"
-              :data-testid="`online-invite-recent-${playerKey(player)}`"
-              @click="addRecentPlayer(player)"
+          <div class="space-y-3" data-testid="online-invite-player-groups">
+            <section
+              v-for="group in invitePlayerGroups"
+              :key="group.id"
+              class="space-y-2"
+              :data-testid="`online-invite-player-group-${group.id}`"
             >
-              <span class="block truncate text-xs leading-5 text-accent">{{ player.displayName || player.username }}</span>
-              <span class="mt-0.5 block truncate text-[0.625rem] leading-4 text-muted">
-                {{ player.reason || player.subtitle || player.username }}
-              </span>
-            </button>
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[0.625rem] leading-4 text-accent">{{ group.label }}</p>
+                <span class="text-[0.625rem] leading-4 text-muted">{{ group.players.length }} 人</span>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2" data-testid="online-invite-recent-list">
+                <button
+                  v-for="player in group.players"
+                  :key="playerKey(player)"
+                  type="button"
+                  class="game-panel-muted min-h-[64px] p-2 text-left transition-colors"
+                  :class="getPlayerCardClass(player)"
+                  :disabled="!isPlayerSelectable(player)"
+                  :aria-pressed="isRecipientSelected(player)"
+                  :data-testid="`online-invite-recent-${playerKey(player)}`"
+                  @click="addRecentPlayer(player)"
+                >
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block truncate text-xs leading-5 text-accent">{{ player.displayName || player.username }}</span>
+                      <span class="mt-0.5 block truncate text-[0.625rem] leading-4 text-muted">
+                        {{ player.reason || player.subtitle || player.username }}
+                      </span>
+                    </span>
+                    <span class="shrink-0 border border-accent/15 px-1.5 py-0.5 text-[0.625rem] leading-4 text-muted">
+                      {{ getPlayerSelectionLabel(player) }}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </section>
           </div>
         </slot>
       </section>
@@ -162,6 +186,7 @@
 
   export type OnlineInviteDomain = 'festival' | 'expedition' | 'society' | 'neighbor' | 'room'
   export type OnlineInviteStatus = 'pending' | 'inviting' | 'invited' | 'failed' | 'already-in-room' | 'blocked'
+  export type OnlineInvitePlayerGroup = 'online-friends' | 'friends' | 'recent' | 'recommended' | 'blocked' | 'other'
 
   export type OnlineInviteExistingMember = {
     id?: string
@@ -178,6 +203,8 @@
     subtitle?: string
     disabled?: boolean
     reason?: string
+    group?: OnlineInvitePlayerGroup
+    groupLabel?: string
   }
 
   export type OnlineInviteResult = {
@@ -248,6 +275,65 @@
       .filter(Boolean)
   ))
 
+  const selectedRecipientKeys = computed(() => new Set(draftRecipients.value.map(normalizeRecipient).filter(Boolean)))
+
+  const invitePlayerGroupLabels: Record<OnlineInvitePlayerGroup, string> = {
+    'online-friends': '在线好友',
+    friends: '好友',
+    recent: '最近联机',
+    recommended: '推荐玩家',
+    blocked: '暂不可邀请',
+    other: '其他候选',
+  }
+  const invitePlayerGroupOrder: OnlineInvitePlayerGroup[] = ['online-friends', 'friends', 'recent', 'recommended', 'other', 'blocked']
+
+  const getPlayerGroupId = (player: OnlineInviteRecentPlayer): OnlineInvitePlayerGroup => {
+    if (player.group) return player.group
+    if (player.disabled) return 'blocked'
+    return 'recommended'
+  }
+
+  const getRecipientForPlayer = (player: OnlineInviteRecentPlayer) => player.username.trim()
+  const isExistingPlayer = (player: OnlineInviteRecentPlayer) => {
+    const recipient = normalizeRecipient(getRecipientForPlayer(player))
+    return existingMemberKeys.value.has(recipient) || existingMemberKeys.value.has(normalizeRecipient(player.displayName || ''))
+  }
+  const isRecipientSelected = (player: OnlineInviteRecentPlayer) =>
+    selectedRecipientKeys.value.has(normalizeRecipient(getRecipientForPlayer(player)))
+  const isPlayerSelectable = (player: OnlineInviteRecentPlayer) =>
+    !props.busy && !player.disabled && !isExistingPlayer(player) && !isRecipientSelected(player)
+
+  const getPlayerSelectionLabel = (player: OnlineInviteRecentPlayer) => {
+    if (isExistingPlayer(player)) return '已在房'
+    if (isRecipientSelected(player)) return '已选'
+    if (player.disabled) return '不可邀'
+    return '选择'
+  }
+
+  const getPlayerCardClass = (player: OnlineInviteRecentPlayer) => {
+    if (isExistingPlayer(player) || isRecipientSelected(player) || player.disabled) return 'opacity-60'
+    return 'hover:border-accent/35'
+  }
+
+  const invitePlayerGroups = computed(() => {
+    const groups = new Map<OnlineInvitePlayerGroup, OnlineInviteRecentPlayer[]>()
+    for (const player of props.recentPlayers) {
+      const groupId = getPlayerGroupId(player)
+      const list = groups.get(groupId) ?? []
+      list.push(player)
+      groups.set(groupId, list)
+    }
+    return invitePlayerGroupOrder
+      .filter(groupId => groups.has(groupId))
+      .map(groupId => ({
+        id: groupId,
+        label: groups.get(groupId)?.[0]?.groupLabel || invitePlayerGroupLabels[groupId],
+        players: groups.get(groupId) ?? [],
+      }))
+  })
+
+  const selectablePlayerCount = computed(() => props.recentPlayers.filter(isPlayerSelectable).length)
+
   const invitableRecipients = computed(() =>
     draftRecipients.value.filter(recipient => !existingMemberKeys.value.has(normalizeRecipient(recipient)))
   )
@@ -274,8 +360,8 @@
   }
 
   const addRecentPlayer = (player: OnlineInviteRecentPlayer) => {
-    if (props.busy || player.disabled) return
-    const recipient = player.username.trim()
+    if (!isPlayerSelectable(player)) return
+    const recipient = getRecipientForPlayer(player)
     if (!recipient) return
     const nextRecipients = [...draftRecipients.value]
     if (!nextRecipients.some(item => normalizeRecipient(item) === normalizeRecipient(recipient))) {

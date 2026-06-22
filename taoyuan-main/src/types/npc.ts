@@ -1,4 +1,6 @@
 import type { Season, Gender } from './game'
+import type { Quality } from './item'
+import type { ProcessedItemGroupId } from './itemLinkage'
 
 /** 好感度等级 */
 export type FriendshipLevel = 'stranger' | 'acquaintance' | 'friendly' | 'bestFriend'
@@ -89,6 +91,14 @@ export interface HouseholdDivisionState {
 export type FamilyWishCategory = 'household' | 'childcare' | 'social' | 'spirit'
 export type RelationshipEventChainStepType = 'trigger' | 'weekly' | 'settlement'
 
+export interface FamilyWishItemRequirement {
+  itemId: string
+  quantity: number
+  minQuality?: Quality
+  sourceHint?: string
+  sourceGroupId?: ProcessedItemGroupId
+}
+
 export interface RelationshipEventChainStep {
   id: string
   title: string
@@ -108,6 +118,7 @@ export interface FamilyWishDef {
   targetValue: number
   durationDays: number
   rewardSummary: string
+  itemRequirements?: FamilyWishItemRequirement[]
   reward?: RelationshipContentReward
   linkedNpcIds?: string[]
   recommendedRoleId?: HouseholdRoleId

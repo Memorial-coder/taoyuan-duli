@@ -38,6 +38,7 @@ export interface ProcessingMachineDef {
   craftCost: { itemId: string; quantity: number }[]
   craftMoney: number
   masteryRewardId?: string
+  npcFunctionEffectType?: string
   workshopLevelRequired?: number
   /** 完成后自动收取产物（默认 false，需手动收取） */
   autoCollect?: boolean
@@ -97,6 +98,7 @@ export interface ProcessingRecipeDef {
       workshopLevel?: number
       requiredItemId?: string
       masteryRewardId?: string
+      npcFunctionEffectType?: string
     }
     revealOn: 'collect'
     sharedEnabled?: boolean
@@ -108,7 +110,7 @@ export interface ProcessingRecipeDef {
   minInputQuality?: Quality
   /** 额外副材料（合金配方等多输入场景） */
   extraInputs?: { itemId: string; quantity: number }[]
-  outputItemId: string
+  outputItemId: string | null
   outputQuantity: number
   /** 加工天数 */
   processingDays: number
@@ -123,6 +125,10 @@ export interface ProcessingSlot {
   recipeId: string | null
   inputItemId: string | null
   inputQuality?: Quality
+  /** 修理台：标识要修理的装备实例 defId */
+  repairTargetId?: string
+  /** 修理台：装备类型 weapon/ring/hat/shoe */
+  repairTargetSlot?: string
   consumedInputs?: {
     requirementItemId?: string
     itemId: string

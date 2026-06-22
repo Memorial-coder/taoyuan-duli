@@ -128,6 +128,13 @@ assert(hanhaiViewSource.includes('formatShopCostLine'), 'Hanhai shop UI must dis
 assert(hanhaiViewSource.includes('hasEnoughShopCostItems'), 'Hanhai shop UI must pre-disable missing turquoise/material exchanges.')
 assert(hanhaiViewSource.includes('shopModalItem.costItems'), 'Hanhai shop modal must show extra cost item counts.')
 assert(hanhaiViewSource.includes('REWARD_TICKET_LABELS'), 'Relic reward text must include ticket reward labels.')
+assert(hanhaiViewSource.includes('hanhai-map-shell'), 'Hanhai page should keep the desert map shell as the primary unlocked layout.')
+assert(hanhaiViewSource.includes('type HanhaiMapNodeId ='), 'Hanhai page should model map nodes locally instead of reverting to three plain tabs.')
+for (const nodeId of ['shop', 'route', 'relic', 'casino', 'rotation']) {
+  assert(hanhaiViewSource.includes(`id: '${nodeId}'`), `Hanhai desert map should keep the ${nodeId} node.`)
+}
+assert(hanhaiViewSource.includes('hanhaiIntelCards'), 'Hanhai page should keep the compact journey intel strip.')
+assert(hanhaiViewSource.includes('selectedNodeHighlights'), 'Hanhai page should show selected-node decision highlights.')
 
 const cactusHybrid = breedingData.findPossibleHybrid('hanhai_cactus', 'supreme_origin_melon')
 const dateHybrid = breedingData.findPossibleHybrid('hanhai_date', 'vast_meng_melon')

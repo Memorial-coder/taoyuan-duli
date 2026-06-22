@@ -178,6 +178,27 @@ const withRandomSequence = (values, fn) => {
 }
 
 let farmStore = createFarmStore()
+assert(farmStore.tillPlot(7), 'field fractional-growth plot should be tillable')
+assert(farmStore.plantCrop(7, 'sweet_potato'), 'field fractional-growth plot should accept a 5-day crop')
+const fractionalSweetPotato = getCropById('sweet_potato')
+assert(
+  Number(getPlotEffectiveGrowthDays(farmStore.plots[7], fractionalSweetPotato, 0.33).toFixed(2)) === 3.35,
+  '33% crop growth bonus should keep a 3.35-day maturity threshold instead of rounding to 3 or 4'
+)
+withRandomSequence([0.99, 0.99, 0.99, 0.99], () => {
+  for (let i = 0; i < 3; i++) {
+    farmStore.plots[7].watered = true
+    farmStore.dailyUpdate(false, 0.33)
+    assert(farmStore.plots[7].growthDays === i + 1, `field fractional crop should grow by one progress day on day ${i + 1}`)
+    assert(farmStore.plots[7].state === 'growing', `field fractional crop should not mature before crossing 3.35 days: day ${i + 1}`)
+  }
+  farmStore.plots[7].watered = true
+  farmStore.dailyUpdate(false, 0.33)
+  assert(farmStore.plots[7].growthDays === 4, 'field fractional crop should keep integer daily progress when equipment growth is a threshold speedup')
+  assert(farmStore.plots[7].state === 'harvestable', 'field fractional crop should mature after crossing its fractional threshold')
+})
+
+farmStore = createFarmStore()
 assert(farmStore.tillPlot(0), 'field plot should be tillable')
 assert(farmStore.plantCrop(0, 'cabbage'), 'field plot should accept a normal crop')
 assert(farmStore.applyFertilizer(0, 'quality_fertilizer'), 'field plot should accept fertilizer')

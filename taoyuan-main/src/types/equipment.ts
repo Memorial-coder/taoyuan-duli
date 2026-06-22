@@ -28,6 +28,7 @@ export interface OwnedHat {
   affixes?: ForgeAffixRoll[]
   /** 耐久 */
   durability?: number
+  durabilityWearProgress?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }
@@ -58,6 +59,7 @@ export interface OwnedShoe {
   affixes?: ForgeAffixRoll[]
   /** 耐久 */
   durability?: number
+  durabilityWearProgress?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }

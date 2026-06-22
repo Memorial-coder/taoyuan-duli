@@ -136,7 +136,8 @@
             >
               <CircleCheck v-if="inventoryStore.hasItem(npcDef.bondItemId)" :size="10" />
               <Circle v-else :size="10" />
-              持有{{ getItemById(npcDef.bondItemId)?.name ?? npcDef.bondItemId }}
+              <ItemIcon :item="getItemById(npcDef.bondItemId)" size="xs" :show-badge="false" />
+              <span>持有{{ getItemById(npcDef.bondItemId)?.name ?? npcDef.bondItemId }}</span>
               <span class="text-muted/40">— {{ getBondItemHint }}</span>
             </span>
           </div>
@@ -159,7 +160,8 @@
             >
               <CircleCheck v-if="inventoryStore.hasItem(npcDef.courtshipItemId)" :size="10" />
               <Circle v-else :size="10" />
-              持有{{ getItemById(npcDef.courtshipItemId)?.name ?? npcDef.courtshipItemId }}
+              <ItemIcon :item="getItemById(npcDef.courtshipItemId)" size="xs" :show-badge="false" />
+              <span>持有{{ getItemById(npcDef.courtshipItemId)?.name ?? npcDef.courtshipItemId }}</span>
               <span class="text-muted/40">— {{ getCourtshipItemHint }}</span>
             </span>
           </div>
@@ -233,6 +235,7 @@
               @click="handleOffer(item.itemId, item.quality)"
             >
               <span class="flex items-center space-x-1">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality ?? 'normal'" />
                 <span class="text-xs" :class="qualityTextClass(item.quality)">
                   {{ getItemById(item.itemId)?.name }}
                 </span>
@@ -269,6 +272,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
   import { getItemById, getItemSource } from '@/data'
   import { formatDialoguePlaceholders } from '@/utils/dialoguePlaceholders'

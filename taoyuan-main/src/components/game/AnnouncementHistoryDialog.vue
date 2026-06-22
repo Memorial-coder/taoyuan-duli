@@ -76,7 +76,22 @@
             <div class="announcement-history-rich taoyuan-rich-markdown" v-html="renderBody(announcement.body)" />
             <div v-if="announcement.rewards.length" class="announcement-history-rewards">
               <span>公告奖励</span>
-              <strong>{{ announcement.rewards.map(rewardLabel).join(' / ') }}</strong>
+              <div class="announcement-history-reward-list">
+                <span
+                  v-for="(reward, rewardIndex) in announcement.rewards"
+                  :key="`${announcement.id}-history-reward-${reward.type}-${reward.id || rewardIndex}`"
+                  class="announcement-history-reward-item"
+                >
+                  <ItemIcon
+                    v-if="getRewardItem(reward)"
+                    :item="getRewardItem(reward)"
+                    size="xs"
+                    :quality="rewardQuality(reward)"
+                    :show-badge="false"
+                  />
+                  <span>{{ rewardLabel(reward) }}</span>
+                </span>
+              </div>
             </div>
             <Button
               v-if="announcement.cta_url"
@@ -98,8 +113,11 @@
   import { ref, watch } from 'vue'
   import { ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { getItemById } from '@/data/items'
   import { renderRichContent } from '@/utils/safeMarkdown'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
+  import type { ItemDef, Quality } from '@/types/item'
 
   const props = defineProps<{
     open: boolean
@@ -140,11 +158,33 @@
 
   const renderBody = (body: string) => renderRichContent(body || '')
 
+  const QUALITY_LABELS: Partial<Record<string, string>> = {
+    normal: '普通',
+    fine: '优良',
+    excellent: '精品',
+    supreme: '极品',
+  }
+
+  const getRewardItem = (reward: TaoyuanAnnouncement['rewards'][number]): ItemDef | null => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return null
+    return getItemById(String(reward.id || '')) ?? null
+  }
+
+  const rewardQuality = (reward: TaoyuanAnnouncement['rewards'][number]): Quality => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return 'normal'
+    const quality = String(reward.quality || 'normal')
+    return quality in QUALITY_LABELS ? quality as Quality : 'normal'
+  }
+
   const rewardLabel = (reward: TaoyuanAnnouncement['rewards'][number]) => {
     if (reward.type === 'money') return `铜钱 x${Number(reward.amount) || 0}`
     const quantity = Number(reward.quantity) || 0
-    const quality = reward.type === 'item' || reward.type === 'seed' ? `/${reward.quality || 'normal'}` : ''
-    return `${reward.type}:${reward.id || '-'} x${quantity}${quality}`
+    if (reward.type === 'item' || reward.type === 'seed') {
+      const item = getRewardItem(reward)
+      const quality = QUALITY_LABELS[rewardQuality(reward)] ? `/${QUALITY_LABELS[rewardQuality(reward)]}` : ''
+      return `${item?.name ?? reward.id ?? '-'} x${quantity}${quality}`
+    }
+    return `${reward.type}:${reward.id || '-'} x${quantity}`
   }
 
   const formatTime = (timestamp?: number | null) => {
@@ -366,7 +406,17 @@
     padding: 8px;
   }
 
-  .announcement-history-rewards strong {
+  .announcement-history-reward-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .announcement-history-reward-item {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
     color: rgb(var(--color-success));
     font-size: 0.75rem;
     line-height: 1.45;

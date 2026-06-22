@@ -72,9 +72,23 @@
                     <div>
                       <p class="friend-chat-gift-title">礼物包裹</p>
                       <p class="friend-chat-gift-meta">{{ message.gift.reward_count }} 项 · {{ formatGiftStatus(message) }}</p>
-                      <p v-if="getGiftContentText(message)" class="friend-chat-gift-rewards">
-                        {{ message.gift.is_claimed ? '已领取：' : '包含：' }}{{ getGiftContentText(message) }}
-                      </p>
+                      <div v-if="getGiftDisplayRewards(message).length > 0" class="friend-chat-gift-rewards">
+                        <span class="friend-chat-gift-rewards-prefix">{{ message.gift.is_claimed ? '已领取：' : '包含：' }}</span>
+                        <span
+                          v-for="(reward, rewardIndex) in getGiftDisplayRewards(message)"
+                          :key="`${message.id}-gift-reward-${reward.type}-${reward.id || rewardIndex}`"
+                          class="friend-chat-gift-reward-item"
+                        >
+                          <ItemIcon
+                            v-if="getGiftRewardItem(reward)"
+                            :item="getGiftRewardItem(reward)"
+                            size="xs"
+                            :quality="giftRewardQuality(reward)"
+                            :show-badge="false"
+                          />
+                          <span>{{ formatGiftReward(reward) }}</span>
+                        </span>
+                      </div>
                     </div>
                     <button
                       v-if="message.gift.can_claim"
@@ -146,6 +160,16 @@
                   :disabled="availableGiftOptions.length === 0"
                   @click="openGiftPicker(index)"
                 >
+                  <ItemIcon
+                    v-if="getGiftRewardButtonItem(reward)"
+                    :item="getGiftRewardButtonItem(reward)"
+                    size="xs"
+                    :quality="giftDraftQuality(reward)"
+                    :show-badge="false"
+                  />
+                  <span v-else-if="reward.id" class="friend-chat-owned-gift-picker-icon" aria-hidden="true">
+                    <Gift :size="13" />
+                  </span>
                   <span class="friend-chat-owned-gift-picker-copy">
                     <span class="friend-chat-owned-gift-picker-title">{{ getGiftRewardButtonTitle(reward) }}</span>
                     <span class="friend-chat-owned-gift-picker-meta">{{ getGiftRewardButtonMeta(reward, index) }}</span>
@@ -436,6 +460,16 @@
     return getGiftRewardOption(reward)?.name || reward.id
   }
 
+  const getGiftRewardButtonItem = (reward: PrivateChatRewardDraft): ItemDef | null => {
+    return getGiftRewardOption(reward)?.item ?? null
+  }
+
+  const giftDraftQuality = (reward: PrivateChatRewardDraft): Quality => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return 'normal'
+    const quality = String(reward.quality || 'normal')
+    return quality in QUALITY_SHORT_LABELS ? quality as Quality : 'normal'
+  }
+
   const getGiftRewardButtonMeta = (reward: PrivateChatRewardDraft, index: number) => {
     if (!reward.id) return '从背包中挑选，再填写数量'
     const option = getGiftRewardOption(reward)
@@ -619,17 +653,27 @@
     return `${rewardId || reward.type}×${quantity}`
   }
 
+  const getGiftRewardItem = (reward: PrivateChatGiftReward): ItemDef | null => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return null
+    return getItemById(String(reward.id || '')) ?? null
+  }
+
+  const giftRewardQuality = (reward: PrivateChatGiftReward): Quality => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return 'normal'
+    const quality = String(reward.quality || 'normal')
+    return quality in QUALITY_SHORT_LABELS ? quality as Quality : 'normal'
+  }
+
+  const getGiftDisplayRewards = (message: PrivateChatMessage): PrivateChatGiftReward[] => {
+    if (!message.gift) return []
+    return message.gift.is_claimed && message.gift.claimed_rewards?.length
+      ? message.gift.claimed_rewards
+      : message.gift.rewards ?? []
+  }
+
   const getGiftRewardListText = (rewards?: PrivateChatGiftReward[] | null) => {
     if (!Array.isArray(rewards) || rewards.length === 0) return ''
     return rewards.map(formatGiftReward).join('、')
-  }
-
-  const getGiftContentText = (message: PrivateChatMessage) => {
-    if (!message.gift) return ''
-    const rewards = message.gift.is_claimed && message.gift.claimed_rewards?.length
-      ? message.gift.claimed_rewards
-      : message.gift.rewards
-    return getGiftRewardListText(rewards)
   }
 
   onMounted(() => {
@@ -884,12 +928,27 @@
   }
 
   .friend-chat-gift-rewards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.35rem;
+    align-items: center;
     max-width: min(24rem, 62vw);
     margin-top: 0.15rem;
     color: rgb(var(--color-text));
     font-size: 0.6875rem;
     line-height: 1.1rem;
     overflow-wrap: anywhere;
+  }
+
+  .friend-chat-gift-rewards-prefix,
+  .friend-chat-gift-reward-item {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .friend-chat-gift-reward-item {
+    gap: 0.2rem;
   }
 
   .friend-chat-claim-btn {
@@ -1012,6 +1071,18 @@
   .friend-chat-owned-gift-picker:disabled {
     cursor: not-allowed;
     opacity: 0.58;
+  }
+
+  .friend-chat-owned-gift-picker-icon {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.18);
+    border-radius: 4px;
+    color: var(--color-muted);
   }
 
   .friend-chat-owned-gift-picker-copy {

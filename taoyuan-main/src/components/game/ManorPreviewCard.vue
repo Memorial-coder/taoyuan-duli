@@ -1,9 +1,16 @@
 <template>
-  <div v-if="snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
-    <div v-if="snapshot.cover_image_url" class="overflow-hidden rounded-xs border border-accent/10 bg-bg/10">
-      <img :src="snapshot.cover_image_url" :alt="snapshot.cover_image_alt || '庄园主图'" class="h-40 w-full object-cover" />
+  <div v-if="snapshot" class="game-panel manor-preview-card overflow-hidden border border-accent/10 p-0">
+    <div v-if="snapshot.cover_image_url" class="relative overflow-hidden border-b border-accent/10 bg-bg/10">
+      <img :src="snapshot.cover_image_url" :alt="snapshot.cover_image_alt || '庄园主图'" class="h-52 w-full object-cover" />
+      <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3">
+        <p class="max-w-full truncate text-sm text-accent">{{ snapshot.manor_name }}</p>
+        <p class="mt-1 max-w-full truncate text-[0.625rem] text-white/75">{{ snapshot.public_title }} · {{ snapshot.display_name }}</p>
+      </div>
     </div>
-    <div class="flex items-start justify-between gap-2">
+    <div v-else class="flex h-44 items-center justify-center border-b border-accent/10 bg-black/10 px-3 text-[0.625rem] text-muted">
+      暂无庄园主图
+    </div>
+    <div class="flex items-start justify-between gap-2 p-3">
       <div class="flex items-start gap-2 min-w-0">
         <img
           v-if="snapshot.avatar_image_url"
@@ -16,13 +23,13 @@
         <p class="text-[0.625rem] text-muted mt-1">{{ snapshot.public_title }} · {{ snapshot.display_name }}</p>
         </div>
       </div>
-      <div class="text-right">
+      <div class="shrink-0 text-right">
         <p class="text-[0.625rem] text-muted">{{ snapshot.season_progress }}</p>
         <p class="text-[0.625rem] text-muted mt-1">{{ templateLabel }}</p>
       </div>
     </div>
 
-    <div v-if="templateId === 'showcase'" class="grid grid-cols-2 gap-2 text-xs">
+    <div v-if="templateId === 'showcase'" class="grid grid-cols-2 gap-2 px-3 pb-3 text-xs">
       <div class="border border-accent/10 rounded-xs p-2">
         <p class="text-[0.625rem] text-muted">展示主题</p>
         <p class="text-accent mt-1">{{ snapshot.showcase_theme }}</p>
@@ -33,7 +40,7 @@
       </div>
     </div>
 
-    <div v-else-if="templateId === 'operational'" class="space-y-2 text-xs">
+    <div v-else-if="templateId === 'operational'" class="space-y-2 px-3 pb-3 text-xs">
       <div class="border border-accent/10 rounded-xs p-2">
         <p class="text-[0.625rem] text-muted">当前重点</p>
         <p class="mt-1">{{ snapshot.current_focus }}</p>
@@ -53,7 +60,7 @@
       </div>
     </div>
 
-    <div v-else-if="templateId === 'festival'" class="space-y-2 text-xs">
+    <div v-else-if="templateId === 'festival'" class="space-y-2 px-3 pb-3 text-xs">
       <div class="grid grid-cols-2 gap-2">
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-[0.625rem] text-muted">主题分</p>
@@ -74,7 +81,7 @@
       </div>
     </div>
 
-    <div v-else-if="templateId === 'collection'" class="space-y-2 text-xs">
+    <div v-else-if="templateId === 'collection'" class="space-y-2 px-3 pb-3 text-xs">
       <div class="border border-accent/10 rounded-xs p-2">
         <p class="text-[0.625rem] text-muted">收藏网络</p>
         <p class="mt-1">
@@ -93,7 +100,7 @@
       </div>
     </div>
 
-    <div v-else class="space-y-2 text-xs">
+    <div v-else class="space-y-2 px-3 pb-3 text-xs">
       <div class="border border-accent/10 rounded-xs p-2">
         <p class="text-[0.625rem] text-muted">故事主线</p>
         <p class="mt-1">{{ snapshot.current_focus }}</p>
@@ -108,7 +115,7 @@
       </div>
     </div>
 
-    <div class="border border-accent/10 rounded-xs p-2 text-xs">
+    <div class="mx-3 mb-3 border border-accent/10 rounded-xs p-2 text-xs">
       <p class="text-[0.625rem] text-muted">经营标签</p>
       <div class="flex flex-wrap gap-1 mt-1">
         <span

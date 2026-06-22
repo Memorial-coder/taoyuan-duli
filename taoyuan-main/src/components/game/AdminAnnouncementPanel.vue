@@ -158,11 +158,22 @@
             <input
               v-if="reward.type !== 'money'"
               v-model="reward.id"
+              :list="`reward-id-options-${index}`"
               maxlength="80"
               class="admin-input"
-              placeholder="奖励 ID，如 wood / seed_peach / wooden_stick"
+              placeholder="输入名称搜索或手动输入 ID"
               @blur="normalizeRewardRow(reward)"
             />
+            <datalist
+              v-if="reward.type !== 'money'"
+              :id="`reward-id-options-${index}`"
+            >
+              <option
+                v-for="opt in rewardOptions(reward.type)"
+                :key="opt.id"
+                :value="opt.id"
+              >{{ opt.name }} ({{ opt.id }})</option>
+            </datalist>
             <input
               v-if="reward.type === 'money'"
               v-model.number="reward.amount"
@@ -231,7 +242,22 @@
           <div class="announcement-preview-body taoyuan-rich-markdown" v-html="previewHtml" />
           <div v-if="form.rewards.length" class="announcement-preview-rewards" data-testid="announcement-reward-preview">
             <span>奖励</span>
-            <strong>{{ form.rewards.map(rewardLabel).join(' / ') }}</strong>
+            <div class="announcement-preview-reward-list">
+              <span
+                v-for="(reward, rewardIndex) in form.rewards"
+                :key="`preview-reward-${reward.type}-${reward.id || rewardIndex}`"
+                class="announcement-preview-reward-item"
+              >
+                <ItemIcon
+                  v-if="getRewardItem(reward)"
+                  :item="getRewardItem(reward)"
+                  size="xs"
+                  :quality="rewardQuality(reward)"
+                  :show-badge="false"
+                />
+                <span>{{ rewardLabel(reward) }}</span>
+              </span>
+            </div>
           </div>
           <div class="announcement-preview-actions">
             <span>{{ previewCloseButtonLabel }}</span>
@@ -312,6 +338,7 @@
   } from '@/utils/adminContentApi'
   import { getDefaultAnnouncementSaveUpdateButton } from '@/utils/announcementApi'
   import { showFloat } from '@/composables/useGameLog'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import type {
     AnnouncementReward,
     TaoyuanAnnouncement,
@@ -320,6 +347,13 @@
     TaoyuanAnnouncementStats,
     TaoyuanAnnouncementTemplate,
   } from '@/types/announcement'
+  import { ITEMS, getItemById } from '@/data/items'
+  import { WEAPONS } from '@/data/weapons'
+  import { RINGS } from '@/data/rings'
+  import { HATS } from '@/data/hats'
+  import { SHOES } from '@/data/shoes'
+  import { DECORATIONS } from '@/data/decorations'
+  import type { ItemDef, Quality } from '@/types/item'
 
   const props = defineProps<{
     canLoad: boolean
@@ -447,11 +481,58 @@
     form.value.rewards = form.value.rewards.filter((_, rewardIndex) => rewardIndex !== index)
   }
 
+  const QUALITY_LABELS: Partial<Record<string, string>> = {
+    normal: '普通',
+    fine: '优良',
+    excellent: '精品',
+    supreme: '极品',
+  }
+
+  const getRewardItem = (reward: AnnouncementReward): ItemDef | null => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return null
+    return getItemById(String(reward.id || '')) ?? null
+  }
+
+  const rewardQuality = (reward: AnnouncementReward): Quality => {
+    if (reward.type !== 'item' && reward.type !== 'seed') return 'normal'
+    const quality = String(reward.quality || 'normal')
+    return quality in QUALITY_LABELS ? quality as Quality : 'normal'
+  }
+
   const rewardLabel = (reward: AnnouncementReward) => {
     if (reward.type === 'money') return `铜钱 x${Math.max(0, Number(reward.amount) || 0)}`
     const count = Math.max(0, Number(reward.quantity) || 0)
-    const quality = reward.type === 'item' || reward.type === 'seed' ? `/${reward.quality || 'normal'}` : ''
-    return `${reward.type}:${reward.id || '-'} x${count}${quality}`
+    if (reward.type === 'item' || reward.type === 'seed') {
+      const item = getRewardItem(reward)
+      const quality = QUALITY_LABELS[rewardQuality(reward)] ? `/${QUALITY_LABELS[rewardQuality(reward)]}` : ''
+      return `${item?.name ?? reward.id ?? '-'} x${count}${quality}`
+    }
+    return `${reward.type}:${reward.id || '-'} x${count}`
+  }
+
+  const EXCLUDE_FROM_ITEM = new Set(['seed', 'weapon', 'hat', 'shoe', 'ring'])
+
+  const rewardOptions = (type: string): { id: string; name: string }[] => {
+    switch (type) {
+      case 'item':
+        return ITEMS.filter(item => !EXCLUDE_FROM_ITEM.has(item.category))
+          .map(item => ({ id: item.id, name: item.name }))
+      case 'seed':
+        return ITEMS.filter(item => item.category === 'seed')
+          .map(item => ({ id: item.id, name: item.name }))
+      case 'weapon':
+        return Object.values(WEAPONS).map(w => ({ id: w.id, name: w.name }))
+      case 'ring':
+        return RINGS.map(r => ({ id: r.id, name: r.name }))
+      case 'hat':
+        return HATS.map(h => ({ id: h.id, name: h.name }))
+      case 'shoe':
+        return SHOES.map(s => ({ id: s.id, name: s.name }))
+      case 'decoration':
+        return DECORATIONS.map(d => ({ id: d.id, name: d.name }))
+      default:
+        return []
+    }
   }
 
   const payloadFromForm = (): TaoyuanAnnouncementPayload => ({
@@ -905,7 +986,17 @@
     padding: 8px;
   }
 
-  .announcement-preview-rewards strong {
+  .announcement-preview-reward-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .announcement-preview-reward-item {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
     color: rgb(var(--color-success));
     font-size: 0.75rem;
     line-height: 1.45;

@@ -67,7 +67,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '村务任务刷新节奏提前 1 天，先作为可追踪解锁标记接入。',
     materialCost: [{ itemId: 'wood', quantity: 20 }],
     costMoney: 500,
-    effectType: 'village_quest_speed'
+    effectType: 'village_quest_speed',
+    effectPayload: { value: 1 }
   },
   {
     id: 'liu_cunzhang_T2_village_project_preview',
@@ -81,7 +82,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'copper_ore', quantity: 10 }
     ],
     costMoney: 800,
-    effectType: 'village_project_preview'
+    effectType: 'village_project_preview',
+    effectPayload: { value: 1 }
   },
   legacy('liu_cunzhang_T3_mayor_ticket_conversion', 'liu_cunzhang', 'T3', 'bestie', '村务票据兑换', '柳村长既有的村务票据兑换路径，本系统只记录为已有能力。', 'mayor_ticket_conversion'),
   {
@@ -93,7 +95,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '夜间采集成功率 +5%，先进入永久解锁状态。',
     materialCost: [{ itemId: 'firewood', quantity: 10 }],
     costMoney: 300,
-    effectType: 'night_gather_bonus'
+    effectType: 'night_gather_bonus',
+    effectPayload: { value: 5 }
   },
   {
     id: 'lao_song_T2_extra_night_action',
@@ -104,7 +107,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '22:00 后额外行动 1 次，后续接入行动结算。',
     materialCost: [{ itemId: 'iron_bar', quantity: 3 }],
     costMoney: 600,
-    effectType: 'extra_night_action'
+    effectType: 'extra_night_action',
+    effectPayload: { value: 1 }
   },
   {
     id: 'lao_song_T3_night_drop_bonus',
@@ -118,7 +122,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_bar', quantity: 5 }
     ],
     costMoney: 1200,
-    effectType: 'night_drop_bonus'
+    effectType: 'night_drop_bonus',
+    effectPayload: { value: 10 }
   },
   {
     id: 'he_zhanggui_T1_price_intel',
@@ -129,7 +134,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '每周随机 1 条商品价格波动消息，先接入解锁树。',
     materialCost: [{ itemId: 'tea', quantity: 5 }],
     costMoney: 400,
-    effectType: 'price_intel'
+    effectType: 'price_intel',
+    effectPayload: { value: 1 }
   },
   {
     id: 'he_zhanggui_T2_shop_discount_bonus',
@@ -140,7 +146,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '商店折扣额外 +3%，后续接入商店价格结算。',
     materialCost: [{ itemId: 'green_tea_drink', quantity: 3 }],
     costMoney: 1000,
-    effectType: 'shop_discount_bonus'
+    effectType: 'shop_discount_bonus',
+    effectPayload: { value: 3 }
   },
   {
     id: 'he_zhanggui_T3_rare_commission',
@@ -154,7 +161,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'osmanthus', quantity: 5 }
     ],
     costMoney: 2000,
-    effectType: 'rare_commission'
+    effectType: 'rare_commission',
+    effectPayload: { value: 1 }
   },
   {
     id: 'chen_bo_T1_bulk_buy',
@@ -165,7 +173,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '万物铺解锁批量购买入口，后续接入商店数量控件。',
     materialCost: [{ itemId: 'wood', quantity: 10 }],
     costMoney: 500,
-    effectType: 'bulk_buy'
+    effectType: 'bulk_buy',
+    effectPayload: { value: 1 }
   },
   {
     id: 'chen_bo_T2_rare_shop_stock',
@@ -179,7 +188,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'cloth', quantity: 3 }
     ],
     costMoney: 1000,
-    effectType: 'rare_shop_stock'
+    effectType: 'rare_shop_stock',
+    effectPayload: { value: 1 }
   },
   legacy('chen_bo_T3_trade_cache', 'chen_bo', 'T3', 'bestie', '万物铺代购', '陈伯既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -191,7 +201,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '解锁商路地图说明，后续接入旅行商提示。',
     materialCost: [{ itemId: 'bamboo', quantity: 8 }],
     costMoney: 400,
-    effectType: 'caravan_map'
+    effectType: 'caravan_map',
+    effectPayload: { value: 1 }
   },
   {
     id: 'ma_liu_T2_caravan_alert',
@@ -205,7 +216,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'cloth', quantity: 2 }
     ],
     costMoney: 800,
-    effectType: 'caravan_alert'
+    effectType: 'caravan_alert',
+    effectPayload: { value: 1 }
   },
   {
     id: 'ma_liu_T3_caravan_preorder',
@@ -219,7 +231,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_bar', quantity: 5 }
     ],
     costMoney: 2000,
-    effectType: 'caravan_preorder'
+    effectType: 'caravan_preorder',
+    effectPayload: { value: 1 }
   },
   {
     id: 'wu_shen_T1_proxy_buy',
@@ -230,7 +243,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '帮忙代购基础消耗品，先进入解锁框架。',
     materialCost: [{ itemId: 'wood', quantity: 10 }],
     costMoney: 300,
-    effectType: 'proxy_buy'
+    effectType: 'proxy_buy',
+    effectPayload: { value: 1 }
   },
   {
     id: 'wu_shen_T2_extra_warehouse',
@@ -244,7 +258,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_bar', quantity: 2 }
     ],
     costMoney: 1500,
-    effectType: 'extra_warehouse'
+    effectType: 'extra_warehouse',
+    effectPayload: { value: 6 }
   },
   {
     id: 'wu_shen_T3_rare_consumable',
@@ -258,7 +273,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_bar', quantity: 3 }
     ],
     costMoney: 2000,
-    effectType: 'rare_consumable'
+    effectType: 'rare_consumable',
+    effectPayload: { value: 1 }
   },
   legacy('da_niu_T1_barn_feed', 'da_niu', 'T1', 'familiar', '牧场草料', '大牛既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -273,7 +289,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'milk', quantity: 5 }
     ],
     costMoney: 1000,
-    effectType: 'animal_mood_slow'
+    effectType: 'animal_mood_slow',
+    effectPayload: { value: 20 }
   },
   {
     id: 'da_niu_T3_breeding_boost',
@@ -287,7 +304,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'goat_milk', quantity: 3 }
     ],
     costMoney: 2500,
-    effectType: 'breeding_boost'
+    effectType: 'breeding_boost',
+    effectPayload: { value: 15 }
   },
   {
     id: 'da_niu_T4_spouse_animal_boost',
@@ -298,7 +316,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '动物产出品质 +1 级，保留为婚后功能标记。',
     materialCost: [{ itemId: 'ornamental_feed', quantity: 5 }],
     costMoney: 5000,
-    effectType: 'spouse_animal_boost'
+    effectType: 'spouse_animal_boost',
+    effectPayload: { value: 1 }
   },
   {
     id: 'qin_dashu_T1_orchard_care',
@@ -309,7 +328,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '浇水效率 +1，果实产量 +10%，先记录为功能标记。',
     materialCost: [{ itemId: 'wood', quantity: 10 }],
     costMoney: 500,
-    effectType: 'orchard_care'
+    effectType: 'orchard_care',
+    effectPayload: { value: 10 }
   },
   {
     id: 'qin_dashu_T2_grafting',
@@ -323,7 +343,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'copper_bar', quantity: 5 }
     ],
     costMoney: 1500,
-    effectType: 'grafting'
+    effectType: 'grafting',
+    effectPayload: { value: 1 }
   },
   {
     id: 'qin_dashu_T3_rare_sapling',
@@ -337,7 +358,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'wood', quantity: 30 }
     ],
     costMoney: 3000,
-    effectType: 'rare_sapling'
+    effectType: 'rare_sapling',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_fu_T1_auto_animal_affection',
@@ -348,7 +370,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '动物每天自动 +3 好感，后续接入畜牧日结。',
     materialCost: [{ itemId: 'hay', quantity: 10 }],
     costMoney: 200,
-    effectType: 'auto_animal_affection'
+    effectType: 'auto_animal_affection',
+    effectPayload: { value: 3 }
   },
   {
     id: 'a_fu_T2_animal_tracker',
@@ -362,7 +385,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk', quantity: 3 }
     ],
     costMoney: 500,
-    effectType: 'animal_tracker'
+    effectType: 'animal_tracker',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_fu_T3_pasture_discovery',
@@ -376,7 +400,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'hay', quantity: 20 }
     ],
     costMoney: 1500,
-    effectType: 'pasture_discovery'
+    effectType: 'pasture_discovery',
+    effectPayload: { value: 5 }
   },
   legacy('a_shi_T1_mine_brace', 'a_shi', 'T1', 'familiar', '矿料支持', '阿石既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -391,7 +416,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'wood', quantity: 20 }
     ],
     costMoney: 1500,
-    effectType: 'mine_extra_node'
+    effectType: 'mine_extra_node',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_shi_T3_mine_floor_hint',
@@ -405,7 +431,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_ore', quantity: 1 }
     ],
     costMoney: 3000,
-    effectType: 'mine_floor_hint'
+    effectType: 'mine_floor_hint',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_shi_T4_zhiji_mine_boost',
@@ -416,7 +443,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '知己同行矿洞体力 -20%，掉落 +15%。',
     materialCost: [{ itemId: 'crystal_ore', quantity: 5 }],
     costMoney: 4000,
-    effectType: 'zhiji_mine_boost'
+    effectType: 'zhiji_mine_boost',
+    effectPayload: { value: 20 }
   },
   legacy('sun_tiejiang_T1_forge_stock', 'sun_tiejiang', 'T1', 'familiar', '锻炉余料', '孙铁匠既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -431,7 +459,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_ore', quantity: 10 }
     ],
     costMoney: 1500,
-    effectType: 'forge_success_boost'
+    effectType: 'forge_success_boost',
+    effectPayload: { value: 10 }
   },
   {
     id: 'sun_tiejiang_T3_premium_forge',
@@ -446,7 +475,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'obsidian', quantity: 2 }
     ],
     costMoney: 4000,
-    effectType: 'premium_forge'
+    effectType: 'premium_forge',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_tie_T1_free_tool_repair',
@@ -457,7 +487,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '每 7 天免费修复 1 件工具。',
     materialCost: [{ itemId: 'copper_ore', quantity: 5 }],
     costMoney: 300,
-    effectType: 'free_tool_repair'
+    effectType: 'free_tool_repair',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_tie_T2_forge_speed',
@@ -471,7 +502,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'wood', quantity: 10 }
     ],
     costMoney: 1000,
-    effectType: 'forge_speed'
+    effectType: 'forge_speed',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_tie_T3_apprentice_craft',
@@ -485,7 +517,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'copper_bar', quantity: 5 }
     ],
     costMoney: 2500,
-    effectType: 'apprentice_craft'
+    effectType: 'apprentice_craft',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_tie_T4_spouse_forge_bonus',
@@ -496,7 +529,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '夫妻共同锻造额外产出 1 件副产品。',
     materialCost: [{ itemId: 'crystal_ore', quantity: 3 }],
     costMoney: 5000,
-    effectType: 'spouse_forge_bonus'
+    effectType: 'spouse_forge_bonus',
+    effectPayload: { value: 1 }
   },
   legacy('qiu_yue_T1_bait_bundle', 'qiu_yue', 'T1', 'familiar', '渔汛饵包', '秋月既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -508,7 +542,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '显示当前水域稀有鱼概率。',
     materialCost: [{ itemId: 'standard_bait', quantity: 20 }],
     costMoney: 800,
-    effectType: 'fish_odds_display'
+    effectType: 'fish_odds_display',
+    effectPayload: { value: 1 }
   },
   {
     id: 'qiu_yue_T3_tackle_maintain',
@@ -522,7 +557,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_bar', quantity: 2 }
     ],
     costMoney: 2000,
-    effectType: 'tackle_maintain'
+    effectType: 'tackle_maintain',
+    effectPayload: { value: 30 }
   },
   {
     id: 'qiu_yue_T4_spouse_fishing_boost',
@@ -533,7 +569,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '夫妻同钓双倍经验，稀有鱼 +20%。',
     materialCost: [{ itemId: 'fish_feed', quantity: 10 }],
     costMoney: 4000,
-    effectType: 'spouse_fishing_boost'
+    effectType: 'spouse_fishing_boost',
+    effectPayload: { value: 20 }
   },
   {
     id: 'li_yu_T1_fishing_easy',
@@ -544,7 +581,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '钓鱼小游戏难度 -10%。',
     materialCost: [{ itemId: 'bamboo', quantity: 10 }],
     costMoney: 400,
-    effectType: 'fishing_easy'
+    effectType: 'fishing_easy',
+    effectPayload: { value: 10 }
   },
   {
     id: 'li_yu_T2_secret_fishing_style',
@@ -558,7 +596,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'wild_mushroom', quantity: 10 }
     ],
     costMoney: 1200,
-    effectType: 'secret_fishing_style'
+    effectType: 'secret_fishing_style',
+    effectPayload: { value: 30 }
   },
   {
     id: 'li_yu_T3_deep_water_spot',
@@ -572,7 +611,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'standard_bait', quantity: 30 }
     ],
     costMoney: 3000,
-    effectType: 'deep_water_spot'
+    effectType: 'deep_water_spot',
+    effectPayload: { value: 1 }
   },
   legacy('lin_lao_T1_tonic_pack', 'lin_lao', 'T1', 'familiar', '药圃调养包', '林老既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -587,7 +627,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'ginseng', quantity: 2 }
     ],
     costMoney: 1500,
-    effectType: 'daily_stamina_regen'
+    effectType: 'daily_stamina_regen',
+    effectPayload: { value: 5 }
   },
   {
     id: 'lin_lao_T3_hot_spring_boost',
@@ -602,7 +643,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'antler_velvet', quantity: 1 }
     ],
     costMoney: 3000,
-    effectType: 'hot_spring_boost'
+    effectType: 'hot_spring_boost',
+    effectPayload: { value: 50 }
   },
   {
     id: 'qian_niang_T1_herb_preorder',
@@ -613,7 +655,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '药铺解锁代购功能，先作为状态标记。',
     materialCost: [{ itemId: 'herb', quantity: 10 }],
     costMoney: 500,
-    effectType: 'herb_preorder'
+    effectType: 'herb_preorder',
+    effectPayload: { value: 1 }
   },
   {
     id: 'qian_niang_T2_herb_craft_boost',
@@ -627,7 +670,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'ginseng', quantity: 3 }
     ],
     costMoney: 1500,
-    effectType: 'herb_craft_boost'
+    effectType: 'herb_craft_boost',
+    effectPayload: { value: 20 }
   },
   {
     id: 'qian_niang_T3_rare_herb_channel',
@@ -641,7 +685,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'ginseng_extract', quantity: 2 }
     ],
     costMoney: 3500,
-    effectType: 'rare_herb_channel'
+    effectType: 'rare_herb_channel',
+    effectPayload: { value: 1 }
   },
   legacy('su_su_T1_tailor_bundle', 'su_su', 'T1', 'familiar', '裁缝补给', '素素既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -656,7 +701,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk', quantity: 5 }
     ],
     costMoney: 1200,
-    effectType: 'equip_durability'
+    effectType: 'equip_durability',
+    effectPayload: { value: 20 }
   },
   {
     id: 'su_su_T3_custom_equip',
@@ -670,7 +716,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_bar', quantity: 1 }
     ],
     costMoney: 3000,
-    effectType: 'custom_equip'
+    effectType: 'custom_equip',
+    effectPayload: { value: 1 }
   },
   {
     id: 'su_su_T4_spouse_equip_bonus',
@@ -684,7 +731,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_ore', quantity: 2 }
     ],
     costMoney: 5000,
-    effectType: 'spouse_equip_bonus'
+    effectType: 'spouse_equip_bonus',
+    effectPayload: { value: 15 }
   },
   {
     id: 'zhang_popo_T1_cloth_speed',
@@ -695,7 +743,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '布料加工速度 +20%，先进入解锁状态。',
     materialCost: [{ itemId: 'wool', quantity: 10 }],
     costMoney: 300,
-    effectType: 'cloth_speed'
+    effectType: 'cloth_speed',
+    effectPayload: { value: 20 }
   },
   {
     id: 'zhang_popo_T2_free_cloth_repair',
@@ -709,7 +758,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk', quantity: 5 }
     ],
     costMoney: 800,
-    effectType: 'free_cloth_repair'
+    effectType: 'free_cloth_repair',
+    effectPayload: { value: 1 }
   },
   {
     id: 'zhang_popo_T3_ancient_weave',
@@ -723,7 +773,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk_cloth', quantity: 3 }
     ],
     costMoney: 2500,
-    effectType: 'ancient_weave'
+    effectType: 'ancient_weave',
+    effectPayload: { value: 1 }
   },
   {
     id: 'hui_niang_T1_embroidery_craft',
@@ -734,7 +785,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '解锁定制绣样功能。',
     materialCost: [{ itemId: 'silk', quantity: 10 }],
     costMoney: 500,
-    effectType: 'embroidery_craft'
+    effectType: 'embroidery_craft',
+    effectPayload: { value: 1 }
   },
   {
     id: 'hui_niang_T2_embroidery_boost',
@@ -748,7 +800,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_bar', quantity: 2 }
     ],
     costMoney: 1500,
-    effectType: 'embroidery_boost'
+    effectType: 'embroidery_boost',
+    effectPayload: { value: 10 }
   },
   {
     id: 'hui_niang_T3_premium_embroidery',
@@ -762,7 +815,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_bar', quantity: 5 }
     ],
     costMoney: 3500,
-    effectType: 'premium_embroidery'
+    effectType: 'premium_embroidery',
+    effectPayload: { value: 1 }
   },
   legacy('wang_dashen_T1_banquet_prep', 'wang_dashen', 'T1', 'familiar', '宴席备料', '王大婶既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -777,7 +831,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'rice', quantity: 5 }
     ],
     costMoney: 1000,
-    effectType: 'cook_success_boost'
+    effectType: 'cook_success_boost',
+    effectPayload: { value: 15 }
   },
   {
     id: 'wang_dashen_T3_secret_recipes',
@@ -792,7 +847,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'sesame_powder', quantity: 3 }
     ],
     costMoney: 3000,
-    effectType: 'secret_recipes'
+    effectType: 'secret_recipes',
+    effectPayload: { value: 1 }
   },
   {
     id: 'pang_shen_T1_daily_tofu',
@@ -803,7 +859,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '每日可领取 1 份基础豆腐。',
     materialCost: [{ itemId: 'broad_bean', quantity: 10 }],
     costMoney: 200,
-    effectType: 'daily_tofu'
+    effectType: 'daily_tofu',
+    effectPayload: { value: 1 }
   },
   {
     id: 'pang_shen_T2_tofu_workshop',
@@ -817,7 +874,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'stone', quantity: 10 }
     ],
     costMoney: 800,
-    effectType: 'tofu_workshop'
+    effectType: 'tofu_workshop',
+    effectPayload: { value: 1 }
   },
   {
     id: 'pang_shen_T3_festival_tofu_feast',
@@ -831,7 +889,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'ginseng_extract', quantity: 1 }
     ],
     costMoney: 2000,
-    effectType: 'festival_tofu_feast'
+    effectType: 'festival_tofu_feast',
+    effectPayload: { value: 5 }
   },
   {
     id: 'lao_lu_T1_wine_cellar',
@@ -842,7 +901,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '解锁 +12 格酒类存储，先建立状态标记。',
     materialCost: [{ itemId: 'wood', quantity: 15 }],
     costMoney: 500,
-    effectType: 'wine_cellar'
+    effectType: 'wine_cellar',
+    effectPayload: { value: 12 }
   },
   {
     id: 'lao_lu_T2_wine_aging_boost',
@@ -856,7 +916,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'bamboo', quantity: 10 }
     ],
     costMoney: 1200,
-    effectType: 'wine_aging_boost'
+    effectType: 'wine_aging_boost',
+    effectPayload: { value: 20 }
   },
   {
     id: 'lao_lu_T3_rare_wine',
@@ -870,7 +931,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'osmanthus', quantity: 15 }
     ],
     costMoney: 3000,
-    effectType: 'rare_wine'
+    effectType: 'rare_wine',
+    effectPayload: { value: 1 }
   },
   legacy('chun_lan_T1_tea_pack', 'chun_lan', 'T1', 'familiar', '茶庄点心', '春兰既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -885,7 +947,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'honey', quantity: 3 }
     ],
     costMoney: 1200,
-    effectType: 'tea_ceremony'
+    effectType: 'tea_ceremony',
+    effectPayload: { value: 20 }
   },
   {
     id: 'chun_lan_T3_private_tea',
@@ -899,7 +962,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'ginseng_extract', quantity: 1 }
     ],
     costMoney: 3000,
-    effectType: 'private_tea'
+    effectType: 'private_tea',
+    effectPayload: { value: 1 }
   },
   {
     id: 'chun_lan_T4_spouse_tea_bonus',
@@ -910,7 +974,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: '配偶同行茶饮效果 +50%。',
     materialCost: [{ itemId: 'ginseng_tea', quantity: 5 }],
     costMoney: 5000,
-    effectType: 'spouse_tea_bonus'
+    effectType: 'spouse_tea_bonus',
+    effectPayload: { value: 50 }
   },
   legacy('xue_qin_T1_gallery_supplies', 'xue_qin', 'T1', 'familiar', '画室陈列', '雪芹既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -925,7 +990,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'cloth', quantity: 3 }
     ],
     costMoney: 1500,
-    effectType: 'farmhouse_portrait'
+    effectType: 'farmhouse_portrait',
+    effectPayload: { value: 2 }
   },
   {
     id: 'xue_qin_T3_scenic_paintings',
@@ -939,7 +1005,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_bar', quantity: 3 }
     ],
     costMoney: 3500,
-    effectType: 'scenic_paintings'
+    effectType: 'scenic_paintings',
+    effectPayload: { value: 3 }
   },
   legacy('dan_qing_T1_letter_gathering', 'dan_qing', 'T1', 'familiar', '文会名帖', '丹青既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -954,7 +1021,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'charcoal', quantity: 5 }
     ],
     costMoney: 1200,
-    effectType: 'calligraphy'
+    effectType: 'calligraphy',
+    effectPayload: { value: 1 }
   },
   {
     id: 'dan_qing_T3_letter_writing',
@@ -968,7 +1036,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'paper', quantity: 20 }
     ],
     costMoney: 2500,
-    effectType: 'letter_writing'
+    effectType: 'letter_writing',
+    effectPayload: { value: 1 }
   },
   legacy('mo_bai_T1_night_song', 'mo_bai', 'T1', 'familiar', '夜曲润喉茶', '墨白既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -983,7 +1052,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk', quantity: 5 }
     ],
     costMoney: 1200,
-    effectType: 'festival_music'
+    effectType: 'festival_music',
+    effectPayload: { value: 20 }
   },
   {
     id: 'mo_bai_T3_special_perform',
@@ -997,7 +1067,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_bar', quantity: 3 }
     ],
     costMoney: 3000,
-    effectType: 'special_perform'
+    effectType: 'special_perform',
+    effectPayload: { value: 5 }
   },
   legacy('zhao_mujiang_T1_workshop_pack', 'zhao_mujiang', 'T1', 'familiar', '木工整料', '赵木匠既有每周帮办，本系统记录为已有能力。', 'npc_active_service'),
   {
@@ -1012,7 +1083,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'copper_bar', quantity: 3 }
     ],
     costMoney: 1500,
-    effectType: 'build_speed'
+    effectType: 'build_speed',
+    effectPayload: { value: 15 }
   },
   {
     id: 'zhao_mujiang_T3_custom_furniture',
@@ -1026,7 +1098,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_ore', quantity: 1 }
     ],
     costMoney: 3500,
-    effectType: 'custom_furniture'
+    effectType: 'custom_furniture',
+    effectPayload: { value: 1 }
   },
   legacy('xiao_man_T1_tool_upgrade', 'xiao_man', 'T1', 'familiar', '工具升级', '小满已有工具升级路径，本系统只补解锁展示。', 'tool_upgrade_existing'),
   {
@@ -1041,7 +1114,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'iron_bar', quantity: 2 }
     ],
     costMoney: 1000,
-    effectType: 'tool_upgrade_speed'
+    effectType: 'tool_upgrade_speed',
+    effectPayload: { value: 1 }
   },
   {
     id: 'xiao_man_T3_tool_bonus_slot',
@@ -1055,7 +1129,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'gold_ore', quantity: 1 }
     ],
     costMoney: 3000,
-    effectType: 'tool_bonus_slot'
+    effectType: 'tool_bonus_slot',
+    effectPayload: { value: 1 }
   },
   {
     id: 'shi_tou_T1_herb_gather_bonus',
@@ -1069,7 +1144,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'fine_candied_fruit', quantity: 3 }
     ],
     costMoney: 200,
-    effectType: 'herb_gather_bonus'
+    effectType: 'herb_gather_bonus',
+    effectPayload: { value: 1 }
   },
   {
     id: 'shi_tou_T2_hidden_gather_spots',
@@ -1083,7 +1159,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'wood', quantity: 5 }
     ],
     costMoney: 500,
-    effectType: 'hidden_gather_spots'
+    effectType: 'hidden_gather_spots',
+    effectPayload: { value: 3 }
   },
   {
     id: 'shi_tou_T3_weekly_rare_hint',
@@ -1097,7 +1174,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'bamboo', quantity: 10 }
     ],
     costMoney: 1500,
-    effectType: 'weekly_rare_hint'
+    effectType: 'weekly_rare_hint',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_hua_T1_errand_bonus',
@@ -1108,7 +1186,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     summary: 'NPC 好感获取 +3，后续接入关系增长。',
     materialCost: [{ itemId: 'fine_candied_fruit', quantity: 3 }],
     costMoney: 200,
-    effectType: 'errand_bonus'
+    effectType: 'errand_bonus',
+    effectPayload: { value: 3 }
   },
   {
     id: 'a_hua_T2_discovery_clues',
@@ -1122,7 +1201,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk_ribbon', quantity: 1 }
     ],
     costMoney: 500,
-    effectType: 'discovery_clues'
+    effectType: 'discovery_clues',
+    effectPayload: { value: 1 }
   },
   {
     id: 'a_hua_T3_weekly_surprise',
@@ -1136,7 +1216,8 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
       { itemId: 'silk_cloth', quantity: 2 }
     ],
     costMoney: 1500,
-    effectType: 'weekly_surprise'
+    effectType: 'weekly_surprise',
+    effectPayload: { value: 1 }
   }
 ]
 

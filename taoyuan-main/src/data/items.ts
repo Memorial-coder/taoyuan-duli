@@ -2057,6 +2057,7 @@ export const ITEMS: ItemDef[] = [
   { id: 'bronze_mirror', name: '铜镜', category: 'artifact', description: '磨制精良的远古铜镜。', sellPrice: 200, edible: false },
   { id: 'ancient_coin', name: '远古铜钱', category: 'artifact', description: '不知名朝代的古铜钱。', sellPrice: 150, edible: false },
   { id: 'oracle_bone', name: '甲骨片', category: 'artifact', description: '刻有卜辞的远古甲骨。', sellPrice: 300, edible: false },
+  { id: 'ancient_tablet', name: '古碑拓片', category: 'artifact', description: '从旧采石场深处拓下的残碑文字，仍能辨出古老的矿道记号。', sellPrice: 260, edible: false },
   { id: 'jade_pendant', name: '玉佩', category: 'artifact', description: '温润如玉的远古佩饰。', sellPrice: 220, edible: false },
   {
     id: 'ancient_seed',

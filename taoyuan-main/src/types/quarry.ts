@@ -5,6 +5,7 @@ export type QuarryCellKind = QuarryResourceKind | 'treasure' | 'artifact' | 'mon
 export type QuarryCellState = QuarryCellKind | 'surface'
 export type QuarryMineNodeKind = 'ore' | 'monster' | 'chest' | 'final'
 export type QuarryMineNodeState = 'available' | 'cleared'
+export type QuarryMineExploreMode = 'steady' | 'force' | 'search'
 
 export interface QuarryMonsterDef {
   id: string
@@ -65,6 +66,9 @@ export interface QuarryMineSaveData {
   completed: boolean
   finalRewardClaimed: boolean
   lastRunDayTag: string
+  lastCompletedDayTag: string
+  lastResetDayTag: string
+  runId: number
   nodes: QuarryMineNode[]
 }
 
@@ -133,6 +137,7 @@ export interface QuarryCollectResult {
   rewards: QuarryCollectRewardEntry[]
   potentialClaimed?: boolean
   trinketUnlocked?: boolean
+  exploreMode?: QuarryMineExploreMode
 }
 
 export interface QuarryActionResult {
@@ -188,6 +193,9 @@ export interface QuarryMineStatus {
   completed: boolean
   finalRewardClaimed: boolean
   lastRunDayTag: string
+  lastCompletedDayTag: string
+  lastResetDayTag: string
+  runId: number
   nodes: QuarryMineNode[]
   nextNodeIndex: number | null
   clearedCount: number
@@ -195,4 +203,7 @@ export interface QuarryMineStatus {
   canEnter: boolean
   enteredToday: boolean
   canClaimFinalReward: boolean
+  canRefresh: boolean
+  daysUntilRefresh: number
+  refreshDayCount: number
 }

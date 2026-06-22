@@ -42,6 +42,17 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const friendMemorialOverview = ref<FestivalFriendMemorialOverview | null>(null)
   const lastLoadedAt = ref(0)
 
+  // ---- NPC功能解锁效果 ----
+  const npcStore = useNpcStore()
+  const npcFestivalTofuFeast = computed(() => npcStore.getNpcFunctionEffectValue('festival_tofu_feast') / 100)
+  const npcFestivalMusicBoost = computed(() => npcStore.getNpcFunctionEffectValue('festival_music') / 100)
+  const npcSpecialPerformUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('special_perform'))
+  const npcFestivalRoomBonusSummary = computed(() => [
+    npcFestivalTofuFeast.value > 0 ? `豆腐宴奖励+${Math.round(npcFestivalTofuFeast.value * 100)}%` : '',
+    npcFestivalMusicBoost.value > 0 ? `乐曲表现+${Math.round(npcFestivalMusicBoost.value * 100)}%` : '',
+    npcSpecialPerformUnlocked.value ? '特别演出可用' : ''
+  ].filter(Boolean))
+
   const myRoom = computed<FestivalRoomSnapshot | null>(() => overview.value?.my_room ?? null)
   const myFestivalState = computed(() => myRoom.value?.gameplay?.festival_state ?? null)
   const visibleRooms = computed(() => overview.value?.visible_rooms ?? [])
@@ -249,6 +260,10 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     overview,
     myRoom,
     myFestivalState,
+    npcFestivalTofuFeast,
+    npcFestivalMusicBoost,
+    npcSpecialPerformUnlocked,
+    npcFestivalRoomBonusSummary,
     visibleRooms,
     invitedRooms,
     recentMemorials,

@@ -12,12 +12,15 @@
       <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
         <div v-for="item in items" :key="`${item.item_id}-${item.quality}`" class="border border-accent/10 bg-black/10 p-2">
           <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <p class="truncate text-xs text-text">{{ item.label || item.item_id }}</p>
-              <p class="mt-1 text-[0.625rem] text-muted">{{ item.item_id }} · {{ item.quality || 'normal' }}</p>
-              <p v-if="frozenQuantity(item) > 0" class="mt-1 text-[0.625rem] text-amber-100">
-                &#20923;&#32467; {{ frozenQuantity(item) }} / &#21487;&#29992; {{ availableQuantity(item) }}
-              </p>
+            <div class="flex min-w-0 items-start gap-2">
+              <ItemIcon :item="getItemById(item.item_id)" size="xs" :quality="itemQuality(item)" :show-badge="false" />
+              <div class="min-w-0">
+                <p class="truncate text-xs text-text">{{ item.label || item.item_id }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ item.item_id }} · {{ item.quality || 'normal' }}</p>
+                <p v-if="frozenQuantity(item) > 0" class="mt-1 text-[0.625rem] text-amber-100">
+                  &#20923;&#32467; {{ frozenQuantity(item) }} / &#21487;&#29992; {{ availableQuantity(item) }}
+                </p>
+              </div>
             </div>
             <span class="text-xs text-accent">x{{ item.quantity }}</span>
           </div>
@@ -67,7 +70,10 @@
 
 <script setup lang="ts">
   import { Package } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { getItemById } from '@/data/items'
   import type { CohabitationWarehouseItem } from '@/utils/cohabitationApi'
+  import type { Quality } from '@/types/item'
 
   type NumberResolver = (item: CohabitationWarehouseItem) => number
   type ItemGate = (item: CohabitationWarehouseItem) => boolean
@@ -96,4 +102,9 @@
     'create-high-value-draft': [item: CohabitationWarehouseItem]
     sell: [item: CohabitationWarehouseItem]
   }>()
+
+  const itemQuality = (item: CohabitationWarehouseItem): Quality => {
+    const quality = String(item.quality || 'normal')
+    return ['normal', 'fine', 'excellent', 'supreme'].includes(quality) ? quality as Quality : 'normal'
+  }
 </script>

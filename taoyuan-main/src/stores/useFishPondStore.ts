@@ -16,7 +16,7 @@ import type {
   PondContestState,
   PondContestDef
 } from '@/types/fishPond'
-import type { Quality } from '@/types'
+import type { InventoryItem, InventoryPondFishMeta, Quality } from '@/types'
 import {
   POND_BUILD_COST,
   POND_UPGRADE_COSTS,
@@ -101,6 +101,42 @@ const normalizeDisplayEntries = (value: any): PondDisplayEntry[] => {
     }))
 }
 
+const buildInventoryPondFishMeta = (fish: PondFish): InventoryPondFishMeta => ({
+  instanceId: fish.id,
+  fishId: fish.fishId,
+  name: fish.name,
+  genetics: { ...fish.genetics },
+  daysInPond: fish.daysInPond,
+  mature: fish.mature,
+  sick: fish.sick,
+  sickDays: fish.sickDays,
+  breedId: fish.breedId
+})
+
+const buildPondFishFromInventoryMeta = (meta: InventoryPondFishMeta, fallbackFishId: string): PondFish => ({
+  id: generateFishId(),
+  fishId: fallbackFishId,
+  name: meta.name,
+  genetics: { ...meta.genetics },
+  daysInPond: meta.daysInPond,
+  mature: meta.mature,
+  sick: meta.sick,
+  sickDays: meta.sickDays,
+  breedId: meta.breedId
+})
+
+const findPondFishInventorySlotIndex = (items: InventoryItem[], fishId: string): number => {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!
+    if (!item.locked && item.itemId === fishId && item.pondFish?.fishId === fishId) return i
+  }
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!
+    if (!item.locked && item.itemId === fishId && !item.pondFish) return i
+  }
+  return -1
+}
+
 type PondHighCareActionStatus = 'ready' | 'noEligibleFish' | 'missingItem' | 'dailyLimit'
 type PondDisplayAssignmentStatus = 'ready' | 'alreadyAssigned' | 'displayFull' | 'ineligible' | 'missingFish'
 
@@ -121,8 +157,6 @@ export const useFishPondStore = defineStore('fishPond', () => {
   const discoveredBreeds = ref<Set<string>>(new Set())
   const lastOrderSubmissionSnapshots = ref<PondFishRatingSnapshot[]>([])
 
-  /** 从鱼塘取出后暂存的鱼个体信息，避免“取出→放回”反复重roll品种 */
-  const returnedFishPool = ref<Record<string, Omit<PondFish, 'id'>[]>>({})
   const pondContestState = ref<PondContestState>(createDefaultPondContestState())
   const lastPondContestSettlement = ref<PondContestSettlementSummary | null>(null)
   const displayEntries = ref<PondDisplayEntry[]>([])
@@ -210,21 +244,14 @@ export const useFishPondStore = defineStore('fishPond', () => {
     let added = 0
     for (let i = 0; i < quantity; i++) {
       if (fishCount.value >= capacity.value) break
-      if (!inventoryStore.removeItem(fishId, 1)) break
-      const reused = returnedFishPool.value[fishId]?.shift() ?? null
-      const breed = !reused && g1Breeds.length > 0 ? g1Breeds[Math.floor(Math.random() * g1Breeds.length)] : null
-      const fish: PondFish = reused
-        ? {
-            id: generateFishId(),
-            fishId,
-            name: reused.name,
-            genetics: { ...reused.genetics },
-            daysInPond: reused.daysInPond,
-            mature: reused.mature,
-            sick: reused.sick,
-            sickDays: reused.sickDays,
-            breedId: reused.breedId
-          }
+      const slotIndex = findPondFishInventorySlotIndex(inventoryStore.items, fishId)
+      if (slotIndex < 0) break
+      const removed = inventoryStore.removeUnlockedItemAtIndex(slotIndex, 1)
+      if (!removed) break
+      const meta = removed.pondFish?.fishId === fishId ? removed.pondFish : null
+      const breed = !meta && g1Breeds.length > 0 ? g1Breeds[Math.floor(Math.random() * g1Breeds.length)] : null
+      const fish: PondFish = meta
+        ? buildPondFishFromInventoryMeta(meta, fishId)
         : {
             id: generateFishId(),
             fishId,
@@ -249,19 +276,9 @@ export const useFishPondStore = defineStore('fishPond', () => {
     if (idx === -1) return false
     const fish = pond.value.fish[idx]!
     const inventoryStore = useInventoryStore()
-    if (!inventoryStore.canAddItem(fish.fishId, 1)) return false
-    if (!inventoryStore.addItemExact(fish.fishId, 1)) return false
-    returnedFishPool.value[fish.fishId] ??= []
-    returnedFishPool.value[fish.fishId]!.push({
-      fishId: fish.fishId,
-      name: fish.name,
-      genetics: { ...fish.genetics },
-      daysInPond: fish.daysInPond,
-      mature: fish.mature,
-      sick: fish.sick,
-      sickDays: fish.sickDays,
-      breedId: fish.breedId
-    })
+    const meta = buildInventoryPondFishMeta(fish)
+    if (!inventoryStore.canAddItem(fish.fishId, 1, 'normal', true, { pondFish: meta })) return false
+    if (!inventoryStore.addItemExact(fish.fishId, 1, 'normal', true, { pondFish: meta })) return false
     pond.value.fish.splice(idx, 1)
     // 如果正在繁殖的鱼被取出，取消繁殖
     if (pond.value.breeding && (pond.value.breeding.parentA === pondFishId || pond.value.breeding.parentB === pondFishId)) {
@@ -1055,7 +1072,6 @@ export const useFishPondStore = defineStore('fishPond', () => {
     pond: pond.value,
     pendingProducts: pendingProducts.value,
     discoveredBreeds: [...discoveredBreeds.value],
-    returnedFishPool: returnedFishPool.value,
     pondContestState: pondContestState.value,
     lastPondContestSettlement: lastPondContestSettlement.value,
     displayEntries: displayEntries.value,
@@ -1102,40 +1118,8 @@ export const useFishPondStore = defineStore('fishPond', () => {
         )
       : []
     const discoveredBreedIds = new Set<string>(data?.discoveredBreeds ?? [])
-    returnedFishPool.value = Object.fromEntries(
-      Object.entries(data?.returnedFishPool && typeof data.returnedFishPool === 'object' ? data.returnedFishPool : {})
-        .filter(([fishId]) => isPondableFish(fishId))
-        .map(([fishId, entries]) => [
-          fishId,
-          Array.isArray(entries)
-            ? entries
-                .filter((entry: any) => entry && typeof entry === 'object')
-                .map((entry: any) => ({
-                  fishId,
-                  name: typeof entry.name === 'string' ? entry.name : fishId,
-                  genetics: {
-                    weight: clamp(Math.round(Number(entry.genetics?.weight ?? 50)), 0, 100),
-                    growthRate: clamp(Math.round(Number(entry.genetics?.growthRate ?? 50)), 0, 100),
-                    diseaseRes: clamp(Math.round(Number(entry.genetics?.diseaseRes ?? 50)), 0, 100),
-                    qualityGene: clamp(Math.round(Number(entry.genetics?.qualityGene ?? 30)), 0, 100),
-                    mutationRate: clamp(Math.round(Number(entry.genetics?.mutationRate ?? 10)), 1, 50)
-                  },
-                  daysInPond: Math.max(0, Number(entry.daysInPond) || 0),
-                  mature: !!entry.mature,
-                  sick: !!entry.sick,
-                  sickDays: Math.max(0, Number(entry.sickDays) || 0),
-                  breedId: typeof entry.breedId === 'string' ? entry.breedId : null
-                }))
-            : []
-        ])
-    )
     for (const fish of pond.value.fish) {
       if (fish.breedId) discoveredBreedIds.add(fish.breedId)
-    }
-    for (const entries of Object.values(returnedFishPool.value)) {
-      for (const fish of entries) {
-        if (fish.breedId) discoveredBreedIds.add(fish.breedId)
-      }
     }
     discoveredBreeds.value = discoveredBreedIds
     pondContestState.value = data?.pondContestState ?? createDefaultPondContestState()

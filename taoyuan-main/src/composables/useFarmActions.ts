@@ -7,6 +7,7 @@ import { useFarmStore } from '@/stores/useFarmStore'
 import { useGameStore } from '@/stores/useGameStore'
 import { useGoalStore } from '@/stores/useGoalStore'
 import { useInventoryStore } from '@/stores/useInventoryStore'
+import { useNpcStore } from '@/stores/useNpcStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useQuestStore } from '@/stores/useQuestStore'
 import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
@@ -29,7 +30,6 @@ export const QUALITY_NAMES: Record<Quality, string> = {
   excellent: '精品',
   supreme: '极品'
 }
-
 /** 仙缘结缘：作物祝福（crop_blessing）概率品质+1 */
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 export const SEED_QUALITY_BONUS: Record<Quality, number> = {
@@ -80,15 +80,17 @@ const selectedSeed = ref<{ cropId: string; quality?: Quality } | null>(null)
 /** Consume hat+shoe durability for daily farm action (once per batch) */
 const consumeFarmEquipDurability = () => {
   const invStore = useInventoryStore()
+  const npcStore = useNpcStore()
+  const npcUnlocked = npcStore.isNpcFunctionEffectUnlocked('tackle_maintain') ? ['tackle_maintain'] : []
   const hat = invStore.equippedHatIndex >= 0 ? invStore.ownedHats[invStore.equippedHatIndex] : null
   if (hat) {
-    const hRed = calculateConsumptionReduction(hat.affixes ?? [], hat.enchantmentId, [])
+    const hRed = calculateConsumptionReduction(hat.affixes ?? [], hat.enchantmentId, npcUnlocked)
     const hMax = invStore.getHatMaxDurability?.(invStore.equippedHatIndex) ?? 100
     consumeEquipmentDurability(hat, hMax, 1, hRed)
   }
   const shoe = invStore.equippedShoeIndex >= 0 ? invStore.ownedShoes[invStore.equippedShoeIndex] : null
   if (shoe) {
-    const sRed = calculateConsumptionReduction(shoe.affixes ?? [], shoe.enchantmentId, [])
+    const sRed = calculateConsumptionReduction(shoe.affixes ?? [], shoe.enchantmentId, npcUnlocked)
     const sMax = invStore.getShoeMaxDurability?.(invStore.equippedShoeIndex) ?? 100
     consumeEquipmentDurability(shoe, sMax, 1, sRed)
   }
@@ -628,8 +630,8 @@ export const handleBatchHarvest = () => {
 }
 
 /** 一键种植（在所有空耕地上种植指定作物） */
-consumeFarmEquipDurability()
 export const handleBatchPlant = (cropId: string, seedQuality?: Quality) => {
+  consumeFarmEquipDurability()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()

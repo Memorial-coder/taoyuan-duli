@@ -5099,6 +5099,50 @@ export const CROPS: CropDef[] = [
   }
 ]
 
+export const HIGH_TIER_BREEDING_WINTER_ADAPTIVE_CROP_IDS = [
+  'supreme_origin_melon',
+  'primal_origin_tuber',
+  'chaos_origin_green',
+  'supreme_vital8_fruit',
+  'terra_vital8_tea',
+  'primal_glory8_root',
+  'chaos_glory8_sprout',
+  'terra_zenith_orchid',
+  'chaos_zenith_herb',
+  'supreme_core_chestnut',
+  'vast_meng_melon',
+  'primeval_meng_tuber',
+  'genesis_meng_green',
+  'infinite_apex9_tea',
+  'primeval_apex9_shoot',
+  'vast_wilder_wheat',
+  'primeval_wilder_root',
+  'genesis_wilder_sprout',
+  'infinite_empyrean_orchid',
+  'vast_spirit9_chestnut',
+  'creation_change_melon',
+  'heavenly_change_tuber',
+  'myriad_change_green',
+  'undying_lasting_tea',
+  'heavenly_lasting_shoot',
+  'creation_timeless_wheat',
+  'heavenly_timeless_root',
+  'myriad_timeless_sprout',
+  'undying_destiny_orchid',
+  'creation_form_chestnut',
+  'undying_form_pear'
+] as const
+
+const HIGH_TIER_BREEDING_WINTER_ADAPTIVE_CROP_ID_SET = new Set<string>(
+  HIGH_TIER_BREEDING_WINTER_ADAPTIVE_CROP_IDS
+)
+
+CROPS.forEach(crop => {
+  if (HIGH_TIER_BREEDING_WINTER_ADAPTIVE_CROP_ID_SET.has(crop.id) && !crop.season.includes('winter')) {
+    crop.season.push('winter')
+  }
+})
+
 /** 根据ID查找作物 */
 export const getCropById = (id: string): CropDef | undefined => {
   return CROPS.find(c => c.id === id)

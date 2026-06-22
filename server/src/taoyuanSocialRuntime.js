@@ -1557,6 +1557,101 @@ function getRelationshipStatus(store, viewerUsername, viewerIdentity = null, tar
   return 'pending_incoming';
 }
 
+function normalizeFriendLookupKey(value) {
+  return String(value || '').normalize('NFKC').trim().toLocaleLowerCase('zh-CN');
+}
+
+function pushFriendTargetMatch(matches, match) {
+  const username = normalizeUsername(match?.username);
+  const identity = match?.identity || null;
+  const saveId = normalizeSocialSaveId(identity?.save_id);
+  const key = `${username}::${saveId || 0}`;
+  const existing = matches.find(item => item.key === key);
+  if (existing) {
+    existing.aliases = [...new Set([...existing.aliases, ...(match.aliases || [])])];
+    return;
+  }
+  matches.push({
+    key,
+    username,
+    identity,
+    aliases: [...new Set(match.aliases || [])],
+  });
+}
+
+async function resolveFriendTargetByAlias(viewerUsername, rawTarget) {
+  const viewer = normalizeUsername(viewerUsername);
+  const lookupKey = normalizeFriendLookupKey(rawTarget);
+  if (!viewer || !lookupKey) return null;
+
+  const store = loadSocialProfileStore();
+  const viewerIdentity = resolveActiveSaveContext(viewer)?.identity || null;
+  const matches = [];
+
+  for (const friendship of store.friendships.map(normalizeFriendship)) {
+    if (!friendshipBelongsToUser(friendship, viewer, viewerIdentity)) continue;
+
+    const sideA = getFriendshipSide(friendship, 'a');
+    const sideB = getFriendshipSide(friendship, 'b');
+    const ownSide = viewerIdentity?.save_id && sideB.save_id === viewerIdentity.save_id
+      ? sideB
+      : sideA.username === viewer
+        ? sideA
+        : sideB;
+    const friendSide = ownSide === sideA ? sideB : sideA;
+    if (!friendSide.username) continue;
+
+    const identity = (friendSide.save_id
+      ? findSaveIdentityById(friendSide.save_id)
+      : resolveActiveSaveContext(friendSide.username, friendSide.save_slot)?.identity) || (
+      friendSide.save_id
+        ? {
+            save_id: friendSide.save_id,
+            account_username: friendSide.username,
+            save_slot: friendSide.save_slot,
+          }
+        : null
+    );
+    let profile = null;
+    try {
+      profile = await buildRelationCard(friendSide.username, viewer, {
+        preferredSlot: friendSide.save_slot,
+      });
+    } catch {
+      profile = null;
+    }
+
+    const aliases = [
+      friendSide.username,
+      friendSide.save_id ? String(friendSide.save_id) : '',
+      identity?.nickname_snapshot || '',
+      profile?.username || '',
+      profile?.display_name || '',
+      profile?.player_name || '',
+    ].filter(Boolean);
+
+    if (aliases.some(alias => normalizeFriendLookupKey(alias) === lookupKey)) {
+      pushFriendTargetMatch(matches, {
+        username: friendSide.username,
+        identity,
+        aliases,
+      });
+    }
+  }
+
+  if (matches.length > 1) {
+    throw createError('匹配到多个同名好友，请改用 9 位存档 ID 邀请', 409);
+  }
+
+  return matches[0]
+    ? {
+        username: matches[0].username,
+        identity: matches[0].identity,
+        aliases: matches[0].aliases,
+      }
+    : null;
+}
+
 function normalizeDiscoveryMode(value) {
   const normalized = String(value || '').trim();
   if (normalized === 'online') return 'online';
@@ -2870,6 +2965,7 @@ module.exports = {
   getPublicProfile,
   searchPlayerBySaveId,
   listFriendDiscovery,
+  resolveFriendTargetByAlias,
   getStoredProfile,
   updateStoredProfile,
   updateOwnProfile,

@@ -376,25 +376,41 @@
     grid-template-columns: minmax(0, 1.45fr) minmax(14rem, 0.85fr);
     gap: 0.75rem;
     border: 1px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
-    background: rgb(var(--color-bg) / 0.16);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 44%),
+      rgb(var(--color-bg) / 0.16);
     padding: 0.75rem;
   }
 
   .visual-scene-board__stage {
     position: relative;
-    min-height: 20rem;
+    min-height: 23rem;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 8%, transparent), transparent 42%),
-      linear-gradient(90deg, rgb(0 0 0 / 0.12), transparent 28%, rgb(0 0 0 / 0.12)),
+      radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--color-success) 16%, transparent), transparent 22%),
+      radial-gradient(circle at 78% 24%, color-mix(in srgb, #d4976a 16%, transparent), transparent 24%),
+      linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 48%),
+      linear-gradient(90deg, rgb(0 0 0 / 0.12), transparent 30%, rgb(0 0 0 / 0.14)),
       rgb(0 0 0 / 0.12);
   }
 
   .visual-scene-board__stage::before {
     position: absolute;
-    inset: 12% 8% 18%;
+    inset: 14% 8% 18%;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 14%, transparent);
+    background:
+      linear-gradient(90deg, transparent 49%, color-mix(in srgb, var(--color-accent) 10%, transparent) 50%, transparent 51%),
+      linear-gradient(0deg, transparent 49%, color-mix(in srgb, var(--color-accent) 10%, transparent) 50%, transparent 51%);
+    content: '';
+  }
+
+  .visual-scene-board__stage::after {
+    position: absolute;
+    inset: auto 9% 9%;
+    height: 3.5rem;
     border: 1px solid color-mix(in srgb, var(--color-accent) 10%, transparent);
+    background: rgb(var(--color-bg) / 0.18);
     content: '';
   }
 
@@ -403,34 +419,43 @@
     z-index: 1;
     display: inline-flex;
     max-width: 8rem;
-    min-width: 2.5rem;
+    min-width: 3.25rem;
     min-height: var(--online-visual-touch-target, 44px);
     translate: -50% -50%;
     align-items: center;
     justify-content: center;
     gap: 0.25rem;
-    border: 1px solid color-mix(in srgb, var(--color-accent) 34%, transparent);
-    background: rgb(var(--color-bg) / 0.92);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 42%, transparent);
+    background: rgb(var(--color-bg) / 0.96);
     color: rgb(var(--color-text));
-    padding: 0.35rem 0.45rem;
+    padding: 0.42rem 0.5rem;
     font-size: 0.68rem;
     line-height: 1;
     text-align: center;
-    box-shadow: 0 0.4rem 1.2rem rgb(0 0 0 / 0.2);
+    box-shadow: 0 0.5rem 1.3rem rgb(0 0 0 / 0.24);
     transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+  }
+
+  .visual-scene-board__object::before {
+    position: absolute;
+    inset: -0.42rem;
+    z-index: -1;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+    content: '';
   }
 
   .visual-scene-board__object:hover,
   .visual-scene-board__object:focus-visible {
     border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
     outline: none;
   }
 
   .visual-scene-board__object--selected {
     z-index: 4;
     border-color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 20%, rgb(var(--color-bg)));
   }
 
   .visual-scene-board__object--needs_action {
@@ -591,6 +616,15 @@
     padding: 0.35rem 0.55rem;
     font-size: 0.7rem;
     line-height: 1.1;
+    transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+  }
+
+  .visual-scene-board__action:hover:not(:disabled),
+  .visual-scene-board__action:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent) 68%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+    outline: none;
+    transform: translateY(-1px);
   }
 
   .visual-scene-board__action:disabled {
@@ -632,7 +666,7 @@
     }
 
     .visual-scene-board__stage {
-      min-height: 16rem;
+      min-height: 18rem;
       overflow-x: auto;
     }
 

@@ -11,6 +11,7 @@ import type {
   QuestInstance,
   QuestStageState,
   QuestType,
+  ProcessedItemGroupId,
   Quality,
   RewardTicketType,
   Season,
@@ -392,7 +393,8 @@ export const useQuestStore = defineStore('quest', () => {
     boardQuests.value = [] // 清空旧的告示栏
     const shopStore = useShopStore()
     const serviceContractEffect = shopStore.getServiceContractEffectSummary('quest')
-    const count = 2 + Math.floor(Math.random() * 2) + villageProjectStore.getDailyQuestBoardBonus() + serviceContractEffect.dailyQuestBoardBonus // 2-3个，扩建后+1
+    const _errandBonus = npcStore.isNpcFunctionEffectUnlocked('errand_bonus') ? 1 : 0
+    const count = 2 + Math.floor(Math.random() * 2) + villageProjectStore.getDailyQuestBoardBonus() + serviceContractEffect.dailyQuestBoardBonus + _errandBonus // 2-3个，扩建后+1
     for (let i = 0; i < count; i++) {
       const quest = generateQuest(season, day, false, {
         preferredQuestTypes: marketQuestBias.preferredQuestTypes,
@@ -2679,6 +2681,8 @@ export const useQuestStore = defineStore('quest', () => {
       themeTag: quest.themeTag === 'breeding' || quest.themeTag === 'fishpond' ? quest.themeTag : undefined,
       activitySourceId: typeof quest.activitySourceId === 'string' ? quest.activitySourceId : undefined,
       activitySourceLabel: typeof quest.activitySourceLabel === 'string' ? quest.activitySourceLabel : undefined,
+      processedItemGroupId: typeof quest.processedItemGroupId === 'string' ? quest.processedItemGroupId as ProcessedItemGroupId : undefined,
+      processedItemGroupLabel: typeof quest.processedItemGroupLabel === 'string' ? quest.processedItemGroupLabel : undefined,
       orderStageType: quest.orderStageType === 'single' || quest.orderStageType === 'multi' || quest.orderStageType === 'combo' ? quest.orderStageType : undefined,
       stageDefinitions: normalizeStageDefinitions(quest.stageDefinitions),
       comboRequirements: normalizeComboRequirements(quest.comboRequirements),

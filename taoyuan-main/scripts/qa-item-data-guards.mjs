@@ -163,6 +163,7 @@ expectItem('ancient_fruit', { category: 'crop', sellPrice: 2700, edible: true, s
 expectItem('ancient_fruit_wine', { category: 'processed', sellPrice: 5000, edible: true, staminaRestore: 180, healthRestore: 90 })
 expectItem('jujube_wine', { name: '红枣酒', category: 'processed', sellPrice: 450, edible: true })
 expectItem('tavern_rice_wine', { name: '桃源米酒', category: 'processed', sellPrice: 180, edible: true })
+expectItem('ancient_tablet', { category: 'artifact', sellPrice: 260, edible: false })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
 expectItem('duck_egg', { category: 'animal_product', sellPrice: 180 })
@@ -243,6 +244,9 @@ const duplicateMuseumItemIds = [...MUSEUM_ITEMS.reduce((acc, item) => {
   .filter(([, count]) => count > 1)
   .map(([id, count]) => `${id}×${count}`)
 assert(duplicateMuseumItemIds.length === 0, `MUSEUM_ITEMS 存在重复 ID：${duplicateMuseumItemIds.join(', ')}`)
+const ancientTabletMuseumItem = MUSEUM_ITEMS.find(item => item.id === 'ancient_tablet')
+assert(!!ancientTabletMuseumItem, '采石场古物 ancient_tablet 必须可捐入博物馆。')
+assert(ancientTabletMuseumItem?.category === 'artifact', '采石场古物 ancient_tablet 的博物馆分类必须是 artifact。')
 const finalMuseumMilestoneCount = Math.max(...MUSEUM_MILESTONES.map(milestone => milestone.count))
 assert(finalMuseumMilestoneCount === MUSEUM_ITEMS.length, `博物馆最终里程碑应覆盖全部 ${MUSEUM_ITEMS.length} 件收藏，实际为 ${finalMuseumMilestoneCount}`)
 

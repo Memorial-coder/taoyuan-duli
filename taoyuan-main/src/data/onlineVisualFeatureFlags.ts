@@ -53,7 +53,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后保留备用操作面板、房间日志和文本结算入口。',
     fallbackRouteName: 'online-festival',
     fallbackTestId: 'online-visual-feature-flag-visual-state',
-    activeRoomClosePolicy: '已创建活动房间继续保留房间状态、倒计时、结算记录和管理回看；可视化棋盘暂停时仍可继续。',
+    activeRoomClosePolicy: '已创建活动房间继续交给服务端统一房间状态机保留倒计时、结算记录和管理回看；可视化棋盘暂停时仍可继续。',
     missingConfigFallback: '缺失配置时按关闭处理，保留备用入口、房间日志和只读回看。',
   },
   {
@@ -66,7 +66,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后远征页保留备用行动按钮、风险资源摘要和回合日志。',
     fallbackRouteName: 'online-festival',
     fallbackTestId: 'online-visual-feature-flag-expedition-cavern',
-    activeRoomClosePolicy: '已创建矿洞房继续允许备用操作、撤离收尾和系统结算记录；组合收益只读回看不丢失。',
+    activeRoomClosePolicy: '已创建矿洞房继续由服务端统一房间状态机保留备用操作、撤离收尾和系统结算记录；组合收益只读回看不丢失。',
     missingConfigFallback: '缺失配置时隐藏节点地图，回退到备用行动按钮、风险资源摘要和回合日志。',
   },
   {
@@ -79,7 +79,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后在线节会页保留贡献按钮、压力摘要、留影记录和纪念册读回。',
     fallbackRouteName: 'online-festival',
     fallbackTestId: 'online-visual-feature-flag-lantern-fair',
-    activeRoomClosePolicy: '已创建灯会房继续保留贡献按钮、压力收口、留影记录和系统纪念记录。',
+    activeRoomClosePolicy: '已创建灯会房继续由服务端统一房间状态机保留贡献按钮、压力收口、留影记录和系统纪念记录。',
     missingConfigFallback: '缺失配置时隐藏现场热区，回退到贡献按钮、压力摘要和纪念册回看。',
   },
   {
@@ -92,7 +92,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后保留节会房行动按钮、赛舟分文本、名次记录和纪念记录。',
     fallbackRouteName: 'online-festival',
     fallbackTestId: 'online-visual-feature-flag-dragon-boat',
-    activeRoomClosePolicy: '已创建龙舟房继续保留划桨 / 稳舵 / 击鼓 / 冲刺备用操作和系统名次结算。',
+    activeRoomClosePolicy: '已创建龙舟房继续由服务端统一房间状态机保留划桨 / 稳舵 / 击鼓 / 冲刺备用操作和系统名次结算。',
     missingConfigFallback: '缺失配置时隐藏赛道轨道，回退到赛舟分、行动按钮、名次记录和纪念记录。',
   },
   {
@@ -141,7 +141,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后保留基础灶台料理、已获得料理效果、送礼话题和料理记录回看。',
     fallbackRouteName: 'cooking',
     fallbackTestId: 'online-visual-feature-flag-crop-cooking',
-    activeRoomClosePolicy: '已吃下的料理 buff、NPC 料理线索和共同灶台记录继续读回；新剧情触发与新配方入口停止推进。',
+    activeRoomClosePolicy: '已吃下的料理 buff、NPC 料理线索和共同灶台记录继续按本地存档读回；新剧情触发与新配方入口停止推进。',
     missingConfigFallback: '缺失配置时按关闭处理，灶台回退基础配方与历史料理记录，不生成新的作物料理剧情线索。',
   },
   {
@@ -153,7 +153,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后保留基础工坊加工、既有加工产物、订单提交和仓库流水回看。',
     fallbackRouteName: 'workshop',
     fallbackTestId: 'online-visual-feature-flag-crop-processing',
-    activeRoomClosePolicy: '已完成的加工产物、订单阶段和共同仓库加工记录继续按重复提交保护收口；新深加工配方显示暂停提示。',
+    activeRoomClosePolicy: '已完成的加工产物、订单阶段和共同仓库加工记录继续按记录明细与重复提交保护收口；新深加工配方显示暂停提示。',
     missingConfigFallback: '缺失配置时按关闭处理，工坊只展示基础加工入口、既有订单用途和只读流水。',
   },
   {
@@ -165,7 +165,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后保留动物页基础喂食 / 抚摸、宠物基础状态、已有反馈和照料记录。',
     fallbackRouteName: 'animal',
     fallbackTestId: 'online-visual-feature-flag-pet-feeding',
-    activeRoomClosePolicy: '已写入的宠物反馈、共同宠物照料记录和补偿复核继续只读展示；新的特殊喂食入口柔和暂停。',
+    activeRoomClosePolicy: '已写入的宠物反馈、共同宠物照料记录和补偿审计继续只读展示；新的特殊喂食入口柔和暂停。',
     missingConfigFallback: '缺失配置时按关闭处理，回退到基础动物照料和宠物状态回看，不生成新特殊反馈。',
   },
   {
@@ -225,7 +225,7 @@ export const ONLINE_VISUAL_FEATURE_FLAGS: OnlineVisualFeatureFlagConfig[] = [
     fallbackLabel: '关闭后保留契约列表、成员状态、个人资产边界、分居入口和只读审计。',
     fallbackRouteName: 'online-cohabitation',
     fallbackTestId: 'online-visual-feature-flag-cohabitation-duo',
-    activeRoomClosePolicy: '已激活共同庄园继续保留契约状态、共同地图只读摘要、成员确认记录和个人资产边界；新邀请与接受入口暂停。',
+    activeRoomClosePolicy: '已激活共同庄园继续保留契约状态、共同地图只读摘要、成员确认记录、共同基金 / 共同仓库审计和个人资产边界；新邀请与接受入口暂停。',
     missingConfigFallback: '缺失配置时按关闭处理，不创建新同居契约，只读保留已有契约、审计和安全退出提示。',
   },
   {

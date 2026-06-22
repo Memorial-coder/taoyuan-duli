@@ -1,4 +1,7 @@
 <script setup lang="ts">
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { getItemById } from '@/data/items'
+
   type Fn = (...args: any[]) => any
 
   defineProps<{
@@ -81,7 +84,13 @@
                       <div class="min-w-0">
                         <p class="text-xs text-accent">{{ recipe.name }}</p>
                         <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ recipe.description }}</p>
-                        <p class="text-[0.625rem] text-muted mt-1 leading-4">材料：{{ formatJourneyRecipeMaterials(recipe) }}</p>
+                        <div class="mt-1 flex flex-wrap gap-1.5 text-[0.625rem] text-muted">
+                          <span class="shrink-0">材料：</span>
+                          <span v-for="item in recipe.requiredItems" :key="`${recipe.id}-${item.itemId}`" class="inline-flex min-w-0 items-center gap-1">
+                            <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                            <span class="truncate">{{ getItemById(item.itemId)?.name ?? item.itemId }} x{{ item.quantity }}</span>
+                          </span>
+                        </div>
                         <p class="text-[0.625rem] text-muted mt-1 leading-4">铜钱：{{ recipe.requiredMoney }}</p>
                         <p v-if="!getJourneyRecipeStatus(recipe.id).ok" class="text-[0.625rem] text-warning mt-1 leading-4">
                           {{ getJourneyRecipeStatus(recipe.id).reason }}

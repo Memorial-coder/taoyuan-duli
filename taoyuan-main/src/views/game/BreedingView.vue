@@ -443,7 +443,7 @@
         <div
           v-for="hybrid in filteredHybrids"
           :key="hybrid.id"
-          class="border rounded-xs p-1.5 text-xs text-center transition-colors truncate mr-1"
+          class="breeding-hybrid-card border rounded-xs p-1.5 text-xs text-center transition-colors mr-1"
           :class="
             isDiscovered(hybrid.id)
               ? 'border-accent/20 cursor-pointer hover:bg-accent/5 ' + tierColor(hybrid.id)
@@ -451,7 +451,10 @@
           "
           @click="isDiscovered(hybrid.id) && (activeHybrid = hybrid)"
         >
-          <template v-if="isDiscovered(hybrid.id)">{{ hybrid.name }}</template>
+          <template v-if="isDiscovered(hybrid.id)">
+            <ItemIcon :item="getItemById(hybrid.resultCropId)" size="xs" :show-badge="false" />
+            <span class="breeding-hybrid-card__name">{{ hybrid.name }}</span>
+          </template>
           <template v-else>
             <Lock :size="12" class="mx-auto text-muted/30" />
             <!-- C: 悬停线索提示 -->
@@ -631,7 +634,10 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm mb-2" :class="tierColor(activeHybrid.id)">{{ activeHybrid.name }}</p>
+          <div class="breeding-hybrid-detail__header mb-2">
+            <ItemIcon :item="getItemById(activeHybrid.resultCropId)" size="sm" :show-badge="false" />
+            <p class="text-sm min-w-0 truncate pr-5" :class="tierColor(activeHybrid.id)">{{ activeHybrid.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeHybrid.discoveryText }}</p>
@@ -1620,6 +1626,39 @@
   .breeding-seed-card :deep(.item-icon--sm) {
     width: 36px !important;
     height: 36px !important;
+  }
+
+  .breeding-hybrid-card {
+    display: flex;
+    min-height: 48px;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .breeding-hybrid-card__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .breeding-hybrid-card :deep(.item-icon--xs) {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .breeding-hybrid-detail__header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .breeding-hybrid-detail__header :deep(.item-icon--sm) {
+    width: 42px !important;
+    height: 42px !important;
   }
 
   .breeding-seed-option {

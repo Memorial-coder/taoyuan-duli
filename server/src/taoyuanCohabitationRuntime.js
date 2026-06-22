@@ -22733,6 +22733,24 @@ function collectTargetUsernames(payload = {}) {
   return [...new Set(values.map(normalizeUsername).filter(Boolean))];
 }
 
+async function resolveCohabitationTargetUsernames(payload = {}, actorUsername = '') {
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const resolved = [];
+  const seenKeys = new Set();
+  for (const rawTargetUsername of collectTargetUsernames(payload)) {
+    let targetUsername = rawTargetUsername;
+    if (!taoyuanSocialRuntime.isFriendWith(actorUsername, targetUsername)) {
+      const friendTarget = await taoyuanSocialRuntime.resolveFriendTargetByAlias(actorUsername, rawTargetUsername);
+      if (friendTarget?.username) targetUsername = friendTarget.username;
+    }
+    const targetKey = normalizeUsernameKey(targetUsername);
+    if (!targetKey || targetKey === actorKey || seenKeys.has(targetKey)) continue;
+    seenKeys.add(targetKey);
+    resolved.push(targetUsername);
+  }
+  return resolved;
+}
+
 async function listCohabitationContracts(username) {
   const actor = normalizeUsername(username);
   if (!actor) throw createError('请先登录', 401);
@@ -37110,7 +37128,7 @@ async function createCohabitationContract(payload = {}, actor = {}) {
     }),
   }) || typeDef.title;
   const createdAt = nowSeconds();
-  const targetUsernames = collectTargetUsernames(payload).filter(username => normalizeUsernameKey(username) !== normalizeUsernameKey(actorUsername));
+  const targetUsernames = await resolveCohabitationTargetUsernames(payload, actorUsername);
   const requestedMemberCount = 1 + targetUsernames.length;
   if (requestedMemberCount < typeDef.min_members || requestedMemberCount > typeDef.max_members) {
     throw createError(`${typeDef.label}需要 ${typeDef.min_members}-${typeDef.max_members} 名成员`, 400);

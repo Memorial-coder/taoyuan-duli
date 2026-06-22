@@ -68,6 +68,7 @@ export const MUSEUM_ITEMS: MuseumItemDef[] = [
   { id: 'bronze_mirror', name: '铜镜', category: 'artifact', sourceHint: '熔岩层宝箱' },
   { id: 'ancient_coin', name: '远古铜钱', category: 'artifact', sourceHint: '矿洞暗河层掉落' },
   { id: 'oracle_bone', name: '甲骨片', category: 'artifact', sourceHint: '暗影层宝箱' },
+  { id: 'ancient_tablet', name: '古碑拓片', category: 'artifact', sourceHint: '旧采石场古物点' },
   { id: 'jade_pendant', name: '玉佩', category: 'artifact', sourceHint: '水晶层掉落' },
   { id: 'ancient_seed', name: '远古种子', category: 'artifact', sourceHint: '深层宝箱极稀有' },
   { id: 'bamboo_scroll', name: '竹简', category: 'artifact', sourceHint: '竹林稀有采集' },
@@ -102,7 +103,7 @@ export const MUSEUM_MILESTONES: MuseumMilestone[] = [
   { count: 36, name: '博物馆之星', reward: { money: 10000 } },
   { count: 40, name: '灵物通鉴', reward: { money: 8000, items: [{ itemId: 'moonstone', quantity: 3 }] } },
   {
-    count: 43,
+    count: 44,
     name: '炉火全鉴',
     reward: {
       money: 12000,

@@ -261,16 +261,11 @@ export const useFishingStore = defineStore('fishing', () => {
     }
   }
 
-  const recordFishGodFishSelection = (fish: FishDef, hasEligibleLegendaryFish: boolean) => {
+  const recordFishGodFishSelection = (_fish: FishDef, hasEligibleLegendaryFish: boolean) => {
     syncFishGodPressure()
     if (skillStore.getSkill('fishing').perk20 !== 'fish_god' || !hasEligibleLegendaryFish) {
       fishGodLegendaryMissStreak.value = 0
       fishGodLegendaryCooldownCasts.value = Math.max(0, fishGodLegendaryCooldownCasts.value - 1)
-      return
-    }
-    if (fish.difficulty === 'legendary') {
-      fishGodLegendaryMissStreak.value = 0
-      fishGodLegendaryCooldownCasts.value = FISH_GOD_COOLDOWN_CASTS
       return
     }
     fishGodLegendaryMissStreak.value = Math.min(FISH_GOD_MISS_STREAK_CAP, fishGodLegendaryMissStreak.value + 1)
@@ -303,8 +298,51 @@ export const useFishingStore = defineStore('fishing', () => {
     return Math.min(cap, Math.max(0, (tideNotebookCastStreak.value - 1) * 0.05))
   }
 
+  const getNpcFishWeightMultiplier = (fish: FishDef): number => {
+    let multiplier = 1
+    const secretStyleBonus = Math.max(0, npcStore.getNpcFunctionEffectValue('secret_fishing_style')) / 100
+    if (secretStyleBonus > 0 && (fish.season.includes('autumn') || fish.difficulty === 'hard')) {
+      multiplier *= 1 + secretStyleBonus
+    }
+
+    const spouseFishingBonus = Math.max(0, npcStore.getNpcFunctionEffectValue('spouse_fishing_boost')) / 100
+    if (spouseFishingBonus > 0 && (fish.difficulty === 'hard' || fish.difficulty === 'legendary')) {
+      multiplier *= 1 + spouseFishingBonus
+    }
+
+    if (npcStore.isNpcFunctionEffectUnlocked('deep_water_spot') && ['waterfall', 'swamp'].includes(fish.location ?? 'creek')) {
+      multiplier *= 1.25
+    }
+    return multiplier
+  }
+
   /** 当前可钓的鱼 */
   const availableFish = computed(() => getAvailableFish(gameStore.season, gameStore.weather, fishingLocation.value))
+  const fishOddsPreview = computed(() => {
+    if (!npcStore.isNpcFunctionEffectUnlocked('fish_odds_display')) return []
+    const difficultyBaseWeight: Record<FishDef['difficulty'], number> = {
+      easy: 3,
+      normal: 2,
+      hard: 1,
+      legendary: 0.35
+    }
+    const rows = availableFish.value
+      .map(fish => ({
+        fish,
+        weight: difficultyBaseWeight[fish.difficulty] * getNpcFishWeightMultiplier(fish)
+      }))
+      .filter(row => row.weight > 0)
+    const totalWeight = rows.reduce((sum, row) => sum + row.weight, 0)
+    if (totalWeight <= 0) return []
+    return rows
+      .map(row => ({
+        fishId: row.fish.id,
+        fishName: row.fish.name,
+        difficulty: row.fish.difficulty,
+        chancePercent: Math.round((row.weight / totalWeight) * 1000) / 10
+      }))
+      .sort((left, right) => right.chancePercent - left.chancePercent)
+  })
   const environmentWindow = computed(() =>
     resolveEnvironmentWindow({
       season: gameStore.season,
@@ -531,7 +569,7 @@ export const useFishingStore = defineStore('fishing', () => {
     if (Math.random() < junkChance) {
       activeTackleDef.value = tackleDef ?? null
       if (equippedTackle.value && tackleDef) {
-        tackleDurability.value--
+        if (!npcStore.isNpcFunctionEffectUnlocked('tackle_maintain') || Math.random() >= 0.3) tackleDurability.value--
         if (tackleDurability.value <= 0) {
           equippedTackle.value = null
         }
@@ -562,7 +600,7 @@ export const useFishingStore = defineStore('fishing', () => {
     }
     activeTackleDef.value = tackleDef ?? null
     if (equippedTackle.value && tackleDef) {
-      tackleDurability.value--
+      if (!npcStore.isNpcFunctionEffectUnlocked('tackle_maintain') || Math.random() >= 0.3) tackleDurability.value--
       if (tackleDurability.value <= 0) {
         equippedTackle.value = null
       }
@@ -664,6 +702,13 @@ export const useFishingStore = defineStore('fishing', () => {
       fishChangeDir *= environmentWindow.value.fishing.fishChangeDirMultiplier
       timeLimit += environmentWindow.value.fishing.treasureChanceBonus > 0.03 ? 2 : 0
     }
+    const npcFishingEasy = Math.min(0.4, Math.max(0, npcStore.getNpcFunctionEffectValue('fishing_easy') / 100))
+    if (npcFishingEasy > 0) {
+      fishSpeed *= 1 - npcFishingEasy
+      fishChangeDir *= 1 - npcFishingEasy
+      scoreLoss *= 1 - npcFishingEasy * 0.75
+      struggleChance *= 1 - npcFishingEasy
+    }
     struggleChance = normalizeProbability(struggleChance)
     struggleSuccessChance = normalizeProbability(struggleSuccessChance)
     struggleScoreLoss = Math.max(0, struggleScoreLoss)
@@ -731,13 +776,17 @@ export const useFishingStore = defineStore('fishing', () => {
       if (f.difficulty === 'normal') return 2 * tideNotebookMult
       return 0.5 * tideNotebookMult
     })
+    const npcAdjustedWeights = weights.map((weight, index) => {
+      const fish = fishPool[index]
+      return fish ? weight * getNpcFishWeightMultiplier(fish) : weight
+    })
     const weightedPool = hasFishGod
       ? capLegendaryWeightShare(
         fishPool,
-        weights,
+        npcAdjustedWeights,
         getFishGodLegendaryShareCap(activeBaitDef.value?.id === 'targeted_bait', fishGodLegendaryMissStreak.value)
       )
-      : weights
+      : npcAdjustedWeights
     const hasEligibleLegendaryFish = weightedPool.some((weight, index) => weight > 0 && fishPool[index]?.difficulty === 'legendary')
     const total = weightedPool.reduce((a, b) => a + b, 0)
     if (total <= 0) return null
@@ -1132,6 +1181,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
   return {
     availableFish,
+    fishOddsPreview,
     environmentWindow,
     tideMarkerHint,
     companionshipFishingFocus,

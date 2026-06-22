@@ -65,6 +65,25 @@ function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入
   };
 }
 
+async function resolveInviteTargetBySaveIdUsernameOrFriendAlias(payload = {}, actorUsername = '', emptyMessage = '请输入要邀请的玩家用户名') {
+  const rawTargetUsername = sanitizeText(payload?.target_username, 40);
+  let { username: targetUsername, identity: targetIdentity } = resolveTargetBySaveIdOrUsername(payload, emptyMessage);
+  let targetUser = await db.getUser(targetUsername);
+  if (!targetUser && rawTargetUsername && !targetIdentity) {
+    const friendTarget = await taoyuanSocialRuntime.resolveFriendTargetByAlias(actorUsername, rawTargetUsername);
+    if (friendTarget?.username) {
+      targetUsername = friendTarget.username;
+      targetIdentity = friendTarget.identity || targetIdentity;
+      targetUser = await db.getUser(targetUsername);
+    }
+  }
+  return {
+    username: targetUsername,
+    identity: targetIdentity,
+    user: targetUser,
+  };
+}
+
 const FESTIVAL_DECORATION_REWARD_MAP = Object.freeze({
   yuanri_vigil: { decoration_id: 'catalog_brazier', label: '暖炭火盆' },
   lantern_fair: { decoration_id: 'catalog_festival_lantern', label: '彩绢灯笼' },
@@ -6253,9 +6272,12 @@ async function createFestivalRoom(payload = {}, actor = {}) {
 async function inviteFestivalRoomMember(roomId, payload = {}, actor = {}) {
   const username = sanitizeText(actor.username, 40);
   const displayName = sanitizeText(actor.displayName, 40) || username;
-  const { username: targetUsername, identity: targetIdentity } = resolveTargetBySaveIdOrUsername(payload, '请输入要邀请的玩家用户名或存档 ID');
+  const { username: targetUsername, identity: targetIdentity, user: targetUser } = await resolveInviteTargetBySaveIdUsernameOrFriendAlias(
+    payload,
+    username,
+    '请输入要邀请的玩家用户名或存档 ID',
+  );
   if (targetUsername === username) throw createError('不能邀请自己加入节会房间');
-  const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标玩家不存在或已失效');
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);

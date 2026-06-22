@@ -1,6 +1,5 @@
-﻿import type { EquipmentQualityTier } from '@/types'
+import type { EquipmentQualityTier } from '@/types'
 import type { ForgeAffixRoll } from '@/types'
-import type { EquipmentEnchantmentDef } from '@/data/equipmentEnchantments'
 import { getEquipmentEnchantmentById } from '@/data/equipmentEnchantments'
 import { getForgeAffixById, normalizeForgeAffixValue } from '@/data/forgeAffixes'
 
@@ -41,9 +40,10 @@ export function getNpcDurabilityBonus(unlockedFunctions: string[]): number {
   return unlockedFunctions.includes('equip_durability') ? 0.2 : 0
 }
 
-/** get NPC repair cost discount (0.3 if unlocked, else 0) */
-export function getNpcRepairDiscount(unlockedFunctions: string[]): number {
-  return unlockedFunctions.includes('equip_durability') ? 0.3 : 0
+export function getNpcRepairDiscount(unlockedFunctions: string[], equipType?: RepairBenchEquipType): number {
+  if (unlockedFunctions.includes('equip_durability')) return 0.3
+  if ((equipType === 'ring' || equipType === 'hat' || equipType === 'weapon') && unlockedFunctions.includes('free_cloth_repair')) return 1.0
+  return 0
 }
 
 /** sum durability_consumption_reduction from forge affixes */
@@ -96,4 +96,63 @@ export function getDurabilityConsumptionReduction(
   const enchantReduction = getEnchantmentDurabilityReduction(enchantmentId)
   const npcReduction = npcUnlocked.includes('tackle_maintain') ? 0.3 : 0
   return Math.min(0.9, affixReduction + enchantReduction + npcReduction)
+}
+
+// === Repair Bench Cost Helpers ===
+
+import { getWeaponById } from '@/data/weapons'
+import { getRingById } from '@/data/rings'
+import { getHatById } from '@/data/hats'
+import { getShoeById } from '@/data/shoes'
+
+export type RepairBenchEquipType = 'weapon' | 'ring' | 'hat' | 'shoe'
+
+const REPAIR_BASE_COSTS: Record<RepairBenchEquipType, { itemId: string; quantity: number; money: number }> = {
+  weapon: { itemId: 'iron_bar', quantity: 2, money: 1000 },
+  ring:   { itemId: 'iron_bar', quantity: 1, money: 500 },
+  hat:    { itemId: 'cloth',    quantity: 2, money: 800 },
+  shoe:   { itemId: 'leather',  quantity: 2, money: 800 }
+}
+
+const REPAIR_TIER_MULTIPLIER: Record<EquipmentQualityTier, number> = {
+  common: 1,
+  fine: 1.5,
+  excellent: 2,
+  supreme: 3
+}
+
+export function getRepairQualityTier(
+  equipType: RepairBenchEquipType,
+  defId: string
+): EquipmentQualityTier | null {
+  if (equipType === 'weapon') return getWeaponById(defId)?.qualityTier ?? null
+  if (equipType === 'ring') return getRingById(defId)?.qualityTier ?? null
+  if (equipType === 'hat') return getHatById(defId)?.qualityTier ?? null
+  return getShoeById(defId)?.qualityTier ?? null
+}
+
+export function calculateRepairCost(
+  equipType: RepairBenchEquipType,
+  defId: string,
+  npcUnlocked: string[]
+): { materialItemId: string; materialQuantity: number; money: number } {
+  const base = REPAIR_BASE_COSTS[equipType]
+  const tier = getRepairQualityTier(equipType, defId) ?? 'common'
+  const multiplier = REPAIR_TIER_MULTIPLIER[tier]
+  const discount = 1 - getNpcRepairDiscount(npcUnlocked, equipType)
+  return {
+    materialItemId: base.itemId,
+    materialQuantity: Math.ceil(base.quantity * multiplier),
+    money: Math.ceil(base.money * multiplier * discount)
+  }
+}
+
+export function getRepairEquipName(
+  equipType: RepairBenchEquipType,
+  defId: string
+): string {
+  if (equipType === 'weapon') return getWeaponById(defId)?.name ?? defId
+  if (equipType === 'ring') return getRingById(defId)?.name ?? defId
+  if (equipType === 'hat') return getHatById(defId)?.name ?? defId
+  return getShoeById(defId)?.name ?? defId
 }

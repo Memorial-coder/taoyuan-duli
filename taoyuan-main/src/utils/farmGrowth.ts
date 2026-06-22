@@ -7,7 +7,7 @@ export const getCropCycleDays = (
   if (!crop) return 1
   const useRegrowthCycle = harvestCount > 0 && crop.regrowth === true && Number.isFinite(crop.regrowthDays)
   const days = useRegrowthCycle ? crop.regrowthDays : crop.growthDays
-  return Math.max(1, Math.floor(Number(days) || 1))
+  return Math.max(1, Number(days) || 1)
 }
 
 export const getCropEffectiveGrowthDays = (
@@ -16,7 +16,7 @@ export const getCropEffectiveGrowthDays = (
   harvestCount = 0
 ): number => {
   const cycleDays = getCropCycleDays(crop, harvestCount)
-  return Math.max(1, Math.floor(cycleDays * (1 - Math.max(0, Number(speedup) || 0))))
+  return Math.max(1, cycleDays * (1 - Math.max(0, Number(speedup) || 0)))
 }
 
 export const getPlotEffectiveGrowthDays = (

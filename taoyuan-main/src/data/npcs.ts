@@ -866,6 +866,10 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 3,
     durationDays: 7,
     rewardSummary: '完成后可获得铜钱与基础食材，形成可见的家庭经营回报。',
+    itemRequirements: [
+      { itemId: 'mixed_seed_oil', quantity: 1, sourceHint: '油坊榨油或特殊订单备料', sourceGroupId: 'oil' },
+      { itemId: 'egg', quantity: 2, sourceHint: '鸡舍产出' }
+    ],
     reward: {
       money: 600,
       items: [{ itemId: 'egg', quantity: 2 }]
@@ -961,6 +965,10 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 4,
     durationDays: 7,
     rewardSummary: '完成后会返还一笔集市活动经费，并给活动承接型路线补一轮基础物资。',
+    itemRequirements: [
+      { itemId: 'mixed_seed_oil', quantity: 2, sourceHint: '油坊榨油或家庭备餐', sourceGroupId: 'oil' },
+      { itemId: 'rice_flour', quantity: 1, sourceHint: '石磨加工', sourceGroupId: 'flour' }
+    ],
     reward: {
       money: 1100,
       items: [{ itemId: 'food_rice_ball', quantity: 3 }, { itemId: 'hanhai_spice', quantity: 1 }]

@@ -18,7 +18,9 @@ import {
   getRouteMapNodeKey
 } from '@/data/regions'
 import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from '@/data/journeyHub'
+import { getRegionExpeditionElixirPrepOption, type RegionExpeditionElixirPrepOption } from '@/data/eliteElixirPrep'
 import { addLog, showFloat } from '@/composables/useGameLog'
+import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
 import { getWeaponById } from '@/data/weapons'
 import { getForgeAffixSignature, getLegacyAffixSignature } from '@/data/forgeAffixes'
 import { getNpcById } from '@/data'
@@ -3844,11 +3846,41 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return session
   }
 
+  const applyRegionExpeditionElixirPrep = (
+    session: RegionExpeditionSession,
+    prep: RegionExpeditionElixirPrepOption,
+    elixirName: string
+  ) => {
+    session.visibility = clamp(session.visibility + (prep.visibilityBonus ?? 0), 0, 100)
+    session.findings = Math.max(0, session.findings + (prep.findingsBonus ?? 0))
+    session.morale = clamp(session.morale + (prep.moraleBonus ?? 0), 0, 100)
+    session.danger = clamp(session.danger - (prep.dangerReduction ?? 0), 0, 100)
+    session.supplies = {
+      ...session.supplies,
+      medicine: Math.max(0, session.supplies.medicine + (prep.medicineBonus ?? 0)),
+      utility: Math.max(0, session.supplies.utility + (prep.utilityBonus ?? 0))
+    }
+    session.riskState = {
+      ...session.riskState,
+      pollution: clamp(session.riskState.pollution - (prep.pollutionReduction ?? 0), 0, 100),
+      anomaly: clamp(session.riskState.anomaly - (prep.anomalyReduction ?? 0), 0, 100),
+      alertness: clamp(session.riskState.alertness - (prep.alertnessReduction ?? 0), 0, 100)
+    }
+    appendSessionJournal(
+      session,
+      prep.journalTitle,
+      `${prep.journalSummary} 已消耗${elixirName}。`,
+      [`消耗${elixirName}`, ...prep.journalEffects],
+      'accent'
+    )
+  }
+
   const startRouteExpeditionSession = (
     routeId: string,
     dayTag = '',
     approach: RegionExpeditionApproach = 'steady',
-    retreatRule: RegionExpeditionRetreatRule = 'balanced'
+    retreatRule: RegionExpeditionRetreatRule = 'balanced',
+    prepItemId: string | null = null
   ) => {
     let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return { success: false, message: '路线不存在。', title: '无法出发', lines: ['路线不存在。'], tone: 'danger' as const }
@@ -3860,17 +3892,38 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
     }
 
+    const elixirPrep = getRegionExpeditionElixirPrepOption(prepItemId)
+    if (prepItemId && !elixirPrep) {
+      return { success: false, message: '这种丹药暂时不能用于远征准备。', title: '无法出发', lines: ['这种丹药暂时不能用于远征准备。'], tone: 'danger' as const }
+    }
+    const inventoryStore = useInventoryStore()
+    if (elixirPrep && inventoryStore.getTotalItemCount(elixirPrep.itemId) < 1) {
+      const elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      return { success: false, message: `${elixirName}不足，无法作为远征准备物。`, title: '无法出发', lines: [`${elixirName}不足，无法作为远征准备物。`], tone: 'danger' as const }
+    }
+
     const buildSnapshot = getRouteJourneyBuildSnapshot(routeId)
     route = { ...route, staminaCost: getJourneyAdjustedStaminaCost(route.staminaCost, buildSnapshot) }
     const playerStore = usePlayerStore()
+
+    const session = createRouteSession(routeId, dayTag, approach, retreatRule)
+    if (!session) {
+      return { success: false, message: '路线远征初始化失败。', title: '无法出发', lines: ['路线远征初始化失败。'], tone: 'danger' as const }
+    }
     if (!playerStore.consumeStamina(route.staminaCost)) {
       return { success: false, message: `体力不足，需要 ${route.staminaCost} 点体力。`, title: '无法出发', lines: [`体力不足，需要 ${route.staminaCost} 点体力。`], tone: 'danger' as const }
     }
 
-    const session = createRouteSession(routeId, dayTag, approach, retreatRule)
-    if (!session) {
-      playerStore.restoreStamina(route.staminaCost)
-      return { success: false, message: '路线远征初始化失败。', title: '无法出发', lines: ['路线远征初始化失败。'], tone: 'danger' as const }
+    let elixirLine = ''
+    let elixirName = ''
+    if (elixirPrep) {
+      elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      if (!inventoryStore.removeItemAnywhere(elixirPrep.itemId, 1)) {
+        playerStore.restoreStamina(route.staminaCost)
+        return { success: false, message: '丹药准备状态已变化，远征未出发。', title: '无法出发', lines: ['丹药准备状态已变化，远征未出发。'], tone: 'danger' as const }
+      }
+      applyRegionExpeditionElixirPrep(session, elixirPrep, elixirName)
+      elixirLine = `丹药准备：消耗 ${elixirName}，${elixirPrep.effect}。`
     }
 
     persistActiveSession(session)
@@ -3884,9 +3937,21 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         routeId: route.id,
         approach,
         retreatRule,
+        elixirItemId: elixirPrep?.itemId ?? null,
         staminaCost: route.staminaCost
       }
     })
+    if (elixirPrep) {
+      addLog(`【行旅图】${regionName}·${route.name}：消耗${elixirName}作为出发丹药，${elixirPrep.effect}。`, {
+        category: 'goal',
+        tags: ['late_game_cycle', 'resource_sink'],
+        meta: {
+          regionId: route.regionId,
+          routeId: route.id,
+          elixirItemId: elixirPrep.itemId
+        }
+      })
+    }
     if (journeyCookingFeedback) {
       addLog(`【行旅图】${regionName}·${route.name}：${journeyCookingFeedback}`, {
         category: 'goal',
@@ -3908,6 +3973,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         `目标：${route.name}`,
         `已消耗 ${route.staminaCost} 点体力，进入多阶段推进。`,
         `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
+        elixirLine,
         journeyCookingFeedback,
         ...(buildSnapshot?.summaryLines.slice(0, 2) ?? [])
       ].filter(Boolean),
@@ -3919,7 +3985,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     regionId: RegionId,
     dayTag = '',
     approach: RegionExpeditionApproach = 'steady',
-    retreatRule: RegionExpeditionRetreatRule = 'balanced'
+    retreatRule: RegionExpeditionRetreatRule = 'balanced',
+    prepItemId: string | null = null
   ) => {
     let boss = getRegionBossDef(regionId)
     if (!boss) return { success: false, message: '当前区域首领未配置。', title: '无法出发', lines: ['当前区域首领未配置。'], tone: 'danger' as const }
@@ -3931,18 +3998,39 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
     }
 
+    const elixirPrep = getRegionExpeditionElixirPrepOption(prepItemId)
+    if (prepItemId && !elixirPrep) {
+      return { success: false, message: '这种丹药暂时不能用于远征准备。', title: '无法出发', lines: ['这种丹药暂时不能用于远征准备。'], tone: 'danger' as const }
+    }
+    const inventoryStore = useInventoryStore()
+    if (elixirPrep && inventoryStore.getTotalItemCount(elixirPrep.itemId) < 1) {
+      const elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      return { success: false, message: `${elixirName}不足，无法作为远征准备物。`, title: '无法出发', lines: [`${elixirName}不足，无法作为远征准备物。`], tone: 'danger' as const }
+    }
+
     ensureFrontierWorldSignals(dayTag)
     const buildSnapshot = getBossJourneyBuildSnapshot(regionId)
     boss = { ...boss, staminaCost: getJourneyAdjustedStaminaCost(boss.staminaCost, buildSnapshot) }
     const playerStore = usePlayerStore()
+
+    const session = createBossSession(regionId, dayTag, approach, retreatRule)
+    if (!session) {
+      return { success: false, message: '首领远征初始化失败。', title: '无法出发', lines: ['首领远征初始化失败。'], tone: 'danger' as const }
+    }
     if (!playerStore.consumeStamina(boss.staminaCost)) {
       return { success: false, message: `体力不足，需要 ${boss.staminaCost} 点体力。`, title: '无法出发', lines: [`体力不足，需要 ${boss.staminaCost} 点体力。`], tone: 'danger' as const }
     }
 
-    const session = createBossSession(regionId, dayTag, approach, retreatRule)
-    if (!session) {
-      playerStore.restoreStamina(boss.staminaCost)
-      return { success: false, message: '首领远征初始化失败。', title: '无法出发', lines: ['首领远征初始化失败。'], tone: 'danger' as const }
+    let elixirLine = ''
+    let elixirName = ''
+    if (elixirPrep) {
+      elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      if (!inventoryStore.removeItemAnywhere(elixirPrep.itemId, 1)) {
+        playerStore.restoreStamina(boss.staminaCost)
+        return { success: false, message: '丹药准备状态已变化，远征未出发。', title: '无法出发', lines: ['丹药准备状态已变化，远征未出发。'], tone: 'danger' as const }
+      }
+      applyRegionExpeditionElixirPrep(session, elixirPrep, elixirName)
+      elixirLine = `丹药准备：消耗 ${elixirName}，${elixirPrep.effect}。`
     }
 
     persistActiveSession(session)
@@ -3954,9 +4042,21 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         bossId: boss.id,
         approach,
         retreatRule,
+        elixirItemId: elixirPrep?.itemId ?? null,
         staminaCost: boss.staminaCost
       }
     })
+    if (elixirPrep) {
+      addLog(`【行旅图】${boss.name}：消耗${elixirName}作为首领远征出发丹药，${elixirPrep.effect}。`, {
+        category: 'goal',
+        tags: ['late_game_cycle', 'resource_sink'],
+        meta: {
+          regionId,
+          bossId: boss.id,
+          elixirItemId: elixirPrep.itemId
+        }
+      })
+    }
     showFloat(`首领远征：${boss.name}`, 'accent')
 
     return {
@@ -3967,6 +4067,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         `目标：${boss.name}`,
         `已消耗 ${boss.staminaCost} 点体力，接下来需逐段推进至决战。`,
         `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
+        elixirLine,
         ...(buildSnapshot?.summaryLines.slice(0, 2) ?? [])
       ],
       tone: 'accent' as const
@@ -4722,6 +4823,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
     const { runtime, weaponLabel } = buildRegionBossPlayerRuntime()
     const context = getRegionBossCombatContext(session.regionId, boss, session)
     const phase = getRegionBossCombatPhase(boss, combat.phaseIndex)
@@ -4783,9 +4885,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
       // Equipment durability consumption on attack
       if (action === "attack") {
+        const npcStore = useNpcStore()
+        const durabilityNpcUnlocked = npcStore.isNpcFunctionEffectUnlocked('tackle_maintain') ? ['tackle_maintain'] : []
         const equippedWeaponR = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
         if (equippedWeaponR) {
-          const wRedR = calculateConsumptionReduction(equippedWeaponR.affixes ?? [], equippedWeaponR.enchantmentId, [])
+          const wRedR = calculateConsumptionReduction(equippedWeaponR.affixes ?? [], equippedWeaponR.enchantmentId, durabilityNpcUnlocked)
           const wMaxR = inventoryStore.getWeaponMaxDurability?.() ?? 100
           consumeEquipmentDurability(equippedWeaponR, wMaxR, 1, wRedR)
         }
@@ -4793,7 +4897,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           if (rSlot >= 0) {
             const rInst = inventoryStore.ownedRings[rSlot]
             if (rInst) {
-              const rRedR = calculateConsumptionReduction(rInst.affixes ?? [], rInst.enchantmentId, [])
+              const rRedR = calculateConsumptionReduction(rInst.affixes ?? [], rInst.enchantmentId, durabilityNpcUnlocked)
               const rMaxR = inventoryStore.getRingMaxDurability?.(rSlot) ?? 100
               consumeEquipmentDurability(rInst, rMaxR, 1, rRedR)
             }

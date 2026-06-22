@@ -144,6 +144,26 @@
         <p class="text-sm text-accent">当前可钓鱼类</p>
         <span class="text-xs text-muted">{{ fishingStore.availableFish.length }}种</span>
       </div>
+      <div
+        v-if="fishingStore.fishOddsPreview.length > 0"
+        class="mb-2 rounded-xs border border-accent/10 bg-bg/30 p-2"
+        data-testid="npc-fish-odds-preview"
+      >
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-[0.625rem] text-accent">秋月的鱼获情报</p>
+          <span class="text-[0.625rem] text-muted">估算</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-1">
+          <div
+            v-for="entry in fishingStore.fishOddsPreview.slice(0, 6)"
+            :key="entry.fishId"
+            class="flex items-center justify-between gap-2 text-[0.625rem]"
+          >
+            <span class="min-w-0 truncate" :class="DIFFICULTY_COLORS[entry.difficulty]">{{ entry.fishName }}</span>
+            <span class="shrink-0 text-muted">{{ entry.chancePercent }}%</span>
+          </div>
+        </div>
+      </div>
       <div v-if="fishingStore.availableFish.length > 0" class="flex flex-col space-y-1">
         <div
           v-for="f in fishingStore.availableFish"
@@ -607,7 +627,7 @@
     easy: 'text-success',
     normal: 'text-muted',
     hard: 'text-danger',
-    legendary: 'text-accent'
+    legendary: 'font-semibold text-fuchsia-600'
   }
 
   const SEASON_LABEL: Record<string, string> = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' }

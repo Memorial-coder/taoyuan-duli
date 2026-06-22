@@ -5,6 +5,7 @@ export const SHOES: ShoeDef[] = [
   // ===== Tier 1: 基础款（绸缎庄购买）=====
   {
     id: 'straw_sandals',
+    qualityTier: 'common',
     name: '草鞋',
     description: '朴素的草编鞋，减少体力消耗。',
     effects: [{ type: 'stamina_reduction', value: 0.05 }],
@@ -16,6 +17,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'cloth_shoes',
+    qualityTier: 'common',
     name: '布鞋',
     description: '舒适的布鞋，农作时更加轻松。',
     effects: [{ type: 'farming_stamina', value: 0.08 }],
@@ -29,6 +31,7 @@ export const SHOES: ShoeDef[] = [
   // ===== Tier 2: 中级款（绸缎庄购买）=====
   {
     id: 'leather_boots',
+    qualityTier: 'fine',
     name: '皮靴',
     description: '结实的皮革长靴，走路更快。',
     effects: [{ type: 'travel_speed', value: 0.18 }],
@@ -40,6 +43,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'miner_boots',
+    qualityTier: 'fine',
     name: '矿工靴',
     description: '厚底铁头靴，矿洞探索更加安全。',
     effects: [
@@ -56,6 +60,7 @@ export const SHOES: ShoeDef[] = [
   // ===== Tier 3: 高级款（铁匠铺合成）=====
   {
     id: 'gale_boots',
+    qualityTier: 'excellent',
     name: '疾风靴',
     description: '轻盈如风的皮靴，大幅缩短旅途时间。',
     effects: [
@@ -73,6 +78,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'iron_greaves',
+    qualityTier: 'fine',
     name: '铁甲靴',
     description: '厚重的铁甲护胫，防御力出众。',
     effects: [
@@ -87,6 +93,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'silk_slippers',
+    qualityTier: 'fine',
     name: '丝绸绣鞋',
     description: '精致的丝绸绣花鞋，踏青采药脚步轻盈。',
     effects: [
@@ -104,6 +111,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'merchant_boots',
+    qualityTier: 'fine',
     name: '商旅靴',
     description: '行商常穿的皮靴，行路快且购物有折扣。',
     effects: [
@@ -123,6 +131,7 @@ export const SHOES: ShoeDef[] = [
   // ===== Tier 4: 顶级款（铁匠铺合成）=====
   {
     id: 'moon_step_boots',
+    qualityTier: 'supreme',
     name: '月步靴',
     description: '月光石嵌入的灵巧之靴，行路如飞。',
     effects: [
@@ -140,6 +149,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'dragon_scale_boots',
+    qualityTier: 'excellent',
     name: '龙鳞靴',
     description: '龙鳞制成的战靴，攻守兼备行如风。',
     effects: [
@@ -160,6 +170,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 怪物掉落 =====
   {
     id: 'frost_treads',
+    qualityTier: 'excellent',
     name: '霜行靴',
     description: '寒冰层怪物留下的冻结护胫，穿上后脚步稳健。',
     effects: [
@@ -174,6 +185,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'shadow_striders',
+    qualityTier: 'excellent',
     name: '暗影行者',
     description: '暗影层怪物的暗能凝聚而成，移动迅捷无声。',
     effects: [
@@ -188,6 +200,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'void_treads',
+    qualityTier: 'excellent',
     name: '虚空战靴',
     description: '深渊骨龙的骨骼锻成，蕴含毁灭之力。',
     effects: [
@@ -205,6 +218,7 @@ export const SHOES: ShoeDef[] = [
   // ===== BOSS掉落 =====
   {
     id: 'lava_lord_greaves',
+    qualityTier: 'supreme',
     name: '熔岩铠靴',
     description: '熔岩领主的余热凝结而成，坚固且灼热。',
     effects: [
@@ -219,6 +233,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'shadow_sovereign_treads',
+    qualityTier: 'supreme',
     name: '暗王之靴',
     description: '暗影君主的遗物，暗能缠绕脚踝，步履生风。',
     effects: [
@@ -236,6 +251,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 宝箱掉落 =====
   {
     id: 'fortune_slippers',
+    qualityTier: 'excellent',
     name: '福运鞋',
     description: '宝箱中发现的柔软拖鞋，似乎能招来好运。',
     effects: [
@@ -252,6 +268,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 新增商店鞋子（绸缎庄）=====
   {
     id: 'cotton_shoes',
+    qualityTier: 'common',
     name: '棉鞋',
     description: '柔软保暖的棉鞋，减少日常体力消耗。',
     effects: [
@@ -266,6 +283,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'fishing_waders',
+    qualityTier: 'fine',
     name: '钓鱼靴',
     description: '防水长靴，钓鱼时更加从容。',
     effects: [
@@ -280,6 +298,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'jade_slippers',
+    qualityTier: 'excellent',
     name: '玉底鞋',
     description: '翡翠镶底的绣花鞋，提升售价并增加送礼好感。',
     effects: [
@@ -296,6 +315,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 新增合成鞋子（铁匠铺）=====
   {
     id: 'obsidian_greaves',
+    qualityTier: 'excellent',
     name: '黑曜甲靴',
     description: '黑曜石锻造的重甲靴，防御力极强。',
     effects: [
@@ -313,6 +333,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'wind_walker',
+    qualityTier: 'excellent',
     name: '风行靴',
     description: '月光石赋予的轻盈之力，旅行速度大幅提升。',
     effects: [
@@ -330,6 +351,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'phoenix_boots',
+    qualityTier: 'supreme',
     name: '凤鸣靴',
     description: '龙玉与金铸成的华美靴子，带来好运与悟性。',
     effects: [
@@ -349,6 +371,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 新增BOSS掉落鞋子 =====
   {
     id: 'frost_queen_slippers',
+    qualityTier: 'supreme',
     name: '冰后舞靴',
     description: '冰霜女王的遗物，穿上后脚步轻盈如冰上起舞。',
     effects: [
@@ -363,6 +386,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'abyss_dragon_treads',
+    qualityTier: 'supreme',
     name: '龙王战靴',
     description: '深渊龙王鳞片锻成的至高战靴，行如疾风攻守兼备。',
     effects: [
@@ -380,6 +404,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 新增怪物掉落鞋子 =====
   {
     id: 'crystal_treads',
+    qualityTier: 'supreme',
     name: '晶矿踏靴',
     description: '水晶层怪物碎片凝成的矿靴，采矿效率提升。',
     effects: [
@@ -396,6 +421,7 @@ export const SHOES: ShoeDef[] = [
   // ===== 新增宝箱掉落鞋子 =====
   {
     id: 'lucky_boots',
+    qualityTier: 'fine',
     name: '幸运长靴',
     description: '宝箱中发现的古怪长靴，带来好运与额外战利品。',
     effects: [
@@ -412,6 +438,7 @@ export const SHOES: ShoeDef[] = [
   // === 公会专属 ===
   {
     id: 'courier_stride_boots',
+    qualityTier: 'fine',
     name: '邮驿疾行靴',
     description: '强调赶路、周转与侦察节奏的轻靴，让荒道回流更快接成下一趟出发。',
     effects: [
@@ -427,6 +454,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'reedstep_waders',
+    qualityTier: 'fine',
     name: '芦迹涉行靴',
     description: '在泽地里稳住节奏、压住异常的轻便涉水靴，适合长线样本回流。',
     effects: [
@@ -442,6 +470,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'stormforged_greaves',
+    qualityTier: 'excellent',
     name: '风铸壁行胫甲',
     description: '高地首领线开放后的重甲靴，专门为高压远征和回城战备收束设计。',
     effects: [
@@ -457,6 +486,7 @@ export const SHOES: ShoeDef[] = [
   },
   {
     id: 'guild_war_boots',
+    qualityTier: 'supreme',
     name: '公会战靴',
     description: '冒险家公会精英成员的战斗靴，轻便且坚韧。',
     effects: [

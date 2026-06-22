@@ -6586,6 +6586,7 @@ test.describe('web game smoke', () => {
     } | null
     expect(prepared).toBeTruthy()
 
+    await page.getByTestId('family-relation-filter-visitors').click()
     await page.getByTestId(`family-relation-node-visitor:${prepared!.visitorId}`).click()
 
     await expect(page.getByTestId('family-relation-detail')).toContainText(prepared!.visitorName)

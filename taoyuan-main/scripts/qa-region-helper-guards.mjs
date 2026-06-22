@@ -102,6 +102,7 @@ const unexpectedGridRefs = gridRefs.filter(filePath => ![
   '0605审查.md',
   'taoyuan-main/src/data/mine.ts',
   'taoyuan-main/src/stores/useMiningStore.ts',
+  'taoyuan-main/scripts/qa-skull-cavern-depth-loot.mjs',
   'taoyuan-main/scripts/qa-region-helper-guards.mjs'
 ].includes(filePath))
 assert(unexpectedGridRefs.length === 0, `generateFloorGrid 存在矿洞 store 外调用：${unexpectedGridRefs.join(', ')}`)

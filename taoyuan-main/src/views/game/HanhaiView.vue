@@ -26,145 +26,156 @@
 
     <!-- 已解锁 -->
     <template v-else>
-      <!-- 标签页 -->
-      <div class="flex space-x-1 mb-3">
-        <Button class="flex-1 justify-center" :class="{ '!bg-accent !text-bg': activeTab === 'shop' }" @click="activeTab = 'shop'">
-          驿站商店
-        </Button>
-        <Button class="flex-1 justify-center" :class="{ '!bg-accent !text-bg': activeTab === 'relic' }" @click="activeTab = 'relic'">
-          遗迹勘探
-        </Button>
-        <Button class="flex-1 justify-center" :class="{ '!bg-accent !text-bg': activeTab === 'casino' }" @click="activeTab = 'casino'">
-          瀚海赌坊
-        </Button>
-      </div>
-
-      <div class="border border-accent/20 rounded-xs p-2 mb-3">
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
-          <div class="flex items-center justify-between">
-            <span class="text-muted">循环阶段</span>
-            <span class="text-accent">{{ hanhaiProgressTierLabel }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted">本周首领</span>
-            <span>{{ currentBossLabel }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted">遗迹总勘探</span>
-            <span class="text-accent">{{ hanhaiStore.cycleOverview.totalRelicClears }}</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-muted">活跃投资</span>
-            <span>{{ hanhaiStore.cycleOverview.activeInvestmentCount }}</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-2">
-          <div class="border border-accent/10 rounded-xs p-2">
-            <p class="text-xs text-muted mb-1">商路投资</p>
-            <div v-for="route in visibleRouteInvestments" :key="route.id" class="flex items-center justify-between text-[0.625rem] mt-0.5 gap-2">
-              <div class="min-w-0">
-                <p>{{ route.label }}</p>
-                <p class="text-muted">投入 {{ route.costMoney }} 文</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="text-accent whitespace-nowrap">{{ getRouteStateText(route.id) }}</span>
-                <Button
-                  v-if="!hanhaiStore.cycleState.routeInvestments[route.id]"
-                  class="!px-2 !py-1"
-                  @click="handleInvestRoute(route.id)"
-                >
-                  投资
-                </Button>
-              </div>
+      <section class="hanhai-map-shell mb-3">
+        <div class="hanhai-dune-layer" aria-hidden="true" />
+        <div class="relative z-10 space-y-3">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-accent flex items-center gap-1.5">
+                <Map :size="15" />
+                <span>瀚海沙海图</span>
+              </p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">
+                {{ selectedNodeSummary?.description }}
+              </p>
+            </div>
+            <div class="shrink-0 text-left md:text-right">
+              <p class="text-[0.625rem] text-muted">本周风向</p>
+              <p class="text-xs text-accent mt-0.5">{{ hanhaiStore.crossSystemOverview.themeWeekFocus?.summaryLabel ?? currentBossLabel }}</p>
             </div>
           </div>
-          <div class="border border-accent/10 rounded-xs p-2">
-            <p class="text-xs text-muted mb-1">商路合同</p>
-            <div v-for="contract in visibleContracts" :key="contract.id" class="mt-1 first:mt-0">
-              <p class="text-[0.625rem] text-accent">{{ contract.label }}</p>
-              <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ contract.rewardSummary }}</p>
+
+          <div class="hanhai-intel-grid">
+            <div v-for="card in hanhaiIntelCards" :key="card.label" class="hanhai-intel-tile">
+              <span class="text-[0.625rem] text-muted">{{ card.label }}</span>
+              <span class="text-xs" :class="card.toneClass">{{ card.value }}</span>
             </div>
           </div>
-          <div class="border border-accent/10 rounded-xs p-2">
-            <p class="text-xs text-muted mb-1">遗迹套组 / 轮换货架</p>
-            <p class="text-[0.625rem] text-muted leading-4">当前可关注套组：{{ visibleRelicSets.map(setDef => setDef.label).join('、') || '暂无' }}</p>
-            <p class="text-[0.625rem] text-accent mt-1">本档货架：{{ currentShopRotation?.label ?? '暂无轮换' }}</p>
-          </div>
-        </div>
-      </div>
 
-      <div class="border border-accent/20 rounded-xs p-2 mb-3">
-        <div class="flex items-center justify-between mb-1">
-          <p class="text-xs text-muted">经营联动</p>
-          <span v-if="hanhaiStore.crossSystemOverview.themeWeekFocus" class="text-[0.625rem] text-accent">
-            {{ hanhaiStore.crossSystemOverview.themeWeekFocus.summaryLabel }}
-          </span>
-        </div>
-
-        <p
-          v-if="hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint"
-          class="text-[0.625rem] text-muted leading-4"
-        >
-          {{ hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint }}
-        </p>
-
-        <div
-          v-if="hanhaiStore.crossSystemOverview.themeWeekFocus"
-          class="border border-accent/10 rounded-xs p-2 mt-2"
-        >
-          <p class="text-[0.625rem] text-muted mb-1">主题周焦点</p>
-          <p class="text-[0.625rem] text-accent leading-4">
-            {{ [
-              ...(hanhaiStore.crossSystemOverview.themeWeekFocus.routeLabels ?? []),
-              ...(hanhaiStore.crossSystemOverview.themeWeekFocus.relicSiteLabels ?? []),
-              ...(hanhaiStore.crossSystemOverview.themeWeekFocus.bossCycleLabels ?? [])
-            ].slice(0, 4).join('、') || '暂无额外瀚海焦点' }}
-          </p>
-        </div>
-
-        <div v-if="hanhaiStore.crossSystemOverview.linkedVillageProjects.length" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[0.625rem] text-muted mb-1">联动建设</p>
-          <div
-            v-for="project in hanhaiStore.crossSystemOverview.linkedVillageProjects.slice(0, 2)"
-            :key="project.id"
-            class="flex items-center justify-between text-[0.625rem] mt-0.5 first:mt-0"
-          >
-            <span>{{ project.name }}</span>
-            <span class="text-accent">{{ project.completed ? '已完成' : project.available ? '可推进' : '未解锁' }}</span>
-          </div>
-        </div>
-
-        <div v-if="hanhaiStore.crossSystemOverview.recommendedCatalogOffers.length" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[0.625rem] text-muted mb-1">目录承接</p>
-          <div
-            v-for="offer in hanhaiStore.crossSystemOverview.recommendedCatalogOffers"
-            :key="offer.id"
-            class="flex items-center justify-between text-[0.625rem] mt-0.5 first:mt-0"
-          >
-            <span>{{ offer.name }}</span>
-            <span class="text-accent">{{ offer.price }}文</span>
-          </div>
-        </div>
-
-        <div v-if="hanhaiStore.crossSystemOverview.recommendedActions.length" class="mt-2">
-          <p class="text-[0.625rem] text-muted mb-1">推荐动作</p>
-          <ul class="space-y-1">
-            <li
-              v-for="(action, index) in hanhaiStore.crossSystemOverview.recommendedActions"
-              :key="`${index}-${action}`"
-              class="text-[0.625rem] text-muted leading-4"
+          <div class="hanhai-map-stage">
+            <div class="hanhai-route-line" aria-hidden="true" />
+            <button
+              v-for="(node, index) in hanhaiMapNodes"
+              :key="node.id"
+              type="button"
+              class="hanhai-map-node"
+              :class="[activeTab === node.id ? 'hanhai-node-active' : '', `hanhai-node-${node.tone}`]"
+              :aria-pressed="activeTab === node.id"
+              @click="activeTab = node.id"
             >
-              - {{ action }}
-            </li>
-          </ul>
+              <span class="hanhai-node-icon">
+                <component :is="node.icon" :size="16" />
+              </span>
+              <span class="hanhai-node-copy">
+                <span class="text-[0.5625rem] text-muted">{{ node.eyebrow }}</span>
+                <span class="text-xs">{{ node.label }}</span>
+                <span class="text-[0.625rem] text-muted leading-4">{{ node.status }}</span>
+              </span>
+              <span class="hanhai-node-index">{{ index + 1 }}</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_18rem] gap-3">
+            <div class="border border-accent/20 rounded-xs p-3 bg-bg/60">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-xs text-accent">{{ selectedNodeSummary?.label }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedNodeSummary?.detail }}</p>
+                </div>
+                <span class="text-[0.625rem] shrink-0" :class="selectedNodeSummary?.toneClass">{{ selectedNodeSummary?.status }}</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                <div
+                  v-for="line in selectedNodeHighlights"
+                  :key="line"
+                  class="border border-accent/10 rounded-xs px-2 py-1.5 text-[0.625rem] text-muted leading-4 bg-panel/40"
+                >
+                  {{ line }}
+                </div>
+              </div>
+            </div>
+
+            <div class="border border-accent/20 rounded-xs p-3 bg-bg/50">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">经营联动</p>
+                <span class="text-[0.625rem] text-muted">{{ linkedSignalCount }} 条</span>
+              </div>
+              <p
+                v-if="hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint"
+                class="text-[0.625rem] text-muted leading-4 mt-2"
+              >
+                {{ hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint }}
+              </p>
+              <div v-if="themeWeekFocusLabels.length" class="flex flex-wrap gap-1.5 mt-2">
+                <span
+                  v-for="label in themeWeekFocusLabels"
+                  :key="label"
+                  class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent/90"
+                >
+                  {{ label }}
+                </span>
+              </div>
+              <p
+                v-for="action in hanhaiStore.crossSystemOverview.recommendedActions.slice(0, 2)"
+                :key="action"
+                class="text-[0.625rem] text-muted leading-4 mt-2"
+              >
+                - {{ action }}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
       <!-- 驿站商店 -->
       <Transition name="tab-panel-switch" mode="out-in">
         <div :key="activeTab">
-      <template v-if="activeTab === 'shop'">
+      <template v-if="activeTab === 'route'">
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(15rem,0.85fr)] gap-3">
+          <div class="border border-accent/20 rounded-xs p-3">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <p class="text-xs text-accent">商路投资</p>
+              <span class="text-[0.625rem] text-muted">{{ investedRouteCount }}/{{ visibleRouteInvestments.length }} 已投入</span>
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="route in visibleRouteInvestments"
+                :key="route.id"
+                class="border border-accent/10 rounded-xs px-3 py-2"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-xs">{{ route.label }}</p>
+                    <p class="text-[0.625rem] text-muted mt-0.5">投入 {{ route.costMoney }} 文</p>
+                  </div>
+                  <span class="text-[0.625rem] text-accent whitespace-nowrap">{{ getRouteStateText(route.id) }}</span>
+                </div>
+                <div class="mt-2 flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted leading-4">{{ getRouteHint(route.id) }}</p>
+                  <Button
+                    v-if="!hanhaiStore.cycleState.routeInvestments[route.id]"
+                    class="!px-2 !py-1 shrink-0"
+                    :class="{ '!bg-accent !text-bg': playerStore.money >= route.costMoney }"
+                    :disabled="playerStore.money < route.costMoney"
+                    @click="handleInvestRoute(route.id)"
+                  >
+                    投资
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="border border-accent/20 rounded-xs p-3">
+            <p class="text-xs text-accent mb-2">商路合同</p>
+            <div v-for="contract in visibleContracts" :key="contract.id" class="border border-accent/10 rounded-xs p-2 mt-2 first:mt-0">
+              <p class="text-[0.625rem] text-accent">{{ contract.label }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ contract.rewardSummary }}</p>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else-if="activeTab === 'shop'">
         <div class="flex flex-col space-y-1 max-h-80 overflow-y-auto">
           <div
             v-for="item in HANHAI_SHOP_ITEMS"
@@ -172,9 +183,12 @@
             class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5 transition-colors mr-1"
             @click="shopModalItem = item"
           >
-            <div class="flex-1 min-w-0">
-              <p class="text-xs truncate">{{ item.name }}</p>
-              <p class="text-xs text-muted truncate">{{ item.description }}</p>
+            <div class="hanhai-shop-entry-main">
+              <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+              <div class="min-w-0">
+                <p class="text-xs truncate">{{ item.name }}</p>
+                <p class="text-xs text-muted truncate">{{ item.description }}</p>
+              </div>
             </div>
             <div class="flex flex-col items-end ml-2 shrink-0">
               <span class="text-xs text-accent">{{ formatShopCostLine(item) }}</span>
@@ -412,6 +426,69 @@
         </div>
       </template>
 
+      <template v-else-if="activeTab === 'rotation'">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div class="border border-accent/20 rounded-xs p-3">
+            <p class="text-xs text-accent">本周轮换</p>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2">
+              <p class="text-[0.625rem] text-muted">轮换货架</p>
+              <p class="text-xs text-accent mt-1">{{ currentShopRotation?.label ?? '暂无轮换' }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2">
+              <p class="text-[0.625rem] text-muted">遗迹套组</p>
+              <p class="text-[0.625rem] text-accent leading-4 mt-1">{{ visibleRelicSets.map(setDef => setDef.label).join('、') || '暂无' }}</p>
+            </div>
+            <div v-if="themeWeekFocusLabels.length" class="border border-accent/10 rounded-xs p-2 mt-2">
+              <p class="text-[0.625rem] text-muted">主题周焦点</p>
+              <p class="text-[0.625rem] text-accent leading-4 mt-1">{{ themeWeekFocusLabels.join('、') }}</p>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs p-3">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <p class="text-xs text-accent">承接事项</p>
+              <span class="text-[0.625rem] text-muted">{{ linkedSignalCount }} 条</span>
+            </div>
+            <div v-if="hanhaiStore.crossSystemOverview.linkedVillageProjects.length" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-[0.625rem] text-muted mb-1">联动建设</p>
+              <div
+                v-for="project in hanhaiStore.crossSystemOverview.linkedVillageProjects.slice(0, 2)"
+                :key="project.id"
+                class="flex items-center justify-between text-[0.625rem] mt-0.5 first:mt-0"
+              >
+                <span>{{ project.name }}</span>
+                <span class="text-accent">{{ project.completed ? '已完成' : project.available ? '可推进' : '未解锁' }}</span>
+              </div>
+            </div>
+
+            <div v-if="hanhaiStore.crossSystemOverview.recommendedCatalogOffers.length" class="border border-accent/10 rounded-xs p-2 mt-2">
+              <p class="text-[0.625rem] text-muted mb-1">目录承接</p>
+              <div
+                v-for="offer in hanhaiStore.crossSystemOverview.recommendedCatalogOffers"
+                :key="offer.id"
+                class="flex items-center justify-between text-[0.625rem] mt-0.5 first:mt-0"
+              >
+                <span>{{ offer.name }}</span>
+                <span class="text-accent">{{ offer.price }}文</span>
+              </div>
+            </div>
+
+            <div v-if="hanhaiStore.crossSystemOverview.recommendedActions.length" class="mt-2">
+              <p class="text-[0.625rem] text-muted mb-1">推荐动作</p>
+              <ul class="space-y-1">
+                <li
+                  v-for="(action, index) in hanhaiStore.crossSystemOverview.recommendedActions"
+                  :key="`${index}-${action}`"
+                  class="text-[0.625rem] text-muted leading-4"
+                >
+                  - {{ action }}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <!-- 底部统计 -->
         </div>
       </Transition>
@@ -442,7 +519,10 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm text-accent mb-2">{{ shopModalItem.name }}</p>
+          <div class="hanhai-shop-detail-header mb-2">
+            <ItemIcon :item="getItemById(shopModalItem.itemId)" size="sm" :show-badge="false" />
+            <p class="min-w-0 truncate pr-5 text-sm text-accent">{{ shopModalItem.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ shopModalItem.description }}</p>
@@ -462,7 +542,10 @@
               :key="cost.itemId"
               class="flex items-center justify-between mt-0.5"
             >
-              <span class="text-xs text-muted">{{ getShopCostItemName(cost.itemId) }}</span>
+              <span class="hanhai-shop-cost-label text-xs text-muted">
+                <ItemIcon :item="getItemById(cost.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getShopCostItemName(cost.itemId) }}</span>
+              </span>
               <span
                 class="text-xs"
                 :class="inventoryStore.getTotalItemCount(cost.itemId) >= cost.quantity ? '' : 'text-danger'"
@@ -805,6 +888,7 @@
   import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import { Tent, X, Dices, Trophy, Bug, Gem, Check, CircleDot, Spade, Crosshair, Map } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
   import { getItemById } from '@/data'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -834,6 +918,7 @@
     BUCKSHOT_WIN_MULTIPLIER
   } from '@/data/hanhai'
   import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
+  import type { Component } from 'vue'
   import type { BuckshotPlayerAction, BuckshotSetup, CricketDef, HanhaiRelicSiteDef, HanhaiShopItemDef, TexasSessionReport, TexasSetup, TexasTierId } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { useAudio } from '@/composables/useAudio'
@@ -872,8 +957,22 @@
   const playerStore = usePlayerStore()
   const { startHanhaiBgm, endHanhaiBgm } = useAudio()
   const { pauseClock, resumeClock } = useGameClock()
-  const activeTab = ref<'shop' | 'relic' | 'casino'>('shop')
-  const hanhaiTabs = ['shop', 'relic', 'casino'] as const
+  type HanhaiMapNodeId = 'shop' | 'route' | 'relic' | 'casino' | 'rotation'
+  type HanhaiMapNodeTone = 'ready' | 'warning' | 'muted'
+  type HanhaiMapNode = {
+    id: HanhaiMapNodeId
+    label: string
+    eyebrow: string
+    status: string
+    description: string
+    detail: string
+    tone: HanhaiMapNodeTone
+    toneClass: string
+    icon: Component
+  }
+
+  const activeTab = ref<HanhaiMapNodeId>('shop')
+  const hanhaiTabs = ['shop', 'route', 'relic', 'casino', 'rotation'] as const
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
   const animationTimers = new Set<ReturnType<typeof setTimeout>>()
   let disposed = false
@@ -904,10 +1003,138 @@
     const unlockedRotations = HANHAI_SHOP_ROTATIONS.filter(rotation => isTierUnlocked(rotation.unlockTier))
     return unlockedRotations[unlockedRotations.length - 1] ?? null
   })
+  const investedRouteCount = computed(() => visibleRouteInvestments.value.filter(route => hanhaiStore.cycleState.routeInvestments[route.id]).length)
+  const activeRelicSiteCount = computed(() => hanhaiStore.relicSites.filter(site => hanhaiStore.getRelicRemaining(site.id) > 0).length)
+  const purchasableShopCount = computed(() => HANHAI_SHOP_ITEMS.filter(item => canBuyShopItem(item.itemId)).length)
+  const claimableRelicMilestoneCount = computed(() => hanhaiStore.relicSites.filter(site => canClaimRelicMilestone(site.id)).length)
+  const themeWeekFocusLabels = computed(() => {
+    const focus = hanhaiStore.crossSystemOverview.themeWeekFocus
+    if (!focus) return []
+    return [
+      ...(focus.routeLabels ?? []),
+      ...(focus.relicSiteLabels ?? []),
+      ...(focus.bossCycleLabels ?? [])
+    ].slice(0, 4)
+  })
+  const linkedSignalCount = computed(() => (
+    themeWeekFocusLabels.value.length +
+    hanhaiStore.crossSystemOverview.linkedVillageProjects.length +
+    hanhaiStore.crossSystemOverview.recommendedCatalogOffers.length +
+    hanhaiStore.crossSystemOverview.recommendedActions.length
+  ))
+  const hanhaiIntelCards = computed(() => [
+    { label: '循环阶段', value: hanhaiProgressTierLabel.value, toneClass: 'text-accent' },
+    { label: '本周首领', value: currentBossLabel.value, toneClass: 'text-text' },
+    { label: '遗迹清理', value: String(hanhaiStore.cycleOverview.totalRelicClears), toneClass: 'text-accent' },
+    { label: '活跃投资', value: String(hanhaiStore.cycleOverview.activeInvestmentCount), toneClass: 'text-text' },
+    { label: '今日赌坊', value: `${hanhaiStore.betsRemaining}/${MAX_DAILY_BETS}`, toneClass: hanhaiStore.canBet ? 'text-accent' : 'text-danger' },
+    { label: '轮换货架', value: currentShopRotation.value?.label ?? '暂无', toneClass: 'text-accent' }
+  ])
+  const hanhaiMapNodes = computed<HanhaiMapNode[]>(() => [
+    {
+      id: 'shop',
+      label: '驿站商店',
+      eyebrow: '补给',
+      status: purchasableShopCount.value > 0 ? `${purchasableShopCount.value} 项可买` : '查看货架',
+      description: '从驿站货架、商路节点和遗迹驻点里挑本周最值得推进的方向。',
+      detail: '瀚海专属货架集中提供种子、香料、丝绸、藏图与高阶补给；材料不足或限购用尽会直接在条目上提示。',
+      tone: purchasableShopCount.value > 0 ? 'ready' : 'muted',
+      toneClass: purchasableShopCount.value > 0 ? 'text-success' : 'text-muted',
+      icon: Tent
+    },
+    {
+      id: 'route',
+      label: '商路投资',
+      eyebrow: '路线',
+      status: `${investedRouteCount.value}/${visibleRouteInvestments.value.length} 已投`,
+      description: '沙丘驿路会把投资、合同和市场承接收束到一条清晰路线里。',
+      detail: '每条商路保留原本投资成本与周期记录；已投入路线显示累计投入和完成周期，未投入路线保留一键投资。',
+      tone: investedRouteCount.value < visibleRouteInvestments.value.length ? 'ready' : 'muted',
+      toneClass: investedRouteCount.value < visibleRouteInvestments.value.length ? 'text-accent' : 'text-muted',
+      icon: Map
+    },
+    {
+      id: 'relic',
+      label: '遗迹勘探',
+      eyebrow: '驻点',
+      status: claimableRelicMilestoneCount.value > 0 ? `${claimableRelicMilestoneCount.value} 处可领奖` : `${activeRelicSiteCount.value} 处可探`,
+      description: '遗迹节点显示剩余次数、探索费用、主题与预计收获，方便一眼判断先去哪处驻点。',
+      detail: '勘探仍按原规则消耗铜钱并发放遗物、素材和票券；周上限满后可在对应驻点领取奖励。',
+      tone: claimableRelicMilestoneCount.value > 0 || activeRelicSiteCount.value > 0 ? 'ready' : 'muted',
+      toneClass: claimableRelicMilestoneCount.value > 0 ? 'text-success' : activeRelicSiteCount.value > 0 ? 'text-accent' : 'text-muted',
+      icon: Gem
+    },
+    {
+      id: 'casino',
+      label: '瀚海赌坊',
+      eyebrow: '彩头',
+      status: hanhaiStore.canBet ? `剩 ${hanhaiStore.betsRemaining} 次` : '今日已满',
+      description: '赌坊节点集中普通小游戏、瀚海扑克和恶魔轮盘，保留原来的弹窗与结算节奏。',
+      detail: '今日次数、入场费和现金门槛仍在每个玩法按钮上判断；进行中的扑克或轮盘会继续阻止离开页面。',
+      tone: hanhaiStore.canBet ? 'warning' : 'muted',
+      toneClass: hanhaiStore.canBet ? 'text-warning' : 'text-muted',
+      icon: Dices
+    },
+    {
+      id: 'rotation',
+      label: '本周轮换',
+      eyebrow: '风向',
+      status: linkedSignalCount.value > 0 ? `${linkedSignalCount.value} 条信号` : '暂无信号',
+      description: '轮换节点把本周首领、货架、主题周焦点、目录承接和推荐动作放在一起。',
+      detail: '这里是瀚海与任务板、村庄工程、商店目录之间的经营联动摘要，适合决定本周主线投入。',
+      tone: linkedSignalCount.value > 0 ? 'ready' : 'muted',
+      toneClass: linkedSignalCount.value > 0 ? 'text-accent' : 'text-muted',
+      icon: Trophy
+    }
+  ])
+  const selectedNodeSummary = computed(() => hanhaiMapNodes.value.find(node => node.id === activeTab.value) ?? hanhaiMapNodes.value[0])
+  const selectedNodeHighlights = computed(() => {
+    if (activeTab.value === 'shop') {
+      return [
+        `可购买货品 ${purchasableShopCount.value}/${HANHAI_SHOP_ITEMS.length} 项`,
+        `藏图持有 ${treasureMapCount.value} 张`,
+        `当前货架：${currentShopRotation.value?.label ?? '暂无轮换'}`
+      ]
+    }
+    if (activeTab.value === 'route') {
+      return [
+        `已投入商路 ${investedRouteCount.value}/${visibleRouteInvestments.value.length} 条`,
+        `可见合同 ${visibleContracts.value.length} 份`,
+        `活跃投资 ${hanhaiStore.cycleOverview.activeInvestmentCount} 条`
+      ]
+    }
+    if (activeTab.value === 'relic') {
+      return [
+        `本周可探驻点 ${activeRelicSiteCount.value} 处`,
+        `可领取驻点奖励 ${claimableRelicMilestoneCount.value} 处`,
+        `总勘探 ${hanhaiStore.cycleOverview.totalRelicClears} 次`
+      ]
+    }
+    if (activeTab.value === 'casino') {
+      return [
+        `今日剩余 ${hanhaiStore.betsRemaining}/${MAX_DAILY_BETS} 次`,
+        `持有铜钱 ${playerStore.money} 文`,
+        hanhaiStore.hasActiveCasinoSession ? '有牌局待结算' : '当前无进行中牌局'
+      ]
+    }
+    return [
+      `本周首领：${currentBossLabel.value}`,
+      `轮换货架：${currentShopRotation.value?.label ?? '暂无'}`,
+      `主题焦点：${themeWeekFocusLabels.value.join('、') || '暂无'}`
+    ]
+  })
   const getRouteStateText = (routeId: string) => {
     const state = hanhaiStore.cycleState.routeInvestments[routeId]
     if (!state) return '未投入'
     return `投入${state.totalInvested} / 周期${state.tripsCompleted}`
+  }
+  const getRouteHint = (routeId: string) => {
+    const route = visibleRouteInvestments.value.find(entry => entry.id === routeId)
+    if (!route) return '商路信息缺失。'
+    const state = hanhaiStore.cycleState.routeInvestments[routeId]
+    if (state) return `已接入商路循环，累计完成 ${state.tripsCompleted} 个周期。`
+    if (playerStore.money < route.costMoney) return `铜钱不足，还差 ${route.costMoney - playerStore.money} 文。`
+    return '可投入，投入后进入本周商路经营循环。'
   }
 
   onMounted(() => {
@@ -1411,6 +1638,187 @@
 </script>
 
 <style scoped>
+  .hanhai-map-shell {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(200, 164, 92, 0.26);
+    border-radius: 2px;
+    padding: 0.75rem;
+    background:
+      linear-gradient(135deg, rgba(200, 164, 92, 0.09), transparent 38%),
+      linear-gradient(180deg, rgba(35, 37, 54, 0.92), rgba(28, 30, 44, 0.98));
+  }
+
+  .hanhai-dune-layer {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 18% 18%, rgba(200, 164, 92, 0.14), transparent 24%),
+      radial-gradient(circle at 84% 28%, rgba(90, 158, 111, 0.08), transparent 22%),
+      linear-gradient(160deg, transparent 0 36%, rgba(200, 164, 92, 0.08) 37% 38%, transparent 39% 100%);
+    opacity: 0.82;
+    pointer-events: none;
+  }
+
+  .hanhai-intel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem;
+  }
+
+  .hanhai-intel-tile {
+    min-height: 2.75rem;
+    border: 1px solid rgba(200, 164, 92, 0.14);
+    border-radius: 2px;
+    padding: 0.45rem 0.55rem;
+    background: rgba(18, 20, 31, 0.46);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.125rem;
+  }
+
+  .hanhai-map-stage {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(8.5rem, 1fr));
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.25rem 0.125rem 0.5rem;
+    scrollbar-width: thin;
+  }
+
+  .hanhai-route-line {
+    position: absolute;
+    left: 2rem;
+    right: 2rem;
+    top: 2.3rem;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(200, 164, 92, 0.44), rgba(90, 158, 111, 0.28), transparent);
+    pointer-events: none;
+  }
+
+  .hanhai-map-node {
+    position: relative;
+    min-width: 8.5rem;
+    min-height: 5.8rem;
+    border: 1px solid rgba(200, 164, 92, 0.18);
+    border-radius: 2px;
+    padding: 0.55rem;
+    background: rgba(18, 20, 31, 0.72);
+    color: inherit;
+    text-align: left;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.45rem;
+    align-items: start;
+    transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
+  }
+
+  .hanhai-map-node:hover {
+    border-color: rgba(200, 164, 92, 0.42);
+    background: rgba(200, 164, 92, 0.08);
+  }
+
+  .hanhai-node-active {
+    border-color: rgba(200, 164, 92, 0.72);
+    background: rgba(200, 164, 92, 0.13);
+    transform: translateY(-1px);
+  }
+
+  .hanhai-node-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid rgba(200, 164, 92, 0.28);
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgb(200, 164, 92);
+    background: rgba(200, 164, 92, 0.08);
+  }
+
+  .hanhai-node-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .hanhai-node-index {
+    position: absolute;
+    right: 0.45rem;
+    top: 0.35rem;
+    font-size: 0.5625rem;
+    color: rgba(200, 164, 92, 0.42);
+  }
+
+  .hanhai-node-ready .hanhai-node-icon {
+    border-color: rgba(90, 158, 111, 0.38);
+  }
+
+  .hanhai-node-warning .hanhai-node-icon {
+    border-color: rgba(200, 164, 92, 0.46);
+  }
+
+  .hanhai-node-muted {
+    opacity: 0.78;
+  }
+
+  .hanhai-shop-entry-main {
+    display: inline-flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .hanhai-shop-entry-main :deep(.item-icon--xs),
+  .hanhai-shop-cost-label :deep(.item-icon--xs) {
+    width: 1.55rem !important;
+    height: 1.55rem !important;
+  }
+
+  .hanhai-shop-detail-header {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.625rem;
+  }
+
+  .hanhai-shop-detail-header :deep(.item-icon--sm) {
+    width: 2.625rem !important;
+    height: 2.625rem !important;
+  }
+
+  .hanhai-shop-cost-label {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  @media (min-width: 768px) {
+    .hanhai-intel-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .hanhai-map-shell {
+      padding: 0.65rem;
+    }
+
+    .hanhai-map-stage {
+      grid-template-columns: repeat(5, minmax(7.75rem, 1fr));
+    }
+
+    .hanhai-map-node {
+      min-width: 7.75rem;
+      min-height: 6.25rem;
+    }
+  }
+
   .dice-face {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

@@ -11,6 +11,7 @@ import {
   SHORT_REST_DAILY_STAMINA_CAP
 } from '@/data/timeConstants'
 import { useSkillStore } from './useSkillStore'
+import { useNpcStore } from './useNpcStore'
 import { usePotentialStore } from './usePotentialStore'
 import { useHomeStore } from './useHomeStore'
 import { useInventoryStore } from './useInventoryStore'
@@ -229,6 +230,7 @@ export const usePlayerStore = defineStore('player', () => {
   const playerName = ref('未命名')
   const gender = ref<Gender>('male')
   const inventoryStore = useInventoryStore()
+  const npcStore = useNpcStore()
   const warehouseStore = useWarehouseStore()
   /** 旧存档加载后需要设置身份（不持久化） */
   const needsIdentitySetup = ref(false)
@@ -280,7 +282,11 @@ export const usePlayerStore = defineStore('player', () => {
     const guildHpBonus = useMiningStore().guildBonusMaxHp
     const guildLevelHpBonus = useGuildStore().getGuildHpBonus()
     const potentialHpBonus = usePotentialStore().getPotentialEffectValue('potential_max_hp_flat')
-    return baseMaxHp.value + bonus + ringHpBonus + spiritHpBonus + guildHpBonus + guildLevelHpBonus + potentialHpBonus
+    const spouseEquipBonus = npcStore.getSpouse() && npcStore.isNpcFunctionEffectUnlocked('spouse_equip_bonus')
+      ? npcStore.getNpcFunctionEffectValue('spouse_equip_bonus') / 100
+      : 0
+    const baseTotal = baseMaxHp.value + bonus + ringHpBonus + spiritHpBonus + guildHpBonus + guildLevelHpBonus + potentialHpBonus
+    return Math.floor(baseTotal * (1 + spouseEquipBonus))
   }
 
   const getHpPercent = (): number => {
@@ -370,18 +376,23 @@ export const usePlayerStore = defineStore('player', () => {
   const dailyReset = (mode: 'normal' | 'late' | 'passout', bedHour?: number): { moneyLost: number; recoveryPct: number } => {
     let moneyLost = 0
     let recoveryPct = 1
+    const _npcHotSpringBoost = npcStore.isNpcFunctionEffectUnlocked('hot_spring_boost') ? 0.5 : 0
+
+  /** NPC功能解锁：配偶装备属性 +15% */
     let appliedRecoveryPct = 1
     switch (mode) {
-      case 'normal':
-        stamina.value = maxStamina.value
+      case 'normal': {
+        const npcStaminaBonus = npcStore.getNpcFunctionEffectValue('daily_stamina_regen')
+        stamina.value = maxStamina.value + npcStaminaBonus
         break
+      }
       case 'late': {
         // 渐进式恢复：24时→90%, 25时→60%, 线性插值
         const homeStore = useHomeStore()
         const staminaBonus = homeStore.getStaminaRecoveryBonus()
         const villageBonus = useVillageProjectStore().getDailyRecoveryBonus()
         const t = Math.min(Math.max((bedHour ?? 24) - 24, 0), 1)
-        recoveryPct = LATE_NIGHT_RECOVERY_MAX - t * (LATE_NIGHT_RECOVERY_MAX - LATE_NIGHT_RECOVERY_MIN) + staminaBonus + villageBonus
+        recoveryPct = LATE_NIGHT_RECOVERY_MAX - t * (LATE_NIGHT_RECOVERY_MAX - LATE_NIGHT_RECOVERY_MIN) + staminaBonus + villageBonus + _npcHotSpringBoost
         appliedRecoveryPct = Math.min(recoveryPct, 1)
         stamina.value = Math.floor(maxStamina.value * appliedRecoveryPct)
         break

@@ -783,8 +783,9 @@
                   <span
                     v-for="item in selectedRandomNpcVisitor.smallOrder.requestedItems"
                     :key="`${selectedRandomNpcVisitor.id}-${item.itemId}`"
-                    class="text-[0.625rem] border border-accent/15 rounded-xs px-1 py-0.5"
+                    class="inline-flex items-center gap-1 border border-accent/15 rounded-xs px-1 py-0.5 text-[0.625rem]"
                   >
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
                     {{ getItemById(item.itemId)?.name ?? item.itemId }}×{{ item.quantity }}
                   </span>
                 </div>
@@ -1385,36 +1386,58 @@
       </OnlineBottomSheet>
 
       <div class="border border-accent/20 rounded-xs p-2 mt-3">
-        <div class="flex items-center justify-between mb-2">
-          <div>
+        <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div class="min-w-0">
             <p class="text-xs text-accent">村庄建设</p>
             <p class="text-[0.625rem] text-muted mt-0.5">把获得的生活线索真正落成项目，让桃源村逐步有长期建设感。</p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex shrink-0 items-center gap-2 md:justify-end">
             <span class="text-[0.625rem] text-muted">已完成 {{ villageProjectStore.villageProjectLevel }}/{{ villageProjectStore.projects.length }}</span>
             <Button class="justify-center !px-2 !py-1" @click="void router.push({ name: 'village-projects' })">建设总览</Button>
           </div>
         </div>
 
-        <div class="flex flex-col space-y-1.5">
-          <div v-for="project in villageProjectStore.projects" :key="project.id" class="border rounded-xs p-2" :class="project.completed ? 'border-success/30 bg-success/5' : 'border-accent/10'">
+        <div class="grid grid-cols-3 gap-1.5 my-2 text-[0.625rem]">
+          <div class="border border-accent/10 rounded-xs px-2 py-1.5">
+            <p class="text-muted">可建设</p>
+            <p class="text-accent mt-0.5">{{ villageProjectPanelStats.buildable }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-1.5">
+            <p class="text-muted">待线索</p>
+            <p class="text-warning mt-0.5">{{ villageProjectPanelStats.waitingClue }}</p>
+          </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-1.5">
+            <p class="text-muted">维护异常</p>
+            <p :class="villageProjectPanelStats.overdueMaintenance > 0 ? 'text-warning' : 'text-success'" class="mt-0.5">
+              {{ villageProjectPanelStats.overdueMaintenance }}
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-2 xl:grid-cols-2">
+          <div
+            v-for="project in villageProjectCards"
+            :key="project.id"
+            class="flex min-h-[9.25rem] flex-col border rounded-xs p-2"
+            :class="project.completed ? 'border-success/30 bg-success/5' : 'border-accent/10'"
+          >
             <div class="flex items-start justify-between gap-2">
-              <div>
-                <p class="text-xs" :class="project.completed ? 'text-success' : 'text-accent'">{{ project.name }}</p>
-                <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ project.description }}</p>
+              <div class="min-w-0">
+                <p class="text-xs truncate" :class="project.completed ? 'text-success' : 'text-accent'">{{ project.name }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ project.completed ? project.benefitSummary : project.description }}</p>
               </div>
-              <span class="text-[0.625rem] whitespace-nowrap" :class="project.completed ? 'text-success' : project.clueUnlocked ? 'text-accent' : 'text-muted'">
-                {{ project.completed ? '已完成' : project.clueUnlocked ? '可建设' : '待线索' }}
+              <span class="text-[0.625rem] whitespace-nowrap" :class="project.statusClass">
+                {{ project.statusLabel }}
               </span>
             </div>
 
-            <p class="text-[0.625rem] text-success/90 mt-1 leading-4">效果：{{ project.benefitSummary }}</p>
-            <p v-if="!project.clueUnlocked && project.requiredClueText" class="text-[0.625rem] text-warning mt-1 leading-4">{{ project.requiredClueText }}</p>
+            <p v-if="!project.completed" class="text-[0.625rem] text-success/90 mt-1 leading-4">效果：{{ project.benefitSummary }}</p>
+            <p v-if="!project.completed && !project.clueUnlocked && project.requiredClueText" class="text-[0.625rem] text-warning mt-1 leading-4">{{ project.requiredClueText }}</p>
 
-            <div v-if="getVillageProjectRequirementProgress(project.id).length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
+            <div v-if="!project.completed && project.requirementProgresses.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
               <p class="text-[0.625rem] text-muted mb-1">专项进度</p>
               <div
-                v-for="requirement in getVillageProjectRequirementProgress(project.id)"
+                v-for="requirement in project.requirementProgresses"
                 :key="`${project.id}-${requirement.type}`"
                 class="flex items-center justify-between text-[0.625rem] mt-0.5"
               >
@@ -1423,65 +1446,68 @@
               </div>
             </div>
 
-            <div class="border border-accent/10 rounded-xs p-2 mt-2">
+            <div v-if="!project.completed" class="border border-accent/10 rounded-xs p-2 mt-2">
               <div class="flex items-center justify-between text-[0.625rem]">
                 <span class="text-muted">铜钱</span>
-                <span :class="playerStore.money >= project.moneyCost ? 'text-success' : 'text-danger'">{{ playerStore.money }}/{{ project.moneyCost }}文</span>
+                <span :class="project.moneyReady ? 'text-success' : 'text-danger'">{{ playerStore.money }}/{{ project.moneyCost }}文</span>
               </div>
-              <div v-for="mat in project.materials" :key="mat.itemId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
-                <span class="text-muted">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+              <div v-for="mat in project.materials" :key="mat.itemId" class="flex items-center justify-between gap-2 text-[0.625rem] mt-0.5">
+                <span class="flex min-w-0 items-center gap-1 text-muted">
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+                </span>
                 <span :class="getProjectItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
                   {{ getProjectItemCount(mat.itemId) }}/{{ mat.quantity }}
                 </span>
               </div>
             </div>
 
-            <div v-if="project.completed && getVillageProjectMaintenanceSummary(project.id)" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+            <div v-if="project.completed && project.maintenanceSummary" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
               <div class="flex items-center justify-between gap-2">
                 <div>
                   <p class="text-[0.625rem] text-accent">维护状态</p>
                   <p class="text-[0.625rem] text-muted mt-0.5">
-                    {{ getVillageProjectMaintenanceSummary(project.id)?.statusLabel }}
-                    <span v-if="getVillageProjectMaintenanceSummary(project.id)?.state.nextDueDayTag">
-                      · 下次维护日 {{ getVillageProjectMaintenanceSummary(project.id)?.state.nextDueDayTag }}
+                    {{ project.maintenanceSummary.statusLabel }}
+                    <span v-if="project.maintenanceSummary.state.nextDueDayTag">
+                      · 下次维护日 {{ project.maintenanceSummary.state.nextDueDayTag }}
                     </span>
                   </p>
                 </div>
-                <span class="text-[0.625rem]" :class="getVillageProjectMaintenanceSummary(project.id)?.active ? 'text-success' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? 'text-warning' : 'text-muted'">
-                  {{ getVillageProjectMaintenanceSummary(project.id)?.active ? '增益生效中' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? '增益暂停' : '待启用' }}
+                <span class="text-[0.625rem]" :class="project.maintenanceSummary.active ? 'text-success' : project.maintenanceSummary.overdue ? 'text-warning' : 'text-muted'">
+                  {{ project.maintenanceSummary.active ? '增益生效中' : project.maintenanceSummary.overdue ? '增益暂停' : '待启用' }}
                 </span>
               </div>
-              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.effectSummary }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ project.maintenanceSummary.plan.effectSummary }}</p>
               <div class="flex items-center justify-between text-[0.625rem] mt-1">
                 <span class="text-muted">维护费</span>
-                <span class="text-accent">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney }}文 / {{ getVillageProjectMaintenanceSummary(project.id)?.plan.cycleDays }}天</span>
+                <span class="text-accent">{{ project.maintenanceSummary.plan.costMoney }}文 / {{ project.maintenanceSummary.plan.cycleDays }}天</span>
               </div>
               <div class="flex items-center justify-between text-[0.625rem] mt-1">
                 <span class="text-muted">自动续费</span>
                 <Button class="!px-2 !py-1 justify-center" @click="handleToggleVillageProjectMaintenanceAutoRenew(project.id)">
-                  {{ getVillageProjectMaintenanceSummary(project.id)?.state.autoRenew ? '已开启' : '未开启' }}
+                  {{ project.maintenanceSummary.state.autoRenew ? '已开启' : '未开启' }}
                 </Button>
               </div>
               <div class="mt-2 flex justify-end">
                 <Button
-                  v-if="!getVillageProjectMaintenanceSummary(project.id)?.active"
+                  v-if="!project.maintenanceSummary.active"
                   class="justify-center"
-                  :class="playerStore.money >= (getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney ?? 0) ? '!bg-accent !text-bg' : ''"
-                  :disabled="playerStore.money < (getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney ?? 0)"
+                  :class="playerStore.money >= project.maintenanceSummary.plan.costMoney ? '!bg-accent !text-bg' : ''"
+                  :disabled="playerStore.money < project.maintenanceSummary.plan.costMoney"
                   @click="handlePayVillageProjectMaintenance(project.id)"
                 >
-                  {{ getVillageProjectMaintenanceSummary(project.id)?.overdue ? '补缴维护' : '启用维护' }}
+                  {{ project.maintenanceSummary.overdue ? '补缴维护' : '启用维护' }}
                 </Button>
               </div>
             </div>
 
-            <div class="mt-2 flex items-center justify-between gap-2">
+            <div class="mt-auto flex items-center justify-between gap-2 pt-2">
               <p class="text-[0.625rem] text-muted leading-4">{{ getVillageProjectHint(project.id) }}</p>
               <Button
                 v-if="!project.completed"
                 class="shrink-0 justify-center"
-                :class="{ '!bg-accent !text-bg': villageProjectStore.canCompleteProject(project.id).ok }"
-                :disabled="!villageProjectStore.canCompleteProject(project.id).ok"
+                :class="{ '!bg-accent !text-bg': project.canBuildNow }"
+                :disabled="!project.canBuildNow"
                 @click="handleCompleteVillageProject(project.id)"
               >
                 建设
@@ -2024,8 +2050,11 @@
                         好感阶段：{{ RELATIONSHIP_STAGE_META[status.def?.requiredStage ?? 'recognize'].label }}
                         <span v-if="status.def?.costMoney"> · 铜钱：{{ status.def.costMoney }}文</span>
                       </p>
-                      <div v-for="mat in status.def?.materialCost" :key="mat.itemId" class="flex items-center justify-between text-[0.625rem] leading-4">
-                        <span class="text-muted/75">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+                      <div v-for="mat in status.def?.materialCost" :key="mat.itemId" class="flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                        <span class="flex min-w-0 items-center gap-1 text-muted/75">
+                          <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                          <span class="truncate">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+                        </span>
                         <span :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
                           {{ inventoryStore.getItemCount(mat.itemId) }}/{{ mat.quantity }}
                         </span>
@@ -2281,6 +2310,7 @@
                       @click="activeGiftKey = item.itemId + ':' + item.quality"
                     >
                       <span class="flex items-center space-x-1">
+                        <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality ?? 'normal'" />
                         <span class="text-xs" :class="qualityTextClass(item.quality)">
                           {{ getItemById(item.itemId)?.name }}
                         </span>
@@ -2461,6 +2491,9 @@
                 <p class="text-sm mb-2 pr-6" :class="qualityTextClass(activeGiftItem.quality, 'text-accent')">
                   {{ activeGiftDef.name }}
                 </p>
+                <div class="flex items-start gap-2 mb-2 pr-5">
+                  <ItemIcon :item="activeGiftDef" size="lg" :resolution="256" :quality="activeGiftItem.quality" />
+                </div>
                 <div class="border border-accent/10 rounded-xs p-2 mb-2">
                   <p class="text-xs text-muted">{{ activeGiftDef.description }}</p>
                 </div>
@@ -2502,6 +2535,7 @@
   import { ref, computed, onBeforeUnmount, onMounted, watchEffect, type Component } from 'vue'
   import { useRouter } from 'vue-router'
   import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail, Clock, PanelRightOpen } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -3580,6 +3614,38 @@
   const getVillageProjectMaintenanceSummary = (projectId: string) => {
     return villageProjectStore.getProjectMaintenanceSummary(projectId)
   }
+
+  const villageProjectCards = computed(() =>
+    villageProjectStore.projects.map(project => {
+      const summary = villageProjectStore.getProjectSummary(project.id)
+      const maintenanceSummary = getVillageProjectMaintenanceSummary(project.id)
+      const canBuildNow = summary?.canBuildNow ?? villageProjectStore.canCompleteProject(project.id).ok
+      const statusLabel = project.completed ? '已完成' : project.clueUnlocked ? (canBuildNow ? '可建设' : '待补齐') : '待线索'
+      const statusClass = project.completed
+        ? 'text-success'
+        : project.clueUnlocked
+          ? canBuildNow
+            ? 'text-accent'
+            : 'text-warning'
+          : 'text-muted'
+
+      return {
+        ...project,
+        requirementProgresses: summary?.requirementProgresses ?? getVillageProjectRequirementProgress(project.id),
+        maintenanceSummary,
+        canBuildNow,
+        moneyReady: playerStore.money >= project.moneyCost,
+        statusLabel,
+        statusClass
+      }
+    })
+  )
+
+  const villageProjectPanelStats = computed(() => ({
+    buildable: villageProjectCards.value.filter(project => !project.completed && project.canBuildNow).length,
+    waitingClue: villageProjectCards.value.filter(project => !project.completed && !project.clueUnlocked).length,
+    overdueMaintenance: villageProjectCards.value.filter(project => project.maintenanceSummary?.overdue).length
+  }))
 
   const getVillageProjectHint = (projectId: string): string => {
     const project = villageProjectStore.projects.find(entry => entry.id === projectId)

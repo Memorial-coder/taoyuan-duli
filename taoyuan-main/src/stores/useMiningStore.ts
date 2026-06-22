@@ -36,6 +36,7 @@ import { getRingById, MONSTER_DROP_RINGS, BOSS_DROP_RINGS, TREASURE_DROP_RINGS }
 import { getHatById, MONSTER_DROP_HATS, BOSS_DROP_HATS, TREASURE_DROP_HATS } from '@/data/hats'
 import { getShoeById, MONSTER_DROP_SHOES, BOSS_DROP_SHOES, TREASURE_DROP_SHOES } from '@/data/shoes'
 import { usePlayerStore } from './usePlayerStore'
+import { useNpcStore } from './useNpcStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
 import { usePotentialStore } from './usePotentialStore'
@@ -48,6 +49,7 @@ import { useWalletStore } from './useWalletStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useGoalStore } from './useGoalStore'
+import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
 import type { SkullCavernFloorDef } from '@/data/mine'
 import {
   buildPlayerCombatRuntime,
@@ -211,6 +213,14 @@ type MineRewardClaimResult = { granted: boolean; pending: boolean; message: stri
 
 export const useMiningStore = defineStore('mining', () => {
   const playerStore = usePlayerStore()
+  const npcStore = useNpcStore()
+  /** NPC function extra mining nodes per floor */
+  // ---- NPC功能解锁效果 ----
+    const npcMineExtraNodes = computed(() => npcStore.getNpcFunctionEffectValue('mine_extra_node'))
+  /** NPC function mining drop rate bonus */
+  const npcMineDropBonus = computed(() => npcStore.getNpcFunctionEffectValue('zhiji_mine_boost') / 100)
+  /** NPC function floor hint unlock */
+  const npcFloorHintUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('mine_floor_hint'))
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
   const gameStore = useGameStore()
@@ -387,7 +397,19 @@ export const useMiningStore = defineStore('mining', () => {
     return ` 潜能感应：${hints.join('')}`
   }
 
-  const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getVeinMarkerMessage()}${getPotentialMineEntryHint(floor)}`
+  const getNpcMineFloorHint = (floor = getActiveFloorData()): string => {
+    if (!npcStore.isNpcFunctionEffectUnlocked('mine_floor_hint') || !floor) return ''
+    const oreNames = floor.ores.slice(0, 2).map(oreId => getItemById(oreId)?.name ?? oreId)
+    const monsterName = floor.monsters[0]?.name ?? ''
+    const parts = [
+      floor.specialType ? `特殊层：${floor.specialType}` : '',
+      oreNames.length > 0 ? `矿石：${oreNames.join('、')}` : '',
+      monsterName ? `首要威胁：${monsterName}` : ''
+    ].filter(Boolean)
+    return parts.length > 0 ? ` 阿石层位提示：${parts.join('；')}。` : ''
+  }
+
+  const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getNpcMineFloorHint(floor)}${getVeinMarkerMessage()}${getPotentialMineEntryHint(floor)}`
 
   const getRootGuardRank = (): number => usePotentialStore().getNodeRank(ROOT_GUARD_NODE_ID)
 
@@ -1863,10 +1885,11 @@ export const useMiningStore = defineStore('mining', () => {
     combatMonsterHp.value -= attackOutcome.extraDamage
 
     // Equipment durability consumption on attack
+    const durabilityNpcUnlocked = npcStore.isNpcFunctionEffectUnlocked('tackle_maintain') ? ['tackle_maintain'] : []
     const equippedWeapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
     if (equippedWeapon) {
       const wAffixes = equippedWeapon.affixes ?? []
-      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, [])
+      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked)
       const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
       consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
     }
@@ -1876,7 +1899,7 @@ export const useMiningStore = defineStore('mining', () => {
       if (slot >= 0) {
         const ring = inventoryStore.ownedRings[slot]
         if (ring) {
-          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, [])
+          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked)
           const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
           consumeEquipmentDurability(ring, rMax, 1, rReduction)
         }
@@ -2451,7 +2474,7 @@ export const useMiningStore = defineStore('mining', () => {
 
       for (let i = 0; i < requestedQuantity; i++) {
         if (isRestoreTargetFull()) break
-        const foodQuality = qualityOrder.find(q => inventoryStore.getUnlockedItemCount(itemId, q) > 0) ?? null
+        const foodQuality = qualityOrder.find(q => inventoryStore.getItemCount(itemId, q) > 0) ?? null
         if (!foodQuality) break
         const result = cookingStore.eat(itemId.slice(5), foodQuality)
         if (!result.success) {
@@ -2478,7 +2501,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     for (let i = 0; i < requestedQuantity; i++) {
       if (isRestoreTargetFull()) break
-      if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) {
+      if (!inventoryStore.removeItemForEating(itemId, 1, quality)) {
         if (used === 0) return { success: false, message: `没有${def.name}。` }
         break
       }
@@ -2745,7 +2768,11 @@ export const useMiningStore = defineStore('mining', () => {
     guildBonusDefense.value = ((data as Record<string, unknown>).guildBonusDefense as number) ?? 0
   }
 
+
   return {
+    npcMineExtraNodes,
+    npcMineDropBonus,
+    npcFloorHintUnlocked,
     environmentWindow,
     currentFloor,
     safePointFloor,

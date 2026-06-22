@@ -5,9 +5,18 @@ import type { EquipmentQualityTier } from '@/types'
 /** equipment instance shape for durability operations */
 interface DurableInstance {
   durability?: number
+  durabilityWearProgress?: number
   locked?: boolean
   [key: string]: unknown
 }
+
+const normalizeWearProgress = (value: unknown): number => {
+  const progress = Number(value)
+  if (!Number.isFinite(progress) || progress <= 0) return 0
+  return progress % 1
+}
+
+const WEAR_PROGRESS_EPSILON = 1e-9
 
 /** consume equipment durability (real-time). returns { broken } if durability hits 0 */
 export function consumeEquipmentDurability(
@@ -18,11 +27,16 @@ export function consumeEquipmentDurability(
 ): { broken: boolean } {
   if (instance.locked) return { broken: false }
   const current = instance.durability ?? maxDurability
-  const effectiveAmount = Math.max(1, Math.floor(amount * (1 - consumptionReduction)))
-  const next = current - effectiveAmount
+  const effectiveAmount = Math.max(0, amount * Math.max(0.1, 1 - consumptionReduction))
+  const nextWearProgress = normalizeWearProgress(instance.durabilityWearProgress) + effectiveAmount
+  const consumeAmount = Math.floor(nextWearProgress + WEAR_PROGRESS_EPSILON)
+  instance.durabilityWearProgress = nextWearProgress - consumeAmount
+  if (consumeAmount <= 0) return { broken: false }
+  const next = current - consumeAmount
   instance.durability = Math.max(0, next)
   if (instance.durability <= 0) {
     instance.durability = 0
+    instance.durabilityWearProgress = 0
     instance.locked = true
     return { broken: true }
   }
@@ -35,6 +49,7 @@ export function repairEquipment(
   maxDurability: number
 ): void {
   instance.durability = maxDurability
+  instance.durabilityWearProgress = 0
   instance.locked = false
 }
 

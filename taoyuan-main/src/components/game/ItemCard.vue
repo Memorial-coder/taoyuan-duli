@@ -1,6 +1,7 @@
 <template>
-  <button
-    type="button"
+  <div
+    role="button"
+    tabindex="0"
     class="item-card"
     :class="[
       toneClass,
@@ -9,14 +10,28 @@
       },
     ]"
     @click="emit('click')"
+    @keydown.enter.prevent="emit('click')"
+    @keydown.space.prevent="emit('click')"
   >
     <Lock v-if="locked" :size="10" class="item-card__lock" />
     <ItemIcon :item="item" size="sm" :quality="quality" :silhouette="resolvedSilhouette" />
     <span class="item-card__copy">
       <span class="item-card__name" :class="resolvedNameClass">{{ displayName }}</span>
       <span v-if="secondaryLine" class="item-card__meta">{{ secondaryLine }}</span>
+      <span v-if="visibleUsageTags.length > 0" class="item-card__usage-tags" data-testid="item-card-linkage-uses">
+        <button
+          v-for="tag in visibleUsageTags"
+          :key="`${tag.system}-${tag.label}`"
+          type="button"
+          class="item-card__usage-tag"
+          :title="tag.panelKey ? `前往${tag.label}` : tag.label"
+          @click.stop="emit('usage-click', tag)"
+        >
+          {{ tag.label }}
+        </button>
+      </span>
     </span>
-  </button>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -24,6 +39,7 @@
   import { Lock } from 'lucide-vue-next'
   import type { ItemDef, Quality } from '@/types'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import { getItemLinkageUseTags, type ItemLinkageUseTag } from '@/data/itemLinkage'
 
   const props = withDefaults(defineProps<{
     item?: ItemDef | null
@@ -33,6 +49,9 @@
     discovered?: boolean
     silhouette?: boolean
     secondary?: string
+    showUsageTags?: boolean
+    usageTags?: ItemLinkageUseTag[]
+    maxUsageTags?: number
     tone?: 'normal' | 'danger'
     nameClass?: string
   }>(), {
@@ -43,12 +62,16 @@
     discovered: true,
     silhouette: undefined,
     secondary: '',
+    showUsageTags: false,
+    usageTags: () => [],
+    maxUsageTags: 3,
     tone: 'normal',
     nameClass: '',
   })
 
   const emit = defineEmits<{
     (e: 'click'): void
+    (e: 'usage-click', tag: ItemLinkageUseTag): void
   }>()
 
   const displayName = computed(() => {
@@ -74,6 +97,19 @@
 
   const resolvedSilhouette = computed(() => props.silhouette ?? !props.discovered)
 
+  const visibleUsageTags = computed(() => {
+    if (!props.showUsageTags || !props.discovered || !props.item) return []
+    const sourceTags = props.usageTags.length > 0
+      ? props.usageTags
+      : getItemLinkageUseTags(props.item.id, props.maxUsageTags)
+    const seen = new Set<string>()
+    return sourceTags.filter(tag => {
+      if (!tag.label || seen.has(tag.label)) return false
+      seen.add(tag.label)
+      return true
+    }).slice(0, props.maxUsageTags)
+  })
+
   const toneClass = computed(() => props.tone === 'danger' ? 'item-card--danger' : 'item-card--normal')
 </script>
 
@@ -91,6 +127,7 @@
     padding: 6px;
     text-align: left;
     transition: border-color 0.16s ease, background-color 0.16s ease;
+    cursor: pointer;
   }
 
   .item-card:hover {
@@ -184,5 +221,36 @@
     color: var(--color-muted);
     font-size: 0.625rem;
     line-height: 1;
+  }
+
+  .item-card__usage-tags {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    gap: 2px;
+    overflow: hidden;
+  }
+
+  .item-card__usage-tag {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 3.25rem;
+    flex: 0 1 auto;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
+    border-radius: 2px;
+    background: transparent;
+    padding: 1px 3px;
+    color: color-mix(in srgb, var(--color-accent) 78%, var(--color-muted));
+    font-size: 0.5rem;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item-card__usage-tag:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 34%, transparent);
+    color: var(--color-accent);
   }
 </style>

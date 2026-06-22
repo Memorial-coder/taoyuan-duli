@@ -31,6 +31,8 @@ import {
   getCropUseTagSearchKeywords
 } from './cropUseProfiles'
 import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel, getPetSpecialFeedUseText, getPetTypeLabel } from './petFeeds'
+import { getItemLinkageUsageLines, getItemLinkageUseLabels } from './itemLinkage'
+import { getProcessedItemGroupLabelsForItem } from './processedItemGroups'
 
 const PUBLIC_PROCESSING_RECIPES = PROCESSING_RECIPES.filter(recipe => recipe.visibility !== 'hidden')
 
@@ -434,6 +436,14 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
     pushDetail(details, '宠物用途标签', getPetSpecialFeedUseText(item.id))
     pushDetail(details, '宠物反馈', petFeed.description)
   }
+  const linkageUseLabels = getItemLinkageUseLabels(item.id)
+  if (linkageUseLabels.length > 0) {
+    pushDetail(details, '联动用途', linkageUseLabels.join('、'))
+  }
+  const processedGroupLabels = getProcessedItemGroupLabelsForItem(item.id)
+  if (processedGroupLabels.length > 0) {
+    pushDetail(details, '加工分组', processedGroupLabels.join('、'))
+  }
 
   return details
 }
@@ -450,17 +460,18 @@ export const getItemProducedBy = (itemId: string): string[] => {
 }
 
 export const getItemUsedIn = (itemId: string): string[] => {
-  const processingUses = PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId)).map(recipe => {
+  const processingUses = PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.outputItemId && (recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId))).map(recipe => {
     const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
-    return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId)}`
+    return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId!)}`
   })
   const cookingUses = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId)).map(recipe => `料理：${recipe.name}`)
   const publicWarehouseUses = getPublicWarehouseUses(itemId)
   const animalFeedUses = ANIMAL_FEED_USES[itemId] ?? []
   const manorCareUses = MANOR_CARE_USES[itemId] ?? []
   const npcRecallUses = NPC_RECALL_USES[itemId] ?? []
+  const linkageUses = getItemLinkageUsageLines(itemId)
 
-  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...animalFeedUses, ...manorCareUses, ...npcRecallUses])
+  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...animalFeedUses, ...manorCareUses, ...npcRecallUses, ...linkageUses])
 }
 
 export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
@@ -496,7 +507,7 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
     PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.machineType === machineId)
       .slice(0, 6)
       .forEach(recipe => {
-        relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
+        if (recipe.outputItemId) relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
         recipe.alchemy?.results?.forEach(result => relatedIds.push(getGlossaryEntryIdForItemId(result.outputItemId)))
         if (recipe.inputItemId) relatedIds.push(getGlossaryEntryIdForItemId(recipe.inputItemId))
       })
@@ -511,7 +522,7 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
   PUBLIC_PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === item.id || recipe.extraInputs?.some(entry => entry.itemId === item.id))
     .slice(0, 4)
     .forEach(recipe => {
-      relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
+      if (recipe.outputItemId) relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
       recipe.alchemy?.results?.forEach(result => relatedIds.push(getGlossaryEntryIdForItemId(result.outputItemId)))
     })
 
@@ -680,6 +691,10 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
 
   getItemProducedBy(item.id).forEach(entry => keywords.push(entry))
   getItemUsedIn(item.id).forEach(entry => keywords.push(entry))
+  const processedGroupLabels = getProcessedItemGroupLabelsForItem(item.id)
+  if (processedGroupLabels.length > 0) {
+    keywords.push('加工分组', '加工品消耗池', ...processedGroupLabels)
+  }
   const petFeed = getPetSpecialFeedByItemId(item.id)
   if (petFeed) {
     keywords.push(

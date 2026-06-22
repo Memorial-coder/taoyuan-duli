@@ -610,6 +610,44 @@ export const RECIPES: RecipeDef[] = [
     categoryTags: ['home', 'festival', 'travel_ration'],
     storyTriggers: ['festival', 'travel', 'order', 'npc_visit']
   },
+  {
+    id: 'mixed_oil_noodle',
+    name: '杂油拌面',
+    ingredients: [
+      { itemId: 'mixed_seed_oil', quantity: 1 },
+      { itemId: 'winter_wheat', quantity: 1 },
+      { itemId: 'firewood', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 30,
+      healthRestore: 10,
+      buff: { type: 'speed', value: 3, description: '行动耗时-3%（当天）' }
+    },
+    unlockSource: '发现杂籽油后解锁',
+    requiredSkill: { type: 'farming', level: 2 },
+    description: '把杂籽油和冬小麦做成的快手拌面，适合作为农忙前的家常补给，也能进入油料订单线。',
+    categoryTags: ['home', 'travel_ration'],
+    storyTriggers: ['order', 'travel', 'npc_visit']
+  },
+  {
+    id: 'festival_oil_cake',
+    name: '节庆油糕',
+    ingredients: [
+      { itemId: 'mixed_seed_oil', quantity: 1 },
+      { itemId: 'rice_flour', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 36,
+      healthRestore: 14,
+      buff: { type: 'luck', value: 4, description: '幸运+4%（当天）' }
+    },
+    unlockSource: '发现杂籽油和米粉后解锁',
+    requiredSkill: { type: 'farming', level: 3 },
+    description: '米粉、蜂蜜和杂籽油炸成的小油糕，适合节前备料、邻里拜访和小型宴席。',
+    categoryTags: ['home', 'festival'],
+    storyTriggers: ['festival', 'order', 'npc_visit']
+  },
 
   // ==================== 新增初始食谱 (8) ====================
   {

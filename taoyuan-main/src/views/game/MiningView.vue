@@ -801,8 +801,9 @@
               @click="detailPreset.weaponDefId && viewEquipProperty('weapon', detailPreset.weaponDefId)"
             >
               <span class="text-xs text-muted">武器</span>
-              <span class="text-xs" :class="detailPreset.weaponDefId ? 'text-accent' : 'text-muted/40'">
-                {{ detailPreset.weaponDefId ? getWeaponDisplayName(detailPreset.weaponDefId, detailPreset.weaponEnchantmentId ?? null) : '无' }}
+              <span class="flex min-w-0 items-center gap-1 text-xs" :class="detailPreset.weaponDefId ? 'text-accent' : 'text-muted/40'">
+                <ItemIcon v-if="detailPreset.weaponDefId" :item="getItemById(detailPreset.weaponDefId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ detailPreset.weaponDefId ? getWeaponDisplayName(detailPreset.weaponDefId, detailPreset.weaponEnchantmentId ?? null) : '无' }}</span>
                 <template v-if="formatForgeAffixSignature(detailPreset.weaponAffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.weaponAffixSignature) }}</template>
               </span>
             </div>
@@ -812,8 +813,9 @@
               @click="detailPreset.ringSlot1DefId && viewEquipProperty('ring', detailPreset.ringSlot1DefId)"
             >
               <span class="text-xs text-muted">戒指1</span>
-              <span class="text-xs" :class="detailPreset.ringSlot1DefId ? 'text-accent' : 'text-muted/40'">
-                {{ detailPreset.ringSlot1DefId ? (getRingById(detailPreset.ringSlot1DefId)?.name ?? '未知') : '无' }}
+              <span class="flex min-w-0 items-center gap-1 text-xs" :class="detailPreset.ringSlot1DefId ? 'text-accent' : 'text-muted/40'">
+                <ItemIcon v-if="detailPreset.ringSlot1DefId" :item="getItemById(detailPreset.ringSlot1DefId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ detailPreset.ringSlot1DefId ? (getRingById(detailPreset.ringSlot1DefId)?.name ?? '未知') : '无' }}</span>
                 <template v-if="formatForgeAffixSignature(detailPreset.ringSlot1AffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.ringSlot1AffixSignature) }}</template>
               </span>
             </div>
@@ -823,8 +825,9 @@
               @click="detailPreset.ringSlot2DefId && viewEquipProperty('ring', detailPreset.ringSlot2DefId)"
             >
               <span class="text-xs text-muted">戒指2</span>
-              <span class="text-xs" :class="detailPreset.ringSlot2DefId ? 'text-accent' : 'text-muted/40'">
-                {{ detailPreset.ringSlot2DefId ? (getRingById(detailPreset.ringSlot2DefId)?.name ?? '未知') : '无' }}
+              <span class="flex min-w-0 items-center gap-1 text-xs" :class="detailPreset.ringSlot2DefId ? 'text-accent' : 'text-muted/40'">
+                <ItemIcon v-if="detailPreset.ringSlot2DefId" :item="getItemById(detailPreset.ringSlot2DefId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ detailPreset.ringSlot2DefId ? (getRingById(detailPreset.ringSlot2DefId)?.name ?? '未知') : '无' }}</span>
                 <template v-if="formatForgeAffixSignature(detailPreset.ringSlot2AffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.ringSlot2AffixSignature) }}</template>
               </span>
             </div>
@@ -834,8 +837,9 @@
               @click="detailPreset.hatDefId && viewEquipProperty('hat', detailPreset.hatDefId)"
             >
               <span class="text-xs text-muted">帽子</span>
-              <span class="text-xs" :class="detailPreset.hatDefId ? 'text-accent' : 'text-muted/40'">
-                {{ detailPreset.hatDefId ? (getHatById(detailPreset.hatDefId)?.name ?? '未知') : '无' }}
+              <span class="flex min-w-0 items-center gap-1 text-xs" :class="detailPreset.hatDefId ? 'text-accent' : 'text-muted/40'">
+                <ItemIcon v-if="detailPreset.hatDefId" :item="getItemById(detailPreset.hatDefId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ detailPreset.hatDefId ? (getHatById(detailPreset.hatDefId)?.name ?? '未知') : '无' }}</span>
                 <template v-if="formatForgeAffixSignature(detailPreset.hatAffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.hatAffixSignature) }}</template>
               </span>
             </div>
@@ -845,8 +849,9 @@
               @click="detailPreset.shoeDefId && viewEquipProperty('shoe', detailPreset.shoeDefId)"
             >
               <span class="text-xs text-muted">鞋子</span>
-              <span class="text-xs" :class="detailPreset.shoeDefId ? 'text-accent' : 'text-muted/40'">
-                {{ detailPreset.shoeDefId ? (getShoeById(detailPreset.shoeDefId)?.name ?? '未知') : '无' }}
+              <span class="flex min-w-0 items-center gap-1 text-xs" :class="detailPreset.shoeDefId ? 'text-accent' : 'text-muted/40'">
+                <ItemIcon v-if="detailPreset.shoeDefId" :item="getItemById(detailPreset.shoeDefId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ detailPreset.shoeDefId ? (getShoeById(detailPreset.shoeDefId)?.name ?? '未知') : '无' }}</span>
                 <template v-if="formatForgeAffixSignature(detailPreset.shoeAffixSignature)"> · {{ formatForgeAffixSignature(detailPreset.shoeAffixSignature) }}</template>
               </span>
             </div>
@@ -1996,7 +2001,9 @@
     journey_event_bonus: '远征事件',
     camp_recovery_bonus: '扎营恢复',
     boss_pressure_resist: '首领抗压',
-    resource_find_bonus: '资源回收'
+    resource_find_bonus: '资源回收',
+    durability_bonus: '耐久上限',
+    durability_consumption_reduction: '耐久减耗'
   }
 
   const PCTG_EFFECTS: Set<EquipmentEffectType> = new Set([

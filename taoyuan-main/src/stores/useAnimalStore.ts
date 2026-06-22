@@ -31,6 +31,7 @@ import {
   getTodayEvent
 } from '@/data'
 import { usePlayerStore } from './usePlayerStore'
+import { useNpcStore } from './useNpcStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
 import { useSkillStore } from './useSkillStore'
@@ -70,6 +71,13 @@ const HORSE_HAPPY_TRAVEL_MULTIPLIER = 0.6
 const HORSE_ELATED_TRAVEL_MULTIPLIER = 0.55
 const HORSE_NORMAL_STAMINA_MULTIPLIER = 0.5
 const HORSE_HAPPY_STAMINA_MULTIPLIER = 0.4
+const NPC_PASTURE_DISCOVERY_CHANCE = 0.08
+const NPC_PASTURE_DISCOVERY_ITEMS = ['wild_mushroom', 'moon_herb', 'jade', 'ginseng'] as const
+const ANIMAL_BUILDING_LABELS: Record<AnimalBuildingType, string> = {
+  coop: '鸡舍',
+  barn: '牲口棚',
+  stable: '马厩'
+}
 const MEAT_YIELD_BY_ANIMAL_TYPE: Partial<Record<AnimalType, { min: number; max: number }>> = {
   chicken: { min: 1, max: 2 },
   duck: { min: 2, max: 3 },
@@ -149,6 +157,7 @@ export const useAnimalStore = defineStore('animal', () => {
   const stableBuilt = computed(() => buildings.value.find(b => b.type === 'stable')?.built ?? false)
   const pet = computed(() => pets.value[0] ?? null)
   const homeStore = useHomeStore()
+  const npcStore = useNpcStore()
   const villageProjectStore = useVillageProjectStore()
   const completedVillageProjectCount = computed(() => villageProjectStore.overviewSummary.completedProjects)
   const petCapacity = computed(() => {
@@ -158,6 +167,36 @@ export const useAnimalStore = defineStore('animal', () => {
     return capacity
   })
   const canAdoptAdditionalPet = computed(() => pets.value.length < petCapacity.value)
+  const npcAnimalTrackerSummary = computed(() => {
+    if (!npcStore.isNpcFunctionEffectUnlocked('animal_tracker')) return []
+    return animals.value
+      .filter(animal => animal.type !== 'horse')
+      .map(animal => {
+        const def = ANIMAL_DEFS.find(entry => entry.type === animal.type)
+        const effectiveDays = getEffectiveAnimalProduceDays(def, animal.fedWith)
+        const readyForAutoProduct = !!def && effectiveDays > 0 && animal.daysSinceAutoProduct >= effectiveDays
+        const readyForGrazingProduct = !!def && effectiveDays > 0 && animal.daysSinceGrazingProduct >= effectiveDays
+        const alerts: string[] = []
+        if (!animal.wasFed) alerts.push('待喂食')
+        if (!animal.wasPetted) alerts.push('待抚摸')
+        if (animal.sick) alerts.push(`生病${animal.sickDays}/5天`)
+        if (animal.hunger > 0) alerts.push(`饥饿${animal.hunger}天`)
+        return {
+          id: animal.id,
+          name: animal.name,
+          typeName: def?.name ?? animal.type,
+          buildingLabel: def ? ANIMAL_BUILDING_LABELS[def.building] : '牧场',
+          friendship: animal.friendship,
+          mood: animal.mood,
+          alerts,
+          productStatus: readyForAutoProduct || readyForGrazingProduct
+            ? '可产出'
+            : effectiveDays > 0
+              ? `约${Math.max(1, effectiveDays - Math.max(animal.daysSinceAutoProduct, animal.daysSinceGrazingProduct))}天`
+              : '无产出'
+        }
+      })
+  })
   const petCareSlots = computed<PetCareSlotSummary[]>(() => [
     {
       id: 'nest',
@@ -741,7 +780,7 @@ export const useAnimalStore = defineStore('animal', () => {
         companion.friendship = Math.max(0, companion.friendship - 2)
         companion.mood = clampMood(companion.mood - PET_MISSED_PET_MOOD_LOSS)
       } else {
-        companion.mood = clampMood(companion.mood - PET_DAILY_MOOD_SETTLE_LOSS)
+        companion.mood = clampMood(companion.mood - PET_DAILY_MOOD_SETTLE_LOSS * (1 - npcStore.getNpcFunctionEffectValue('animal_mood_slow') / 100))
       }
       companion.wasPetted = false
       recordPetMilestones(companion, previousFriendship)
@@ -885,6 +924,7 @@ export const useAnimalStore = defineStore('animal', () => {
 
     grazedToday.value = true
     const bonusProducts: { itemId: string; quality: Quality }[] = []
+    const pastureDiscoveries: { itemId: string; quality: Quality }[] = []
     const products: AnimalProductGrant[] = []
     const inventoryStore = useInventoryStore()
     const farmingSkill = useSkillStore().getSkill('farming')
@@ -917,6 +957,16 @@ export const useAnimalStore = defineStore('animal', () => {
       }
     }
 
+    if (npcStore.isNpcFunctionEffectUnlocked('pasture_discovery')) {
+      const discoveryChance = Math.min(0.35, NPC_PASTURE_DISCOVERY_CHANCE * Math.max(1, grazeable.length))
+      if (Math.random() < discoveryChance) {
+        const itemId = NPC_PASTURE_DISCOVERY_ITEMS[Math.floor(Math.random() * NPC_PASTURE_DISCOVERY_ITEMS.length)]!
+        const discovery = { itemId, quality: 'fine' as Quality }
+        pastureDiscoveries.push(discovery)
+        bonusProducts.push(discovery)
+      }
+    }
+
     // 将猪找到的松露直接加入背包
     if (bonusProducts.length > 0) {
       for (const bp of bonusProducts) {
@@ -931,6 +981,9 @@ export const useAnimalStore = defineStore('animal', () => {
     }
     if (products.length > 0) {
       message += ` 收获：${products.map(formatAnimalProductGrant).join('、')}。`
+    }
+    if (pastureDiscoveries.length > 0) {
+      message += ` 阿福标出的草甸线索找到了${pastureDiscoveries.map(item => getItemById(item.itemId)?.name ?? item.itemId).join('、')}。`
     }
 
     return {
@@ -1103,6 +1156,10 @@ export const useAnimalStore = defineStore('animal', () => {
             const idx2 = qualityOrder2.indexOf(quality)
             if (idx2 < qualityOrder2.length - 1) quality = qualityOrder2[idx2 + 1]!
           }
+          const spouseAnimalBoost = Math.max(0, Math.floor(npcStore.getNpcFunctionEffectValue('spouse_animal_boost')))
+          for (let i = 0; i < spouseAnimalBoost; i++) {
+            quality = upgradeAnimalProductQuality(quality)
+          }
           // 兽王：产量×2
           const productQty = hasBeastSovereign ? 2 : 1
           products.push(buildAnimalProductGrantFromDef(def, quality, productQty))
@@ -1152,6 +1209,14 @@ export const useAnimalStore = defineStore('animal', () => {
       }
     }
 
+    const npcAutoAffection = npcStore.getNpcFunctionEffectValue('auto_animal_affection')
+    if (npcAutoAffection > 0) {
+      for (const animal of animals.value) {
+        if (!animal.sick && !died.includes(animal.name)) {
+          animal.friendship = Math.min(1000, animal.friendship + npcAutoAffection)
+        }
+      }
+    }
     return { products, died, gotSick, healed }
   }
 
@@ -1278,6 +1343,11 @@ export const useAnimalStore = defineStore('animal', () => {
 
     const animalBondBonus = useHiddenNpcStore().getBondBonusByType('animal_blessing')
     if (animalBondBonus?.type === 'animal_blessing' && Math.random() < animalBondBonus.chance) {
+      quality = upgradeAnimalProductQuality(quality)
+    }
+
+    const spouseAnimalBoost = Math.max(0, Math.floor(npcStore.getNpcFunctionEffectValue('spouse_animal_boost')))
+    for (let i = 0; i < spouseAnimalBoost; i++) {
       quality = upgradeAnimalProductQuality(quality)
     }
 
@@ -1459,6 +1529,7 @@ export const useAnimalStore = defineStore('animal', () => {
     pet,
     petCapacity,
     petCareSlots,
+    npcAnimalTrackerSummary,
     petRouteProgress,
     petSpecialFeedOptions,
     canAdoptAdditionalPet,

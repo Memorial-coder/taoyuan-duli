@@ -51,7 +51,7 @@ function normalizeManorSaveSlot(value) {
   return Number.isInteger(slot) && slot >= 0 && slot <= 2 ? slot : null;
 }
 
-function resolveManorTarget(payload = {}, emptyMessage = '请先指定庄园主人') {
+async function resolveManorTarget(payload = {}, emptyMessage = '请先指定庄园主人', actorUsername = '') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
   const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
   if (hasTargetSaveId) {
@@ -66,6 +66,16 @@ function resolveManorTarget(payload = {}, emptyMessage = '请先指定庄园主�
   }
   const targetUsername = sanitizeText(payload?.target_username, 60);
   if (!targetUsername) throw createError(emptyMessage);
+  const targetUser = await db.getUser(targetUsername);
+  if (!targetUser && actorUsername) {
+    const friendTarget = await taoyuanSocialRuntime.resolveFriendTargetByAlias(actorUsername, targetUsername);
+    if (friendTarget?.username) {
+      return {
+        username: sanitizeText(friendTarget.username, 60),
+        identity: friendTarget.identity || null,
+      };
+    }
+  }
   return {
     username: targetUsername,
     identity: null,
@@ -2184,7 +2194,7 @@ function buildThemeWeekState(username, gameplay = {}, showcaseTheme = '', public
 }
 
 async function recordManorVisit(payload = {}, actor = {}) {
-  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const { username: targetUsername, identity: targetIdentity } = await resolveManorTarget(payload, '请先指定庄园主人', actor.username);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const baseAuditContext = buildManorAuditContext(actor?.auditContext, {
@@ -2233,7 +2243,7 @@ async function recordManorVisit(payload = {}, actor = {}) {
 }
 
 async function leaveGuestbookEntry(payload = {}, actor = {}) {
-  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const { username: targetUsername, identity: targetIdentity } = await resolveManorTarget(payload, '请先指定庄园主人', actor.username);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const baseAuditContext = buildManorAuditContext(actor?.auditContext, {
@@ -2539,7 +2549,7 @@ function pickManorStealTarget(metrics, actionDef, requestedTargetId = '') {
 async function submitManorCareAction(payload = {}, actor = {}) {
   const visitorUsername = String(actor.username || '').trim();
   if (!visitorUsername) throw createError('请先登录');
-  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const { username: targetUsername, identity: targetIdentity } = await resolveManorTarget(payload, '请先指定庄园主人', visitorUsername);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   if (targetUsername === visitorUsername) throw createError('不能照料自己的庄园', 400);
@@ -2696,7 +2706,7 @@ async function submitManorCareAction(payload = {}, actor = {}) {
 async function submitManorStealAction(payload = {}, actor = {}) {
   const visitorUsername = String(actor.username || '').trim();
   if (!visitorUsername) throw createError('请先登录');
-  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const { username: targetUsername, identity: targetIdentity } = await resolveManorTarget(payload, '请先指定庄园主人', visitorUsername);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   if (targetUsername === visitorUsername) throw createError('不能偷自己的庄园', 400);
@@ -2893,7 +2903,7 @@ async function submitManorStealAction(payload = {}, actor = {}) {
 async function resolveManorCareRoomTarget(payload = {}, actor = {}) {
   const actorUsername = String(actor.username || '').trim();
   if (!actorUsername) throw createError('请先登录');
-  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const { username: targetUsername, identity: targetIdentity } = await resolveManorTarget(payload, '请先指定庄园主人', actorUsername);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const profile = await taoyuanSocialRuntime.getPublicProfile(targetUsername, targetUsername);

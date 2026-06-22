@@ -857,7 +857,7 @@
     const result: { itemId: string; name: string; count: number }[] = []
     for (const def of PONDABLE_FISH) {
       if (def.minPondLevel && fishPondStore.pond.level < def.minPondLevel) continue
-      const count = inventoryStore.getItemCount(def.fishId)
+      const count = inventoryStore.getUnlockedItemCount(def.fishId)
       if (count > 0) {
         result.push({ itemId: def.fishId, name: def.name, count })
       }

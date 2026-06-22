@@ -73,12 +73,34 @@ export const EQUIPMENT_ENCHANTMENTS: Record<string, EquipmentEnchantmentDef> = {
     description: '矿洞探索体力消耗-6%。',
     slot: 'shoe',
     effects: [{ type: 'mining_stamina', value: 0.06 }]
+  },
+  // === 耐久附魔 ===
+  ring_persistent: {
+    id: 'ring_persistent',
+    name: '恒久',
+    description: '戒指耐久上限+15%。',
+    slot: 'ring',
+    effects: [{ type: 'durability_bonus', value: 0.15 }]
+  },
+  hat_fortified: {
+    id: 'hat_fortified',
+    name: '坚甲',
+    description: '帽子耐久消耗-15%。',
+    slot: 'hat',
+    effects: [{ type: 'durability_consumption_reduction', value: 0.15 }]
+  },
+  shoe_resilient: {
+    id: 'shoe_resilient',
+    name: '韧行',
+    description: '鞋子耐久消耗-12%。',
+    slot: 'shoe',
+    effects: [{ type: 'durability_consumption_reduction', value: 0.12 }]
   }
 }
 
-export const RING_EQUIPMENT_ENCHANTMENT_IDS = ['ring_focus', 'ring_fortune', 'ring_treasure'] as const
-export const HAT_EQUIPMENT_ENCHANTMENT_IDS = ['hat_guard', 'hat_clear_mind', 'hat_herbal'] as const
-export const SHOE_EQUIPMENT_ENCHANTMENT_IDS = ['shoe_swift', 'shoe_surefoot', 'shoe_mine_step'] as const
+export const RING_EQUIPMENT_ENCHANTMENT_IDS = ['ring_focus', 'ring_fortune', 'ring_treasure', 'ring_persistent'] as const
+export const HAT_EQUIPMENT_ENCHANTMENT_IDS = ['hat_guard', 'hat_clear_mind', 'hat_herbal', 'hat_fortified'] as const
+export const SHOE_EQUIPMENT_ENCHANTMENT_IDS = ['shoe_swift', 'shoe_surefoot', 'shoe_mine_step', 'shoe_resilient'] as const
 
 export const EQUIPMENT_ENCHANTMENT_IDS = [
   ...RING_EQUIPMENT_ENCHANTMENT_IDS,

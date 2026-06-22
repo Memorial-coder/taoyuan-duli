@@ -13,6 +13,7 @@ import { MAX_WILD_TREES, getWildTreeDef } from '@/data/wildTrees'
 import { GREENHOUSE_PLOT_COUNT } from '@/data/buildings'
 import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
 import { useWalletStore } from './useWalletStore'
+import { useNpcStore } from './useNpcStore'
 import { useGameStore } from './useGameStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 
@@ -86,6 +87,12 @@ const normalizeFarmSizeForMap = (size: FarmSize, farmMapType: FarmMapType): Farm
 }
 
 export const useFarmStore = defineStore('farm', () => {
+  const npcStore = useNpcStore()
+  /** NPC function build speed bonus */
+  const npcBuildSpeedReduction = computed(() => npcStore.getNpcFunctionEffectValue('build_speed') / 100)
+  /** NPC function orchard care bonus */
+  const npcOrchardCareBonus = computed(() => npcStore.getNpcFunctionEffectValue('orchard_care') / 100)
+  const npcGraftingUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('grafting'))
   const farmSize = ref<FarmSize>(4)
   const plots = ref<FarmPlot[]>(createPlots(4))
   const sprinklers = ref<PlacedSprinkler[]>([])
@@ -349,10 +356,10 @@ export const useFarmStore = defineStore('farm', () => {
     return fertDef?.growthSpeedup ?? 0
   }
 
-  const getCurrentCropGrowthBonus = (): number => {
+  const getCurrentCropGrowthBonus = (extraCropGrowthBonus: number = 0): number => {
     const gameStore = useGameStore()
     const spiritGrowth = gameStore.season === 'spring' ? useHiddenNpcStore().getAbilityValue('tao_yao_2') / 100 : 0
-    return useWalletStore().getCropGrowthBonus() + spiritGrowth
+    return useWalletStore().getCropGrowthBonus() + spiritGrowth + Math.max(0, Number(extraCropGrowthBonus) || 0)
   }
 
   const applyFertilizer = (plotId: number, fertilizerType: FertilizerType): boolean => {
@@ -424,7 +431,7 @@ export const useFarmStore = defineStore('farm', () => {
   }
 
   /** 每日更新所有地块 */
-  const dailyUpdate = (isRainy: boolean): {
+  const dailyUpdate = (isRainy: boolean, extraCropGrowthBonus: number = 0): {
     newInfestations: number
     pestDeaths: number
     newWeeds: number
@@ -433,10 +440,8 @@ export const useFarmStore = defineStore('farm', () => {
   } => {
     const sprinklerWatered = getAllWateredBySprinklers()
     const wateredPlotIdsBeforeReset = new Set<number>()
-    const walletGrowth = useWalletStore().getCropGrowthBonus()
-    const gameStore = useGameStore()
+    const cropGrowthBonus = getCurrentCropGrowthBonus(extraCropGrowthBonus)
     // 仙缘能力：春息（tao_yao_2）春季作物生长加速
-    const spiritGrowth = gameStore.season === 'spring' ? useHiddenNpcStore().getAbilityValue('tao_yao_2') / 100 : 0
     let newInfestations = 0
     let pestDeaths = 0
     let newWeeds = 0
@@ -475,7 +480,7 @@ export const useFarmStore = defineStore('farm', () => {
       // 处理浇水状态
       if (plot.watered) {
         // 肥料加速：减少作物所需生长天数
-        const speedup = getFertilizerGrowthSpeedup(plot) + walletGrowth + spiritGrowth
+        const speedup = getFertilizerGrowthSpeedup(plot) + cropGrowthBonus
         plot.growthDays += 1
         if (!markPlotHarvestableIfReady(plot, speedup) && plot.state === 'planted') {
           plot.state = 'growing'
@@ -744,6 +749,8 @@ export const useFarmStore = defineStore('farm', () => {
     const hiddenNpcStore2 = useHiddenNpcStore()
     const extraFruit = hiddenNpcStore2.isAbilityActive('tao_yao_1') // 花泽：果树+1产量
     const spiritPeachActive = hiddenNpcStore2.isAbilityActive('tao_yao_3') // 灵桃：桃树概率产灵桃
+    const orchardCareExtra = Math.random() < npcOrchardCareBonus.value
+    const graftingUnlocked = npcStore.isNpcFunctionEffectUnlocked('grafting')
     for (const tree of fruitTrees.value) {
       tree.growthDays++
       tree.todayFruit = false
@@ -752,8 +759,9 @@ export const useFarmStore = defineStore('farm', () => {
       }
       if (tree.mature) {
         const def = FRUIT_TREE_DEFS.find(d => d.type === tree.type)
-        if (def && def.fruitSeason === currentSeason) {
-          collectFruitFromTree(tree, def, results, extraFruit, spiritPeachActive)
+        const graftingOffSeasonFruit = !!def && graftingUnlocked && def.fruitSeason !== currentSeason && Math.random() < 0.15
+        if (def && (def.fruitSeason === currentSeason || graftingOffSeasonFruit)) {
+          collectFruitFromTree(tree, def, results, extraFruit || orchardCareExtra, spiritPeachActive)
         }
       }
     }
@@ -767,7 +775,7 @@ export const useFarmStore = defineStore('farm', () => {
         if (tree.mature) {
           const def = FRUIT_TREE_DEFS.find(d => d.type === tree.type)
           if (def) {
-            collectFruitFromTree(tree, def, results, extraFruit, spiritPeachActive)
+            collectFruitFromTree(tree, def, results, extraFruit || orchardCareExtra, spiritPeachActive)
           }
         }
       }
@@ -804,6 +812,24 @@ export const useFarmStore = defineStore('farm', () => {
 
   /** 果树换季更新（仅新年时增加年龄） */
   const fruitTreeSeasonUpdate = (isNewYear: boolean): void => {
+    // NPC function: rare_sapling - each season get 1 rare sapling
+  /** NPC功能解锁：嫁接功能 */
+      const _hasRareSapling = npcStore.isNpcFunctionEffectUnlocked('rare_sapling')
+    if (_hasRareSapling && !isNewYear) {
+      // Check if a tree slot is available; if so, plant a random mature tree
+      if (fruitTrees.value.length < MAX_FRUIT_TREES) {
+        const rareTypes = ['peach_tree', 'orange_tree', 'pomegranate_tree'] as FruitTreeType[]
+        const randomType = rareTypes[Math.floor(Math.random() * rareTypes.length)] ?? rareTypes[0]!
+        fruitTrees.value.push({
+          id: nextFruitTreeId.value++,
+          type: randomType,
+          growthDays: 0,
+          mature: false,
+          yearAge: 0,
+          todayFruit: false
+        })
+      }
+    }
     for (const tree of fruitTrees.value) {
       if (tree.mature && isNewYear) tree.yearAge++
       tree.todayFruit = false
@@ -974,8 +1000,8 @@ export const useFarmStore = defineStore('farm', () => {
   }
 
   /** 温室每日更新（自动浇水，无天气影响） */
-  const greenhouseDailyUpdate = (extraGrowthProgress: number = 0): void => {
-    const currentCropGrowth = getCurrentCropGrowthBonus()
+  const greenhouseDailyUpdate = (extraGrowthProgress: number = 0, extraCropGrowthBonus: number = 0): void => {
+    const currentCropGrowth = getCurrentCropGrowthBonus(extraCropGrowthBonus)
     const progressBonus = Math.max(0, extraGrowthProgress)
     for (const plot of greenhousePlots.value) {
       if (plot.state !== 'planted' && plot.state !== 'growing') continue
@@ -1029,9 +1055,9 @@ export const useFarmStore = defineStore('farm', () => {
     return results
   }
 
-  const reconcileMatureCrops = (): number => {
+  const reconcileMatureCrops = (extraCropGrowthBonus: number = 0): number => {
     let changed = 0
-    const cropGrowthBonus = getCurrentCropGrowthBonus()
+    const cropGrowthBonus = getCurrentCropGrowthBonus(extraCropGrowthBonus)
     for (const plot of plots.value) {
       if (markPlotHarvestableIfReady(plot, getFertilizerGrowthSpeedup(plot) + cropGrowthBonus)) changed++
     }
@@ -1150,8 +1176,12 @@ export const useFarmStore = defineStore('farm', () => {
     reconcileMatureCrops()
   }
 
+
   return {
     farmSize,
+    npcBuildSpeedReduction,
+    npcOrchardCareBonus,
+    npcGraftingUnlocked,
     plots,
     sprinklers,
     fruitTrees,

@@ -5,6 +5,7 @@ export const RINGS: RingDef[] = [
   // ===== Tier 1: 铜/石英（前期，1-20层）=====
   {
     id: 'jade_guard_ring',
+    qualityTier: 'common',
     name: '翠玉护身环',
     description: '翡翠镶嵌的铜环，减少受到的伤害。',
     effects: [{ type: 'defense_bonus', value: 0.08 }],
@@ -18,6 +19,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'quartz_ring',
+    qualityTier: 'common',
     name: '石英明环',
     description: '晶莹的石英戒指，提升攻击力。',
     effects: [{ type: 'attack_bonus', value: 3 }],
@@ -31,6 +33,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'farmers_ring',
+    qualityTier: 'common',
     name: '农人青环',
     description: '农耕时消耗的体力减少。',
     effects: [{ type: 'farming_stamina', value: 0.1 }],
@@ -46,6 +49,7 @@ export const RINGS: RingDef[] = [
   // ===== Tier 2: 铁/翡翠（中前期，21-40层）=====
   {
     id: 'jade_spirit_ring',
+    qualityTier: 'fine',
     name: '碧灵指环',
     description: '翡翠蕴含灵气，提升暴击率。',
     effects: [{ type: 'crit_rate_bonus', value: 0.06 }],
@@ -59,6 +63,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'anglers_ring',
+    qualityTier: 'fine',
     name: '渔翁碧环',
     description: '钓鱼时鱼更温顺，体力消耗降低。',
     effects: [
@@ -76,6 +81,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'friendship_ring',
+    qualityTier: 'fine',
     name: '善缘指环',
     description: '戴上后送礼更能打动人心。',
     effects: [{ type: 'gift_friendship', value: 0.15 }],
@@ -91,6 +97,7 @@ export const RINGS: RingDef[] = [
   // ===== Tier 3: 金/红宝石（中期，41-60层）=====
   {
     id: 'ruby_flame_ring',
+    qualityTier: 'fine',
     name: '赤焰指环',
     description: '红宝石散发灼热之力，大幅提升攻击。',
     effects: [{ type: 'attack_bonus', value: 6 }],
@@ -104,6 +111,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'miners_ring',
+    qualityTier: 'fine',
     name: '矿工金环',
     description: '矿洞探索体力大幅降低，额外采集矿石。',
     effects: [
@@ -121,6 +129,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'merchants_ring',
+    qualityTier: 'fine',
     name: '商贾金环',
     description: '出售物品价格提升，商店价格降低。',
     effects: [
@@ -139,6 +148,7 @@ export const RINGS: RingDef[] = [
   // ===== Tier 4: 月光石（61-80层）=====
   {
     id: 'moonlight_ring',
+    qualityTier: 'excellent',
     name: '月华指环',
     description: '月光石柔和的光芒护佑生命，提升最大生命值。',
     effects: [{ type: 'max_hp_bonus', value: 25 }],
@@ -152,6 +162,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'harvest_moon_ring',
+    qualityTier: 'excellent',
     name: '丰月指环',
     description: '月光润泽作物，品质与生长速度提升。',
     effects: [
@@ -169,6 +180,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'exp_ring',
+    qualityTier: 'excellent',
     name: '悟道指环',
     description: '获取的所有经验值增加。',
     effects: [{ type: 'exp_bonus', value: 0.1 }],
@@ -185,6 +197,7 @@ export const RINGS: RingDef[] = [
   // ===== Tier 5: 黑曜石（81-100层）=====
   {
     id: 'shadow_ring',
+    qualityTier: 'excellent',
     name: '暗影指环',
     description: '暗影之力吸噬生命，攻击回复生命值。',
     effects: [{ type: 'vampiric', value: 0.1 }],
@@ -198,6 +211,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'treasure_hunter_ring',
+    qualityTier: 'excellent',
     name: '寻宝指环',
     description: '矿洞宝箱更常出现，钓鱼宝箱概率提升。',
     effects: [{ type: 'treasure_find', value: 0.1 }],
@@ -212,6 +226,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'stalwart_ring',
+    qualityTier: 'excellent',
     name: '坚磐指环',
     description: '黑曜石的坚硬护卫，减伤并增加最大生命值。',
     effects: [
@@ -230,6 +245,7 @@ export const RINGS: RingDef[] = [
   // ===== Tier 6: 龙玉/铱（101-120层，终局）=====
   {
     id: 'dragon_ring',
+    qualityTier: 'excellent',
     name: '龙脉指环',
     description: '龙玉蕴含远古力量，全面提升体力效率。',
     effects: [{ type: 'stamina_reduction', value: 0.12 }],
@@ -243,6 +259,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'fortune_ring',
+    qualityTier: 'excellent',
     name: '福运指环',
     description: '龙玉蕴含天地灵气，综合幸运提升。',
     effects: [{ type: 'luck', value: 0.08 }],
@@ -257,6 +274,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'warlord_ring',
+    qualityTier: 'excellent',
     name: '战神指环',
     description: '铱金与龙玉的完美结合，攻击与暴击大幅提升。',
     effects: [
@@ -273,6 +291,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'prismatic_ring',
+    qualityTier: 'excellent',
     name: '五彩天环',
     description: '五彩碎片铸成的至高指环，万事皆幸。',
     effects: [
@@ -292,6 +311,7 @@ export const RINGS: RingDef[] = [
   // ===== BOSS 掉落（不可合成）=====
   {
     id: 'mud_golem_band',
+    qualityTier: 'supreme',
     name: '泥岩护带',
     description: '泥岩巨兽掉落的护身带，体力消耗整体降低。',
     effects: [{ type: 'stamina_reduction', value: 0.06 }],
@@ -302,6 +322,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'frost_queen_circlet',
+    qualityTier: 'supreme',
     name: '冰后指环',
     description: '冰霜女王遗留的冰环，怪物掉落率提升。',
     effects: [{ type: 'monster_drop_bonus', value: 0.15 }],
@@ -312,6 +333,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'lava_lord_seal',
+    qualityTier: 'supreme',
     name: '熔岩君印',
     description: '熔岩君主的封印之环，攻击附带灼伤吸血。',
     effects: [
@@ -327,6 +349,7 @@ export const RINGS: RingDef[] = [
   // ===== 新增合成戒指 =====
   {
     id: 'endurance_ring',
+    qualityTier: 'excellent',
     name: '持久指环',
     description: '铜环镶嵌石英，增强持久力。',
     effects: [{ type: 'stamina_reduction', value: 0.05 }],
@@ -340,6 +363,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'fish_jade_ring',
+    qualityTier: 'fine',
     name: '渔获碧环',
     description: '翡翠蕴含水灵之气，钓到的鱼品质更好。',
     effects: [
@@ -356,6 +380,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'growth_ring',
+    qualityTier: 'fine',
     name: '催生指环',
     description: '月光与草药之力催发生机，作物更快成熟。',
     effects: [{ type: 'crop_growth_bonus', value: 0.12 }],
@@ -370,6 +395,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'travel_ring',
+    qualityTier: 'excellent',
     name: '行路指环',
     description: '兔足与金的融合赋予轻盈步伐，赶路更快。',
     effects: [
@@ -388,6 +414,7 @@ export const RINGS: RingDef[] = [
   // ===== 新增BOSS掉落 =====
   {
     id: 'crystal_king_seal',
+    qualityTier: 'supreme',
     name: '晶王之印',
     description: '水晶之王碎裂后留下的印环，蕴含悟道之力。',
     effects: [
@@ -401,6 +428,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'shadow_sovereign_ring',
+    qualityTier: 'supreme',
     name: '暗影君戒',
     description: '暗影君主灵魂凝成的指环，暴击致命且吸噬生命。',
     effects: [
@@ -414,6 +442,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'abyss_dragon_ring',
+    qualityTier: 'supreme',
     name: '龙王指环',
     description: '深渊龙王的逆鳞化成的至高指环，攻守兼备。',
     effects: [
@@ -429,6 +458,7 @@ export const RINGS: RingDef[] = [
   // ===== 新增怪物掉落 =====
   {
     id: 'shallow_guard',
+    qualityTier: 'common',
     name: '浅矿护环',
     description: '浅矿层石蟹壳制成的简陋护环。',
     effects: [{ type: 'defense_bonus', value: 0.05 }],
@@ -439,6 +469,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'crystal_prism_band',
+    qualityTier: 'excellent',
     name: '棱晶护带',
     description: '水晶层怪物身上凝结的棱晶带，蕴含好运。',
     effects: [
@@ -454,6 +485,7 @@ export const RINGS: RingDef[] = [
   // ===== 新增宝箱掉落 =====
   {
     id: 'ancient_jade_ring',
+    qualityTier: 'excellent',
     name: '古玉指环',
     description: '宝箱中沉睡的古老翡翠指环，带来财运。',
     effects: [
@@ -469,6 +501,7 @@ export const RINGS: RingDef[] = [
   // === 公会专属 ===
   {
     id: 'relay_command_ring',
+    qualityTier: 'supreme',
     name: '驿传统筹戒',
     description: '把驿路押运与统筹经验压进戒环，适合荒道护送、回城承接与行装周转。',
     effects: [
@@ -483,6 +516,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'specimen_lens_ring',
+    qualityTier: 'supreme',
     name: '样本折光戒',
     description: '围绕样本读解和泽地观察打造的镜片戒环，适合侦察、事件和样本回流。',
     effects: [
@@ -497,6 +531,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'bulwark_crystal_ring',
+    qualityTier: 'supreme',
     name: '灵脉壁垒戒',
     description: '将高地晶体战备压成前线壁垒，对高压远征与首领线尤其有效。',
     effects: [
@@ -511,6 +546,7 @@ export const RINGS: RingDef[] = [
   },
   {
     id: 'guild_war_ring',
+    qualityTier: 'supreme',
     name: '公会战戒',
     description: '冒险家公会精英成员的战斗指环，蕴含公会的力量。',
     effects: [

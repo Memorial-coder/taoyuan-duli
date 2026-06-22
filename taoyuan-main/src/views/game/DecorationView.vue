@@ -91,7 +91,7 @@
             </div>
             <div class="flex flex-col items-end gap-1 shrink-0">
               <Button
-                v-if="!isCatalogDecoration(def)"
+                v-if="!isCatalogDecoration(def) || isCatalogDirectPurchaseUnlocked(def)"
                 :disabled="!canBuy(def.id)"
                 @click="handleBuy(def.id)"
               >
@@ -169,12 +169,13 @@
   )
 
   const isCatalogDecoration = (def: DecorationEntry) => decorationStore.isCatalogDecoration(def.id)
+  const isCatalogDirectPurchaseUnlocked = (def: DecorationEntry) => decorationStore.isCatalogDirectPurchaseUnlocked(def.id)
 
   const isLocked = (def: DecorationEntry) =>
-    !isCatalogDecoration(def) && !decorationStore.isUnlockedForDirectPurchase(def.id)
+    !decorationStore.isUnlockedForDirectPurchase(def.id)
 
   const isUnavailable = (def: DecorationEntry) =>
-    isLocked(def) || (isCatalogDecoration(def) && getOwnedCount(def.id) === 0)
+    isLocked(def) || (isCatalogDecoration(def) && !isCatalogDirectPurchaseUnlocked(def) && getOwnedCount(def.id) === 0)
 
   const canBuy = (id: string) => decorationStore.canBuyDecoration(id)
 

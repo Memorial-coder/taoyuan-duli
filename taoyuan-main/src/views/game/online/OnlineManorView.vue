@@ -44,124 +44,231 @@
         </div>
       </div>
 
-      <div v-if="activeTab === 'overview'" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
-        <div class="space-y-3">
-          <ManorPreviewCard
-            v-if="snapshot"
-            :snapshot="snapshot"
-            :favorite-overview="manorStore.favoriteOverview"
-          />
-          <OnlineEmptyState
-            v-else
-            title="先刷新庄园快照"
-            description="概览页会把庄园预览卡、主题、来访和收藏关注摘要集中到第一屏。"
-            primary-label="刷新庄园"
-            @primary="refreshSnapshot"
-          />
-          <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <div v-for="stat in overviewStats" :key="stat.label" class="border border-accent/10 bg-black/10 p-2">
-              <p class="truncate text-[0.625rem] text-muted">{{ stat.label }}</p>
-              <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
-            </div>
+      <div v-if="activeTab === 'overview'" class="space-y-3">
+        <section
+          v-if="snapshot"
+          class="online-manor-hero"
+          data-testid="online-manor-hero"
+        >
+          <div class="online-manor-hero__media">
+            <ManorPreviewCard
+              :snapshot="snapshot"
+              :favorite-overview="manorStore.favoriteOverview"
+            />
           </div>
-          <p class="text-xs leading-5 text-muted">
-            {{ overviewCopy }}
-          </p>
-        </div>
-        <div v-if="snapshot" class="grid content-start gap-2" data-testid="online-manor-identity-summary">
-          <div class="border border-accent/10 bg-black/10 p-3">
-            <p class="text-xs text-accent">{{ isOwner ? '主人主行动' : '访客主行动' }}</p>
-            <p class="mt-1 text-[0.625rem] leading-5 text-muted">
-              {{ isOwner ? '先处理公开展示、留言和照料收口。' : '先留下互动，再进入照料或轻采。' }}
-            </p>
-            <div v-if="isOwner" class="mt-3 grid gap-2" data-testid="online-manor-owner-primary-actions">
-              <button
-                data-testid="online-manor-owner-primary-manage-theme"
-                class="online-action-btn min-h-11 w-full justify-center"
-                type="button"
-                @click="openThemeManagementFromOverview"
-              >
-                <Sparkles :size="14" />
-                管理展示
-              </button>
-              <button
-                data-testid="online-manor-owner-primary-manage-access"
-                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
-                type="button"
-                @click="openAccessPolicyDialog"
-              >
-                <Settings :size="14" />
-                管理权限
-              </button>
-              <button
-                data-testid="online-manor-owner-primary-guestbook"
-                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
-                type="button"
-                @click="activeTab = 'guestbook'"
-              >
-                <MessageSquare :size="14" />
-                查看留言
-              </button>
-              <button
-                data-testid="online-manor-owner-primary-care"
-                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
-                type="button"
-                @click="activeTab = 'care'"
-              >
-                <Sprout :size="14" />
-                处理照料
-              </button>
+
+          <div class="online-manor-hero__content" data-testid="online-manor-identity-summary">
+            <div class="min-w-0">
+              <p class="text-[0.625rem] uppercase tracking-[0.12em] text-muted">{{ isOwner ? '我的庄园' : '好友庄园' }}</p>
+              <h2 class="mt-1 text-lg leading-6 text-accent">{{ snapshot.manor_name || identityLabel }}</h2>
+              <p class="mt-2 text-xs leading-5 text-muted">{{ overviewCopy }}</p>
             </div>
-            <div v-else class="mt-3 grid gap-2" data-testid="online-manor-visitor-primary-actions">
-              <button
-                data-testid="online-manor-visitor-primary-guestbook"
-                class="online-action-btn min-h-11 w-full justify-center"
-                type="button"
-                @click="openGuestbookDialogFromOverview"
-              >
-                <MessageSquare :size="14" />
-                留言
-              </button>
-              <button
-                data-testid="online-manor-visitor-primary-care"
-                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
-                type="button"
-                @click="activeTab = 'care'"
-              >
-                <Sprout :size="14" />
-                照料
-              </button>
-              <button
-                data-testid="online-manor-visitor-primary-steal"
-                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
-                type="button"
-                :disabled="!snapshot.steal_state.can_steal"
-                @click="activeTab = 'care'"
-              >
-                <Sparkles :size="14" />
-                轻采
-              </button>
-              <p v-if="!snapshot.steal_state.can_steal" class="text-[0.625rem] leading-5 text-amber-200">
-                {{ stealFailureReason }}
+
+            <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+              <div v-for="stat in overviewStats" :key="stat.label" class="online-manor-hero__stat">
+                <p class="truncate text-[0.625rem] text-muted">{{ stat.label }}</p>
+                <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
+              </div>
+            </div>
+
+            <div data-testid="online-manor-quick-actions">
+              <div v-if="isOwner" class="online-manor-quick-actions" data-testid="online-manor-owner-primary-actions">
+                <button
+                  data-testid="online-manor-owner-primary-manage-theme"
+                  class="online-manor-quick-action online-manor-quick-action--primary"
+                  type="button"
+                  @click="openThemeManagementFromOverview"
+                >
+                  <Sparkles :size="17" />
+                  <span>管理展示</span>
+                  <small>主题、主图、模板</small>
+                </button>
+                <button
+                  data-testid="online-manor-owner-primary-manage-access"
+                  class="online-manor-quick-action"
+                  type="button"
+                  @click="openAccessPolicyDialog"
+                >
+                  <Settings :size="17" />
+                  <span>管理权限</span>
+                  <small>访问 / 照料 / 轻采</small>
+                </button>
+                <button
+                  data-testid="online-manor-owner-primary-guestbook"
+                  class="online-manor-quick-action"
+                  type="button"
+                  @click="activeTab = 'guestbook'"
+                >
+                  <MessageSquare :size="17" />
+                  <span>查看留言</span>
+                  <small>{{ guestbookEntries.length }} 条痕迹</small>
+                </button>
+                <button
+                  data-testid="online-manor-owner-primary-care"
+                  class="online-manor-quick-action"
+                  type="button"
+                  @click="activeTab = 'care'"
+                >
+                  <Sprout :size="17" />
+                  <span>处理照料</span>
+                  <small>{{ recentCareEntries.length + recentStealEntries.length }} 条记录</small>
+                </button>
+              </div>
+
+              <div v-else class="online-manor-quick-actions" data-testid="online-manor-visitor-primary-actions">
+                <button
+                  data-testid="online-manor-visitor-primary-visit"
+                  class="online-manor-quick-action online-manor-quick-action--primary"
+                  type="button"
+                  @click="openVisitCardFromOverview"
+                >
+                  <MapPin :size="17" />
+                  <span>访问</span>
+                  <small>{{ snapshot.today_visit_summary || '记录这次到访' }}</small>
+                </button>
+                <button
+                  data-testid="online-manor-visitor-primary-guestbook"
+                  class="online-manor-quick-action"
+                  type="button"
+                  @click="openGuestbookDialogFromOverview"
+                >
+                  <MessageSquare :size="17" />
+                  <span>留言</span>
+                  <small>{{ currentGuestbookKind.label }} · {{ guestbookDraftLength }}/160</small>
+                </button>
+                <button
+                  data-testid="online-manor-visitor-primary-care"
+                  class="online-manor-quick-action"
+                  type="button"
+                  :disabled="!snapshot.care_state.can_care"
+                  @click="activeTab = 'care'"
+                >
+                  <Sprout :size="17" />
+                  <span>照料</span>
+                  <small>{{ carePermissionLabel }} · {{ careRemainingLabel }}</small>
+                </button>
+                <button
+                  data-testid="online-manor-visitor-primary-steal"
+                  class="online-manor-quick-action"
+                  type="button"
+                  :disabled="!snapshot.steal_state.can_steal"
+                  @click="activeTab = 'care'"
+                >
+                  <Sparkles :size="17" />
+                  <span>摘一点</span>
+                  <small>轻采 · {{ stealPermissionLabel }} · {{ stealRemainingLabel }}</small>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid gap-2 sm:grid-cols-2" data-testid="online-manor-visitor-action-status">
+              <div v-for="chip in visitorActionChips" :key="chip.id" class="online-manor-status-chip">
+                <span>{{ chip.label }}</span>
+                <strong>{{ chip.value }}</strong>
+              </div>
+              <p v-if="!isOwner" data-testid="online-manor-visitor-care-status" class="text-[0.625rem] leading-5 text-muted sm:col-span-2">
+                照料：{{ carePermissionLabel }} · 剩余 {{ careRemainingLabel }}
+              </p>
+              <p v-if="!isOwner" data-testid="online-manor-visitor-steal-status" class="text-[0.625rem] leading-5 text-muted sm:col-span-2">
+                轻采：{{ stealPermissionLabel }} · 剩余 {{ stealRemainingLabel }}
               </p>
             </div>
           </div>
+        </section>
 
-          <div v-if="isOwner" class="border border-accent/10 bg-bg/30 p-3" data-testid="online-manor-overview-latest-summary">
-            <p class="text-xs text-accent">最新互动</p>
-            <div class="mt-2 grid gap-2 text-[0.625rem] leading-5 text-muted">
+        <OnlineEmptyState
+          v-else
+          title="先刷新庄园快照"
+          description="概览页会把庄园封面、四个主动作、到访卡片和最近互动集中到第一屏。"
+          primary-label="刷新庄园"
+          @primary="refreshSnapshot"
+        />
+
+        <section v-if="snapshot" class="grid gap-3 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+          <div class="online-manor-visit-card" data-testid="online-manor-visit-card">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">{{ isOwner ? '今日门前动静' : '这次到访' }}</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">
+                  {{ isOwner ? ownerLatestGuestbookSummary : '选一个来意，写一句到访痕迹；不想写也可以直接记录。' }}
+                </p>
+              </div>
+              <MapPin class="shrink-0 text-accent" :size="16" />
+            </div>
+
+            <div v-if="!isOwner" class="mt-3 grid gap-2">
+              <select v-model="manorStore.visitPurposeDraft" data-testid="online-manor-visit-card-purpose-select" class="online-select w-full">
+                <option v-for="option in visitPurposeOptions" :key="`overview-${option.value}`" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <input
+                v-model="manorStore.visitSummaryDraft"
+                data-testid="online-manor-visit-card-summary-input"
+                maxlength="160"
+                class="online-input w-full"
+                placeholder="在这座庄园看见了什么"
+              />
+              <button
+                data-testid="online-manor-visit-card-submit"
+                class="online-action-btn online-action-btn--compact online-action-btn--primary w-full justify-center"
+                type="button"
+                :disabled="!canRecordVisit"
+                @click="recordVisit"
+              >
+                <Send :size="12" />
+                {{ manorStore.visitActionRunning ? '记录中' : '留下访问记录' }}
+              </button>
+            </div>
+
+            <div v-else class="mt-3 grid gap-2 text-[0.625rem] leading-5 text-muted" data-testid="online-manor-overview-latest-summary">
               <p data-testid="online-manor-owner-latest-guestbook">{{ ownerLatestGuestbookSummary }}</p>
               <p data-testid="online-manor-owner-latest-care">{{ ownerLatestCareSummary }}</p>
+              <button
+                data-testid="online-manor-owner-visit-review"
+                class="online-action-btn online-action-btn--compact justify-center"
+                type="button"
+                @click="activeTab = 'visits'"
+              >
+                <Route :size="12" />
+                查看来访
+              </button>
             </div>
           </div>
-          <div v-else class="border border-accent/10 bg-bg/30 p-3" data-testid="online-manor-visitor-action-status">
-            <p class="text-xs text-accent">今日可做</p>
-            <div class="mt-2 grid gap-2 text-[0.625rem] leading-5 text-muted">
-              <p data-testid="online-manor-visitor-care-status">照料：{{ carePermissionLabel }} · 剩余 {{ careRemainingLabel }}</p>
-              <p data-testid="online-manor-visitor-steal-status">轻采：{{ stealPermissionLabel }} · 剩余 {{ stealRemainingLabel }}</p>
+
+          <div class="online-manor-activity-feed" data-testid="online-manor-activity-feed">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">最近互动</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">留言、访问、照料和轻采会汇成一条轻量动态，不把规则明细挤在首屏。</p>
+              </div>
+              <span class="shrink-0 text-[0.625rem] text-muted">{{ manorActivityFeed.length }} 条</span>
             </div>
+            <div v-if="manorActivityFeed.length > 0" class="mt-3 grid gap-2">
+              <button
+                v-for="entry in manorActivityFeed"
+                :key="entry.id"
+                type="button"
+                class="online-manor-activity-entry"
+                :data-testid="`online-manor-activity-${entry.kind}`"
+                @click="openActivityFeedEntry(entry)"
+              >
+                <span class="online-manor-activity-entry__kind">{{ entry.label }}</span>
+                <span class="min-w-0 flex-1">
+                  <strong>{{ entry.title }}</strong>
+                  <small>{{ entry.summary }}</small>
+                </span>
+                <span class="online-manor-activity-entry__time">{{ entry.time }}</span>
+              </button>
+            </div>
+            <OnlineEmptyState
+              v-else
+              class="mt-3"
+              title="还没有互动痕迹"
+              description="完成访问、留言、照料或轻采后，这里会先显示最近几条。"
+            />
           </div>
-        </div>
+        </section>
       </div>
 
       <div v-else-if="activeTab === 'theme'" class="space-y-3">
@@ -742,76 +849,82 @@
       <div v-else-if="activeTab === 'care'" class="space-y-3">
         <div v-if="snapshot" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div class="space-y-3">
-            <div class="flex flex-col gap-2 border border-accent/10 bg-black/10 p-3 md:flex-row md:items-start md:justify-between">
-              <div class="min-w-0">
-                <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0">
                   <div class="flex items-center gap-2 text-accent">
                     <Sprout :size="13" />
-                    <p class="text-xs">{{ isOwner ? '庄园照料权限' : '好友庄园照料' }}</p>
+                    <p class="text-xs">{{ isOwner ? '庄园照料后台' : '今日可互动' }}</p>
                   </div>
-                  <button
-                    v-if="isOwner"
-                    data-testid="online-manor-care-manage-access"
-                    class="online-action-btn online-action-btn--compact shrink-0 justify-center"
-                    type="button"
-                    @click="openAccessPolicyDialog"
-                  >
-                    <Settings :size="12" />
-                    管理权限
-                  </button>
+                  <p class="mt-2 text-[0.625rem] leading-5 text-muted">
+                    先在场景里选物件，再做照料或轻采；次数、白名单和反刷规则默认收在明细里。
+                  </p>
                 </div>
-                <p class="mt-2 text-[0.625rem] leading-5 text-muted">
-                  今日访客剩余 {{ careRemainingLabel }} · 庄园剩余 {{ manorCareRemainingLabel }} · 权限 {{ carePermissionLabel }}
-                </p>
-                <p class="mt-1 text-[0.625rem] leading-5 text-muted">
-                  轻采剩余 {{ stealRemainingLabel }} · 庄园轻采 {{ manorStealRemainingLabel }} · 权限 {{ stealPermissionLabel }}
-                </p>
-                <p v-if="careFailureReason" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
-                  {{ snapshot.care_state.care_denied_reason || '当前庄园暂未开放照料。' }}
-                </p>
-                <p v-if="stealFailureReason" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
-                  {{ snapshot.steal_state.steal_denied_reason || '当前庄园暂未开放轻采。' }}
-                </p>
-                <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-care-readable-limits">
+                <button
+                  v-if="isOwner"
+                  data-testid="online-manor-care-manage-access"
+                  class="online-action-btn online-action-btn--compact shrink-0 justify-center"
+                  type="button"
+                  @click="openAccessPolicyDialog"
+                >
+                  <Settings :size="12" />
+                  管理权限
+                </button>
+              </div>
+
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                <div class="online-manor-status-chip">
+                  <span>照料</span>
+                  <strong data-testid="online-manor-visitor-care-status">{{ carePermissionLabel }} · 剩余 {{ careRemainingLabel }}</strong>
+                </div>
+                <div class="online-manor-status-chip">
+                  <span>轻采</span>
+                  <strong data-testid="online-manor-visitor-steal-status">{{ stealPermissionLabel }} · 剩余 {{ stealRemainingLabel }}</strong>
+                </div>
+                <div class="online-manor-status-chip">
+                  <span>庄园照料承载</span>
+                  <strong>{{ manorCareRemainingLabel }}</strong>
+                </div>
+                <div class="online-manor-status-chip">
+                  <span>庄园轻采承载</span>
+                  <strong>{{ manorStealRemainingLabel }}</strong>
+                </div>
+              </div>
+
+              <p v-if="careFailureReason" data-testid="online-manor-care-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
+                照料失败原因：{{ careFailureReason }}
+              </p>
+              <p v-if="stealFailureReason" data-testid="online-manor-steal-failure-reason" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
+                轻采失败原因：{{ stealFailureReason }}
+              </p>
+
+              <OnlineTechnicalDetails
+                class="mt-3"
+                title="次数与规则明细"
+                summary="展开查看照料 / 轻采次数、短时窗口、主人保留比例和反刷记录。"
+              >
+                <div class="grid gap-2 md:grid-cols-2" data-testid="online-manor-care-readable-limits">
                   <div v-for="row in careReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
                     <p class="text-[0.625rem] text-accent">{{ row.label }}</p>
                     <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.value }}</p>
                     <p v-if="row.detail" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.detail }}</p>
                   </div>
                 </div>
-                <p v-if="careFailureReason" data-testid="online-manor-care-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
-                  照料失败原因：{{ careFailureReason }}
+                <p data-testid="online-manor-care-anti-abuse-summary" class="mt-2">
+                  照料规则：{{ careAntiAbuseSummary }}
                 </p>
-                <OnlineTechnicalDetails
-                  class="mt-2"
-                  title="照料规则说明"
-                  summary="展开查看照料次数、短时窗口和异常标记。"
-                >
-                  <p data-testid="online-manor-care-anti-abuse-summary">
-                    照料规则：{{ careAntiAbuseSummary }}
-                  </p>
-                </OnlineTechnicalDetails>
-                <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
+                <div class="mt-3 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
                   <div v-for="row in stealReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
                     <p class="text-[0.625rem] text-accent">{{ row.label }}</p>
                     <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.value }}</p>
                     <p v-if="row.detail" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.detail }}</p>
                   </div>
                 </div>
-                <p v-if="stealFailureReason" data-testid="online-manor-steal-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
-                  轻采失败原因：{{ stealFailureReason }}
+                <p data-testid="online-manor-steal-anti-abuse-summary" class="mt-2">
+                  风险记录：{{ stealAntiAbuseSummary }}
                 </p>
-                <OnlineTechnicalDetails
-                  class="mt-2"
-                  title="轻采规则说明"
-                  summary="展开查看频次规则、主人保留比例和结算规则。"
-                >
-                  <p data-testid="online-manor-steal-anti-abuse-summary">
-                    风险记录：{{ stealAntiAbuseSummary }}
-                  </p>
-                  <p class="mt-1">{{ stealReadableImpactSummary }}</p>
-                </OnlineTechnicalDetails>
-              </div>
+                <p class="mt-1">{{ stealReadableImpactSummary }}</p>
+              </OnlineTechnicalDetails>
             </div>
 
             <VisualSceneBoard
@@ -1373,9 +1486,16 @@
         </section>
         <section class="border border-accent/10 bg-black/10 p-2">
           <p class="text-xs text-accent">携带物</p>
-          <p v-if="selectedVisitEntry.carried_items.length > 0" class="mt-1 text-[0.625rem] leading-5 text-muted">
-            {{ selectedVisitEntry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
-          </p>
+          <div v-if="selectedVisitEntry.carried_items.length > 0" class="mt-1 flex flex-wrap gap-1 text-[0.625rem] leading-5 text-muted">
+            <span
+              v-for="item in selectedVisitEntry.carried_items"
+              :key="`${selectedVisitEntry.id}-${item.itemId}`"
+              class="inline-flex items-center gap-1 border border-accent/10 px-1 py-0.5"
+            >
+              <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+              <span>{{ getItemById(item.itemId)?.name ?? item.itemId }} x{{ item.quantity }}</span>
+            </span>
+          </div>
           <p v-else class="mt-1 text-[0.625rem] leading-5 text-muted">本次来访没有携带物记录。</p>
         </section>
       </div>
@@ -1698,9 +1818,11 @@
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import { getItemById } from '@/data'
   import type { OnlineVisualObject } from '@/types/onlineVisual'
   import type { OnlineManorCareRoom, OnlineManorSnapshot } from '@/utils/onlineProfileApi'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
@@ -1713,6 +1835,14 @@
   type OnlineManorStealEntry = OnlineManorSnapshot['steal_entries'][number]
   type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
   type VisitPurpose = 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
+  type ManorActivityFeedEntry = {
+    id: string
+    kind: 'guestbook' | 'visit' | 'care' | 'steal'
+    label: string
+    title: string
+    summary: string
+    time: string
+  }
 
   const route = useRoute()
   const manorStore = useManorStore()
@@ -2147,6 +2277,29 @@
     { label: '导览点', value: `${guidePoints.value.length} 个` },
   ])
 
+  const visitorActionChips = computed(() => [
+    {
+      id: 'visit',
+      label: '访问',
+      value: snapshot.value?.relation_context.can_visit ? '可进入' : accessModeLabel(snapshot.value?.access_policy.visit_mode || 'closed'),
+    },
+    {
+      id: 'guestbook',
+      label: '留言',
+      value: `${guestbookEntries.value.length} 条`,
+    },
+    {
+      id: 'care',
+      label: '照料',
+      value: `${carePermissionLabel.value} ${careRemainingLabel.value}`,
+    },
+    {
+      id: 'steal',
+      label: '轻采',
+      value: `${stealPermissionLabel.value} ${stealRemainingLabel.value}`,
+    },
+  ])
+
   const overviewCopy = computed(() => {
     if (!snapshot.value) return '先刷新庄园快照，概览页只承接摘要，主题、留言、来访、导览会在各自标签里处理。'
     if (snapshot.value.viewer_is_owner) return '这是自己的庄园概览；管理操作已经按主题、留言、来访、导览和收藏拆到各标签页。'
@@ -2167,6 +2320,58 @@
     const stealEntry = recentStealEntries.value[0]
     if (stealEntry) return `最新照料：${stealEntry.visitor_display_name} ${stealEntry.action_label}，${stealEntry.owner_compensation}`
     return '最新照料：还没有照料或轻采记录。'
+  })
+
+  const manorActivityFeed = computed<ManorActivityFeedEntry[]>(() => {
+    const entries: Array<ManorActivityFeedEntry & { createdAt: number }> = []
+    for (const entry of guestbookEntries.value.slice(0, 2)) {
+      entries.push({
+        id: entry.id,
+        kind: 'guestbook',
+        label: guestbookKindLabel(entry.kind),
+        title: entry.author_display_name,
+        summary: entry.content,
+        time: formatGuestbookTime(entry.created_at),
+        createdAt: entry.created_at,
+      })
+    }
+    for (const entry of recentVisitEntries.value) {
+      entries.push({
+        id: entry.id,
+        kind: 'visit',
+        label: visitPurposeLabel(entry.purpose),
+        title: entry.visitor_display_name,
+        summary: entry.summary || entry.feedback || '前来参观庄园',
+        time: formatVisitTime(entry.created_at),
+        createdAt: entry.created_at,
+      })
+    }
+    for (const entry of recentCareEntries.value.slice(0, 2)) {
+      entries.push({
+        id: entry.id,
+        kind: 'care',
+        label: '照料',
+        title: `${entry.visitor_display_name} · ${entry.action_label}`,
+        summary: entry.summary || `${entry.object_label} 已被照料`,
+        time: formatVisitTime(entry.created_at),
+        createdAt: entry.created_at,
+      })
+    }
+    for (const entry of recentStealEntries.value.slice(0, 2)) {
+      entries.push({
+        id: entry.id,
+        kind: 'steal',
+        label: '轻采',
+        title: `${entry.visitor_display_name} · ${entry.action_label}`,
+        summary: entry.summary || `${entry.object_label} 已有轻采记录`,
+        time: formatVisitTime(entry.created_at),
+        createdAt: entry.created_at,
+      })
+    }
+    return entries
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5)
+      .map(({ id, kind, label, title, summary, time }) => ({ id, kind, label, title, summary, time }))
   })
 
   const refreshSnapshot = async () => {
@@ -2213,6 +2418,13 @@
   const openGuestbookDialogFromOverview = () => {
     activeTab.value = 'guestbook'
     guestbookDialogOpen.value = true
+  }
+
+  const openVisitCardFromOverview = () => {
+    activeTab.value = 'overview'
+    if (!manorStore.visitSummaryDraft.trim()) {
+      manorStore.visitSummaryDraft = '前来参观庄园'
+    }
   }
 
   const closeGuestbookDialog = () => {
@@ -2302,6 +2514,26 @@
 
   const recordVisit = async () => {
     await manorStore.createVisitRecord().catch(() => {})
+  }
+
+  const openActivityFeedEntry = (entry: ManorActivityFeedEntry) => {
+    if (entry.kind === 'guestbook') {
+      activeTab.value = 'guestbook'
+      return
+    }
+    if (entry.kind === 'visit') {
+      const visitEntry = visitEntries.value.find(item => item.id === entry.id)
+      activeTab.value = 'visits'
+      if (visitEntry) openVisitDetail(visitEntry)
+      return
+    }
+    if (entry.kind === 'steal') {
+      const stealEntry = recentStealEntries.value.find(item => item.id === entry.id)
+      activeTab.value = 'care'
+      if (stealEntry) openStealDetail(stealEntry)
+      return
+    }
+    activeTab.value = 'care'
   }
 
   const openVisitDetail = (entry: OnlineManorVisitEntry) => {
@@ -2525,3 +2757,193 @@
     }
   )
 </script>
+
+<style scoped>
+  .online-manor-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(20rem, 0.92fr);
+    gap: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 42%),
+      rgb(var(--color-bg) / 0.22);
+    padding: 0.75rem;
+  }
+
+  .online-manor-hero__media,
+  .online-manor-hero__content,
+  .online-manor-visit-card,
+  .online-manor-activity-feed {
+    min-width: 0;
+  }
+
+  .online-manor-hero__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 10%, transparent);
+    background: rgb(0 0 0 / 0.12);
+    padding: 0.85rem;
+  }
+
+  .online-manor-hero__stat,
+  .online-manor-status-chip,
+  .online-manor-visit-card,
+  .online-manor-activity-feed {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: rgb(0 0 0 / 0.12);
+  }
+
+  .online-manor-hero__stat {
+    padding: 0.55rem;
+  }
+
+  .online-manor-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .online-manor-quick-action {
+    display: flex;
+    min-height: 4.75rem;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 18%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+    color: rgb(var(--color-text));
+    padding: 0.7rem;
+    text-align: left;
+    transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+  }
+
+  .online-manor-quick-action:hover:not(:disabled),
+  .online-manor-quick-action:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent) 62%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    outline: none;
+    transform: translateY(-1px);
+  }
+
+  .online-manor-quick-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.52;
+  }
+
+  .online-manor-quick-action--primary {
+    border-color: color-mix(in srgb, var(--color-accent) 42%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  }
+
+  .online-manor-quick-action span,
+  .online-manor-activity-entry strong {
+    color: var(--color-accent);
+    font-size: 0.82rem;
+    line-height: 1.25;
+  }
+
+  .online-manor-quick-action small,
+  .online-manor-activity-entry small {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--color-muted);
+    font-size: 0.68rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .online-manor-status-chip {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.68rem;
+    line-height: 1.35;
+  }
+
+  .online-manor-status-chip span {
+    color: var(--color-muted);
+  }
+
+  .online-manor-status-chip strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-accent);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .online-manor-visit-card,
+  .online-manor-activity-feed {
+    padding: 0.85rem;
+  }
+
+  .online-manor-activity-entry {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    align-items: center;
+    min-height: 3.4rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 10%, transparent);
+    background: rgb(var(--color-bg) / 0.2);
+    padding: 0.6rem;
+    text-align: left;
+  }
+
+  .online-manor-activity-entry:hover,
+  .online-manor-activity-entry:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent) 46%, transparent);
+    outline: none;
+  }
+
+  .online-manor-activity-entry__kind {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 18%, transparent);
+    color: var(--color-accent);
+    padding: 0.15rem 0.4rem;
+    font-size: 0.62rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .online-manor-activity-entry__time {
+    color: var(--color-muted);
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    .online-manor-hero {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .online-manor-hero,
+    .online-manor-hero__content,
+    .online-manor-visit-card,
+    .online-manor-activity-feed {
+      padding: 0.65rem;
+    }
+
+    .online-manor-quick-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .online-manor-quick-action {
+      min-height: 4rem;
+    }
+
+    .online-manor-activity-entry {
+      grid-template-columns: 1fr;
+      align-items: flex-start;
+    }
+  }
+</style>

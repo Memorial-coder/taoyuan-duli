@@ -100,6 +100,8 @@
             :discovered="achievementStore.isDiscovered(item.id)"
             :secondary="CATEGORY_NAMES[item.category] ?? item.category"
             :name-class="achievementStore.isDiscovered(item.id) ? getCategoryColor(item.category) : ''"
+            show-usage-tags
+            @usage-click="handleCollectionUsageTagClick"
             @click="activeCollectionId = item.id"
           />
         </div>
@@ -339,6 +341,7 @@
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
+  import type { ItemLinkageUseTag } from '@/data/itemLinkage'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import type { ItemCategory } from '@/types'
 
@@ -478,6 +481,11 @@
   const handleCollectionHintNavigate = (panel: PanelKey) => {
     activeCollectionId.value = null
     navigateToPanel(panel)
+  }
+  const handleCollectionUsageTagClick = (tag: ItemLinkageUseTag) => {
+    if (!tag.panelKey) return
+    activeCollectionId.value = null
+    navigateToPanel(tag.panelKey as PanelKey)
   }
 
   const activeCollectionSource = computed(() => {

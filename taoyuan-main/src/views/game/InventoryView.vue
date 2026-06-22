@@ -65,6 +65,8 @@
           :quantity="item.quantity"
           :quality="item.quality"
           :locked="item.locked"
+          show-usage-tags
+          @usage-click="handleInventoryUsageTagClick"
           @click="openVisibleInventoryItem(item)"
         />
 
@@ -100,6 +102,8 @@
             :quantity="item.quantity"
             :quality="item.quality"
             tone="danger"
+            show-usage-tags
+            @usage-click="handleInventoryUsageTagClick"
             @click="activeTempIdx = idx"
           />
 
@@ -139,13 +143,24 @@
             :class="idx === inventoryStore.equippedWeaponIndex ? 'border-accent/30' : 'border-accent/10'"
             @click="activeWeaponIdx = idx"
           >
-            <span class="flex items-center gap-1 min-w-0 text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
-              <Lock v-if="weapon.locked" :size="11" class="shrink-0 text-accent/70" />
-              <span class="truncate">{{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}</span>
-            </span>
+            <div class="flex min-w-0 flex-1 items-center gap-1.5">
+              <ItemIcon :item="getItemById(weapon.defId)" size="xs" :show-badge="false" />
+              <span class="flex items-center gap-1 min-w-0 text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
+                <Lock v-if="weapon.locked" :size="11" class="shrink-0 text-accent/70" />
+                <span class="truncate">{{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}</span>
+              </span>
+            </div>
             <span v-if="idx === inventoryStore.equippedWeaponIndex" class="text-xs text-accent">装备中</span>
             <span v-else-if="weapon.locked" class="text-xs text-accent">已锁定</span>
             <span v-else class="text-xs text-muted">{{ getWeaponSellPrice(weapon.defId, weapon.enchantmentId, weapon.affixes) }}文</span>
+            <!-- 耐久条 -->
+            <div v-if="weapon.durability != null" class="flex items-center gap-1 ml-2 shrink-0">
+              <span class="text-[0.5rem] text-muted w-10 text-right">{{ getWeaponDurability(idx).current }}/{{ getWeaponDurability(idx).max }}</span>
+              <div class="w-12 h-1 bg-accent/10 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getWeaponDurability(idx).current, getWeaponDurability(idx).max)" :style="{ width: (getWeaponDurability(idx).current / getWeaponDurability(idx).max * 100) + '%' }"></div>
+              </div>
+              <span v-if="weapon.durability === 0" class="text-[0.5rem] text-danger font-bold">破损</span>
+            </div>
           </div>
         </div>
       </div>
@@ -170,7 +185,9 @@
               :class="inventoryStore.equippedHatIndex === idx ? 'border-accent/30' : 'border-accent/10'"
               @click="activeHatIdx = idx"
             >
-              <div class="min-w-0">
+              <div class="flex min-w-0 flex-1 items-center gap-1.5">
+                <ItemIcon :item="getItemById(hat.defId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
                 <span class="flex items-center gap-1 min-w-0 text-xs" :class="inventoryStore.equippedHatIndex === idx ? 'text-accent' : ''">
                   <Lock v-if="hat.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getHatById(hat.defId)?.name ?? hat.defId }}</span>
@@ -179,14 +196,23 @@
                   {{ getHatById(hat.defId)?.description }}
                   <template v-if="formatForgeAffixSummary(hat.affixes)"> · {{ formatForgeAffixSummary(hat.affixes) }}</template>
                 </p>
+                </div>
               </div>
-              <Button
-                class="py-0 px-1.5 shrink-0 ml-2"
-                :class="inventoryStore.equippedHatIndex === idx ? '!bg-accent !text-bg' : ''"
-                @click.stop="handleToggleHat(idx)"
-              >
-                {{ inventoryStore.equippedHatIndex === idx ? '卸下' : '装备' }}
-              </Button>
+              <div class="flex items-center gap-1 shrink-0 ml-2">
+                <div v-if="hat.durability != null" class="flex items-center gap-1">
+                  <span class="text-[0.5rem] text-muted w-10 text-right">{{ getHatDurability(idx).current }}/{{ getHatDurability(idx).max }}</span>
+                  <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getHatDurability(idx).current, getHatDurability(idx).max)" :style="{ width: (getHatDurability(idx).current / getHatDurability(idx).max * 100) + '%' }"></div>
+                  </div>
+                </div>
+                <Button
+                  class="py-0 px-1.5"
+                  :class="inventoryStore.equippedHatIndex === idx ? '!bg-accent !text-bg' : ''"
+                  @click.stop="handleToggleHat(idx)"
+                >
+                  {{ inventoryStore.equippedHatIndex === idx ? '卸下' : '装备' }}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -213,7 +239,9 @@
               :class="inventoryStore.equippedShoeIndex === idx ? 'border-accent/30' : 'border-accent/10'"
               @click="activeShoeIdx = idx"
             >
-              <div class="min-w-0">
+              <div class="flex min-w-0 flex-1 items-center gap-1.5">
+                <ItemIcon :item="getItemById(shoe.defId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
                 <span class="flex items-center gap-1 min-w-0 text-xs" :class="inventoryStore.equippedShoeIndex === idx ? 'text-accent' : ''">
                   <Lock v-if="shoe.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getShoeById(shoe.defId)?.name ?? shoe.defId }}</span>
@@ -222,14 +250,23 @@
                   {{ getShoeById(shoe.defId)?.description }}
                   <template v-if="formatForgeAffixSummary(shoe.affixes)"> · {{ formatForgeAffixSummary(shoe.affixes) }}</template>
                 </p>
+                </div>
               </div>
-              <Button
-                class="py-0 px-1.5 shrink-0 ml-2"
-                :class="inventoryStore.equippedShoeIndex === idx ? '!bg-accent !text-bg' : ''"
-                @click.stop="handleToggleShoe(idx)"
-              >
-                {{ inventoryStore.equippedShoeIndex === idx ? '卸下' : '装备' }}
-              </Button>
+              <div class="flex items-center gap-1 shrink-0 ml-2">
+                <div v-if="shoe.durability != null" class="flex items-center gap-1">
+                  <span class="text-[0.5rem] text-muted w-10 text-right">{{ getShoeDurability(idx).current }}/{{ getShoeDurability(idx).max }}</span>
+                  <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getShoeDurability(idx).current, getShoeDurability(idx).max)" :style="{ width: (getShoeDurability(idx).current / getShoeDurability(idx).max * 100) + '%' }"></div>
+                  </div>
+                </div>
+                <Button
+                  class="py-0 px-1.5"
+                  :class="inventoryStore.equippedShoeIndex === idx ? '!bg-accent !text-bg' : ''"
+                  @click.stop="handleToggleShoe(idx)"
+                >
+                  {{ inventoryStore.equippedShoeIndex === idx ? '卸下' : '装备' }}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -264,7 +301,9 @@
               :class="isRingEquipped(idx) ? 'border-accent/30' : 'border-accent/10'"
               @click="activeRingIdx = idx"
             >
-              <div class="min-w-0">
+              <div class="flex min-w-0 flex-1 items-center gap-1.5">
+                <ItemIcon :item="getItemById(ring.defId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
                 <span class="flex items-center gap-1 min-w-0 text-xs" :class="isRingEquipped(idx) ? 'text-accent' : ''">
                   <Lock v-if="ring.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getRingById(ring.defId)?.name ?? ring.defId }}</span>
@@ -273,8 +312,16 @@
                   {{ getRingById(ring.defId)?.description }}
                   <template v-if="formatForgeAffixSummary(ring.affixes)"> · {{ formatForgeAffixSummary(ring.affixes) }}</template>
                 </p>
+                </div>
               </div>
-              <div class="flex space-x-1 shrink-0 ml-2">
+              <div class="flex items-center gap-1 shrink-0 ml-2">
+                <div v-if="ring.durability != null" class="flex items-center gap-1">
+                  <span class="text-[0.5rem] text-muted w-10 text-right">{{ getRingDurability(idx).current }}/{{ getRingDurability(idx).max }}</span>
+                  <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getRingDurability(idx).current, getRingDurability(idx).max)" :style="{ width: (getRingDurability(idx).current / getRingDurability(idx).max * 100) + '%' }"></div>
+                  </div>
+                </div>
+                <div class="flex space-x-1">
                 <Button
                   class="py-0 px-1.5"
                   :class="
@@ -303,6 +350,7 @@
                 >
                   槽2
                 </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -666,6 +714,18 @@
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeItemDef.sellPrice }}文</span>
             </div>
+            <div v-if="activeSeedCrop" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="text-xs text-muted shrink-0">适宜季节</span>
+              <span class="text-xs text-accent text-right">{{ activeSeedSeasonLabel }}</span>
+            </div>
+            <div v-if="activeSeedCrop" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="text-xs text-muted shrink-0">成熟天数</span>
+              <span class="text-xs text-accent text-right">{{ activeSeedGrowthLabel }}</span>
+            </div>
+            <div v-if="activeSeedRegrowthLabel" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="text-xs text-muted shrink-0">再收周期</span>
+              <span class="text-xs text-accent text-right">{{ activeSeedRegrowthLabel }}</span>
+            </div>
             <div v-if="activeItemRecoveryParts.length > 0" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">恢复</span>
               <span class="text-xs text-success">{{ activeItemRecoveryParts.join(' / ') }}</span>
@@ -737,7 +797,7 @@
               class="w-full justify-center"
               :icon="Apple"
               :icon-size="12"
-              :disabled="activeItem.locked || isEatBlocked(activeItem.itemId)"
+              :disabled="isEatBlocked(activeItem.itemId)"
               @click="handleEat(activeItem.itemId, activeItem.quality)"
             >
               食用
@@ -795,6 +855,9 @@
             <span class="truncate">{{ activeWeaponName }}</span>
             <span v-if="activeWeaponLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
           </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="getItemById(activeWeaponDef.id)" size="lg" :resolution="256" :show-badge="false" />
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeWeaponDef.description }}</p>
           </div>
@@ -818,6 +881,16 @@
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeWeaponPrice }}文</span>
+            </div>
+            <div v-if="activeWeaponIdx !== null && inventoryStore.ownedWeapons[activeWeaponIdx]?.durability != null" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">耐久</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getWeaponDurability(activeWeaponIdx).current, getWeaponDurability(activeWeaponIdx).max)" :style="{ width: (getWeaponDurability(activeWeaponIdx).current / getWeaponDurability(activeWeaponIdx).max * 100) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ getWeaponDurability(activeWeaponIdx).current }}/{{ getWeaponDurability(activeWeaponIdx).max }}</span>
+                <span v-if="inventoryStore.ownedWeapons[activeWeaponIdx]?.durability === 0" class="text-xs text-danger font-bold">破损</span>
+              </div>
             </div>
           </div>
           <div class="flex flex-col space-y-1.5">
@@ -863,6 +936,9 @@
             <span class="truncate">{{ activeRingDef.name }}</span>
             <span v-if="activeRingLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
           </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="getItemById(activeRingDef.id)" size="lg" :resolution="256" :show-badge="false" />
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeRingDef.description }}</p>
           </div>
@@ -926,6 +1002,9 @@
             <span class="truncate">{{ activeHatDef.name }}</span>
             <span v-if="activeHatLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
           </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="getItemById(activeHatDef.id)" size="lg" :resolution="256" :show-badge="false" />
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeHatDef.description }}</p>
           </div>
@@ -974,6 +1053,9 @@
             <span class="truncate">{{ activeShoeDef.name }}</span>
             <span v-if="activeShoeLocked" class="text-[0.625rem] text-accent/80 shrink-0">已锁定</span>
           </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="getItemById(activeShoeDef.id)" size="lg" :resolution="256" :show-badge="false" />
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeShoeDef.description }}</p>
           </div>
@@ -1017,14 +1099,15 @@
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import { useCookingStore } from '@/stores/useCookingStore'
-  import { useGameStore } from '@/stores/useGameStore'
+  import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
   import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore, type VisibleInventoryItemStack } from '@/stores/useInventoryStore'
+  import { getCurrentDurability } from '@/composables/useDurability'
   import { useMiningStore } from '@/stores/useMiningStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
-  import { getItemById, getItemSource } from '@/data'
+  import { getCropBySeedId, getItemById, getItemSource } from '@/data'
   import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
   import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
   import { getRecipeById } from '@/data/recipes'
@@ -1037,7 +1120,9 @@
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
+  import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
+  import type { ItemLinkageUseTag } from '@/data/itemLinkage'
   import type { Quality, RingEffectType, ItemCategory, InventoryItem } from '@/types'
 
   const MOON_RABBIT_TEA_MEDICINE_ITEM_IDS = new Set([
@@ -1054,6 +1139,47 @@
   ])
 
   const inventoryStore = useInventoryStore()
+
+  /** 获取耐久条颜色 */
+  const getDurabilityColor = (current: number, max: number): string => {
+    if (max <= 0) return 'bg-gray-400'
+    const ratio = current / max
+    if (ratio > 0.6) return 'bg-green-500'
+    if (ratio > 0.2) return 'bg-yellow-500'
+    return 'bg-red-500'
+  }
+
+  /** 获取武器耐久 */
+  const getWeaponDurability = (idx: number): { current: number; max: number } => {
+    const w = inventoryStore.ownedWeapons[idx]
+    if (!w) return { current: 0, max: 100 }
+    const max = inventoryStore.getWeaponMaxDurability?.() ?? 100
+    return { current: getCurrentDurability(w, max), max }
+  }
+
+  /** 获取戒指耐久 */
+  const getRingDurability = (idx: number): { current: number; max: number } => {
+    const r = inventoryStore.ownedRings[idx]
+    if (!r) return { current: 0, max: 100 }
+    const max = inventoryStore.getRingMaxDurability?.(idx) ?? 100
+    return { current: getCurrentDurability(r, max), max }
+  }
+
+  /** 获取帽子耐久 */
+  const getHatDurability = (idx: number): { current: number; max: number } => {
+    const h = inventoryStore.ownedHats[idx]
+    if (!h) return { current: 0, max: 100 }
+    const max = inventoryStore.getHatMaxDurability?.(idx) ?? 100
+    return { current: getCurrentDurability(h, max), max }
+  }
+
+  /** 获取鞋子耐久 */
+  const getShoeDurability = (idx: number): { current: number; max: number } => {
+    const s = inventoryStore.ownedShoes[idx]
+    if (!s) return { current: 0, max: 100 }
+    const max = inventoryStore.getShoeMaxDurability?.(idx) ?? 100
+    return { current: getCurrentDurability(s, max), max }
+  }
   const miningStore = useMiningStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
@@ -1204,6 +1330,11 @@
   const openInventoryItem = (itemId: string, quality?: Quality) => {
     const item = visibleInventoryItems.value.find(entry => entry.itemId === itemId && (quality === undefined || entry.quality === quality))
     if (item) openVisibleInventoryItem(item)
+  }
+
+  const handleInventoryUsageTagClick = (tag: ItemLinkageUseTag) => {
+    if (!tag.panelKey) return
+    navigateToPanel(tag.panelKey as PanelKey)
   }
 
   const openFilterModal = () => {
@@ -1394,7 +1525,9 @@
     journey_event_bonus: '远征事件',
     camp_recovery_bonus: '扎营恢复',
     boss_pressure_resist: '首领抗压',
-    resource_find_bonus: '资源回收'
+    resource_find_bonus: '资源回收',
+    durability_bonus: '耐久上限',
+    durability_consumption_reduction: '耐久减耗'
   }
 
   const PERCENTAGE_EFFECTS: Set<RingEffectType> = new Set([
@@ -1802,6 +1935,28 @@
     return getItemById(activeItem.value.itemId) ?? null
   })
 
+  const activeSeedCrop = computed(() => {
+    if (activeItemDef.value?.category !== 'seed' || !activeItem.value) return null
+    return getCropBySeedId(activeItem.value.itemId) ?? null
+  })
+
+  const activeSeedSeasonLabel = computed(() => {
+    const crop = activeSeedCrop.value
+    if (!crop) return ''
+    return `${crop.season.map(season => SEASON_NAMES[season] ?? season).join('/')}季`
+  })
+
+  const activeSeedGrowthLabel = computed(() => {
+    const crop = activeSeedCrop.value
+    return crop ? `${crop.growthDays}天` : ''
+  })
+
+  const activeSeedRegrowthLabel = computed(() => {
+    const crop = activeSeedCrop.value
+    if (!crop?.regrowth || !crop.regrowthDays) return ''
+    return crop.maxHarvests ? `每${crop.regrowthDays}天，可收${crop.maxHarvests}次` : `每${crop.regrowthDays}天再收`
+  })
+
   const activeCropUseProfile = computed(() => {
     if (activeItemDef.value?.category !== 'crop') return null
     return getCropUseProfile(activeItemDef.value.id) ?? null
@@ -1869,10 +2024,6 @@
   }
 
   const handleEat = (itemId: string, quality: Quality) => {
-    if (isVisibleInventoryItemLocked(itemId, quality)) {
-      addLog('物品已锁定，先解锁才能食用。')
-      return
-    }
     const def = getItemById(itemId)
     if (!def || !hasItemRecovery(def)) return
     const plan = getEatRecoveryPlan(itemId)
@@ -1901,7 +2052,7 @@
       def,
       vitals: getRecoveryVitals(),
       multiplier: getInventoryRecoveryMultiplier(itemId),
-      removeItem: () => inventoryStore.removeUnlockedItem(itemId, 1, quality),
+      removeItem: () => inventoryStore.removeItemForEating(itemId, 1, quality),
       restoreStamina: amount => playerStore.restoreStamina(amount),
       restoreHealth: amount => playerStore.restoreHealth(amount)
     })

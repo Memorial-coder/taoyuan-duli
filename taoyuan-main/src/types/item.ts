@@ -37,6 +37,24 @@ export type EquipmentQualityTier = 'common' | 'fine' | 'excellent' | 'supreme'
 
 export type InventoryItemOrigin = 'shop'
 
+export interface InventoryPondFishMeta {
+  instanceId: string
+  fishId: string
+  name: string
+  genetics: {
+    weight: number
+    growthRate: number
+    diseaseRes: number
+    qualityGene: number
+    mutationRate: number
+  }
+  daysInPond: number
+  mature: boolean
+  sick: boolean
+  sickDays: number
+  breedId: string | null
+}
+
 export type PriceModifierCategory = 'base' | 'quality' | 'skill' | 'wallet' | 'activity' | 'market' | 'equipment' | 'bond' | 'environment'
 
 export interface PriceModifierStep {
@@ -93,6 +111,7 @@ export interface InventoryItem {
   origin?: InventoryItemOrigin
   purchaseDay?: string
   purchaseUnitPrice?: number
+  pondFish?: InventoryPondFishMeta
 }
 
 /** 工具等级 */
@@ -158,6 +177,7 @@ export interface OwnedWeapon {
   affixes?: ForgeAffixRoll[]
   /** 耐久 */
   durability?: number
+  durabilityWearProgress?: number
   /** 锁定后禁止出售 */
   locked?: boolean
 }

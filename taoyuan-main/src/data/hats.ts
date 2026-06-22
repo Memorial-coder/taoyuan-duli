@@ -5,6 +5,7 @@ export const HATS: HatDef[] = [
   // ===== Tier 1: 基础款（绸缎庄购买）=====
   {
     id: 'straw_hat',
+    qualityTier: 'common',
     name: '草帽',
     description: '轻便的草编帽子，农作时减少体力消耗。',
     effects: [{ type: 'farming_stamina', value: 0.08 }],
@@ -16,6 +17,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'bamboo_hat',
+    qualityTier: 'common',
     name: '竹笠',
     description: '竹编斗笠，遮阳挡雨，减少体力消耗。',
     effects: [{ type: 'stamina_reduction', value: 0.05 }],
@@ -29,6 +31,7 @@ export const HATS: HatDef[] = [
   // ===== Tier 2: 中级款（绸缎庄购买）=====
   {
     id: 'miner_helmet',
+    qualityTier: 'fine',
     name: '矿工帽',
     description: '带有灯座的皮帽，矿洞探索体力大幅降低。',
     effects: [{ type: 'mining_stamina', value: 0.12 }],
@@ -40,6 +43,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'fisher_hat',
+    qualityTier: 'fine',
     name: '渔夫帽',
     description: '宽檐遮阳帽，钓鱼时更加专注。',
     effects: [
@@ -56,6 +60,7 @@ export const HATS: HatDef[] = [
   // ===== Tier 3: 高级款（铁匠铺合成）=====
   {
     id: 'iron_helm',
+    qualityTier: 'fine',
     name: '铁盔',
     description: '坚固的铁制头盔，提升防御与生命上限。',
     effects: [
@@ -70,6 +75,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'scholar_hat',
+    qualityTier: 'fine',
     name: '文士帽',
     description: '儒雅的文士方巾，增加经验获取。',
     effects: [{ type: 'exp_bonus', value: 0.1 }],
@@ -81,6 +87,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'herbalist_hat',
+    qualityTier: 'fine',
     name: '药师帽',
     description: '采药人常戴的宽帽，农耕时减少体力且提高作物品质。',
     effects: [
@@ -98,6 +105,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'merchant_hat',
+    qualityTier: 'fine',
     name: '商人帽',
     description: '绸面圆帽，商人们的标志，提升售价并降低购物开支。',
     effects: [
@@ -117,6 +125,7 @@ export const HATS: HatDef[] = [
   // ===== Tier 4: 顶级款（铁匠铺合成）=====
   {
     id: 'golden_crown',
+    qualityTier: 'excellent',
     name: '金冠',
     description: '金光闪耀的冠冕，财运亨通。',
     effects: [
@@ -134,6 +143,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'dragon_helm',
+    qualityTier: 'excellent',
     name: '龙角盔',
     description: '以龙玉镶嵌的战盔，攻守兼备。',
     effects: [
@@ -154,6 +164,7 @@ export const HATS: HatDef[] = [
   // ===== 怪物掉落 =====
   {
     id: 'frost_hood',
+    qualityTier: 'excellent',
     name: '霜寒兜帽',
     description: '冰蝠身上剥下的毛皮缝制，散发着寒气。',
     effects: [
@@ -168,6 +179,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'shadow_mask',
+    qualityTier: 'excellent',
     name: '暗影面具',
     description: '暗影潜伏者遗留的面具，戴上后能感知怪物的弱点。',
     effects: [
@@ -182,6 +194,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'void_visor',
+    qualityTier: 'excellent',
     name: '虚空面甲',
     description: '深渊巨蟒的鳞片锻成，蕴含着深渊的力量。',
     effects: [
@@ -199,6 +212,7 @@ export const HATS: HatDef[] = [
   // ===== BOSS掉落 =====
   {
     id: 'golem_stone_cap',
+    qualityTier: 'excellent',
     name: '石魔帽',
     description: '泥石魔的核心碎片镶嵌其上，坚硬异常。',
     effects: [
@@ -213,6 +227,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'crystal_king_crown',
+    qualityTier: 'supreme',
     name: '晶王冠',
     description: '水晶之王碎裂后留下的王冠，蕴含纯净的晶能。',
     effects: [
@@ -230,6 +245,7 @@ export const HATS: HatDef[] = [
   // ===== 宝箱掉落 =====
   {
     id: 'lucky_cap',
+    qualityTier: 'excellent',
     name: '幸运小帽',
     description: '宝箱中发现的古怪小帽，似乎能带来好运。',
     effects: [
@@ -246,6 +262,7 @@ export const HATS: HatDef[] = [
   // ===== 新增商店帽子（绸缎庄）=====
   {
     id: 'lotus_hat',
+    qualityTier: 'excellent',
     name: '莲花帽',
     description: '以莲叶编成的清凉帽子，减少全局体力消耗。',
     effects: [{ type: 'stamina_reduction', value: 0.06 }],
@@ -257,6 +274,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'fur_cap',
+    qualityTier: 'fine',
     name: '皮毛帽',
     description: '柔软的兽皮帽，矿洞中格外实用。',
     effects: [
@@ -271,6 +289,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'silk_turban',
+    qualityTier: 'fine',
     name: '丝绸头巾',
     description: '华美的丝绸头巾，提升售价并增加送礼好感。',
     effects: [
@@ -287,6 +306,7 @@ export const HATS: HatDef[] = [
   // ===== 新增合成帽子（铁匠铺）=====
   {
     id: 'jade_hairpin',
+    qualityTier: 'fine',
     name: '翡翠簪',
     description: '翡翠打磨的发簪，田间劳作更加轻松。',
     effects: [
@@ -304,6 +324,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'obsidian_helm',
+    qualityTier: 'supreme',
     name: '黑曜盔',
     description: '黑曜石铸成的重盔，防御力极强。',
     effects: [
@@ -321,6 +342,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'phoenix_crown',
+    qualityTier: 'supreme',
     name: '凤冠',
     description: '龙玉镶嵌的华美凤冠，带来好运与悟性。',
     effects: [
@@ -340,6 +362,7 @@ export const HATS: HatDef[] = [
   // ===== 新增BOSS掉落帽子 =====
   {
     id: 'frost_queen_tiara',
+    qualityTier: 'supreme',
     name: '冰后冠冕',
     description: '冰霜女王的冠冕，蕴含寒冰之力，钓鱼格外专注。',
     effects: [
@@ -354,6 +377,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'abyss_dragon_horns',
+    qualityTier: 'supreme',
     name: '龙王角冠',
     description: '深渊龙王的角制成的战冠，蕴含毁灭之力。',
     effects: [
@@ -371,6 +395,7 @@ export const HATS: HatDef[] = [
   // ===== 新增怪物掉落帽子 =====
   {
     id: 'lava_helm',
+    qualityTier: 'supreme',
     name: '熔岩兜帽',
     description: '火蝠翼膜缝制的耐热兜帽，蕴含灼热之力。',
     effects: [
@@ -387,6 +412,7 @@ export const HATS: HatDef[] = [
   // ===== 新增宝箱掉落帽子 =====
   {
     id: 'treasure_cap',
+    qualityTier: 'excellent',
     name: '淘金帽',
     description: '宝箱中发现的奇特帽子，似乎能吸引更多宝物。',
     effects: [
@@ -403,6 +429,7 @@ export const HATS: HatDef[] = [
   // === 公会专属 ===
   {
     id: 'roadwarden_hood',
+    qualityTier: 'excellent',
     name: '驿路统御兜帽',
     description: '荒道首领线开放后的统御兜帽，强化押运统筹、补给收束与回城承接。',
     effects: [
@@ -418,6 +445,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'sporeglass_hood',
+    qualityTier: 'excellent',
     name: '孢镜夜巡兜帽',
     description: '泽地主线成熟后开放的观察兜帽，强化样本、异常与夜游观察节奏。',
     effects: [
@@ -433,6 +461,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'skywatch_helm',
+    qualityTier: 'supreme',
     name: '天巡哨盔',
     description: '为高地巡路、战备和首领压线节奏设计的重盔，兼顾视野与承压。',
     effects: [
@@ -448,6 +477,7 @@ export const HATS: HatDef[] = [
   },
   {
     id: 'guild_war_helm',
+    qualityTier: 'supreme',
     name: '公会战盔',
     description: '冒险家公会精英成员的战斗头盔，坚固而威严。',
     effects: [

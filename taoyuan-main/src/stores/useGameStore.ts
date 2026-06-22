@@ -1,5 +1,6 @@
 ﻿import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { useNpcStore } from './useNpcStore'
 import type { Season, Weather, Location, LocationGroup, FarmMapType, Quality } from '@/types'
 import {
   DAY_START_HOUR,
@@ -105,7 +106,8 @@ export const useGameStore = defineStore('game', () => {
   const timeDisplay = computed(() => formatTime(hour.value))
   const timePeriod = computed(() => getTimePeriod(hour.value))
   const isLateNight = computed(() => hour.value >= MIDNIGHT_HOUR)
-  const isPastBedtime = computed(() => hour.value >= PASSOUT_HOUR)
+    const _hasExtraNightAction = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('extra_night_action'))
+    const isPastBedtime = computed(() => hour.value >= (_hasExtraNightAction.value ? PASSOUT_HOUR + 1 : PASSOUT_HOUR))
 
   const getNextCalendarPoint = (baseYear = year.value, baseSeason = season.value, baseDay = day.value) => {
     let nextYear = baseYear
@@ -204,7 +206,11 @@ export const useGameStore = defineStore('game', () => {
     const prevHour = hour.value
     const newHour = hour.value + effectiveHours
 
-    if (newHour >= PASSOUT_HOUR) {
+    // NPC function: extra_night_action allows 1 extra action after midnight
+    const _npcStore = useNpcStore()
+    const _hasExtraNightAction = _npcStore.isNpcFunctionEffectUnlocked('extra_night_action')
+    const _effectivePassout = _hasExtraNightAction ? PASSOUT_HOUR + 1 : PASSOUT_HOUR
+    if (newHour >= _effectivePassout) {
       hour.value = PASSOUT_HOUR
       return {
         ok: true,

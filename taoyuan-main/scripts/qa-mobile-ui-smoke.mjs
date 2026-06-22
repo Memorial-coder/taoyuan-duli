@@ -4875,10 +4875,16 @@ async function prepareOnlineManorOwnerIdentityMobile(page) {
 
 async function prepareOnlineManorLimitedStealMobile(page) {
   await expect(page.getByTestId('online-manor-page')).toBeVisible()
+  await expect(page.getByTestId('online-manor-hero')).toBeVisible()
+  await expect(page.getByTestId('online-manor-quick-actions')).toBeVisible()
   await expect(page.getByTestId('online-manor-visitor-primary-actions')).toBeVisible()
+  await expect(page.getByTestId('online-manor-visitor-primary-actions').locator('button')).toHaveCount(4)
+  await expect(page.getByTestId('online-manor-visitor-primary-visit')).toBeVisible()
   await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('留言')
   await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('照料')
   await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('轻采')
+  await expect(page.getByTestId('online-manor-visit-card')).toBeVisible()
+  await expect(page.getByTestId('online-manor-activity-feed')).toBeVisible()
   await expect(page.getByTestId('online-manor-owner-primary-actions')).toHaveCount(0)
   await expect(page.getByTestId('online-manor-visitor-action-status')).toContainText('轻采：可轻采')
 
@@ -4886,6 +4892,10 @@ async function prepareOnlineManorLimitedStealMobile(page) {
   await expect(page.getByTestId('online-manor-guestbook-dialog')).toBeVisible()
   await expect(page.getByTestId('online-manor-guestbook-input')).toBeVisible()
   await page.getByTestId('online-action-dialog-cancel').click()
+  await page.getByTestId('online-module-tab-overview').click()
+  await page.getByTestId('online-manor-visitor-primary-care').click()
+  await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+  await expect(page.getByTestId('visual-scene-detail-sheet-trigger')).toBeVisible()
   await page.getByTestId('online-module-tab-overview').click()
   await page.getByTestId('online-manor-visitor-primary-steal').click()
   await expect(page.getByTestId('visual-scene-board')).toBeVisible()

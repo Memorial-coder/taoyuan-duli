@@ -55,7 +55,7 @@
               :aria-selected="activeTab === tab.key"
               :aria-controls="`online-module-panel-${tab.key}`"
               :tabindex="activeTab === tab.key ? 0 : -1"
-              class="min-h-[36px] shrink-0 border px-3 py-2 text-left text-xs transition-colors"
+              class="min-h-[44px] shrink-0 border px-3 py-2 text-left text-xs transition-colors"
               :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
               @click="setActiveTab(tab.key)"
             >
@@ -88,7 +88,7 @@
                     :aria-selected="activeTab === tab.key"
                     :aria-controls="`online-module-panel-${tab.key}`"
                     :tabindex="activeTab === tab.key ? 0 : -1"
-                    class="min-h-[36px] border px-3 py-2 text-left text-xs transition-colors"
+                    class="min-h-[44px] border px-3 py-2 text-left text-xs transition-colors"
                     :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
                     @click="setActiveTab(tab.key)"
                   >
@@ -108,12 +108,12 @@
           <p v-if="cohabitationStore.contracts.length === 0" class="text-xs leading-5 text-muted">
             当前没有可切换的共同庄园契约。
           </p>
-          <div v-else class="space-y-2">
+          <div v-else class="flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-2 xl:overflow-visible xl:pb-0">
             <button
               v-for="contract in cohabitationStore.contracts.slice(0, 4)"
               :key="contract.id"
               type="button"
-              class="w-full border p-2 text-left transition-colors"
+              class="min-h-[52px] min-w-[13rem] shrink-0 border p-2 text-left transition-colors xl:w-full"
               :class="contract.id === cohabitationStore.activeContractId ? 'border-accent/50 bg-accent/10' : 'border-accent/10 bg-black/10 hover:border-accent/30'"
               :data-testid="`online-cohabitation-left-contract-${contract.id}`"
               @click="selectContract(contract.id)"
@@ -128,6 +128,89 @@
       </aside>
 
       <main class="min-w-0 space-y-3" data-testid="online-cohabitation-main-stage">
+        <section class="game-panel-muted space-y-3 p-3 xl:hidden" data-testid="online-cohabitation-mobile-status">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">共同庄园状态</p>
+              <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.label }} · {{ activeTabMeta.summary }}</p>
+            </div>
+            <span v-if="selectedContract" class="shrink-0 border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
+              {{ statusLabel(selectedContract.status) }}
+            </span>
+          </div>
+
+          <div class="grid gap-2 sm:grid-cols-2" data-testid="online-cohabitation-mobile-status-cards">
+            <article class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[0.625rem] text-muted">契约</p>
+              <p class="mt-1 text-xs text-accent">{{ overviewContractStatusLabel }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewContractDetailLabel }}</p>
+            </article>
+            <article class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[0.625rem] text-muted">共同基金</p>
+              <p class="mt-1 text-xs text-accent">{{ overviewFundBalanceLabel }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewFundDetailLabel }}</p>
+            </article>
+            <article class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[0.625rem] text-muted">共同仓库</p>
+              <p class="mt-1 text-xs text-accent">{{ overviewWarehouseSummaryLabel }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewWarehouseDetailLabel }}</p>
+            </article>
+            <article class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[0.625rem] text-muted">待办</p>
+              <p class="mt-1 text-xs text-accent">{{ overviewRiskTodoLabel }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewRecommendationLabel }}</p>
+            </article>
+          </div>
+
+          <div class="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+              data-testid="online-cohabitation-mobile-goto-map"
+              @click="setActiveTab('map')"
+            >
+              <Map :size="12" />
+              共同地图
+            </button>
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+              data-testid="online-cohabitation-mobile-goto-warehouse"
+              @click="setActiveTab('warehouse')"
+            >
+              <Package :size="12" />
+              共同仓库
+            </button>
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+              data-testid="online-cohabitation-mobile-goto-fund"
+              @click="setActiveTab('fund')"
+            >
+              <Wallet :size="12" />
+              共同基金
+            </button>
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+              data-testid="online-cohabitation-mobile-goto-permissions"
+              @click="setActiveTab('permissions')"
+            >
+              <ShieldCheck :size="12" />
+              权限
+            </button>
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact min-h-[44px] justify-center sm:col-span-2"
+              data-testid="online-cohabitation-mobile-goto-offline"
+              @click="setActiveTab('offline')"
+            >
+              <Lock :size="12" />
+              离线 / 安全
+            </button>
+          </div>
+        </section>
+
         <Transition name="tab-panel-switch" mode="out-in">
         <section
           :key="activeTab"
@@ -294,7 +377,15 @@
                 <p class="truncate text-xs text-text">{{ selectedSharedPet.name || selectedSharedPet.type }}</p>
                 <p class="mt-1">来源：{{ selectedSharedPet.origin_owner_display_name || selectedSharedPet.origin_owner_username }}</p>
                 <p class="mt-1">照料：{{ selectedSharedPet.current_caregiver_display_name || selectedSharedPet.current_caregiver_username || '未记录' }}</p>
-                <p class="mt-1">用品：{{ selectedSharedPet.pet_state.last_care_item_label || selectedSharedPet.pet_state.last_care_item_id || '未使用' }} · 好感 {{ selectedSharedPet.pet_state.friendship }} · 心情 {{ selectedSharedPet.pet_state.mood }}</p>
+                <p class="mt-1 inline-flex flex-wrap items-center gap-1">
+                  <span>用品：</span>
+                  <span v-if="selectedSharedPet.pet_state.last_care_item_id" class="inline-flex min-w-0 items-center gap-1">
+                    <ItemIcon :item="getItemById(selectedSharedPet.pet_state.last_care_item_id)" size="xs" :show-badge="false" />
+                    <span>{{ selectedSharedPet.pet_state.last_care_item_label || selectedSharedPet.pet_state.last_care_item_id }}</span>
+                  </span>
+                  <span v-else>未使用</span>
+                  <span>· 好感 {{ selectedSharedPet.pet_state.friendship }} · 心情 {{ selectedSharedPet.pet_state.mood }}</span>
+                </p>
                 <p class="mt-1" data-testid="online-cohabitation-shared-pet-coop-bonus">
                   同时在线加成：{{ sharedPetCoopBonusLabel(selectedSharedPet) }}
                 </p>
@@ -311,8 +402,9 @@
                   </option>
                 </select>
               </label>
-              <p v-if="selectedSharedPetCareItem" class="text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-pet-care-item-stock">
-                {{ selectedSharedPetCareItem.label }} · {{ selectedSharedPetCareItem.effect }} · 共同仓库 {{ selectedSharedPetCareItem.quantity }} 个
+              <p v-if="selectedSharedPetCareItem" class="inline-flex flex-wrap items-center gap-1 text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-pet-care-item-stock">
+                <ItemIcon :item="getItemById(selectedSharedPetCareItem.itemId)" size="xs" :show-badge="false" />
+                <span>{{ selectedSharedPetCareItem.label }} · {{ selectedSharedPetCareItem.effect }} · 共同仓库 {{ selectedSharedPetCareItem.quantity }} 个</span>
               </p>
               <div
                 v-if="selectedSharedPetCareItem?.requiresConfirmation"
@@ -986,15 +1078,13 @@
                 </div>
               </div>
 
-              <div class="game-panel-muted p-3" data-testid="online-cohabitation-recovery-panel">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div class="flex items-center gap-2 text-accent">
-                    <ShieldCheck :size="13" />
-                    <p class="text-sm">玩家申诉与恢复</p>
-                  </div>
-                  <span class="text-[0.625rem] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
-                </div>
-                <div class="mt-3 grid gap-3 text-[0.625rem] text-muted">
+              <OnlineTechnicalDetails
+                title="高级：玩家申诉与恢复"
+                :summary="`安全版本 ${contractSafeVersions.length} 份 · 申诉 ${contractRecoveryAppeals.length} 条；回滚和恢复默认收起，普通协作流程不需要展开。`"
+                tone="warning"
+                data-testid="online-cohabitation-recovery-panel"
+              >
+                <div class="grid gap-3 text-[0.625rem] text-muted">
                   <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
                     <div
                       v-for="version in contractSafeVersions.slice(0, 4)"
@@ -1112,7 +1202,7 @@
                     {{ recoveryActionMessage }}
                   </p>
                 </div>
-              </div>
+              </OnlineTechnicalDetails>
             </div>
             <div v-else class="mt-3 text-xs leading-5 text-muted">
               刷新后会自动选中最近的共同庄园契约。
@@ -1587,8 +1677,10 @@
                     <p class="border border-accent/10 bg-bg/30 px-2 py-1">
                       {{ sharedWorkshopStationLabel(selectedSharedWorkshopRecipe.station) }} · {{ sharedWorkshopProcessKindLabel(selectedSharedWorkshopRecipe.process_kind) }}
                     </p>
-                    <p class="border border-accent/10 bg-bg/30 px-2 py-1" data-testid="online-cohabitation-shared-workshop-output">
-                      产出 {{ sharedWorkshopOutputLabel }}
+                    <p class="inline-flex min-w-0 items-center gap-1 border border-accent/10 bg-bg/30 px-2 py-1" data-testid="online-cohabitation-shared-workshop-output">
+                      <span class="shrink-0">产出</span>
+                      <ItemIcon :item="getItemById(selectedSharedWorkshopRecipe.output_item_id)" size="xs" :quality="itemIconQuality(selectedSharedWorkshopRecipe.output_quality)" :show-badge="false" />
+                      <span class="truncate">{{ sharedWorkshopOutputLabel }}</span>
                     </p>
                   </div>
                   <div class="grid gap-1" data-testid="online-cohabitation-shared-workshop-inputs">
@@ -1598,7 +1690,10 @@
                       class="flex items-center justify-between gap-2 border px-2 py-1"
                       :class="row.enough ? 'border-accent/10 bg-bg/30 text-muted' : 'border-red-300/20 bg-red-500/10 text-red-100'"
                     >
-                      <span>{{ row.label }} · {{ qualityLabel(row.quality) }} x{{ row.quantity }}</span>
+                      <span class="inline-flex min-w-0 items-center gap-1">
+                        <ItemIcon :item="getItemById(row.item_id)" size="xs" :quality="itemIconQuality(row.quality)" :show-badge="false" />
+                        <span class="truncate">{{ row.label }} · {{ qualityLabel(row.quality) }} x{{ row.quantity }}</span>
+                      </span>
                       <span>库存 {{ row.available }}</span>
                     </p>
                   </div>
@@ -1681,7 +1776,10 @@
             <div v-if="warehouseHighValueWithdrawalDrafts.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无高品质 / 稀有物取出草案。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="draft in warehouseHighValueWithdrawalDrafts" :key="draft.id" class="border border-accent/10 bg-black/10 p-2">
-                <p class="truncate text-xs text-text">{{ warehouseItemLabels[draft.item_id] || draft.item_id }} x{{ draft.quantity }} · {{ highValueDraftStateLabel(draft.state) }}</p>
+                <p class="inline-flex min-w-0 items-center gap-1 text-xs text-text">
+                  <ItemIcon :item="getItemById(draft.item_id)" size="xs" :quality="itemIconQuality(draft.quality)" :show-badge="false" />
+                  <span class="truncate">{{ warehouseItemLabels[draft.item_id] || draft.item_id }} x{{ draft.quantity }} · {{ highValueDraftStateLabel(draft.state) }}</span>
+                </p>
                 <p class="mt-1 text-[0.625rem] text-muted">{{ draft.quality }} · {{ highValueDraftRiskLabel(draft.risk_level) }} · 已确认 {{ draft.confirmation_state.confirmed_member_usernames.length }}/{{ draft.confirmation_state.required_member_usernames.length }}</p>
                 <p class="mt-1 text-[0.625rem] text-muted">冻结 {{ draft.frozen_quantity }} 件 · {{ draft.freeze_policy }}</p>
                 <div class="mt-2 flex flex-wrap gap-2">
@@ -3484,7 +3582,7 @@
         </Transition>
       </main>
 
-      <aside class="game-panel-muted space-y-3 p-3 xl:sticky xl:top-4" data-testid="online-cohabitation-right-status">
+      <aside class="game-panel-muted hidden space-y-3 p-3 xl:sticky xl:top-4 xl:block" data-testid="online-cohabitation-right-status">
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <p class="text-sm text-accent">共同庄园状态</p>
@@ -3537,30 +3635,48 @@
         <div class="grid gap-2">
           <button
             type="button"
-            class="online-action-btn online-action-btn--compact justify-center"
+            class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
             data-testid="online-cohabitation-right-goto-map"
             @click="setActiveTab('map')"
           >
             <Map :size="12" />
-            查看共同地图
+            共同地图
           </button>
           <button
             type="button"
-            class="online-action-btn online-action-btn--compact justify-center"
-            data-testid="online-cohabitation-right-goto-fund"
-            @click="setActiveTab('fund')"
-          >
-            <Wallet :size="12" />
-            查看共同基金
-          </button>
-          <button
-            type="button"
-            class="online-action-btn online-action-btn--compact justify-center"
+            class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
             data-testid="online-cohabitation-right-goto-warehouse"
             @click="setActiveTab('warehouse')"
           >
             <Package :size="12" />
-            查看共同仓库
+            共同仓库
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+            data-testid="online-cohabitation-right-goto-fund"
+            @click="setActiveTab('fund')"
+          >
+            <Wallet :size="12" />
+            共同基金
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+            data-testid="online-cohabitation-right-goto-permissions"
+            @click="setActiveTab('permissions')"
+          >
+            <ShieldCheck :size="12" />
+            权限
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+            data-testid="online-cohabitation-right-goto-offline"
+            @click="setActiveTab('offline')"
+          >
+            <Lock :size="12" />
+            离线 / 安全
           </button>
         </div>
 
@@ -3636,12 +3752,15 @@
   import CohabitationOverviewPanel from '@/components/game/online/cohabitation/CohabitationOverviewPanel.vue'
   import CohabitationSharedMapPanel from '@/components/game/online/cohabitation/CohabitationSharedMapPanel.vue'
   import CohabitationWarehousePanel from '@/components/game/online/cohabitation/CohabitationWarehousePanel.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
+  import { getItemById } from '@/data/items'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import { useProcessingStore } from '@/stores/useProcessingStore'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import type { Quality } from '@/types/item'
   import type {
     CohabitationAuditEntry,
     CohabitationContract,
@@ -4268,7 +4387,7 @@
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
-    { key: 'map', label: '地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
+    { key: 'map', label: '共同地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
     { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限取出或卖入共同基金。' },
     { key: 'fund', label: '基金', summary: '查看共同基金余额、注资和权限支出流水，个人铜币保持独立。' },
     { key: 'permissions', label: '权限', summary: '查看和调整成员业务权限分组，确认安全阀仍由系统强制开启。' },
@@ -4278,18 +4397,18 @@
     { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
     { key: 'visibility', label: '公开', summary: '只读查看关系图公开范围、可见数据类别、成员同意和隐私护栏。' },
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
-    { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
+    { key: 'offline', label: '离线 / 安全', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
 
   const cohabitationTabKeys = new Set<CohabitationTabKey>(tabs.map(tab => tab.key))
   const cohabitationTabGroups: CohabitationTabGroupMeta[] = [
-    { key: 'cohab-summary', label: '总览', summary: '契约状态、成员边界和今日建议集中在一个入口。', defaultTab: 'overview', tabKeys: ['overview', 'visibility'] },
+    { key: 'cohab-summary', label: '总览', summary: '契约状态、成员边界和今日建议集中在一个入口。', defaultTab: 'overview', tabKeys: ['overview'] },
     { key: 'cohab-operations', label: '共同经营', summary: '农田地图、仓库和建筑经营动作按经营线收拢。', defaultTab: 'map', tabKeys: ['map', 'warehouse', 'buildings'] },
     { key: 'cohab-family', label: '家庭与节会', summary: '家族关系、节会席位和声望信息合并浏览。', defaultTab: 'festivalSeats', tabKeys: ['festivalSeats', 'relations', 'reputation'] },
     { key: 'cohab-assets', label: '资产与治理', summary: '共同基金、成员权限和离线协作放在治理入口。', defaultTab: 'fund', tabKeys: ['fund', 'permissions', 'offline'] },
-    { key: 'cohab-more', label: '更多', summary: '家族订单和低频公开信息不再挤占默认入口。', defaultTab: 'orders', tabKeys: ['orders'] },
+    { key: 'cohab-more', label: '更多', summary: '家族订单、节会席位和低频公开信息不再挤占默认入口。', defaultTab: 'orders', tabKeys: ['orders', 'visibility'] },
   ]
-  const cohabitationPrimaryTabKeys: CohabitationTabKey[] = ['overview', 'map', 'warehouse', 'fund', 'festivalSeats']
+  const cohabitationPrimaryTabKeys: CohabitationTabKey[] = ['overview', 'map', 'warehouse', 'fund', 'permissions', 'offline']
   const cohabitationPrimaryTabKeySet = new Set<CohabitationTabKey>(cohabitationPrimaryTabKeys)
   const cohabitationTabAliases: Record<string, CohabitationTabKey> = {
     family: 'relations',
@@ -6685,6 +6804,12 @@
     }
     return labels[value] || value || '普通'
   }
+  const itemIconQuality = (value = 'normal'): Quality => {
+    if (value === 'fine' || value === 'excellent' || value === 'supreme') return value
+    if (value === 'rare') return 'excellent'
+    return 'normal'
+  }
+
   const sharedWorkshopStationLabel = (value = '') => {
     const labels: Record<string, string> = {
       drying_rack: '晒架',

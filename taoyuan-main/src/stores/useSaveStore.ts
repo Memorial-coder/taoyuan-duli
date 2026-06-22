@@ -829,6 +829,7 @@ export const useSaveStore = defineStore('save', () => {
   const lastLoadErrorMessage = computed(() => lastLoadError.value?.message || '')
   const serverSyncStatus = ref<ServerSaveSyncStatus>('idle')
   const pendingServerSlots = ref<number[]>(getPendingServerSlotNumbers())
+  let syncPendingServerSavesInFlight = false
   const lastServerSyncMessage = ref('')
   const lastSaveResultStatus = ref<SaveExecutionStatus>('saved')
   const serverSaveConflict = ref<ServerSaveConflictState | null>(null)
@@ -1676,7 +1677,7 @@ export const useSaveStore = defineStore('save', () => {
         rememberServerSlotState(slot, serverEntry.raw, serverEntry.revision)
         const pendingEntry = pendingMap[slot]
         const pendingRaw = pendingEntry?.raw ?? null
-        const pendingConflictsWithRemote = !!pendingEntry && serverEntry.revision > pendingEntry.baseRevision
+        const pendingConflictsWithRemote = !!pendingEntry && serverEntry.revision > pendingEntry.baseRevision && pendingEntry.raw !== serverEntry.raw
         if (pendingConflictsWithRemote && pendingEntry) {
           hasRevisionConflict = true
           setServerSaveConflict(slot, pendingEntry, serverEntry.raw, serverEntry.revision)
@@ -1704,6 +1705,18 @@ export const useSaveStore = defineStore('save', () => {
 
   const syncPendingServerSaves = async (options: { slots?: number[] } = {}) => {
     const account = await ensureCurrentAccount()
+    if (syncPendingServerSavesInFlight) {
+      return {
+        attempted: false,
+        syncedSlots: [] as number[],
+        failedSlots: [] as number[],
+        invalidSlots: [] as number[],
+        staleSlots: [] as number[],
+        pendingSlots: [...refreshPendingServerState()]
+      }
+    }
+    syncPendingServerSavesInFlight = true
+    try {
     if (!account || account === 'guest') {
       const currentPending = refreshPendingServerState()
       if (currentPending.length === 0 && serverSyncStatus.value === 'syncing') {
@@ -1812,6 +1825,9 @@ export const useSaveStore = defineStore('save', () => {
       invalidSlots,
       staleSlots,
       pendingSlots: [...remainingPending]
+    }
+    } finally {
+      syncPendingServerSavesInFlight = false
     }
   }
 
@@ -1952,7 +1968,7 @@ export const useSaveStore = defineStore('save', () => {
         if (serverEntry) {
           rememberServerSlotState(slot, serverEntry.raw, serverEntry.revision)
         }
-        const pendingConflictsWithRemote = !!pendingEntry && !!serverEntry && serverEntry.revision > pendingEntry.baseRevision
+        const pendingConflictsWithRemote = !!pendingEntry && !!serverEntry && serverEntry.revision > pendingEntry.baseRevision && pendingEntry.raw !== serverEntry.raw
         if (pendingConflictsWithRemote) {
           setServerSaveConflict(slot, pendingEntry, serverEntry.raw, serverEntry.revision)
           serverSyncStatus.value = 'error'
