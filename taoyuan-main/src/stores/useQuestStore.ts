@@ -143,6 +143,8 @@ export const useQuestStore = defineStore('quest', () => {
 
   /** 已完成特殊订单结算回执，防止重复领奖 */
   const specialOrderSettlementReceipts = ref<string[]>([])
+  const processedOrderSubmissionCount = ref<number>(0)
+  const npcFunctionAdvancedOrderCompletionCount = ref<number>(0)
 
   /** 最近特殊订单轮换标签历史，避免连续刷到同一类订单 */
   const recentSpecialOrderTagHistory = ref<string[]>([])
@@ -261,6 +263,8 @@ export const useQuestStore = defineStore('quest', () => {
     const bondedSpiritId = hiddenNpcStore.getBondedNpc?.id ?? null
     const activeSpiritBlessing = bondedSpiritId ? hiddenNpcStore.getSpiritBlessingSummary(bondedSpiritId)?.activeBlessing ?? null : null
     const activeDailyBlessing = skillStore.dailyBlessingPreview
+    const rareCommissionCategory = shopStore.npcRareCommissionCategory as QuestMarketCategory | null
+    const rareCommissionCategoryLabel = rareCommissionCategory ? MARKET_CATEGORY_NAMES[rareCommissionCategory] : ''
     const relationshipPreferredCategories = WS09_RELATIONSHIP_TUNING_CONFIG.featureFlags.companionQuestBiasEnabled
       ? dedupeList<QuestMarketCategory>([
           ...(activeFamilyWish ? familyWishToCategories[activeFamilyWish.id] ?? [] : []),
@@ -295,6 +299,7 @@ export const useQuestStore = defineStore('quest', () => {
 
     const preferredMarketCategories = dedupeList<QuestMarketCategory>([
       ...marketPreferredCategories,
+      ...(rareCommissionCategory ? [rareCommissionCategory] : []),
       ...relationshipPreferredCategories,
       ...((activeDailyBlessing?.preferredMarketCategories ?? []) as QuestMarketCategory[]),
       ...(museumQuestBias.preferredMarketCategories as QuestMarketCategory[]),
@@ -365,6 +370,7 @@ export const useQuestStore = defineStore('quest', () => {
       activeDailyBlessing ? `今日祝福：${activeDailyBlessing.sourceLabel}「${activeDailyBlessing.label}」会提高相关供货与跑图委托的出现感。` : '',
       activeFamilyWish ? `陪伴联动：家庭心愿「${activeFamilyWish.title}」会放大 ${relationshipPreferredCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('、') || '陪伴类'} 筹备需求。` : '',
       activeSpiritBlessing ? `仙缘联动：当前祝福「${activeSpiritBlessing.label}」会提高相关外出 / 供货委托的出现感。` : '',
+      rareCommissionCategory ? `NPC功能：何掌柜稀有委托会提高${rareCommissionCategoryLabel}类特殊订单权重，并与寄售加价同周生效。` : '',
       usePotentialStore().getPotentialEffectValue('potential_quest_bias') > 0 ? '潜能识人：本周优先留意特殊订单、节庆筹备和外出承接。' : '',
       guildQuestBias.specialOrderHint,
       hanhaiQuestBias.specialOrderHint,
@@ -934,6 +940,24 @@ export const useQuestStore = defineStore('quest', () => {
     const qualityLabel = getQuestMinQualityLabel(minQuality)
     return qualityLabel ? `${qualityLabel}${itemName}` : itemName
   }
+
+  const mergeQuestSubmissionItems = (
+    entries: Array<{ itemId: string; itemName: string; quantity: number; minQuality?: Quality }>,
+    next: { itemId: string; itemName: string; quantity: number; minQuality?: Quality }
+  ) => {
+    const quantity = Math.max(0, Math.floor(Number(next.quantity) || 0))
+    if (quantity <= 0) return
+    const key = `${next.itemId}:${next.minQuality ?? ''}`
+    const existing = entries.find(entry => `${entry.itemId}:${entry.minQuality ?? ''}` === key)
+    if (existing) {
+      existing.quantity += quantity
+      return
+    }
+    entries.push({ ...next, quantity })
+  }
+
+  const formatQuestSubmissionItems = (entries: Array<{ itemName: string; quantity: number; minQuality?: Quality }>): string =>
+    entries.map(entry => `${getQuestRequiredItemLabel(entry.itemName, entry.minQuality)} x${entry.quantity}`).join('、')
 
   const resolveSpecialOrderRank = (
     rule: SpecialOrderScoreRule,
@@ -1599,6 +1623,8 @@ export const useQuestStore = defineStore('quest', () => {
     const completedQuestCountSnapshot = completedQuestCount.value
     const completedQuestHistorySnapshot = cloneSubmissionState(completedQuestHistory.value)
     const specialOrderSettlementReceiptsSnapshot = [...specialOrderSettlementReceipts.value]
+    const processedOrderSubmissionCountSnapshot = processedOrderSubmissionCount.value
+    const npcFunctionAdvancedOrderCompletionCountSnapshot = npcFunctionAdvancedOrderCompletionCount.value
     const rollbackSubmissionState = () => {
       inventoryStore.deserialize(inventorySnapshot)
       fishPondStore.deserialize(fishPondSnapshot)
@@ -1606,9 +1632,15 @@ export const useQuestStore = defineStore('quest', () => {
       completedQuestCount.value = completedQuestCountSnapshot
       completedQuestHistory.value = cloneSubmissionState(completedQuestHistorySnapshot)
       specialOrderSettlementReceipts.value = [...specialOrderSettlementReceiptsSnapshot]
+      processedOrderSubmissionCount.value = processedOrderSubmissionCountSnapshot
+      npcFunctionAdvancedOrderCompletionCount.value = npcFunctionAdvancedOrderCompletionCountSnapshot
     }
     let finalStageAlreadySubmitted = false
     let pendingFinalStageProgressState: SpecialOrderProgressState | null = null
+    const submittedItemsForLog: Array<{ itemId: string; itemName: string; quantity: number; minQuality?: Quality }> = []
+    const recordSubmittedItemForLog = (itemId: string, itemName: string, quantity: number, minQuality?: Quality) => {
+      mergeQuestSubmissionItems(submittedItemsForLog, { itemId, itemName, quantity, minQuality })
+    }
 
     const currentStage = getCurrentSpecialOrderStage(quest)
     if (currentStage) {
@@ -1648,6 +1680,8 @@ export const useQuestStore = defineStore('quest', () => {
           } else if (!removeQuestInventoryItems(requirement.itemId, requirement.quantity, requirement.minQuality)) {
             rollbackSubmissionState()
             return { success: false, message: `${getQuestRequiredItemLabel(requirement.itemName, requirement.minQuality)}不足，无法完成当前订单阶段。` }
+          } else {
+            recordSubmittedItemForLog(requirement.itemId, requirement.itemName, requirement.quantity, requirement.minQuality)
           }
         }
       } else if (deliveryMode === 'pond') {
@@ -1688,6 +1722,7 @@ export const useQuestStore = defineStore('quest', () => {
           rollbackSubmissionState()
           return { success: false, message: `请先带上足够的${getQuestRequiredItemLabel(targetItemName, minQuality)}再来提交当前阶段。` }
         }
+        recordSubmittedItemForLog(targetItemId, targetItemName, targetQuantity, minQuality)
       }
 
       if (stageRewardItems.length > 0 && !inventoryStore.canAddItems(stageRewardItems)) {
@@ -1745,6 +1780,19 @@ export const useQuestStore = defineStore('quest', () => {
         if (orderCookingFeedback) {
           message += ` ${orderCookingFeedback}`
         }
+        const submittedText = formatQuestSubmissionItems(submittedItemsForLog)
+        if (submittedText) {
+          addLog(`【订单】提交 ${submittedText}，完成「${quest.npcName}订单阶段：${currentStage.title}」。`, {
+            category: 'quest',
+            tags: ['late_game_cycle', 'resource_sink'],
+            meta: {
+              questId: quest.id,
+              npcId: quest.npcId,
+              stageId: currentStage.id,
+              orderType: quest.type
+            }
+          })
+        }
         return { success: true, message }
       }
 
@@ -1779,6 +1827,8 @@ export const useQuestStore = defineStore('quest', () => {
         } else if (!removeQuestInventoryItems(requirement.itemId, requirement.quantity, requirement.minQuality)) {
           rollbackSubmissionState()
           return { success: false, message: `${getQuestRequiredItemLabel(requirement.itemName, requirement.minQuality)}不足，无法完成组合交付。` }
+        } else {
+          recordSubmittedItemForLog(requirement.itemId, requirement.itemName, requirement.quantity, requirement.minQuality)
         }
       }
     } else if (quest.deliveryMode === 'pond') {
@@ -1815,6 +1865,7 @@ export const useQuestStore = defineStore('quest', () => {
         rollbackSubmissionState()
         return { success: false, message: `背包中${getQuestRequiredItemLabel(quest.targetItemName, quest.minQuality)}不足。` }
       }
+      recordSubmittedItemForLog(quest.targetItemId, quest.targetItemName, quest.targetQuantity, quest.minQuality)
     } else {
       // 钓鱼/挖矿/采集/特殊订单类：检查收集进度或背包数量
       const effectiveProgress = getQuestEffectiveProgress(quest)
@@ -1828,6 +1879,7 @@ export const useQuestStore = defineStore('quest', () => {
         rollbackSubmissionState()
         return { success: false, message: `请先带上足够的${getQuestRequiredItemLabel(quest.targetItemName, quest.minQuality)}再来提交。` }
       }
+      recordSubmittedItemForLog(quest.targetItemId, quest.targetItemName, quest.targetQuantity, quest.minQuality)
     }
 
     if (quest.deliveryMode === 'pond' && submittedPondFishSnapshots.length === 0) {
@@ -1901,6 +1953,18 @@ export const useQuestStore = defineStore('quest', () => {
 
     // 记录完成
     completedQuestCount.value++
+    const processedOrderCompleted = isProcessedOrder(quest)
+    const npcFunctionAdvancedOrderCompleted = shouldCountNpcFunctionAdvancedOrder(quest, serviceContractEffect)
+    if (processedOrderCompleted) {
+      processedOrderSubmissionCount.value++
+      useGoalStore().recordWeeklyActivityCounter('processed_order_submitted', 1)
+      useGoalStore().recordWeeklyActivityCounter('life_linkage_actions', 1)
+    }
+    if (npcFunctionAdvancedOrderCompleted) {
+      npcFunctionAdvancedOrderCompletionCount.value++
+      useGoalStore().recordWeeklyActivityCounter('npc_function_advanced_order_completed', 1)
+      useGoalStore().recordWeeklyActivityCounter('life_linkage_actions', 1)
+    }
 
     let potentialQuestRewardMessage = ''
     let potentialQuestRewardSummary = ''
@@ -2028,6 +2092,20 @@ export const useQuestStore = defineStore('quest', () => {
       (quest.sourceCategory === 'festival_prep' || getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()))
     ) {
       message += ` ${environmentWindow.forage.festivalDeliveryLine}`
+    }
+    const submittedText = formatQuestSubmissionItems(submittedItemsForLog)
+    if (submittedText) {
+      addLog(`【订单】提交 ${submittedText}，完成「${quest.npcName}的${quest.type === 'special_order' ? '特殊订单' : '委托'}」${processedOrderCompleted ? '，加工品订单计数 +1' : ''}${npcFunctionAdvancedOrderCompleted ? '，NPC功能高级订单计数 +1' : ''}。`, {
+        category: 'quest',
+        tags: ['late_game_cycle', 'resource_sink'],
+        meta: {
+          questId: quest.id,
+          npcId: quest.npcId,
+          orderType: quest.type,
+          processedOrder: processedOrderCompleted,
+          npcAdvancedOrder: npcFunctionAdvancedOrderCompleted
+        }
+      })
     }
 
     return { success: true, message }
@@ -2348,6 +2426,8 @@ export const useQuestStore = defineStore('quest', () => {
       activeQuests: activeQuests.value,
       completedQuestCount: completedQuestCount.value,
       completedQuestHistory: completedQuestHistory.value,
+      processedOrderSubmissionCount: processedOrderSubmissionCount.value,
+      npcFunctionAdvancedOrderCompletionCount: npcFunctionAdvancedOrderCompletionCount.value,
       specialOrder: specialOrder.value,
       specialOrderSettlementReceipts: specialOrderSettlementReceipts.value,
       recentSpecialOrderTagHistory: recentSpecialOrderTagHistory.value,
@@ -2372,6 +2452,39 @@ export const useQuestStore = defineStore('quest', () => {
 
   const migrateQuestRewardItemId = (itemId: string) =>
     migrateLegacyItemId(itemId, 'quest_reward')
+
+  const normalizeNonNegativeInteger = (value: unknown): number =>
+    Math.max(0, Math.floor(Number(value) || 0))
+
+  const isProcessedItemRequirement = (itemId: string | undefined): boolean =>
+    !!itemId && getItemById(itemId)?.category === 'processed'
+
+  const isProcessedOrder = (quest: QuestInstance): boolean => {
+    if (quest.processedItemGroupId || isProcessedItemRequirement(quest.targetItemId)) return true
+    if (quest.comboRequirements?.some(requirement => isProcessedItemRequirement(requirement.itemId))) return true
+    return (quest.stageDefinitions ?? []).some(stage =>
+      isProcessedItemRequirement(stage.targetItemId) ||
+      (stage.comboRequirements ?? []).some(requirement => isProcessedItemRequirement(requirement.itemId))
+    )
+  }
+
+  const shouldCountNpcFunctionAdvancedOrder = (
+    quest: QuestInstance,
+    serviceContractEffect: {
+      moneyRewardMultiplier: number
+      dailyQuestBoardBonus: number
+      ticketRewards: Partial<Record<RewardTicketType, number>>
+    }
+  ): boolean => {
+    if (quest.type !== 'special_order') return false
+    if (npcStore.isNpcFunctionEffectUnlocked('errand_bonus')) return true
+    if (npcStore.isNpcFunctionEffectUnlocked('rare_commission') && Boolean(quest.activitySourceId || quest.activitySourceLabel)) return true
+    return (
+      serviceContractEffect.moneyRewardMultiplier > 1 ||
+      serviceContractEffect.dailyQuestBoardBonus > 0 ||
+      Object.keys(serviceContractEffect.ticketRewards).length > 0
+    )
+  }
 
   const migrateQuestComboItemId = (itemId: string, itemName?: string, note?: string, requiredHybridId?: string) => {
     if (requiredHybridId) return itemId
@@ -2964,6 +3077,8 @@ export const useQuestStore = defineStore('quest', () => {
     activeQuests.value = (Array.isArray(data?.activeQuests) ? data.activeQuests : []).map(normalizeQuestInstance).filter((quest): quest is QuestInstance => quest !== null)
     completedQuestCount.value = data.completedQuestCount ?? 0
     completedQuestHistory.value = normalizeCompletedQuestHistory((data as Record<string, unknown>).completedQuestHistory)
+    processedOrderSubmissionCount.value = normalizeNonNegativeInteger((data as Record<string, unknown>).processedOrderSubmissionCount)
+    npcFunctionAdvancedOrderCompletionCount.value = normalizeNonNegativeInteger((data as Record<string, unknown>).npcFunctionAdvancedOrderCompletionCount)
     backfillArchivedSpecialOrdersFromHistory()
     specialOrder.value = normalizeQuestInstance((data as Record<string, unknown>).specialOrder ?? null)
     specialOrderSettlementReceipts.value = normalizeStringArray((data as Record<string, unknown>).specialOrderSettlementReceipts) ?? []
@@ -3022,6 +3137,8 @@ export const useQuestStore = defineStore('quest', () => {
     activeQuests,
     completedQuestCount,
     completedQuestHistory,
+    processedOrderSubmissionCount,
+    npcFunctionAdvancedOrderCompletionCount,
     specialOrder,
     lastSpecialOrderGenerationTrace,
     activityQuestWindowState,

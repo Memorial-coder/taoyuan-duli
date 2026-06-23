@@ -135,10 +135,17 @@
           <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ activeRewardPool.summary }}</p>
         </div>
         <div
-          v-if="guildStore.crossSystemOverview.themeWeekFocus || guildStore.crossSystemOverview.questBoardBiasProfile.boardHint || guildStore.crossSystemOverview.recommendedActions.length > 0"
+          v-if="guildStore.crossSystemOverview.themeWeekFocus || guildStore.crossSystemOverview.questBoardBiasProfile.boardHint || guildStore.crossSystemOverview.recommendedActions.length > 0 || quarryGuildHandoff || lifeLinkageGoalHandoff"
           class="border border-accent/10 rounded-xs p-2"
+          data-testid="guild-quarry-linkage"
         >
           <p class="text-xs text-muted mb-1">经营联动</p>
+          <p v-if="quarryGuildHandoff" class="text-xs text-accent">
+            {{ quarryGuildHandoff.title }}
+          </p>
+          <p v-if="quarryGuildHandoff" class="text-[0.625rem] text-muted leading-4 mt-0.5">
+            {{ quarryGuildHandoff.summary }}
+          </p>
           <p v-if="guildStore.crossSystemOverview.themeWeekFocus" class="text-xs text-accent">
             当前主题周：{{ guildStore.crossSystemOverview.themeWeekFocus.summaryLabel }}
           </p>
@@ -148,6 +155,14 @@
           <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint" class="text-[0.625rem] text-muted leading-4 mt-0.5">
             {{ guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint }}
           </p>
+          <div v-if="lifeLinkageGoalHandoff" class="mt-1.5 border-t border-accent/10 pt-1.5" data-testid="guild-life-linkage-goal-handoff">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">{{ lifeLinkageGoalHandoff.title }}</p>
+              <span class="text-[0.625rem] text-muted">{{ lifeLinkageGoalHandoff.progressLabel }}</span>
+            </div>
+            <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ lifeLinkageGoalHandoff.summary }}</p>
+            <p class="text-[0.625rem] text-success/90 leading-4 mt-0.5">{{ lifeLinkageGoalHandoff.nextAction }}</p>
+          </div>
           <div v-if="guildStore.crossSystemOverview.recommendedActions.length > 0" class="mt-1.5 space-y-1">
             <p class="text-[0.625rem] text-muted">推荐动作</p>
             <p
@@ -737,6 +752,8 @@
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
+  import { useQuarryStore } from '@/stores/useQuarryStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
 
   type Tab = 'goals' | 'shop' | 'bestiary' | 'donate'
   const guildTabs = ['goals', 'shop', 'bestiary', 'donate'] as const
@@ -747,6 +764,8 @@
   const inventoryStore = useInventoryStore()
   const regionMapStore = useRegionMapStore()
   const villageProjectStore = useVillageProjectStore()
+  const quarryStore = useQuarryStore()
+  const goalStore = useGoalStore()
   const isCompactMobile = ref(false)
   const guildPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
@@ -885,6 +904,61 @@
     if (!shopModalItem.value) return 0
     if (shopModalItem.value.contributionCost) return shopModalItem.value.contributionCost * shopBuyQty.value
     return getShopItemMoneyPrice(shopModalItem.value) * shopBuyQty.value
+  })
+  const quarryGuildHandoff = computed(() => {
+    if (!quarryStore.isUnlocked) return null
+    const progress = quarryStore.weeklyStewardshipProgress
+    if (progress.claimedCount < progress.maxClaims) {
+      const remaining = Math.max(0, progress.target - progress.clearedCount)
+      return {
+        title: '旧采石场可承接本周管护',
+        summary: remaining > 0
+          ? `本周还差 ${remaining} 格可领取下一次潜能材料；清理会同步推进长期目标与矿料回流。`
+          : '本周管护奖励已就绪，继续清理可结算潜能材料并推进长期目标。'
+      }
+    }
+    if (quarryStore.quarryMineStatus.canEnter) {
+      return {
+        title: '旧支道可继续探索',
+        summary: '采石场矿洞已可进入，终点奖励会解锁采石场饰物来源，并沉淀为后期冒险成长。'
+      }
+    }
+    return {
+      title: '旧采石场进入常规产出',
+      summary: `累计清理 ${quarryStore.lifetimeClearedCount} 格，深脉 ${quarryStore.deepClearCount} 处；可继续作为公会战备和后期材料补给。`
+    }
+  })
+  const lifeLinkageGoalHandoff = computed(() => {
+    const goalIds = [
+      'long_family_wish_1',
+      'long_processed_order_1',
+      'long_quarry_weekly_1',
+      'long_museum_exhibit_set_1',
+      'long_species_note_1',
+      'long_npc_advanced_order_1'
+    ]
+    const goals = goalIds
+      .map(id => goalStore.longTermGoals.find(goal => goal.id === id))
+      .filter((goal): goal is NonNullable<typeof goal> => Boolean(goal))
+    if (goals.length === 0) return null
+    const completedCount = goals.filter(goal => goal.completed).length
+    const activeGoal = goals.find(goal => !goal.completed)
+    const activity = goalStore.weeklyActivityOverview
+    const lifeActivityActive = activity?.state.themeId === 'life_linkage'
+    const activityLine = lifeActivityActive
+      ? `本周生活联动 ${activity.completedCount}/${activity.totalCount}`
+      : '长期生活目标'
+    const nextGoalProgress = activeGoal
+      ? `${activeGoal.completed ? activeGoal.targetValue : 0}/${activeGoal.targetValue}`
+      : ''
+    return {
+      title: lifeActivityActive ? '生活联动周已接入目标' : '生活系统长期目标',
+      progressLabel: `${completedCount}/${goals.length}`,
+      summary: `${activityLine}：家庭心愿、加工订单、采石管护、专题展组、物种笔记和 NPC 功能订单都会从真实完成事件推进。`,
+      nextAction: activeGoal
+        ? `下一项：${activeGoal.title}${nextGoalProgress ? ` ${nextGoalProgress}` : ''}`
+        : '六条生活联动长期目标已全部完成，可以继续看本周活动档位奖励。'
+    }
   })
 
   const setShopBuyQty = (val: number) => {

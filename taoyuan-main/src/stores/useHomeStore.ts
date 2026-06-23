@@ -52,6 +52,10 @@ export const useHomeStore = defineStore('home', () => {
   })
 
   const hasCellar = computed(() => farmhouseLevel.value >= 3)
+  const getEffectiveCellarAgingDays = (): number => {
+    const agingBonus = Math.min(0.5, Math.max(0, npcStore.getNpcFunctionEffectValue('wine_aging_boost') / 100))
+    return Math.max(1, Math.ceil(CELLAR_AGING_DAYS * (1 - agingBonus)))
+  }
   const companionHomeOverview = computed(() => {
     const relationshipSnapshot = npcStore.getRelationshipDebugSnapshot()
     const familyWishOverview = npcStore.getFamilyWishOverview()
@@ -255,10 +259,11 @@ export const useHomeStore = defineStore('home', () => {
   /** 酒窖每日更新 */
   const dailyCellarUpdate = (): { ready: { itemId: string; newQuality: Quality }[] } => {
     const ready: { itemId: string; newQuality: Quality }[] = []
+    const effectiveAgingDays = getEffectiveCellarAgingDays()
 
     for (const slot of cellarSlots.value) {
       slot.daysAging++
-      if (slot.daysAging >= CELLAR_AGING_DAYS) {
+      if (slot.daysAging >= effectiveAgingDays) {
         const currentIdx = QUALITY_ORDER.indexOf(slot.quality)
         if (currentIdx < QUALITY_ORDER.length - 1) {
           slot.quality = QUALITY_ORDER[currentIdx + 1]!
@@ -323,6 +328,7 @@ export const useHomeStore = defineStore('home', () => {
     farmhouseName,
     nextUpgrade,
     hasCellar,
+    getEffectiveCellarAgingDays,
     companionHomeOverview,
     homeRenovationStates,
     homeRenovationSummaries,

@@ -30,7 +30,7 @@ export interface FestivalStallOffer {
   price_money: number
   category: 'festival'
   category_label: string
-  booth_category: 'materials' | 'souvenir' | 'food' | 'tickets' | string
+  booth_category: 'materials' | 'souvenir' | 'food' | 'tickets' | 'supply' | string
   costs: FestivalStallBundleEntry[]
   rewards: FestivalStallBundleEntry[]
   tags: string[]
@@ -66,7 +66,7 @@ export interface FestivalStallSnapshot {
     bulletin: string
   } | null
   categories?: Array<{
-    id: 'materials' | 'souvenir' | 'food' | 'tickets' | string
+    id: 'materials' | 'souvenir' | 'food' | 'tickets' | 'supply' | string
     label: string
     offer_count: number
   }>

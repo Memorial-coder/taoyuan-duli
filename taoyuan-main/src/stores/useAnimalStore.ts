@@ -1019,6 +1019,7 @@ export const useAnimalStore = defineStore('animal', () => {
     const coopmasterBase = farmingSkill.perk10 === 'coopmaster' ? 1.5 : 1.0
     const coopmasterBonus = hasNatureBond ? 3.0 : hasAnimalWhisperer ? 2.0 : coopmasterBase
     const hasShepherd = farmingSkill.perk10 === 'shepherd'
+    const householdMoodFloor = Math.max(0, Math.floor(npcStore.getHouseholdRoleEffectValue('animalMoodFloor')))
     for (const animal of animals.value) {
       animal.daysOwned++
       animal.daysSinceAutoProduct++
@@ -1125,6 +1126,9 @@ export const useAnimalStore = defineStore('animal', () => {
       // 生病时心情额外下降
       if (animal.sick) {
         animal.mood = Math.max(0, animal.mood - 30)
+      }
+      if (householdMoodFloor > 0 && !animal.sick && animal.type !== 'horse') {
+        animal.mood = Math.max(animal.mood, Math.min(255, householdMoodFloor))
       }
 
       // 产品检查（跳过马，马无产出；生病时不产出）

@@ -365,10 +365,35 @@ const seedFriendship = (usernameA, usernameB) => writeFile(socialStoreFile, JSON
 
 const lifecycleHost = 'vlife_host'
 const lifecycleGuest = 'vlife_guest'
+const abortHost = 'vlife_abort_host'
+const abortGuest = 'vlife_abort_guest'
+assert.equal((await db.registerUser(abortHost, 'SmokePass_0529', 'abort room host')).ok, true, 'aborted invite host should register')
+assert.equal((await db.registerUser(abortGuest, 'SmokePass_0529', 'abort room guest')).ok, true, 'aborted invite guest should register')
 assert.equal((await db.registerUser(lifecycleHost, 'SmokePass_0529', '房间生命周期房主')).ok, true, 'activity room lifecycle host should register')
 assert.equal((await db.registerUser(lifecycleGuest, 'SmokePass_0529', '房间生命周期访客')).ok, true, 'activity room lifecycle guest should register')
 seedRewardSave(lifecycleHost)
 seedRewardSave(lifecycleGuest)
+seedRewardSave(abortHost)
+seedRewardSave(abortGuest)
+const abortInviteRoom = await runtime.createFestivalRoom({
+  template_id: 'lantern_fair',
+  gameplay_template_id: 'assembly',
+  title: 'visual abort invite smoke',
+}, actor(abortHost))
+const abortInvited = await runtime.inviteFestivalRoomMember(abortInviteRoom.room.id, {
+  target_username: abortGuest,
+}, actor(abortHost))
+assert.equal(abortInvited.room.invitations.find(invite => invite.target_username === abortGuest)?.status, 'pending', 'aborted invite smoke should start with a pending invite')
+assert.equal(abortInvited.room.members.find(member => member.username === abortGuest)?.status, 'invited', 'aborted invite smoke should add invited member before cancel')
+const abortGuestInviteOverview = await runtime.listFestivalRoomOverview(abortGuest)
+assert.ok(abortGuestInviteOverview.invited_rooms.some(room => room.id === abortInviteRoom.room.id), 'aborted invite smoke guest should see invite before cancel')
+const abortClosed = await runtime.closeFestivalRoom(abortInviteRoom.room.id, actor(abortHost))
+assert.equal(abortClosed.room.state, 'aborted', 'aborted invite smoke should cancel room')
+assert.equal(abortClosed.room.invitations.find(invite => invite.target_username === abortGuest)?.status, 'rejected', 'aborted invite smoke should revoke pending invitation')
+assert.ok(abortClosed.room.invitations.find(invite => invite.target_username === abortGuest)?.responded_at > 0, 'aborted invite smoke should timestamp revoked invitation')
+assert.equal(abortClosed.room.members.find(member => member.username === abortGuest)?.status, 'left', 'aborted invite smoke should release invited member slot')
+const abortGuestAfterCancelOverview = await runtime.listFestivalRoomOverview(abortGuest)
+assert.ok(!abortGuestAfterCancelOverview.invited_rooms.some(room => room.id === abortInviteRoom.room.id), 'aborted invite smoke guest should not see canceled room in invited list')
 const lifecycleRoom = await runtime.createFestivalRoom({
   template_id: 'lantern_fair',
   gameplay_template_id: 'assembly',
@@ -442,6 +467,7 @@ assert.equal(lifecycleReconnected.room.my_member_status, 'active', 'activity roo
 
 const lifecycleActionResult = await runtime.submitFestivalRoomGameplayAction(lifecycleRoom.room.id, {
   action_id: 'lock_piece',
+  idempotency_key: 'qa-visual-lifecycle-lock-piece',
 }, actor(lifecycleGuest))
 assert.equal(lifecycleActionResult.room.visual_state.revision, 1, 'activity room lifecycle visual action should advance visual revision')
 assert.equal(lifecycleActionResult.room.visual_state.objects.find(object => object.id === 'lantern_main_lantern')?.handled_by, lifecycleGuest, 'activity room lifecycle visual action should mark actor')
@@ -452,6 +478,7 @@ assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_phase, 'active',
 
 const spoofedLifecycleAction = await runtime.submitFestivalRoomGameplayAction(lifecycleRoom.room.id, {
   action_id: 'tighten_frame',
+  idempotency_key: 'qa-visual-lifecycle-tighten-frame',
   progress_value: 999,
   score_value: 999,
   settlement_receipt_ids: ['client-forged-receipt'],
@@ -543,6 +570,7 @@ await writeFile(roomStoreFile, JSON.stringify(festivalActionStore, null, 2), 'ut
 
 const lanternActionResult = await runtime.submitFestivalRoomGameplayAction(festival.room.id, {
   action_id: 'lock_piece',
+  idempotency_key: 'qa-visual-lantern-lock-piece',
 }, actor('visual_host_festival'))
 assert.equal(lanternActionResult.room.gameplay.last_action_id, 'lock_piece', 'lantern fair gameplay should record object action')
 assert.equal(lanternActionResult.room.visual_state.revision, 1, 'lantern fair visual revision should advance after object action')
@@ -555,6 +583,7 @@ assert.equal(mainLantern?.handled_by, 'visual_host_festival', 'main lantern shou
 
 const lanternOrderResult = await runtime.submitFestivalRoomGameplayAction(festival.room.id, {
   action_id: 'tighten_frame',
+  idempotency_key: 'qa-visual-lantern-tighten-frame',
 }, actor('visual_host_festival'))
 assert.equal(lanternOrderResult.room.gameplay.festival_state.round_number, 2, 'two lantern fair actions should advance the festival round')
 assert.equal(lanternOrderResult.room.gameplay.festival_state.round_log[0].action_id, 'round_advance', 'lantern fair round advance should be logged')
@@ -589,9 +618,11 @@ lanternMemorialStore.rooms = lanternMemorialStore.rooms.map(room => room.id === 
 await writeFile(roomStoreFile, JSON.stringify(lanternMemorialStore, null, 2), 'utf8')
 await runtime.submitFestivalRoomGameplayAction(lanternMemorialRoom.room.id, {
   action_id: 'lock_piece',
+  idempotency_key: 'qa-visual-lantern-memorial-lock-piece',
 }, actor('visual_host_lantern_memorial'))
 await runtime.submitFestivalRoomGameplayAction(lanternMemorialRoom.room.id, {
   action_id: 'tighten_frame',
+  idempotency_key: 'qa-visual-lantern-memorial-tighten-frame',
 }, actor('visual_host_lantern_memorial'))
 seedRewardSave('visual_host_lantern_memorial')
 await runtime.settleFestivalRoom(lanternMemorialRoom.room.id, actor('visual_host_lantern_memorial'))
@@ -640,6 +671,7 @@ lanternPhotoStore.rooms = lanternPhotoStore.rooms.map(room => room.id === lanter
 await writeFile(roomStoreFile, JSON.stringify(lanternPhotoStore, null, 2), 'utf8')
 const lanternPhotoActionResult = await runtime.submitFestivalRoomGameplayAction(lanternPhotoRoom.room.id, {
   action_id: 'lock_pose',
+  idempotency_key: 'qa-visual-lantern-photo-lock-pose',
 }, actor('visual_host_lantern_photo'))
 assert.equal(lanternPhotoActionResult.room.visual_state.selected_visual_id, 'lantern_photo_spot', 'lantern fair photo action should select the photo spot object')
 assert.equal(lanternPhotoActionResult.room.visual_state.objects.find(object => object.id === 'lantern_photo_spot')?.handled_by, 'visual_host_lantern_photo', 'lantern fair photo spot should mark who locked the pose')
@@ -688,6 +720,7 @@ lanternRiddleStore.rooms = lanternRiddleStore.rooms.map(room => room.id === lant
 await writeFile(roomStoreFile, JSON.stringify(lanternRiddleStore, null, 2), 'utf8')
 await runtime.submitFestivalRoomGameplayAction(lanternRiddleRoom.room.id, {
   action_id: 'buzz_correct',
+  idempotency_key: 'qa-visual-lantern-riddle-buzz-correct',
 }, actor('visual_host_lantern_riddle'))
 seedRewardSave('visual_host_lantern_riddle')
 const lanternRiddleSettledResult = await runtime.settleFestivalRoom(lanternRiddleRoom.room.id, actor('visual_host_lantern_riddle'))
@@ -696,6 +729,7 @@ assert.ok(lanternRiddleReplay.memory_records.some(record => record.type === 'rid
 
 const labaActionResult = await runtime.submitFestivalRoomGameplayAction(labaCookpot.room.id, {
   action_id: 'deliver_bundle',
+  idempotency_key: 'qa-visual-laba-deliver-bundle',
 }, actor('visual_host_laba'))
 assert.equal(labaActionResult.room.gameplay.last_action_id, 'deliver_bundle', 'laba cookpot gameplay should record object action')
 assert.equal(labaActionResult.room.visual_state.revision, 1, 'laba cookpot visual revision should advance after object action')
@@ -708,6 +742,7 @@ assertLabaCookpotVisualObjects(labaActionResult.room, 1, {
 
 const dragonActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoat.room.id, {
   action_id: 'sync_oar',
+  idempotency_key: 'qa-visual-dragon-sync-oar',
 }, actor('visual_host_dragon'))
 assert.equal(dragonActionResult.room.gameplay.last_action_id, 'sync_oar', 'dragon boat gameplay should record track action')
 assert.ok(dragonActionResult.room.gameplay.last_action_summary.includes('划桨'), 'dragon boat action summary should use paddle label')
@@ -722,6 +757,7 @@ assertDragonBoatVisualTrack(dragonActionResult.room, 1, {
 
 const dragonAdvancedResult = await runtime.submitFestivalRoomGameplayAction(dragonBoat.room.id, {
   action_id: 'steady_rudder',
+  idempotency_key: 'qa-visual-dragon-steady-rudder',
 }, actor('visual_host_dragon'))
 assert.equal(dragonAdvancedResult.room.gameplay.festival_state.round_number, 2, 'two dragon boat actions should advance the festival round')
 assert.equal(dragonAdvancedResult.room.gameplay.festival_state.round_log[0].action_id, 'round_advance', 'dragon boat round advance should be logged')
@@ -769,6 +805,7 @@ assert.equal(dragonSettledSnapshotReceipt?.route_replay?.kind, 'dragon_boat', 'r
 
 const dragonDuoActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatDuo.room.id, {
   action_id: 'sync_oar',
+  idempotency_key: 'qa-visual-dragon-duo-sync-oar',
 }, actor('visual_host_dragon_duo'))
 assertDragonBoatVisualTrack(dragonDuoActionResult.room, 1, {
   expectedTeamCount: 2,
@@ -787,6 +824,7 @@ assert.equal(
 
 const dragonSixActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatSix.room.id, {
   action_id: 'keep_beat',
+  idempotency_key: 'qa-visual-dragon-six-keep-beat',
 }, actor('visual_host_dragon_six'))
 assertDragonBoatVisualTrack(dragonSixActionResult.room, 1, {
   expectedTeamCount: 3,
@@ -805,6 +843,7 @@ assert.equal(
 
 const dragonEightActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatEight.room.id, {
   action_id: 'lift_applause',
+  idempotency_key: 'qa-visual-dragon-eight-lift-applause',
 }, actor('visual_host_dragon_eight'))
 assertDragonBoatVisualTrack(dragonEightActionResult.room, 1, {
   expectedTeamCount: 4,
@@ -916,6 +955,7 @@ await writeFile(roomStoreFile, JSON.stringify(actionStore, null, 2), 'utf8')
 
 const minedResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
   action_id: 'split_mine',
+  idempotency_key: 'qa-visual-cavern-split-mine',
 }, actor('visual_action_host'))
 assert.equal(minedResult.room.gameplay.last_action_id, 'split_mine', 'cavern gameplay should record last action')
 assert.ok(minedResult.room.gameplay.last_action_summary, 'cavern gameplay should summarize node action')
@@ -928,6 +968,7 @@ assert.equal(minedNode?.claimed_by, 'visual_action_host', 'mine action should ma
 
 const advancedResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
   action_id: 'chalk_route',
+  idempotency_key: 'qa-visual-cavern-chalk-route',
 }, actor('visual_action_host'))
 assert.equal(advancedResult.room.gameplay.cavern_state.round_number, 2, 'two cavern actions should advance the round')
 assert.equal(advancedResult.room.gameplay.cavern_state.round_log[0].action_id, 'round_advance', 'round advance should be logged')
@@ -941,6 +982,7 @@ assert.ok(advancedResult.room.gameplay.cavern_state.combo_records[0]?.summary.in
 
 const stabilizedResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
   action_id: 'stabilize_collapse',
+  idempotency_key: 'qa-visual-cavern-stabilize-collapse',
 }, actor('visual_action_host'))
 const cavernComboIds = new Set(stabilizedResult.room.gameplay.cavern_state.combo_records.map(record => record.combo_id))
 assert.ok(cavernComboIds.has('route_then_mine'), 'cavern should keep route then mine combo after later actions')
@@ -950,6 +992,7 @@ assert.equal(stabilizedResult.room.gameplay.cavern_state.combo_records.length, 3
 
 const withdrawalResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
   action_id: 'confirm_withdrawal',
+  idempotency_key: 'qa-visual-cavern-confirm-withdrawal',
 }, actor('visual_action_host'))
 assert.equal(withdrawalResult.room.gameplay.phase, 'completed', 'cavern withdrawal should complete the gameplay phase early')
 assert.equal(withdrawalResult.room.gameplay.cavern_state.withdrawal_state, 'confirmed', 'cavern should record confirmed withdrawal state')
@@ -1071,6 +1114,7 @@ assert.ok(
 
 const escortActionResult = await runtime.submitExpeditionRoomGameplayAction(escortConvoy.room.id, {
   action_id: 'escort_step',
+  idempotency_key: 'qa-visual-escort-step',
 }, actor('visual_host_escort'))
 assert.equal(escortActionResult.room.gameplay.last_action_id, 'escort_step', 'escort convoy gameplay should record track action')
 assert.equal(escortActionResult.room.visual_state.revision, 1, 'escort convoy visual revision should advance after track action')

@@ -77,6 +77,12 @@ const getTemporaryMaxStaminaBuffAmount = (buff: RecipeDef['effect']['buff'] | nu
 
 const roundBuffNumber = (value: number, digits = 2) => Number(value.toFixed(digits))
 
+const getNextQuality = (quality: Quality): Quality => {
+  const index = QUALITY_ORDER.indexOf(quality)
+  if (index < 0) return quality
+  return QUALITY_ORDER[Math.min(index + 1, QUALITY_ORDER.length - 1)] ?? quality
+}
+
 const enhanceCookingBuffForPhilosopher = (
   buff: NonNullable<RecipeDef['effect']['buff']>
 ): NonNullable<RecipeDef['effect']['buff']> => {
@@ -423,6 +429,19 @@ export const useCookingStore = defineStore('cooking', () => {
     return QUALITY_ORDER[minIdx]!
   }
 
+  const getNpcCookingQualityBoostChance = (): number =>
+    Math.min(0.5, Math.max(0, npcStore.getNpcFunctionEffectValue('cook_success_boost') / 100))
+
+  const getPreviewCookQualityWithNpc = (recipeId: string): Quality => {
+    const baseQuality = previewCookQuality(recipeId)
+    return getNpcCookingQualityBoostChance() > 0 ? getNextQuality(baseQuality) : baseQuality
+  }
+
+  const getNpcCookingQualityHint = (): string => {
+    const chance = getNpcCookingQualityBoostChance()
+    return chance > 0 ? `王大婶指导：烹饪成品有 ${Math.round(chance * 100)}% 概率提升 1 档品质。` : ''
+  }
+
   /** 烹饪 */
   const cook = (recipeId: string, quantity: number = 1): { success: boolean; message: string } => {
     const recipe = getRecipeById(recipeId)
@@ -444,7 +463,10 @@ export const useCookingStore = defineStore('cooking', () => {
     if (!cookingPlan.fulfilled) return { success: false, message: '材料不足。' }
 
     // 计算品质（取所有材料中最低品质）
-    const resultQuality = getLowestCropUsePlanQuality(cookingPlan)
+    const baseQuality = getLowestCropUsePlanQuality(cookingPlan)
+    const npcQualityBoostChance = getNpcCookingQualityBoostChance()
+    const qualityBoostedByNpc = npcQualityBoostChance > 0 && Math.random() < npcQualityBoostChance
+    const resultQuality = qualityBoostedByNpc ? getNextQuality(baseQuality) : baseQuality
     if (!inventoryStore.canAddItem(`food_${recipe.id}`, maxPossible, resultQuality)) {
       return { success: false, message: '背包空间不足，无法放入烹饪成品。' }
     }
@@ -478,7 +500,8 @@ export const useCookingStore = defineStore('cooking', () => {
     const qtyTag = maxPossible > 1 ? `${maxPossible}份` : ''
     const substitutionHint = formatCropUseSubstitutionSummary(cookingPlan, getItemName)
     const storyHint = storyTriggerLabels.length > 0 ? ` 可作为：${storyTriggerLabels.join('、')}。` : ''
-    return { success: true, message: `烹饪了${qtyTag}${qualityTag}${recipe.name}！${substitutionHint ? ` ${substitutionHint}。` : ''}${storyHint}` }
+    const npcQualityHint = qualityBoostedByNpc ? ' 王大婶指导生效，成品品质提升。' : ''
+    return { success: true, message: `烹饪了${qtyTag}${qualityTag}${recipe.name}！${substitutionHint ? ` ${substitutionHint}。` : ''}${npcQualityHint}${storyHint}` }
   }
 
   /** 食用烹饪品 */
@@ -654,6 +677,8 @@ export const useCookingStore = defineStore('cooking', () => {
     canCook,
     maxCookable,
     previewCookQuality,
+    getPreviewCookQualityWithNpc,
+    getNpcCookingQualityHint,
     getCookingUsePlan,
     getCookingIngredientAvailableCount,
     getCookingSubstitutionText,

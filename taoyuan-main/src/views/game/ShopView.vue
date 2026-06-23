@@ -76,7 +76,10 @@
 
     <div class="flex flex-col md:flex-row space-x-0 md:space-x-4 md:space-y-6">
       <!-- 左侧：购买区 -->
-      <div class="flex-1" :class="{ 'hidden md:block': shopActiveTab === 'trade' && mobileTab === 'sell' }">
+      <div
+        v-if="shopActiveTab !== 'trade' || !isCompactMobile || mobileTab === 'buy'"
+        class="flex-1"
+      >
         <!-- 折扣提示 -->
         <p v-if="shopActiveTab === 'trade' && hasDiscount" class="text-success text-xs mb-3">{{ discountHint }}</p>
         <div v-if="shopActiveTab === 'trade' && shopStore.currentShopId && currentShopRelationshipHint" class="border border-accent/10 rounded-xs px-2 py-1.5 mb-3">
@@ -1903,7 +1906,7 @@
       </div>
 
       <!-- 右侧：出售区 -->
-      <div v-if="shopActiveTab === 'trade'" class="flex-1" :class="{ 'hidden md:block': mobileTab === 'buy' }">
+      <div v-if="shopActiveTab === 'trade' && (!isCompactMobile || mobileTab === 'sell')" class="flex-1">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-accent text-sm">
             <TrendingUp :size="14" class="inline" />
@@ -1940,33 +1943,46 @@
             </span>
           </div>
         </div>
-        <div class="flex max-h-[56vh] flex-col space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y md:max-h-[34rem]">
+        <div
+          ref="sellListRef"
+          data-testid="shop-sell-virtual-list"
+          class="max-h-[56vh] overflow-y-auto overscroll-contain pr-1 touch-pan-y md:max-h-[34rem]"
+          @scroll.passive="handleSellListScroll"
+        >
           <div
-            v-for="item in sellableItems"
-            :key="`${item.itemId}-${item.quality}`"
-            class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-            @click="openSellModal(item.itemId, item.quality)"
+            v-if="sellableItems.length > 0"
+            class="relative"
+            :style="{ height: `${virtualSellListTotalHeight}px` }"
           >
-            <div class="flex min-w-0 items-center gap-2">
-              <ItemIcon :item="item.def" size="xs" :quality="item.quality" />
-              <div class="min-w-0">
-                <span class="block truncate text-sm" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
-                <span class="block text-muted text-xs">×{{ item.quantity }}</span>
+            <div
+              v-for="row in visibleSellableRows"
+              :key="`${row.item.itemId}-${row.item.quality}`"
+              data-testid="shop-sell-virtual-row"
+              class="absolute left-0 right-0 flex h-[4.5rem] cursor-pointer items-center justify-between rounded-xs border border-accent/20 px-3 py-2 hover:bg-accent/5"
+              :style="{ transform: `translateY(${row.top}px)` }"
+              @click="openSellModal(row.item.itemId, row.item.quality)"
+            >
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="row.item.def" size="xs" :quality="row.item.quality" />
+                <div class="min-w-0">
+                  <span class="block truncate text-sm" :class="qualityTextClass(row.item.quality)">{{ row.item.def?.name }}</span>
+                  <span class="block text-muted text-xs">×{{ row.item.quantity }}</span>
+                </div>
               </div>
-            </div>
-            <div class="flex items-center space-x-1">
-              <span class="text-xs text-accent whitespace-nowrap">{{ getSellableUnitPriceLabel(item) }}</span>
-              <span v-if="item.hasShopOrigin && !item.hasNormalOrigin" class="text-[0.625rem] text-warning">回购</span>
-              <span v-else-if="getItemTrend(item.itemId) === 'rising' || getItemTrend(item.itemId) === 'boom'" class="text-[0.625rem] text-success">
-                ↑{{ Math.round((getItemMultiplier(item.itemId) - 1) * 100) }}%
-              </span>
-              <span
-                v-else-if="getItemTrend(item.itemId) === 'falling' || getItemTrend(item.itemId) === 'crash'"
-                class="text-[0.625rem]"
-                :class="getItemTrend(item.itemId) === 'crash' ? 'text-danger' : 'text-warning'"
-              >
-                ↓{{ Math.round((1 - getItemMultiplier(item.itemId)) * 100) }}%
-              </span>
+              <div class="flex items-center space-x-1">
+                <span class="text-xs text-accent whitespace-nowrap">{{ row.item.unitPriceLabel }}</span>
+                <span v-if="row.item.hasShopOrigin && !row.item.hasNormalOrigin" class="text-[0.625rem] text-warning">回购</span>
+                <span v-else-if="row.item.marketTrendDirection === 'up'" class="text-[0.625rem] text-success">
+                  ↑{{ row.item.marketTrendPercent }}%
+                </span>
+                <span
+                  v-else-if="row.item.marketTrendDirection === 'down'"
+                  class="text-[0.625rem]"
+                  :class="row.item.marketTrendToneClass"
+                >
+                  ↓{{ row.item.marketTrendPercent }}%
+                </span>
+              </div>
             </div>
           </div>
           <div v-if="sellableItems.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
@@ -2259,7 +2275,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
+  import { ref, computed, nextTick, onMounted, onUnmounted, watch, type Component } from 'vue'
   import {
     ShoppingCart,
     Coins,
@@ -2370,7 +2386,7 @@
   const neighborConsignmentStore = useNeighborConsignmentStore()
   const exchangeLedgerStore = useExchangeLedgerStore()
   const marketGovernanceStore = useMarketGovernanceStore()
-  const isCompactMobile = ref(false)
+  const isCompactMobile = ref(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
   type ShopTabId = 'trade' | 'market' | 'economy' | 'governance'
   const shopActiveTab = ref<ShopTabId>('trade')
   const shopShortcutTabs = ['trade', 'market', 'economy', 'governance'] as const
@@ -2716,6 +2732,8 @@
     return todayMarket.value.find(m => m.category === def.category)?.multiplier ?? 1
   }
 
+  const todayMarketByCategory = computed(() => new Map(todayMarket.value.map(info => [info.category, info])))
+
   const trendColor = (trend: MarketTrend): string => {
     if (trend === 'boom') return 'text-success'
     if (trend === 'rising') return 'text-success'
@@ -2731,18 +2749,53 @@
 
   const mobileTab = ref<'buy' | 'sell'>('buy')
 
-  onMounted(() => {
-    syncCompactViewportMode()
+  const shopPanelRefreshState = ref({
+    governanceStatus: false,
+    governancePanels: false
+  })
+
+  const refreshShopGovernanceStatus = () => {
+    if (shopPanelRefreshState.value.governanceStatus) return
+    shopPanelRefreshState.value = {
+      ...shopPanelRefreshState.value,
+      governanceStatus: true
+    }
+    void marketGovernanceStore.refreshGovernance().catch(() => {})
+  }
+
+  const refreshShopGovernancePanels = () => {
+    if (shopPanelRefreshState.value.governancePanels) return
+    shopPanelRefreshState.value = {
+      governanceStatus: true,
+      governancePanels: true
+    }
     void weeklyExchangeStore.refreshStation().catch(() => {})
     void festivalStallStore.refreshStall().catch(() => {})
     void neighborConsignmentStore.refreshOverview().catch(() => {})
     void marketGovernanceStore.refreshGovernance().catch(() => {})
     void exchangeLedgerStore.refreshLedger().catch(() => {})
     void cohabitationStore.refreshOverview({ silent: true }).catch(() => {})
+  }
+
+  const refreshShopTabData = (tabId: ShopTabId) => {
+    if (tabId === 'governance') {
+      refreshShopGovernancePanels()
+      return
+    }
+    if (tabId === 'market') {
+      refreshShopGovernanceStatus()
+    }
+  }
+
+  onMounted(() => {
+    syncCompactViewportMode()
+    window.setTimeout(refreshShopGovernanceStatus, 0)
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
     }
   })
+
+  watch(shopActiveTab, refreshShopTabData)
 
   onUnmounted(() => {
     if (typeof window !== 'undefined') {
@@ -2771,11 +2824,14 @@
   })
 
   const wanwupuRecommendationCount = computed(() => {
-    return (
-      (shopStore.weeklySurpriseOffer ? 1 : 0) +
-      shopStore.themeWeekRewardPoolOfferRecommendations.length +
-      shopStore.recommendedCatalogOffers.length
-    )
+    if (activeShopShelf.value === 'wanwupu-recommendations') {
+      return (
+        (shopStore.weeklySurpriseOffer ? 1 : 0) +
+        shopStore.themeWeekRewardPoolOfferRecommendations.length +
+        shopStore.recommendedCatalogOffers.length
+      )
+    }
+    return 3
   })
 
   const wanwupuGroceryCount = computed(() => {
@@ -2864,6 +2920,7 @@
   }
 
   const shopPrimaryCatalogOffer = computed<ShopCatalogOfferDef | null>(() => {
+    if (shopStore.currentShopId !== 'wanwupu' && activeShopShelf.value !== 'wanwupu-recommendations') return null
     return (
       shopStore.weeklySurpriseOffer ??
       shopStore.activityCampaignOfferRecommendations[0] ??
@@ -3197,6 +3254,8 @@
     }).join('、')
   }
 
+  const isFestivalStallSupplyOffer = (offer: { booth_category?: string } | null | undefined): boolean => offer?.booth_category === 'supply'
+
   const handleRefreshWeeklyExchangeStation = async () => {
     await weeklyExchangeStore.refreshStation().catch(() => {})
   }
@@ -3233,12 +3292,15 @@
     try {
       const result = await festivalStallStore.buyOffer(offerId)
       const isIdempotencyReplay = result.idempotency_replayed === true
+      const isSupplyOffer = isFestivalStallSupplyOffer(result.offer)
       await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
-      showFloat(isIdempotencyReplay ? '购买已确认' : '购买成功', 'success')
+      showFloat(isIdempotencyReplay ? (isSupplyOffer ? '提交已确认' : '购买已确认') : (isSupplyOffer ? '提交成功' : '购买成功'), 'success')
       if (isIdempotencyReplay) {
-        addLog(`【节庆摊位】已确认「${result.offer.name}」的重复回执，本次未重复发放奖励。`)
+        addLog(`【节庆摊位】已确认「${result.offer.name}」的重复回执，本次未重复${isSupplyOffer ? '提交备料或发放回礼' : '发放奖励'}。`)
+      } else if (isSupplyOffer) {
+        addLog(`【节庆备料】已提交「${result.offer.name}」：交出${formatExchangeBundle(result.record.costs)}，回礼${formatExchangeBundle(result.record.rewards)}。`)
       } else {
         addLog(`【节庆摊位】已购入「${result.offer.name}」：花费${formatExchangeBundle(result.record.costs)}，带回${formatExchangeBundle(result.record.rewards)}。`)
       }
@@ -3246,7 +3308,7 @@
         addLog(`【节庆摊位】${result.save_sync_state.message}`)
       }
     } catch (error) {
-      addLog(error instanceof Error ? error.message : '购买节庆摊位商品失败')
+      addLog(error instanceof Error ? error.message : '使用节庆摊位失败')
     }
   }
 
@@ -4641,11 +4703,19 @@
     def: ItemDef
     hasShopOrigin: boolean
     hasNormalOrigin: boolean
+    unitPriceLabel: string
+    marketTrendDirection: 'up' | 'down' | null
+    marketTrendPercent: number
+    marketTrendToneClass: string
   }
 
   const showSellFilterModal = ref(false)
   const sellFilter = ref<ItemCategory[]>([])
   const tempSellFilter = ref<Set<ItemCategory>>(new Set())
+  const sellListRef = ref<HTMLElement | null>(null)
+  const sellListScrollTop = ref(0)
+  const SELL_LIST_ROW_HEIGHT = 80
+  const SELL_LIST_OVERSCAN_ROWS = 6
 
   useKeyboardShortcutTabActions({
     tabs: shopShortcutTabs,
@@ -4684,6 +4754,38 @@
     tempSellFilter.value = new Set()
   }
 
+  const getSellableMarketBadge = (def: ItemDef): Pick<SellableInventoryItem, 'marketTrendDirection' | 'marketTrendPercent' | 'marketTrendToneClass'> => {
+    const info = todayMarketByCategory.value.get(def.category as MarketCategory)
+    if (!info || info.trend === 'stable') {
+      return {
+        marketTrendDirection: null,
+        marketTrendPercent: 0,
+        marketTrendToneClass: ''
+      }
+    }
+    if (info.trend === 'rising' || info.trend === 'boom') {
+      return {
+        marketTrendDirection: 'up',
+        marketTrendPercent: Math.round((info.multiplier - 1) * 100),
+        marketTrendToneClass: 'text-success'
+      }
+    }
+    return {
+      marketTrendDirection: 'down',
+      marketTrendPercent: Math.round((1 - info.multiplier) * 100),
+      marketTrendToneClass: info.trend === 'crash' ? 'text-danger' : 'text-warning'
+    }
+  }
+
+  const getSellableUnitPriceLabel = (item: Pick<SellableInventoryItem, 'itemId' | 'quality' | 'hasShopOrigin' | 'hasNormalOrigin'>): string => {
+    if (item.hasShopOrigin && item.hasNormalOrigin) return '分段计价'
+    return `${shopStore.calculateInventoryItemSellPrice(item.itemId, 1, item.quality)}文`
+  }
+
+  const handleSellListScroll = () => {
+    sellListScrollTop.value = sellListRef.value?.scrollTop ?? 0
+  }
+
   const sellableItems = computed<SellableInventoryItem[]>(() => {
     const allowed = sellFilter.value.length > 0 ? new Set(sellFilter.value) : null
     const merged = new Map<string, SellableInventoryItem>()
@@ -4697,24 +4799,56 @@
         existing.quantity += item.quantity
         existing.hasShopOrigin ||= item.origin === 'shop'
         existing.hasNormalOrigin ||= item.origin !== 'shop'
+        existing.unitPriceLabel = getSellableUnitPriceLabel(existing)
       } else {
+        const hasShopOrigin = item.origin === 'shop'
+        const hasNormalOrigin = item.origin !== 'shop'
         merged.set(key, {
           itemId: item.itemId,
           quality: item.quality,
           quantity: item.quantity,
           def,
-          hasShopOrigin: item.origin === 'shop',
-          hasNormalOrigin: item.origin !== 'shop'
+          hasShopOrigin,
+          hasNormalOrigin,
+          unitPriceLabel: getSellableUnitPriceLabel({
+            itemId: item.itemId,
+            quality: item.quality,
+            hasShopOrigin,
+            hasNormalOrigin
+          }),
+          ...getSellableMarketBadge(def)
         })
       }
     }
     return [...merged.values()]
   })
 
-  const getSellableUnitPriceLabel = (item: SellableInventoryItem): string => {
-    if (item.hasShopOrigin && item.hasNormalOrigin) return '分段计价'
-    return `${shopStore.calculateInventoryItemSellPrice(item.itemId, 1, item.quality)}文`
-  }
+  const virtualSellListTotalHeight = computed(() => sellableItems.value.length * SELL_LIST_ROW_HEIGHT)
+
+  const visibleSellableRows = computed(() => {
+    const containerHeight = sellListRef.value?.clientHeight ?? 560
+    const startIndex = Math.max(0, Math.floor(sellListScrollTop.value / SELL_LIST_ROW_HEIGHT) - SELL_LIST_OVERSCAN_ROWS)
+    const visibleCount = Math.ceil(containerHeight / SELL_LIST_ROW_HEIGHT) + SELL_LIST_OVERSCAN_ROWS * 2
+    return sellableItems.value.slice(startIndex, startIndex + visibleCount).map((item, index) => ({
+      item,
+      top: (startIndex + index) * SELL_LIST_ROW_HEIGHT
+    }))
+  })
+
+  watch([sellFilter, mobileTab, shopActiveTab], () => {
+    sellListScrollTop.value = 0
+    if (sellListRef.value) sellListRef.value.scrollTop = 0
+  })
+
+  watch(virtualSellListTotalHeight, async height => {
+    const container = sellListRef.value
+    if (!container) return
+    const maxScrollTop = Math.max(0, height - container.clientHeight)
+    if (container.scrollTop <= maxScrollTop) return
+    container.scrollTop = maxScrollTop
+    await nextTick()
+    sellListScrollTop.value = container.scrollTop
+  })
 </script>
 
 <!-- ShopHeader 内联子组件 -->

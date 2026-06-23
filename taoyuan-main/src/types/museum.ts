@@ -86,6 +86,7 @@ export interface MuseumScholarCommissionDef {
   durationDays: number
   linkedRouteLabels?: string[]
   rewardTierId?: string
+  materialRequirements?: { itemId: string; quantity: number }[]
   reward: {
     money?: number
     reputation?: number
@@ -124,6 +125,44 @@ export interface MuseumShrineThemeState {
   activeThemeId: string | null
   lastRotationDayTag: string
   activationCounts: Record<string, number>
+}
+
+export type MuseumExhibitSetRewardKind = 'visitor_flow' | 'display_rating' | 'scholar_commission' | 'order_bias' | 'fishpond_order' | 'spirit_breath'
+
+export interface MuseumExhibitSetRequirement {
+  id: string
+  itemId: string
+  quantity: number
+  sourceHint: string
+  duplicateOnly?: boolean
+}
+
+export interface MuseumExhibitSetReward {
+  kind: MuseumExhibitSetRewardKind
+  label: string
+  value: number
+  summary: string
+}
+
+export interface MuseumExhibitSetDef {
+  id: string
+  name: string
+  hallZoneId: MuseumHallZoneId
+  summary: string
+  unlockExhibitLevel: number
+  requirements: MuseumExhibitSetRequirement[]
+  rewards: MuseumExhibitSetReward[]
+  repeatable: boolean
+  contentTier: MuseumContentTier
+}
+
+export interface MuseumExhibitSetState {
+  setId: string
+  submittedItems: Record<string, number>
+  completed: boolean
+  rewardClaimed: boolean
+  lastSubmittedDayTag: string
+  completedDayTag: string
 }
 
 export interface MuseumVisitorFlowBandDef {
@@ -209,6 +248,7 @@ export interface MuseumSaveData {
   exhibitSlotStates: Record<string, MuseumExhibitSlotState>
   hallProgress: Record<MuseumHallZoneId, MuseumHallProgress>
   scholarCommissionStates: Record<string, MuseumScholarCommissionState>
+  exhibitSetStates: Record<string, MuseumExhibitSetState>
   shrineThemeState: MuseumShrineThemeState
   telemetry: MuseumTelemetryState
 }

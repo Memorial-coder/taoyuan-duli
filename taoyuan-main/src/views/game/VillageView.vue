@@ -352,11 +352,23 @@
                   <span class="text-[0.625rem] text-accent">{{ Math.round(project.donation.progressRate * 100) }}%</span>
                 </div>
                 <p class="text-[0.625rem] text-muted mt-1">{{ project.donation.plan.label }}</p>
+                <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ project.donation.plan.requirementSummary }}</p>
+                <p class="text-[0.625rem] text-success/80 mt-1 leading-4">{{ project.donation.plan.rewardSummary }}</p>
+                <div class="flex items-center justify-between text-[0.625rem] mt-1">
+                  <span class="text-muted">当前进度</span>
+                  <span class="text-accent">{{ project.donation.state.totalAmount }}/{{ project.donation.plan.targetAmount ?? 0 }}</span>
+                </div>
                 <div v-if="project.donation.acceptedItems.length > 0" class="mt-1 flex flex-wrap gap-1.5">
                   <span v-for="item in project.donation.acceptedItems" :key="item.itemId" class="flex items-center gap-1 text-[0.625rem] text-muted">
                     <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
                     {{ item.itemName }} x{{ getCombinedItemCount(item.itemId) }}
                   </span>
+                </div>
+                <div v-if="project.donation.milestones.length > 0" class="mt-1 space-y-1">
+                  <div v-for="milestone in project.donation.milestones" :key="milestone.id" class="flex items-center justify-between gap-2 text-[0.625rem]">
+                    <span :class="milestone.reached ? 'text-success' : 'text-muted'">{{ milestone.label }}</span>
+                    <span class="text-muted">{{ milestone.claimed ? '已领取' : milestone.reached ? '可领取' : `${project.donation.state.totalAmount}/${milestone.targetAmount}` }}</span>
+                  </div>
                 </div>
                 <div class="flex flex-wrap gap-2 mt-2">
                   <Button v-if="getFirstAvailableDonationItem(project.id)" class="justify-center" @click="quickDonate(project.id)">

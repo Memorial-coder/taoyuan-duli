@@ -361,6 +361,17 @@ assert(
   inventoryViewSource.includes('Math.max(0, inventoryStore.capacity - filteredItems.length)'),
   'Inventory empty placeholders should be based on visible merged items, not hidden batch count.'
 )
+assert(
+  inventoryViewSource.includes('class="inventory-equipment-layout desktop-adaptive-grid"') &&
+    inventoryViewSource.includes('.inventory-equipment-layout > *') &&
+    inventoryViewSource.includes('inventory-equipment-row') &&
+    inventoryViewSource.includes('inventory-equipment-info') &&
+    inventoryViewSource.includes('inventory-equipment-copy') &&
+    inventoryViewSource.includes('inventory-equipment-actions') &&
+    inventoryViewSource.includes('inventory-equipment-durability') &&
+    inventoryViewSource.includes('inventory-equipment-action-buttons'),
+  'Inventory equipment rows need shrink-safe copy/action structure so mobile equipment lists cannot overflow horizontally.'
+)
 for (const [label, source] of [
   ['NPC gift list', npcViewSource],
   ['spouse gift list', cottageViewSource],
@@ -472,8 +483,8 @@ assert(
       shopViewSource.includes('const merged = new Map<string, SellableInventoryItem>()') &&
       shopViewSource.includes('const key = `${item.itemId}:${item.quality}`') &&
       shopViewSource.includes('existing.quantity += item.quantity') &&
-      shopViewSource.includes(':key="`${item.itemId}-${item.quality}`"') &&
-      shopViewSource.includes('@click="openSellModal(item.itemId, item.quality)"'),
+      shopViewSource.includes(':key="`${row.item.itemId}-${row.item.quality}`"') &&
+      shopViewSource.includes('@click="openSellModal(row.item.itemId, row.item.quality)"'),
     'Shop sell list must merge same-item same-quality inventory batches instead of exposing raw source slots.'
   )
   assert(

@@ -82,6 +82,8 @@ import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
 import { useRegionMapStore } from './useRegionMapStore'
+import { useQuarryStore } from './useQuarryStore'
+import { useQuestStore } from './useQuestStore'
 import { getWeekCycleInfo, type WeekCycleInfo } from '@/utils/weekCycle'
 
 type GoalMetricKey =
@@ -104,6 +106,13 @@ type GoalMetricKey =
   | 'regionRouteCompletions'
   | 'expeditionBossClears'
   | 'regionalResourceTurnIns'
+  | 'processedOrderSubmissions'
+  | 'museumExhibitSetCompletions'
+  | 'speciesNoteCompletions'
+  | 'npcFunctionAdvancedOrderCompletions'
+  | 'quarryLifetimeClears'
+  | 'quarryDeepClears'
+  | 'quarryWeeklyClaims'
 
 interface GoalRewardItem {
   itemId: string
@@ -161,7 +170,7 @@ const WEEKLY_METRIC_ARCHIVE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_LIMIT = 4
 const WEEKLY_BUDGET_ARCHIVE_LIMIT = 8
 const WEEKLY_CHRONICLE_LIMIT = 8
-const WEEKLY_ACTIVITY_THEME_IDS = new Set<WeeklyActivityThemeId>(['fishpond', 'breeding', 'gathering', 'mining', 'planting', 'region_map'])
+const WEEKLY_ACTIVITY_THEME_IDS = new Set<WeeklyActivityThemeId>(['fishpond', 'breeding', 'gathering', 'mining', 'planting', 'region_map', 'life_linkage'])
 const WEEKLY_ACTIVITY_TASK_KINDS = new Set(['counter', 'metric', 'itemSubmission', 'fishSubmission', 'seedSubmission'])
 const WEEKLY_ACTIVITY_REWARD_THRESHOLDS_SET = new Set([5, 7, 10])
 const LEGACY_REGION_MAP_DISCOVERY_ACTIVITY_TASK_ID = 'weekly_activity_region_map_discover_3'
@@ -1134,6 +1143,9 @@ export const useGoalStore = defineStore('goal', () => {
     const npcStore = useNpcStore()
     const villageProjectStore = useVillageProjectStore()
     const regionMapStore = useRegionMapStore()
+    const quarryStore = useQuarryStore()
+    const fishPondStore = useFishPondStore()
+    const questStore = useQuestStore()
 
     switch (metric) {
       case 'totalMoneyEarned':
@@ -1174,6 +1186,20 @@ export const useGoalStore = defineStore('goal', () => {
         return regionMapStore.expeditionFeatureEnabled ? regionMapStore.saveData.telemetry.bossClears : 0
       case 'regionalResourceTurnIns':
         return regionMapStore.resourceFeatureEnabled ? regionMapStore.saveData.telemetry.resourceTurnIns : 0
+      case 'processedOrderSubmissions':
+        return questStore.processedOrderSubmissionCount
+      case 'museumExhibitSetCompletions':
+        return museumStore.completedExhibitSetCount
+      case 'speciesNoteCompletions':
+        return fishPondStore.speciesNoteOverview.completedCount
+      case 'npcFunctionAdvancedOrderCompletions':
+        return questStore.npcFunctionAdvancedOrderCompletionCount
+      case 'quarryLifetimeClears':
+        return quarryStore.lifetimeClearedCount
+      case 'quarryDeepClears':
+        return quarryStore.deepClearCount
+      case 'quarryWeeklyClaims':
+        return quarryStore.weeklyStewardshipLifetimeClaimCount
       default:
         return 0
     }
@@ -1198,7 +1224,14 @@ export const useGoalStore = defineStore('goal', () => {
     familyWishCompletions: getMetricValue('familyWishCompletions'),
     regionRouteCompletions: getMetricValue('regionRouteCompletions'),
     expeditionBossClears: getMetricValue('expeditionBossClears'),
-    regionalResourceTurnIns: getMetricValue('regionalResourceTurnIns')
+    regionalResourceTurnIns: getMetricValue('regionalResourceTurnIns'),
+    processedOrderSubmissions: getMetricValue('processedOrderSubmissions'),
+    museumExhibitSetCompletions: getMetricValue('museumExhibitSetCompletions'),
+    speciesNoteCompletions: getMetricValue('speciesNoteCompletions'),
+    npcFunctionAdvancedOrderCompletions: getMetricValue('npcFunctionAdvancedOrderCompletions'),
+    quarryLifetimeClears: getMetricValue('quarryLifetimeClears'),
+    quarryDeepClears: getMetricValue('quarryDeepClears'),
+    quarryWeeklyClaims: getMetricValue('quarryWeeklyClaims')
   })
 
   const getRemainingDiscoveryGoalCapacity = () => {
@@ -1561,7 +1594,8 @@ export const useGoalStore = defineStore('goal', () => {
       gathering: true,
       mining: homeStore.caveUnlocked,
       planting: true,
-      region_map: regionMapStore.regionIntegrationEnabled
+      region_map: regionMapStore.regionIntegrationEnabled,
+      life_linkage: true
     }
   }
 
@@ -1584,6 +1618,11 @@ export const useGoalStore = defineStore('goal', () => {
     const achievementStore = useAchievementStore()
     const breedingStore = useBreedingStore()
     const regionMapStore = useRegionMapStore()
+    const museumStore = useMuseumStore()
+    const fishPondStore = useFishPondStore()
+    const npcStore = useNpcStore()
+    const questStore = useQuestStore()
+    const quarryStore = useQuarryStore()
     switch (metricKey) {
       case 'totalCropsHarvested':
         return achievementStore.stats.totalCropsHarvested
@@ -1607,6 +1646,22 @@ export const useGoalStore = defineStore('goal', () => {
         return regionMapStore.expeditionFeatureEnabled ? regionMapStore.saveData.telemetry.bossClears : 0
       case 'regionalResourceTurnIns':
         return regionMapStore.resourceFeatureEnabled ? regionMapStore.saveData.telemetry.resourceTurnIns : 0
+      case 'familyWishCompletions':
+        return npcStore.getFamilyWishOverview().state.completedWishIds.length
+      case 'processedOrderSubmissions':
+        return questStore.processedOrderSubmissionCount
+      case 'museumExhibitSetCompletions':
+        return museumStore.completedExhibitSetCount
+      case 'speciesNoteCompletions':
+        return fishPondStore.speciesNoteOverview.completedCount
+      case 'npcFunctionAdvancedOrderCompletions':
+        return questStore.npcFunctionAdvancedOrderCompletionCount
+      case 'quarryLifetimeClears':
+        return quarryStore.lifetimeClearedCount
+      case 'quarryDeepClears':
+        return quarryStore.deepClearCount
+      case 'quarryWeeklyClaims':
+        return quarryStore.weeklyStewardshipLifetimeClaimCount
       case 'discoveredCount':
         return achievementStore.discoveredCount
       default:

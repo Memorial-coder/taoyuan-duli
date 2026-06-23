@@ -27,6 +27,7 @@ import { useMuseumStore } from '@/stores/useMuseumStore'
 import { useGuildStore } from '@/stores/useGuildStore'
 import { useRegionMapStore } from '@/stores/useRegionMapStore'
 import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
+import { useEquipmentAccessoryStore } from '@/stores/useEquipmentAccessoryStore'
 import { getItemById, getTodayEvent, getNpcById, getCropById, getForageItems } from '@/data'
 import { FISH } from '@/data/fish'
 import { RECIPES } from '@/data/recipes'
@@ -1494,6 +1495,15 @@ export const handleEndDay = () => {
 
   playerStore.setTemporarySpiritMaxStaminaBonus(0)
   const { moneyLost, recoveryPct } = playerStore.dailyReset(recoveryMode, bedHour)
+  let finalMoneyLost = moneyLost
+  if (recoveryMode === 'passout' && moneyLost > 0) {
+    const accessoryPassoutReduction = useEquipmentAccessoryStore().getAccessoryEffectValue('accessory_passout_loss_reduction')
+    const refund = Math.min(moneyLost, Math.floor(moneyLost * Math.max(0, accessoryPassoutReduction)))
+    if (refund > 0) {
+      playerStore.earnMoney(refund, { countAsEarned: false })
+      finalMoneyLost = moneyLost - refund
+    }
+  }
   if (deferredMoBaiStaminaBonus > 0) {
     playerStore.restoreStamina(deferredMoBaiStaminaBonus)
   }
@@ -1507,8 +1517,8 @@ export const handleEndDay = () => {
   if (recoveryMode === 'passout') {
     const pct = Math.round(recoveryPct * 100)
     summary =
-      moneyLost > 0
-        ? `你体力耗尽倒下了……有人把你送回家。丢失了${moneyLost}文。次日仅恢复${pct}%体力。`
+      finalMoneyLost > 0
+        ? `你体力耗尽倒下了……有人把你送回家。丢失了${finalMoneyLost}文。次日仅恢复${pct}%体力。`
         : `你体力耗尽倒下了……次日仅恢复${pct}%体力。`
   } else if (recoveryMode === 'late') {
     const pct = Math.round(recoveryPct * 100)
@@ -2156,14 +2166,14 @@ export const handleEndDay = () => {
 
   const digestMessages = capturedEndDayLogs.map(entry => entry.msg)
   const uniqueLines = (lines: string[]) => Array.from(new Set(lines.filter(Boolean))).slice(0, 3)
-  const collectDigestLines = (...patterns: Array<string | RegExp>) =>
-    uniqueLines(
-      digestMessages.filter(message =>
-        patterns.some(pattern =>
-          typeof pattern === 'string' ? message.includes(pattern) : pattern.test(message)
-        )
-      )
+  const matchesDigestPatterns = (message: string, patterns: Array<string | RegExp>) =>
+    patterns.some(pattern =>
+      typeof pattern === 'string' ? message.includes(pattern) : pattern.test(message)
     )
+  const collectDigestLines = (...patterns: Array<string | RegExp>) =>
+    uniqueLines(digestMessages.filter(message => matchesDigestPatterns(message, patterns)))
+  const collectDigestLinesWithoutLimit = (...patterns: Array<string | RegExp>) =>
+    Array.from(new Set(digestMessages.filter(message => matchesDigestPatterns(message, patterns)).filter(Boolean)))
   const classifyDigestTone = (message: string): DailyDigestTone => {
     if (/异常|失败|未能|被毁|死亡|受伤|丢失|暴跌|枯萎/.test(message)) return 'danger'
     if (/不足|过期|病重|覆盖|提醒|倒计时|困倦/.test(message)) return 'warning'
@@ -2229,6 +2239,32 @@ export const handleEndDay = () => {
     ]),
     priority: 20
   })
+
+  const workshopPrimaryLines = collectDigestLinesWithoutLimit(
+    '工坊自动收取了',
+    '加工完成'
+  )
+  const workshopBonusLines = collectDigestLinesWithoutLimit(
+    '自动收取时发现隐藏加工配方',
+    '发现隐藏加工配方',
+    '种子制造机额外产出',
+    '工坊手记触发',
+    '工坊精研触发'
+  )
+  const workshopHighlights = uniqueLines([
+    ...workshopPrimaryLines,
+    ...workshopBonusLines
+  ])
+  if (workshopHighlights.length > 0) {
+    pushDigestSection({
+      sectionId: 'workshop_processing',
+      title: '工坊与加工',
+      tone: workshopHighlights.some(line => /失败|未能|不足|阻塞/.test(line)) ? 'warning' : 'success',
+      headline: workshopHighlights[0] ?? '工坊今日没有新的产线变化。',
+      detailLines: workshopHighlights.slice(1),
+      priority: 23
+    })
+  }
 
   const helperDigestLines = uniqueLines([
     ...helperFeedResult.messages,

@@ -48,6 +48,8 @@
             :key="offer.id"
             class="border rounded-xs px-3 py-3"
             :class="offer.can_exchange ? 'border-warning/15 bg-bg/30' : 'border-danger/20 bg-danger/5 opacity-80'"
+            :data-festival-stall-category="offer.booth_category"
+            data-testid="festival-stall-offer"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
@@ -65,16 +67,16 @@
                 <p class="text-xs text-muted mt-1 leading-5">{{ offer.description }}</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                   <div class="border border-danger/15 rounded-xs px-2 py-2 bg-danger/5">
-                    <p class="text-[0.625rem] text-danger mb-1">花费</p>
+                    <p class="text-[0.625rem] text-danger mb-1">{{ isSupplyOffer(offer) ? '交出' : '花费' }}</p>
                     <ItemBundleInline class="text-xs text-text" :entries="offer.costs" />
                   </div>
                   <div class="border border-success/15 rounded-xs px-2 py-2 bg-success/5">
-                    <p class="text-[0.625rem] text-success mb-1">带回</p>
+                    <p class="text-[0.625rem] text-success mb-1">{{ isSupplyOffer(offer) ? '回礼' : '带回' }}</p>
                     <ItemBundleInline class="text-xs text-text" :entries="offer.rewards" />
                   </div>
                 </div>
                 <div class="flex flex-wrap gap-3 mt-2 text-[0.625rem] text-muted">
-                  <span>个人已买 {{ offer.claimed_by_user }}/{{ offer.weekly_limit_per_user }}</span>
+                  <span>个人{{ isSupplyOffer(offer) ? '已交' : '已买' }} {{ offer.claimed_by_user }}/{{ offer.weekly_limit_per_user }}</span>
                   <span>摊位余量 {{ offer.remaining_global }}/{{ offer.station_stock }}</span>
                 </div>
                 <p v-if="!offer.can_exchange && offer.disabled_reason" class="text-[0.625rem] text-warning mt-2">{{ offer.disabled_reason }}</p>
@@ -82,9 +84,10 @@
               <button
                 class="btn !px-2 !py-1 text-xs shrink-0"
                 :disabled="running || !offer.can_exchange"
+                :data-testid="isSupplyOffer(offer) ? 'festival-stall-submit-supply' : 'festival-stall-buy-offer'"
                 @click="$emit('buy', offer.id)"
               >
-                {{ running ? '购买中...' : `购买 ${offer.price_money}文` }}
+                {{ getOfferButtonLabel(offer) }}
               </button>
             </div>
           </div>
@@ -94,7 +97,7 @@
 
     <div v-if="stall.my_records.length > 0" class="mt-3 border border-warning/10 rounded-xs p-2 bg-bg/20">
       <div class="flex items-center justify-between gap-2 mb-2">
-        <p class="text-[0.625rem] text-warning">本周购买记录</p>
+        <p class="text-[0.625rem] text-warning">本周摊位记录</p>
         <span class="text-[0.625rem] text-muted">{{ stall.my_records.length }} 条</span>
       </div>
       <div class="space-y-1.5">
@@ -104,7 +107,7 @@
             <span class="text-[0.625rem] text-muted">{{ formatTime(record.created_at) }}</span>
           </div>
           <p class="text-[0.625rem] text-muted mt-1">
-            花费 <ItemBundleInline :entries="record.costs" /> · 带回 <ItemBundleInline :entries="record.rewards" />
+            {{ isSupplyRecord(record) ? '交出' : '花费' }} <ItemBundleInline :entries="record.costs" /> · {{ isSupplyRecord(record) ? '回礼' : '带回' }} <ItemBundleInline :entries="record.rewards" />
           </p>
         </div>
       </div>
@@ -115,7 +118,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ItemBundleInline from '@/components/game/ItemBundleInline.vue'
-import type { FestivalStallSnapshot } from '@/utils/festivalStallApi'
+import type { FestivalStallOffer, FestivalStallRecord, FestivalStallSnapshot } from '@/utils/festivalStallApi'
 
 const props = defineProps<{
   stall: FestivalStallSnapshot
@@ -140,6 +143,22 @@ const groupedCategorySections = computed(() => {
     }))
     .filter(section => section.offers.length > 0)
 })
+
+const isSupplyOffer = (offer: Pick<FestivalStallOffer, 'booth_category'>): boolean => offer.booth_category === 'supply'
+
+const getOfferMoneyCost = (offer: FestivalStallOffer): number =>
+  offer.costs
+    .filter(entry => entry.type === 'money')
+    .reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.amount) || 0)), 0)
+
+const getOfferButtonLabel = (offer: FestivalStallOffer): string => {
+  if (running.value) return isSupplyOffer(offer) ? '提交中...' : '购买中...'
+  if (isSupplyOffer(offer)) return '提交备料'
+  return `购买 ${getOfferMoneyCost(offer) || offer.price_money}文`
+}
+
+const isSupplyRecord = (record: FestivalStallRecord): boolean =>
+  props.stall.offers.some(offer => offer.id === record.offer_id && isSupplyOffer(offer))
 
 const formatTime = (unixSeconds: number) => {
   const date = new Date(Number(unixSeconds || 0) * 1000)

@@ -6,6 +6,7 @@ import {
   MUSEUM_DISPLAY_RATING_BANDS,
   MUSEUM_HALL_LEVELS,
   MUSEUM_ITEMS,
+  MUSEUM_EXHIBIT_SETS,
   MUSEUM_MILESTONES,
   MUSEUM_OPERATIONAL_CONFIG,
   MUSEUM_OPERATION_TUNING_CONFIG,
@@ -21,11 +22,13 @@ import type {
   MuseumAuditPlayerSegmentDef,
   MuseumDisplayRatingState,
   MuseumExhibitSlotState,
+  MuseumExhibitSetState,
   MuseumHallLevelDef,
   MuseumHallProgress,
   MuseumHallZoneId,
   MuseumCategory,
   MuseumSaveData,
+  MuseumScholarCommissionDef,
   MuseumScholarCommissionState,
   MuseumShrineThemeState,
   MuseumVisitorFlowState,
@@ -34,20 +37,25 @@ import type {
 } from '@/types'
 import { getItemById } from '@/data'
 import { getNpcById } from '@/data/npcs'
+import { buildSpeciesNoteOverview } from '@/data/speciesNotes'
+import { QUARRY_MUSEUM_ARTIFACT_ITEM_IDS } from '@/data/quarry'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import type { Season } from '@/types'
 import { useGameStore } from './useGameStore'
 import { useGoalStore } from './useGoalStore'
 import { useFishPondStore } from './useFishPondStore'
+import { useBreedingStore } from './useBreedingStore'
 import { useNpcStore } from './useNpcStore'
 import { usePotentialStore } from './usePotentialStore'
 import { useRegionMapStore } from './useRegionMapStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import type { RegionId } from '@/types/region'
 
 const HALL_ZONE_IDS = [...new Set(MUSEUM_HALL_LEVELS.map(level => level.hallZoneId))] as MuseumHallZoneId[]
 const ALL_MUSEUM_SCHOLAR_COMMISSIONS = [...MUSEUM_SCHOLAR_COMMISSIONS, ...WS14_MUSEUM_SCHOLAR_COMMISSIONS]
+const SPECIES_NOTE_REGION_IDS: RegionId[] = ['ancient_road', 'mirage_marsh', 'cloud_highland']
 const ANCIENT_SEED_ITEM_ID = 'ancient_seed'
 const ANCIENT_SEED_DONATION_REWARD_ITEMS = [{ itemId: ANCIENT_SEED_ITEM_ID, quantity: 1, quality: 'normal' as const }]
 
@@ -55,9 +63,23 @@ const getMuseumItemDef = (itemId: string) => MUSEUM_ITEMS.find(item => item.id =
 const DEFAULT_VISITOR_FLOW_BAND = MUSEUM_VISITOR_FLOW_BANDS[0]!
 const DEFAULT_DISPLAY_RATING_BAND = MUSEUM_DISPLAY_RATING_BANDS[0]!
 const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
+const EXHIBIT_SET_TELEMETRY_REWARD_KINDS = new Set(['display_rating', 'visitor_flow'])
 type MuseumQuestMarketCategory = 'crop' | 'fish' | 'animal_product' | 'processed' | 'fruit' | 'ore' | 'gem'
 
 const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
+
+const normalizeScholarCommissionMaterialRequirements = (
+  requirements: MuseumScholarCommissionDef['materialRequirements'] = []
+): { itemId: string; quantity: number }[] => {
+  const totals = new Map<string, number>()
+  for (const requirement of requirements) {
+    const itemId = requirement.itemId
+    const quantity = Math.max(0, Math.floor(Number(requirement.quantity) || 0))
+    if (!itemId || quantity <= 0) continue
+    totals.set(itemId, (totals.get(itemId) ?? 0) + quantity)
+  }
+  return [...totals.entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
+}
 
 const MUSEUM_CATEGORY_TO_QUEST_MARKET_CATEGORIES: Record<MuseumCategory, MuseumQuestMarketCategory[]> = {
   ore: ['ore'],
@@ -126,6 +148,15 @@ const cloneMuseumSaveData = (data: MuseumSaveData): MuseumSaveData => ({
   hallProgress: Object.fromEntries(Object.entries(data.hallProgress).map(([hallZoneId, progress]) => [hallZoneId, { ...progress }])) as Record<MuseumHallZoneId, MuseumSaveData['hallProgress'][MuseumHallZoneId]>,
   scholarCommissionStates: Object.fromEntries(
     Object.entries(data.scholarCommissionStates).map(([commissionId, state]) => [commissionId, { ...state }])
+  ),
+  exhibitSetStates: Object.fromEntries(
+    Object.entries(data.exhibitSetStates).map(([setId, state]) => [
+      setId,
+      {
+        ...state,
+        submittedItems: { ...state.submittedItems }
+      }
+    ])
   ),
   shrineThemeState: {
     unlockedThemeIds: [...data.shrineThemeState.unlockedThemeIds],
@@ -200,6 +231,7 @@ export const useMuseumStore = defineStore('museum', () => {
   const exhibitSlotStates = ref<Record<string, MuseumExhibitSlotState>>(cloneMuseumSaveData(initialState).exhibitSlotStates)
   const hallProgress = ref<Record<MuseumHallZoneId, MuseumHallProgress>>(cloneMuseumSaveData(initialState).hallProgress)
   const scholarCommissionStates = ref<Record<string, MuseumScholarCommissionState>>(cloneMuseumSaveData(initialState).scholarCommissionStates)
+  const exhibitSetStates = ref<Record<string, MuseumExhibitSetState>>(cloneMuseumSaveData(initialState).exhibitSetStates)
   const shrineThemeState = ref(cloneMuseumSaveData(initialState).shrineThemeState)
   const telemetry = ref(cloneMuseumSaveData(initialState).telemetry)
   const museumActionLocks = ref<string[]>([])
@@ -368,8 +400,10 @@ export const useMuseumStore = defineStore('museum', () => {
       const state = scholarCommissionStates.value[def.id] ?? initialState.scholarCommissionStates[def.id]!
       const hallLevel = getHallLevel(def.hallZoneId)
       const unlocked = exhibitLevel.value >= def.unlockExhibitLevel && donatedCount.value >= def.requiredDonationCount && hallLevel >= def.requiredHallLevel
+      const materialRequirements = normalizeScholarCommissionMaterialRequirements(def.materialRequirements)
       return {
         ...def,
+        materialRequirements,
         state,
         hallLevel,
         unlocked,
@@ -379,6 +413,47 @@ export const useMuseumStore = defineStore('museum', () => {
       }
     })
   })
+
+  const exhibitSetOverview = computed(() => {
+    const inventoryStore = useInventoryStore()
+    return MUSEUM_EXHIBIT_SETS.map(def => {
+      const state = exhibitSetStates.value[def.id] ?? initialState.exhibitSetStates[def.id]!
+      const unlocked = exhibitLevel.value >= def.unlockExhibitLevel
+      const requirements = def.requirements.map(requirement => {
+        const submitted = Math.max(0, Math.min(requirement.quantity, Math.floor(Number(state.submittedItems[requirement.itemId]) || 0)))
+        const remaining = Math.max(0, requirement.quantity - submitted)
+        const owned = inventoryStore.getTotalItemCount(requirement.itemId)
+        const duplicateReady = !requirement.duplicateOnly || !getMuseumItemDef(requirement.itemId) || isDonated(requirement.itemId)
+        return {
+          ...requirement,
+          submitted,
+          remaining,
+          owned,
+          duplicateReady,
+          enough: remaining <= 0 || (owned >= 1 && duplicateReady),
+          itemName: getItemById(requirement.itemId)?.name ?? requirement.itemId
+        }
+      })
+      const submittedTotal = requirements.reduce((sum, requirement) => sum + requirement.submitted, 0)
+      const requiredTotal = requirements.reduce((sum, requirement) => sum + requirement.quantity, 0)
+      const completed = state.completed || requirements.every(requirement => requirement.remaining <= 0)
+      return {
+        ...def,
+        state,
+        unlocked,
+        requirements,
+        submittedTotal,
+        requiredTotal,
+        progressPercent: requiredTotal > 0 ? Math.min(100, Math.floor((submittedTotal / requiredTotal) * 100)) : 0,
+        completed,
+        canSubmit: unlocked && !completed && requirements.some(requirement => requirement.remaining > 0 && requirement.owned > 0 && requirement.duplicateReady),
+        canClaimReward: unlocked && completed && !state.rewardClaimed
+      }
+    })
+  })
+
+  const completedExhibitSetCount = computed(() => exhibitSetOverview.value.filter(set => set.completed).length)
+  const claimableExhibitSetCount = computed(() => exhibitSetOverview.value.filter(set => set.canClaimReward).length)
 
   const availableScholarCommissionCount = computed(() => scholarCommissionOverview.value.filter(entry => entry.isAvailable).length)
 
@@ -409,6 +484,19 @@ export const useMuseumStore = defineStore('museum', () => {
       band: displayRatingBand.value,
       nextBand
     }
+  })
+
+  const speciesNoteOverview = computed(() => {
+    const breedingStore = useBreedingStore()
+    const fishPondStore = useFishPondStore()
+    const completedRegionIds = SPECIES_NOTE_REGION_IDS.filter(regionId => regionMapStore.getRegionCompletedRouteCount(regionId) > 0)
+    return buildSpeciesNoteOverview({
+      breedingHybridIds: breedingStore.compendium.map(entry => entry.hybridId),
+      pondBreedIds: [...fishPondStore.discoveredBreeds],
+      completedRegionIds,
+      discoveredQuarryArtifactItemIds: QUARRY_MUSEUM_ARTIFACT_ITEM_IDS.filter(itemId => isDonated(itemId)),
+      completedMuseumExhibitSetIds: exhibitSetOverview.value.filter(set => set.completed).map(set => set.id)
+    })
   })
 
   const getCurrentDayTag = () => `${gameStore.year}-${gameStore.season}-${gameStore.day}`
@@ -533,6 +621,13 @@ export const useMuseumStore = defineStore('museum', () => {
     if (availableScholarCommissionCount.value > 0) {
       recommendedActions.push(`优先承接 ${availableScholarCommissionCount.value} 条学者委托，把展示评分和访客热度转成稳定奖励。`)
     }
+    if (claimableExhibitSetCount.value > 0) {
+      recommendedActions.push(`有 ${claimableExhibitSetCount.value} 组专题展组可确认奖励，完成后会沉淀为展示评分或访客热度。`)
+    }
+    const readyExhibitSet = exhibitSetOverview.value.find(set => set.canSubmit)
+    if (readyExhibitSet) {
+      recommendedActions.push(`专题展组「${readyExhibitSet.name}」已有可提交副本，适合把重复物品转成长期展示进度。`)
+    }
     if (currentThemeWeekMuseumFocus.value?.hallZoneIds?.length) {
       recommendedActions.push(`本周主题周额外关注 ${questBoardBiasProfile.value.focusHallLabels.slice(0, 2).join('、')}，可更快形成展陈闭环。`)
     }
@@ -580,9 +675,13 @@ export const useMuseumStore = defineStore('museum', () => {
     displayRating: displayRatingOverview.value,
     shrineThemes: shrineThemeOverview.value,
     scholarCommissions: scholarCommissionOverview.value,
+    exhibitSets: exhibitSetOverview.value,
+    speciesNotes: speciesNoteOverview.value,
     activeShrineThemeId: activeShrineThemeId.value,
     unlockedExhibitSlotCount: unlockedExhibitSlotCount.value,
-    availableScholarCommissionCount: availableScholarCommissionCount.value
+    availableScholarCommissionCount: availableScholarCommissionCount.value,
+    completedExhibitSetCount: completedExhibitSetCount.value,
+    claimableExhibitSetCount: claimableExhibitSetCount.value
   }))
 
   const currentAuditSegment = computed<MuseumAuditPlayerSegmentDef | null>(() => {
@@ -717,6 +816,8 @@ export const useMuseumStore = defineStore('museum', () => {
   const getScholarCommissionState = (commissionId: string) => scholarCommissionStates.value[commissionId]
   const getScholarCommissionOverview = (commissionId: string) => scholarCommissionOverview.value.find(commission => commission.id === commissionId)
   const getScholarCommissionStatus = (commissionId: string) => getScholarCommissionOverview(commissionId) ?? null
+  const getExhibitSetState = (setId: string) => exhibitSetStates.value[setId]
+  const getExhibitSetOverview = (setId: string) => exhibitSetOverview.value.find(set => set.id === setId)
   const getShrineThemeOverview = (themeId: string) => shrineThemeOverview.value.find(theme => theme.id === themeId)
   const getActiveShrineTheme = () => shrineThemeOverview.value.find(theme => theme.active) ?? null
   const getCurrentShrineTheme = () => getActiveShrineTheme()
@@ -725,6 +826,44 @@ export const useMuseumStore = defineStore('museum', () => {
     return hallZoneId ? slots.filter(slot => slot.hallZoneId === hallZoneId) : slots
   }
   const getUnlockedExhibitSlots = () => exhibitSlotOverview.value.filter(slot => slot.unlocked)
+
+  const getScholarCommissionMaterialStatus = (commissionId: string) => {
+    const commission = getScholarCommissionOverview(commissionId)
+    if (!commission) return []
+    const inventoryStore = useInventoryStore()
+    return normalizeScholarCommissionMaterialRequirements(commission.materialRequirements).map(requirement => {
+      const owned = inventoryStore.getTotalItemCount(requirement.itemId)
+      return {
+        ...requirement,
+        owned,
+        enough: owned >= requirement.quantity,
+        itemName: getItemById(requirement.itemId)?.name ?? requirement.itemId
+      }
+    })
+  }
+
+  const canSupplyScholarCommissionMaterials = (commissionId: string): boolean =>
+    getScholarCommissionMaterialStatus(commissionId).every(requirement => requirement.enough)
+
+  const getScholarCommissionMaterialBlockedReason = (commissionId: string): string => {
+    const missing = getScholarCommissionMaterialStatus(commissionId).filter(requirement => !requirement.enough)
+    if (missing.length <= 0) return ''
+    return `缺少研究材料：${missing.map(item => `${item.itemName} ${item.owned}/${item.quantity}`).join('、')}。`
+  }
+
+  const getExhibitSetRequirementStatus = (setId: string) => getExhibitSetOverview(setId)?.requirements ?? []
+
+  const getExhibitSetBlockedReason = (setId: string): string => {
+    const overview = getExhibitSetOverview(setId)
+    if (!overview) return '博物馆专题展组不存在。'
+    if (!overview.unlocked) return `展陈等级 ${exhibitLevel.value}/${overview.unlockExhibitLevel}，暂未开放。`
+    if (overview.completed) return '该专题展组已经完成。'
+    const blockedDuplicateRequirement = overview.requirements.find(requirement => requirement.remaining > 0 && requirement.owned > 0 && !requirement.duplicateReady)
+    if (blockedDuplicateRequirement) return `${blockedDuplicateRequirement.itemName} 需要先完成首件捐赠，展组只收副本。`
+    const availableRequirement = overview.requirements.find(requirement => requirement.remaining > 0 && requirement.owned > 0 && requirement.duplicateReady)
+    if (!availableRequirement) return '背包中没有可提交的展组副本材料。'
+    return ''
+  }
 
   const beginMuseumAction = (lockId: string): boolean => {
     if (!museumFeatureFlags.museumActionGuardEnabled) return true
@@ -748,6 +887,21 @@ export const useMuseumStore = defineStore('museum', () => {
     scholarCommissionStates.value = {
       ...scholarCommissionStates.value,
       [commissionId]: nextState
+    }
+    return nextState
+  }
+
+  const setExhibitSetState = (setId: string, patch: Partial<MuseumExhibitSetState>) => {
+    const current = exhibitSetStates.value[setId] ?? initialState.exhibitSetStates[setId]
+    if (!current) return undefined
+    const nextState: MuseumExhibitSetState = {
+      ...current,
+      ...patch,
+      submittedItems: patch.submittedItems ? { ...patch.submittedItems } : { ...current.submittedItems }
+    }
+    exhibitSetStates.value = {
+      ...exhibitSetStates.value,
+      [setId]: nextState
     }
     return nextState
   }
@@ -800,6 +954,19 @@ export const useMuseumStore = defineStore('museum', () => {
       })
     }
 
+    for (const set of exhibitSetOverview.value) {
+      if (!set.completed) continue
+      for (const reward of set.rewards) {
+        if (reward.kind !== 'display_rating' || reward.value <= 0) continue
+        score += reward.value
+        breakdown.push({
+          key: `exhibit_set:${set.id}:${reward.kind}`,
+          label: set.name,
+          value: reward.value
+        })
+      }
+    }
+
     const band =
       [...MUSEUM_DISPLAY_RATING_BANDS]
         .sort((left, right) => left.minScore - right.minScore)
@@ -826,11 +993,17 @@ export const useMuseumStore = defineStore('museum', () => {
       unlockedExhibitSlotCount.value * museumOperationConfig.unlockedSlotVisitorBase +
       assignedExhibitCount * museumOperationConfig.assignedExhibitVisitorBase +
       scholarCompletedCount * museumOperationConfig.completedCommissionVisitorBase
+    const exhibitSetVisitorBonus = exhibitSetOverview.value.reduce((sum, set) => {
+      if (!set.completed) return sum
+      return sum + set.rewards
+        .filter(reward => reward.kind === 'visitor_flow')
+        .reduce((rewardSum, reward) => rewardSum + Math.max(0, reward.value), 0)
+    }, 0)
     const ratingBonusVisitors = Math.floor(displayRatingScore * museumOperationConfig.displayRatingToVisitorsFactor)
     const hallBonusVisitors = Math.floor(baseVisitors * hallTrafficBonusRate)
     const shrineBonusVisitors = activeTheme ? Math.floor(baseVisitors * activeTheme.trafficBonusRate) : 0
     const contractBonusVisitors = Math.floor(baseVisitors * serviceContractEffect.museumVisitorBonusRate)
-    const bonusVisitors = ratingBonusVisitors + hallBonusVisitors + shrineBonusVisitors + contractBonusVisitors
+    const bonusVisitors = ratingBonusVisitors + hallBonusVisitors + shrineBonusVisitors + contractBonusVisitors + exhibitSetVisitorBonus
     const score = baseVisitors + bonusVisitors
     const band =
       [...MUSEUM_VISITOR_FLOW_BANDS]
@@ -843,6 +1016,13 @@ export const useMuseumStore = defineStore('museum', () => {
       baseVisitors,
       bonusVisitors
     }
+  }
+
+  const refreshOperationalTelemetry = () => {
+    const displayTelemetry = buildDisplayRatingTelemetry()
+    const visitorTelemetry = buildVisitorFlowTelemetry(displayTelemetry.score)
+    refreshOperationalTelemetry()
+    return { displayTelemetry, visitorTelemetry }
   }
 
   const rotateShrineTheme = (currentDayTag: string, rotation: 'daily' | 'weekly' | 'seasonal') => {
@@ -1026,6 +1206,26 @@ export const useMuseumStore = defineStore('museum', () => {
     if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
       return { success: false, message: '请先整理背包，当前空间不足以领取学者委托奖励。' }
     }
+    const materialRequirements = normalizeScholarCommissionMaterialRequirements(commission.materialRequirements)
+    const missingMaterials = materialRequirements
+      .map(requirement => ({
+        ...requirement,
+        owned: inventoryStore.getTotalItemCount(requirement.itemId),
+        itemName: getItemById(requirement.itemId)?.name ?? requirement.itemId
+      }))
+      .filter(requirement => requirement.owned < requirement.quantity)
+    if (missingMaterials.length > 0) {
+      return {
+        success: false,
+        message: `缺少研究材料：${missingMaterials.map(item => `${item.itemName} ${item.owned}/${item.quantity}`).join('、')}。`
+      }
+    }
+
+    for (const requirement of materialRequirements) {
+      if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)) {
+        throw new Error('museum scholar commission material removal failed')
+      }
+    }
 
     if (commission.reward.money) {
       playerStore.earnMoney(commission.reward.money)
@@ -1059,12 +1259,14 @@ export const useMuseumStore = defineStore('museum', () => {
       commission.reward.reputation ? `目标声望+${commission.reward.reputation}` : '',
       ...(commission.reward.items ?? []).map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
     ].filter(Boolean)
+    const materialSummary = materialRequirements.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
 
     addLog(`【博物馆】学者委托「${commission.title}」奖励已领取。`, {
       category: 'museum',
       tags: ['late_game_cycle'],
       meta: {
         commissionId: commission.id,
+        consumedMaterials: materialSummary.join(' | '),
         rewardSummary: rewardSummary.join(' | '),
         potentialReward: potentialReward.success
       }
@@ -1072,7 +1274,7 @@ export const useMuseumStore = defineStore('museum', () => {
 
     return {
       success: true,
-      message: `领取了学者委托奖励：${commission.title}${rewardSummary.length > 0 ? `，获得${rewardSummary.join('、')}` : ''}${potentialReward.success ? '，并沉淀了博物馆考据材料' : ''}${friendshipMessages.length > 0 ? `。${friendshipMessages.join(' ')}` : '。'}`
+      message: `领取了学者委托奖励：${commission.title}${materialSummary.length > 0 ? `，消耗${materialSummary.join('、')}` : ''}${rewardSummary.length > 0 ? `，获得${rewardSummary.join('、')}` : ''}${potentialReward.success ? '，并沉淀了博物馆考据材料' : ''}${friendshipMessages.length > 0 ? `。${friendshipMessages.join(' ')}` : '。'}`
     }
     } catch {
       inventoryStore.deserialize(inventorySnapshot)
@@ -1082,6 +1284,132 @@ export const useMuseumStore = defineStore('museum', () => {
       potentialStore.deserialize(potentialSnapshot)
       deserialize(museumSnapshot)
       return { success: false, message: '学者委托奖励结算失败，已回滚，请稍后再试。' }
+    } finally {
+      finishMuseumAction(lockId)
+    }
+  }
+
+  const submitMuseumExhibitSetItem = (setId: string, itemId: string, quantity: number = 1): { success: boolean; message: string } => {
+    const submitQuantityRequest = Math.max(1, Math.floor(Number(quantity) || 1))
+    const lockId = `submitMuseumExhibitSet:${setId}:${itemId}`
+    const failExhibitSetSubmission = (message: string) => {
+      addLog(`【博物馆】专题展组提交失败：${message}`, {
+        category: 'museum',
+        tags: ['museum_exhibit_set', 'late_game_cycle', 'resource_sink'],
+        meta: { setId, itemId, quantity: submitQuantityRequest }
+      })
+      return { success: false, message }
+    }
+    if (!beginMuseumAction(lockId)) {
+      return failExhibitSetSubmission('该专题展组正在整理中，请勿重复点击。')
+    }
+
+    const inventoryStore = useInventoryStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const exhibitSetSnapshot = cloneMuseumSaveData(serialize()).exhibitSetStates
+
+    try {
+      const set = getExhibitSetOverview(setId)
+      if (!set) return failExhibitSetSubmission('博物馆专题展组不存在。')
+      if (!set.unlocked) return failExhibitSetSubmission(`展陈等级 ${exhibitLevel.value}/${set.unlockExhibitLevel}，暂未开放。`)
+      if (set.completed) return failExhibitSetSubmission('该专题展组已经完成。')
+
+      const requirement = set.requirements.find(entry => entry.itemId === itemId)
+      if (!requirement) return failExhibitSetSubmission('该物品不属于此专题展组。')
+      if (requirement.remaining <= 0) return failExhibitSetSubmission('该展品需求已经提交完成。')
+      if (!requirement.duplicateReady) return failExhibitSetSubmission(`${requirement.itemName} 需要先完成首件捐赠，展组只收副本。`)
+      if (requirement.owned <= 0) return failExhibitSetSubmission(`背包中没有可提交的 ${requirement.itemName}。`)
+
+      const submitQuantity = Math.min(submitQuantityRequest, requirement.remaining, requirement.owned)
+      if (!inventoryStore.removeItemAnywhere(itemId, submitQuantity)) {
+        return failExhibitSetSubmission(`提交 ${requirement.itemName} 失败，背包数量不足。`)
+      }
+
+      const currentState = exhibitSetStates.value[setId] ?? initialState.exhibitSetStates[setId]
+      const submittedItems = {
+        ...(currentState?.submittedItems ?? {}),
+        [itemId]: Math.min(requirement.quantity, (currentState?.submittedItems?.[itemId] ?? 0) + submitQuantity)
+      }
+      const completed = set.requirements.every(entry => (submittedItems[entry.itemId] ?? 0) >= entry.quantity)
+      setExhibitSetState(setId, {
+        submittedItems,
+        completed,
+        lastSubmittedDayTag: getCurrentDayTag(),
+        completedDayTag: completed ? getCurrentDayTag() : currentState?.completedDayTag ?? ''
+      })
+      if (completed) {
+        refreshOperationalTelemetry()
+        goalStore.recordWeeklyActivityCounter('life_linkage_actions', 1)
+      }
+
+      addLog(`【博物馆】专题展组「${set.name}」提交了 ${requirement.itemName}×${submitQuantity}${completed ? '，展组已完成。' : '。'}`, {
+        category: 'museum',
+        tags: ['museum_exhibit_set', 'late_game_cycle'],
+        meta: {
+          setId,
+          itemId,
+          quantity: submitQuantity,
+          completed
+        }
+      })
+
+      return {
+        success: true,
+        message: completed
+          ? `专题展组「${set.name}」已完成。`
+          : `已提交 ${requirement.itemName}×${submitQuantity}。`
+      }
+    } catch {
+      inventoryStore.deserialize(inventorySnapshot)
+      exhibitSetStates.value = exhibitSetSnapshot
+      return failExhibitSetSubmission('专题展组提交失败，已回滚，请稍后再试。')
+    } finally {
+      finishMuseumAction(lockId)
+    }
+  }
+
+  const claimExhibitSetReward = (setId: string): { success: boolean; message: string } => {
+    const lockId = `claimMuseumExhibitSet:${setId}`
+    if (!beginMuseumAction(lockId)) {
+      return { success: false, message: '该专题展组奖励正在确认中，请勿重复点击。' }
+    }
+
+    const exhibitSetSnapshot = cloneMuseumSaveData(serialize()).exhibitSetStates
+
+    try {
+      const set = getExhibitSetOverview(setId)
+      if (!set) return { success: false, message: '博物馆专题展组不存在。' }
+      if (!set.unlocked) return { success: false, message: `展陈等级 ${exhibitLevel.value}/${set.unlockExhibitLevel}，暂未开放。` }
+      if (!set.completed) return { success: false, message: '该专题展组尚未完成。' }
+      if (set.state.rewardClaimed) return { success: false, message: '该专题展组奖励已经确认。' }
+
+      setExhibitSetState(setId, { rewardClaimed: true })
+      refreshOperationalTelemetry()
+
+      const rewardSummary = set.rewards
+        .map(reward => `${reward.label}+${reward.value}`)
+        .join('、')
+      const telemetryRewards = set.rewards
+        .filter(reward => EXHIBIT_SET_TELEMETRY_REWARD_KINDS.has(reward.kind))
+        .map(reward => reward.kind)
+
+      addLog(`【博物馆】专题展组「${set.name}」奖励已确认：${rewardSummary || '展陈记录已更新'}。`, {
+        category: 'museum',
+        tags: ['museum_exhibit_set', 'late_game_cycle'],
+        meta: {
+          setId,
+          rewardSummary,
+          telemetryRewards: telemetryRewards.join(' | ')
+        }
+      })
+
+      return {
+        success: true,
+        message: `已确认专题展组「${set.name}」奖励：${rewardSummary || '展陈记录已更新'}。`
+      }
+    } catch {
+      exhibitSetStates.value = exhibitSetSnapshot
+      return { success: false, message: '专题展组奖励确认失败，已回滚，请稍后再试。' }
     } finally {
       finishMuseumAction(lockId)
     }
@@ -1147,6 +1475,7 @@ export const useMuseumStore = defineStore('museum', () => {
     exhibitSlotStates.value = data.exhibitSlotStates
     hallProgress.value = data.hallProgress
     scholarCommissionStates.value = data.scholarCommissionStates
+    exhibitSetStates.value = data.exhibitSetStates
     shrineThemeState.value = data.shrineThemeState
     telemetry.value = data.telemetry
   }
@@ -1160,6 +1489,7 @@ export const useMuseumStore = defineStore('museum', () => {
       exhibitSlotStates: currentExhibitSlotStates.value,
       hallProgress: currentHallProgressMap.value,
       scholarCommissionStates: scholarCommissionStates.value,
+      exhibitSetStates: exhibitSetStates.value,
       shrineThemeState: currentShrineThemeState.value,
       telemetry: {
         saveVersion: saveVersion.value,
@@ -1188,6 +1518,7 @@ export const useMuseumStore = defineStore('museum', () => {
     exhibitSlotStates,
     hallProgress,
     scholarCommissionStates,
+    exhibitSetStates,
     shrineThemeState,
     telemetry,
     donatedCount,
@@ -1202,6 +1533,8 @@ export const useMuseumStore = defineStore('museum', () => {
     activeShrineThemeId,
     unlockedShrineThemeCount,
     availableScholarCommissionCount,
+    completedExhibitSetCount,
+    claimableExhibitSetCount,
     visitorFlowState,
     displayRatingState,
     visitorFlowBand,
@@ -1211,7 +1544,9 @@ export const useMuseumStore = defineStore('museum', () => {
     visitorFlowOverview,
     displayRatingOverview,
     scholarCommissionOverview,
+    exhibitSetOverview,
     shrineThemeOverview,
+    speciesNoteOverview,
     operationalOverview,
     currentThemeWeekMuseumFocus,
     featuredScholarCommissionOverview,
@@ -1225,6 +1560,7 @@ export const useMuseumStore = defineStore('museum', () => {
     exhibitSlotDefs: MUSEUM_OPERATIONAL_CONFIG.exhibitSlots,
     hallLevelDefs: MUSEUM_HALL_LEVELS,
     scholarCommissionDefs: ALL_MUSEUM_SCHOLAR_COMMISSIONS,
+    exhibitSetDefs: MUSEUM_EXHIBIT_SETS,
     shrineThemeDefs: MUSEUM_SHRINE_THEMES,
     visitorFlowBands: MUSEUM_VISITOR_FLOW_BANDS,
     displayRatingBands: MUSEUM_DISPLAY_RATING_BANDS,
@@ -1236,6 +1572,13 @@ export const useMuseumStore = defineStore('museum', () => {
     getScholarCommissionState,
     getScholarCommissionOverview,
     getScholarCommissionStatus,
+    getScholarCommissionMaterialStatus,
+    canSupplyScholarCommissionMaterials,
+    getScholarCommissionMaterialBlockedReason,
+    getExhibitSetState,
+    getExhibitSetOverview,
+    getExhibitSetRequirementStatus,
+    getExhibitSetBlockedReason,
     getShrineThemeOverview,
     getActiveShrineTheme,
     getCurrentShrineTheme,
@@ -1244,6 +1587,8 @@ export const useMuseumStore = defineStore('museum', () => {
     processOperationalTick,
     acceptScholarCommission,
     claimScholarCommissionReward,
+    submitMuseumExhibitSetItem,
+    claimExhibitSetReward,
     isDonated,
     canDonate,
     donatableItems,

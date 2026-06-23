@@ -52,6 +52,19 @@ export const TRINKETS: TrinketDef[] = [
       { type: 'mining_stamina', value: 0.12 },
       { type: 'ore_bonus', value: 0.15 }
     ]
+  },
+  {
+    id: 'quarry_relic_charm',
+    name: '护符·岩遗',
+    familyLabel: '护符',
+    description: '由旧采石场残片和矿脉纹路嵌成的小护符，靠近裂隙和旧箱时会微微发热。',
+    sourceSummary: '偏向采石场古物、旧支道终点、深脉探索和后期资源发现。',
+    unlockHint: '完成采石场矿洞终点奖励或战斗精通后解锁。',
+    unlockRule: 'quarry_mine',
+    effects: [
+      { type: 'treasure_find', value: 0.08 },
+      { type: 'ore_bonus', value: 0.1 }
+    ]
   }
 ]
 

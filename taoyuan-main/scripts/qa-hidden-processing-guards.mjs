@@ -72,7 +72,27 @@ registerHooks({
 
 const data = await import(pathToFileURL(path.join(srcRoot, 'data', 'index.ts')).href)
 
-const { ITEMS, PROCESSING_RECIPES, getItemById, getCropUseProfile } = data
+const { ITEMS, PROCESSING_RECIPES, HYBRID_DEFS, getHybridTier, getItemById, getCropUseProfile } = data
+
+const QUALITY_PRICE_MULTIPLIERS = {
+  normal: 1,
+  fine: 1.25,
+  excellent: 1.5,
+  supreme: 2
+}
+
+const HYBRID_WINE_TIER_OUTPUTS = {
+  1: { itemId: 'spirit_fruit_brew', quality: 'normal' },
+  2: { itemId: 'spirit_fruit_brew', quality: 'fine' },
+  3: { itemId: 'spirit_fruit_brew', quality: 'excellent' },
+  4: { itemId: 'mystic_fruit_wine', quality: 'normal' },
+  5: { itemId: 'mystic_fruit_wine', quality: 'fine' },
+  6: { itemId: 'mystic_fruit_wine', quality: 'excellent' },
+  7: { itemId: 'celestial_fruit_wine', quality: 'normal' },
+  8: { itemId: 'celestial_fruit_wine', quality: 'fine' },
+  9: { itemId: 'celestial_fruit_wine', quality: 'excellent' },
+  10: { itemId: 'celestial_fruit_wine', quality: 'supreme' }
+}
 
 const inputSignature = recipe => {
   const extras = (recipe.extraInputs || [])
@@ -120,6 +140,7 @@ assert(!!ancientWine, '缺少远古水果隐藏酿酒配方 hidden_wine_ancient_
 assert(ancientWine?.machineType === 'wine_workshop', '远古水果隐藏配方必须属于酒坊')
 assert(ancientWine?.inputItemId === 'ancient_fruit', '远古水果隐藏配方输入必须为 ancient_fruit')
 assert(ancientWine?.outputItemId === 'ancient_fruit_wine', '远古水果隐藏配方必须产出专属远古果酒，不得占用多年育种顶档天成果酿')
+assert(!ancientWine?.outputQuality, '远古果酒必须保持专属产物，不参与育种果酒十阶固定品质映射')
 assert(ancientWine?.hiddenMeta?.gate?.workshopLevel === 2, '远古水果隐藏配方需要工坊 Lv.2 门槛')
 assert(ancientWine?.hiddenMeta?.gate?.requiredItemId === 'ancient_fruit', '远古水果隐藏配方需要持有 ancient_fruit 才出现')
 
@@ -148,9 +169,56 @@ const heavenlyTuberWineItem = getItemById(heavenlyTuberWine?.outputItemId ?? '')
 assert(!!heavenlyTuberWine, '缺少天化薯隐藏酿酒配方 hidden_wine_heavenly_change_tuber')
 assert(heavenlyTuberWine?.inputItemId === 'heavenly_change_tuber', '天化薯隐藏酿酒配方输入必须为 heavenly_change_tuber')
 assert(heavenlyTuberWine?.outputItemId === 'celestial_fruit_wine', '天化薯等多年育种链顶端作物应保留天成果酿出口')
+assert(heavenlyTuberWine?.outputQuality === 'supreme', 'T10 天化薯隐藏酿酒必须产出极品天成果酿')
 assert(
   (heavenlyTuberWineItem?.sellPrice ?? 0) > (ancientWineItem?.sellPrice ?? 0) * 2,
   '普通天化薯顶档果酒基础价必须高于极品远古专属果酒，避免优质肥料远古压过多年育种链'
+)
+
+const hybridWineRecipesByTier = new Map()
+const hybridByResultCropId = new Map(HYBRID_DEFS.map(hybrid => [hybrid.resultCropId, hybrid]))
+const hybridWineRecipes = hiddenRecipes.filter(recipe =>
+  recipe.machineType === 'wine_workshop' &&
+  recipe.inputItemId &&
+  hybridByResultCropId.has(recipe.inputItemId)
+)
+
+for (const recipe of hybridWineRecipes) {
+  const hybrid = hybridByResultCropId.get(recipe.inputItemId)
+  const tier = getHybridTier(hybrid.id)
+  const expected = HYBRID_WINE_TIER_OUTPUTS[tier]
+  assert(!!expected, `育种果酒缺少 T${tier} 产物映射：${hybrid.id}`)
+  if (!expected) continue
+
+  assert(recipe.outputItemId === expected.itemId, `T${tier} ${hybrid.resultCropId} 果酒产物错误：${recipe.outputItemId} !== ${expected.itemId}`)
+  assert(recipe.outputQuality === expected.quality, `T${tier} ${hybrid.resultCropId} 果酒品质错误：${recipe.outputQuality} !== ${expected.quality}`)
+  assert(
+    recipe.description.includes(expected.itemId === 'spirit_fruit_brew' ? '灵果清酿' : expected.itemId === 'mystic_fruit_wine' ? '玄果清酿' : '天成果酿'),
+    `${recipe.id} 描述必须显示固定果酒品类`
+  )
+  assert(
+    recipe.description.includes(expected.quality === 'normal' ? '普通' : expected.quality === 'fine' ? '优良' : expected.quality === 'excellent' ? '精品' : '极品'),
+    `${recipe.id} 描述必须显示固定产物品质`
+  )
+
+  if (!hybridWineRecipesByTier.has(tier)) hybridWineRecipesByTier.set(tier, [])
+  hybridWineRecipesByTier.get(tier).push(recipe)
+}
+
+assert(hybridWineRecipes.length > 0, '必须至少存在一个育种作物隐藏酒坊配方用于十阶分档')
+
+for (const tier of Object.keys(HYBRID_WINE_TIER_OUTPUTS).map(Number)) {
+  assert((hybridWineRecipesByTier.get(tier)?.length ?? 0) > 0, `T${tier} 必须至少有一个育种隐藏果酒配方`)
+}
+
+const celestialLateTierQualities = [7, 8, 9, 10]
+  .flatMap(tier => hybridWineRecipesByTier.get(tier) ?? [])
+  .filter(recipe => recipe.outputItemId === 'celestial_fruit_wine')
+  .map(recipe => recipe.outputQuality)
+const celestialLateTierQualitySet = new Set(celestialLateTierQualities)
+assert(
+  ['normal', 'fine', 'excellent', 'supreme'].every(quality => celestialLateTierQualitySet.has(quality)),
+  `T7-T10 天成果酿必须拆成普通/优良/精品/极品四档：${[...celestialLateTierQualitySet].join(',')}`
 )
 
 const ancientProfile = getCropUseProfile('ancient_fruit')
@@ -187,7 +255,10 @@ const getRecipeInputEntries = recipe => {
 const getRecipeInputValue = recipe => getRecipeInputEntries(recipe)
   .reduce((total, entry) => total + (getItemById(entry.itemId)?.sellPrice ?? 0) * entry.quantity, 0)
 
-const getRecipeOutputValue = recipe => (getItemById(recipe.outputItemId)?.sellPrice ?? 0) * recipe.outputQuantity
+const getRecipeOutputValue = recipe =>
+  (getItemById(recipe.outputItemId)?.sellPrice ?? 0) *
+  recipe.outputQuantity *
+  (QUALITY_PRICE_MULTIPLIERS[recipe.outputQuality ?? 'normal'] ?? 1)
 
 const getRecipeInputRecovery = recipe => getRecipeInputEntries(recipe).reduce((total, entry) => {
   const item = getItemById(entry.itemId)
@@ -223,6 +294,11 @@ const getPublicProcessingMinimumMultiplier = recipe => {
   return 1
 }
 
+const skipsHiddenRecoveryGuard = recipe =>
+  recipe.machineType === 'wine_workshop' &&
+  recipe.hiddenMeta?.familyId === 'hidden_wine' &&
+  !!recipe.outputQuality
+
 for (const recipe of hiddenRecipes) {
   if (!hiddenBalanceMachineTypes.has(recipe.machineType)) continue
 
@@ -238,7 +314,7 @@ for (const recipe of hiddenRecipes) {
 
   const inputRecovery = getRecipeInputRecovery(recipe)
   const outputRecovery = getRecipeOutputRecovery(recipe)
-  if (outputRecovery.edible) {
+  if (outputRecovery.edible && !skipsHiddenRecoveryGuard(recipe)) {
     assert(
       outputRecovery.stamina >= inputRecovery.stamina,
       `${recipe.id} 隐藏加工体力恢复倒挂：${outputRecovery.stamina} < ${inputRecovery.stamina}（产物 ${recipe.outputItemId}）`
@@ -341,6 +417,13 @@ const processingStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useP
 assert(processingStoreSource.includes('discoveredProcessingRecipeIds'), 'processing store 必须序列化 discoveredProcessingRecipeIds')
 assert(processingStoreSource.includes('normalizeDiscoveredProcessingRecipeIds'), 'processing store 必须清理非法隐藏配方发现 ID')
 assert(processingStoreSource.includes('discoverProcessingRecipe(recipe.id)'), '收取成品时必须发现隐藏配方')
+assert(processingStoreSource.includes('recipe.outputQuality ?? applyNpcQualityUpgrade'), '固定产物品质必须优先于 NPC 随机提品')
+assert(processingStoreSource.includes('fixedQuality: !!recipe.outputQuality'), '固定产物品质必须进入收取汇总，普通固定档也要可见')
+
+const processingViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'ProcessingView.vue'), 'utf8')
+assert(processingViewSource.includes('outputQualityLabel'), '加工详情必须展示固定产物品质')
+assert(processingViewSource.includes('产物品质：'), '加工详情文案必须说明固定产物品质')
+
 const workshopUpgradeStart = processingStoreSource.indexOf('const WORKSHOP_UPGRADES = [')
 const workshopUpgradeEnd = processingStoreSource.indexOf('export const WORKSHOP_MAX_LEVEL')
 const workshopUpgradeBlock = workshopUpgradeStart >= 0 && workshopUpgradeEnd > workshopUpgradeStart

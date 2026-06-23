@@ -138,6 +138,7 @@ export interface QuarryCollectResult {
   potentialClaimed?: boolean
   trinketUnlocked?: boolean
   exploreMode?: QuarryMineExploreMode
+  globalLogged?: boolean
 }
 
 export interface QuarryActionResult {

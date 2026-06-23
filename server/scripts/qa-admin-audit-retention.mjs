@@ -25,6 +25,56 @@ const now = Math.floor(Date.now() / 1000);
 const oldAdminCreatedAt = now - 181 * 86400;
 const oldContentCreatedAt = now - 366 * 86400;
 
+assert.deepEqual(
+  db.getGameplayEventLogRetentionPolicy(),
+  {
+    retention_days: 30,
+    max_total: 500000,
+    max_per_user_slot: 12000,
+  },
+  'gameplay log default retention policy should stay at 30 days, 500000 total rows, and 12000 rows per user-slot',
+);
+
+await db.recordGameplayEventLogsBatch([
+  {
+    username: 'qa_gameplay_user',
+    day_label: '第1年 春1日',
+    category: 'economy',
+    message: 'qa gameplay log fixture',
+    route_name: 'ShopView',
+    tags: ['qa'],
+    meta: { save_slot: 1, action: 'settlement', outcome: 'completed' },
+    created_at: now - 5,
+  },
+  {
+    username: 'qa_gameplay_user',
+    day_label: '第1年 春1日',
+    category: 'economy',
+    message: 'qa gameplay log outside time fixture',
+    route_name: 'ShopView',
+    tags: ['qa'],
+    meta: { save_slot: 1, action: 'rollback', outcome: 'failed' },
+    created_at: now - 5000,
+  },
+]);
+const gameplayOverview = await db.getGameplayEventLogOverview();
+assert.equal(gameplayOverview.retention.retention_days, 30, 'gameplay overview should expose the 30-day window');
+assert.equal(gameplayOverview.retention.max_total, 500000, 'gameplay overview should expose the 500000 total cap');
+assert.equal(gameplayOverview.retention.max_per_user_slot, 12000, 'gameplay overview should expose the 12000 per user-slot cap');
+const gameplayLogs = await db.listGameplayEventLogs({
+  username: 'qa_gameplay_user',
+  category: 'economy',
+  action: 'settlement',
+  outcome: 'completed',
+  createdFrom: now - 10,
+  createdTo: now,
+  pageSize: 5,
+});
+assert.equal(gameplayLogs.total, 1, 'gameplay logs should be queryable by username and category');
+assert.equal(gameplayLogs.logs[0]?.meta?.action, 'settlement', 'gameplay log filters should match meta.action');
+assert.equal(gameplayLogs.logs[0]?.meta?.outcome, 'completed', 'gameplay log filters should match meta.outcome');
+assert.equal(gameplayLogs.retention.max_total, 500000, 'gameplay list response should expose the 500000 total cap');
+
 for (let index = 0; index < 5010; index += 1) {
   await onlineAudit.recordOnlineAudit({
     id: `qa_online_${index}`,
@@ -153,6 +203,7 @@ const minFieldLogs = await db.listAdminAuditLogs({
   target_username: 'qa_min_user',
   action: 'set_user_quota',
   outcome: 'completed',
+  keyword: 'minimum field',
 });
 assert.equal(minFieldLogs.total, 1, 'admin audit minimum-field fixture should be queryable by default outcome');
 const minFieldLog = minFieldLogs.logs[0];
@@ -188,6 +239,28 @@ assert.equal(minFieldLog.ua_hash, 'qa_ua_hash_min', 'admin audit response should
 for (const key of ['request_id', 'actor_username', 'actor_role', 'target_username', 'target_type', 'target_id', 'action', 'outcome', 'reason', 'rule_version', 'ip_hash', 'ua_hash']) {
   assert.ok(Object.hasOwn(minFieldLog.detail, key), `admin audit detail should persist minimum field ${key}`);
 }
+
+await db.recordContentRevision({
+  content_key: 'qa_log_center_release',
+  title: 'QA Log Center Release',
+  summary: 'filterable content revision',
+  action: 'publish',
+  published: true,
+  operator_role: 'super_admin',
+  operator_name: 'qa_release_admin',
+  payload: { qa: true },
+});
+const revisionLogs = await db.listContentRevisions({
+  contentKey: 'qa_log_center_release',
+  action: 'publish',
+  operatorName: 'release_admin',
+  keyword: 'filterable',
+  createdFrom: now - 86400,
+  createdTo: now + 86400,
+  pageSize: 5,
+});
+assert.equal(revisionLogs.total, 1, 'content revisions should support content/action/operator/keyword/time filters together');
+assert.equal(revisionLogs.revisions[0]?.operator_name, 'qa_release_admin', 'content revision filters should return the expected operator row');
 
 await db.recordAdminAuditLog({
   id: 'qa_admin_old_ordinary',

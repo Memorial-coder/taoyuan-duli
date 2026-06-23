@@ -425,14 +425,14 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T3',
     requiredStage: 'bestie',
     title: '矿脉指引',
-    summary: '每周 1 次本周最佳矿层提示。',
+    summary: '每周 1 次本周最佳矿层提示；深层矿洞更容易辨认配件材料与稀有配件。',
     materialCost: [
       { itemId: 'obsidian', quantity: 2 },
       { itemId: 'gold_ore', quantity: 1 }
     ],
     costMoney: 3000,
     effectType: 'mine_floor_hint',
-    effectPayload: { value: 1 }
+    effectPayload: { value: 1, accessoryDropHint: 1 }
   },
   {
     id: 'a_shi_T4_zhiji_mine_boost',
@@ -453,14 +453,14 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T2',
     requiredStage: 'friend',
     title: '锻造指导',
-    summary: '锻造成功率 +10%，材料返还 +5%。',
+    summary: '锻造成功率 +10%，材料返还 +5%；铁匠铺可开始定向打造二阶配件。',
     materialCost: [
       { itemId: 'copper_bar', quantity: 5 },
       { itemId: 'iron_ore', quantity: 10 }
     ],
     costMoney: 1500,
     effectType: 'forge_success_boost',
-    effectPayload: { value: 10 }
+    effectPayload: { value: 10, accessoryTierUnlock: 2 }
   },
   {
     id: 'sun_tiejiang_T3_premium_forge',
@@ -605,7 +605,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T3',
     requiredStage: 'bestie',
     title: '深水线索',
-    summary: '解锁深水区钓鱼点，后续接入钓点列表。',
+    summary: '解锁瀑布与沼泽深水钓点，深水鱼权重 +25%，可转入鱼塘承接样本。',
     materialCost: [
       { itemId: 'iron_bar', quantity: 5 },
       { itemId: 'standard_bait', quantity: 30 }
@@ -652,7 +652,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T1',
     requiredStage: 'familiar',
     title: '药材代购',
-    summary: '药铺解锁代购功能，先作为状态标记。',
+    summary: '药铺新增月草代购货架。',
     materialCost: [{ itemId: 'herb', quantity: 10 }],
     costMoney: 500,
     effectType: 'herb_preorder',
@@ -898,7 +898,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T1',
     requiredStage: 'familiar',
     title: '酒窖储藏',
-    summary: '解锁 +12 格酒类存储，先建立状态标记。',
+    summary: '酒类仓储箱容量 +12。',
     materialCost: [{ itemId: 'wood', quantity: 15 }],
     costMoney: 500,
     effectType: 'wine_cellar',
@@ -984,7 +984,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T2',
     requiredStage: 'friend',
     title: '农舍画像',
-    summary: '挂画全属性 +2%，后续接入农舍装饰效果。',
+    summary: '画像计入家园美观度 +2，影响好感上限和折扣门槛。',
     materialCost: [
       { itemId: 'pine_resin', quantity: 5 },
       { itemId: 'cloth', quantity: 3 }
@@ -999,7 +999,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T3',
     requiredStage: 'bestie',
     title: '景观点缀',
-    summary: '放置 3 处画作装饰，每处 +3% 好感获取。',
+    summary: '景观点缀每日全 NPC 好感 +3，受好感上限约束。',
     materialCost: [
       { itemId: 'pine_resin', quantity: 10 },
       { itemId: 'gold_bar', quantity: 3 }
@@ -1015,7 +1015,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T2',
     requiredStage: 'friend',
     title: '书法指导',
-    summary: '解锁题字功能，提升物品品质。',
+    summary: '解锁药碾隐藏配方「题字墨」，消耗木炭与纸张整理文书。',
     materialCost: [
       { itemId: 'bamboo', quantity: 10 },
       { itemId: 'charcoal', quantity: 5 }
@@ -1030,7 +1030,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T3',
     requiredStage: 'bestie',
     title: '信件代笔',
-    summary: '代写邀请函，节庆邀请 NPC +1 人。',
+    summary: '代写邀请函，社交/邻里邀请容量 +1。',
     materialCost: [
       { itemId: 'gold_bar', quantity: 2 },
       { itemId: 'paper', quantity: 20 }
@@ -1046,7 +1046,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T2',
     requiredStage: 'friend',
     title: '乐曲指导',
-    summary: '节庆表演成功率 +20%。',
+    summary: '节庆好感奖励 +20%，在线节会显示乐曲表现加成。',
     materialCost: [
       { itemId: 'bamboo', quantity: 10 },
       { itemId: 'silk', quantity: 5 }
@@ -1092,7 +1092,7 @@ export const NPC_FUNCTION_UNLOCKS: NpcFunctionUnlockDef[] = [
     tier: 'T3',
     requiredStage: 'bestie',
     title: '定制家具',
-    summary: '解锁独特装饰品配方。',
+    summary: '解锁目录限定家具直购，仍受价格和单件上限限制。',
     materialCost: [
       { itemId: 'pine_resin', quantity: 5 },
       { itemId: 'gold_ore', quantity: 1 }

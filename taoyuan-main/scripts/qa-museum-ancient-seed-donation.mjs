@@ -38,6 +38,7 @@ const tryResolveFile = candidate => {
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
@@ -56,6 +57,13 @@ registerHooks({
       return {
         format: 'module',
         source: 'const noop = () => {}; const Qmsg = { config: noop, info: noop, success: noop, warning: noop, error: noop, closeAll: noop }; export default Qmsg;',
+        shortCircuit: true
+      }
+    }
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {}; export default { saveAs };',
         shortCircuit: true
       }
     }

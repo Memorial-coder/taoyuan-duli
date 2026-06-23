@@ -219,6 +219,16 @@
           <p class="text-[0.625rem] text-muted/80 mt-1">
             {{ source.periodLabel }}已获 {{ source.progress.claims }}/{{ source.progress.maxClaims }} 次 · 常规获得 {{ source.rewardText }}
           </p>
+          <button
+            v-if="source.routeName"
+            class="potential-plain-link potential-source-action mt-2"
+            type="button"
+            :data-testid="`potential-source-route-${source.id}`"
+            @click="navigateToPanel(source.routeName)"
+          >
+            <MapPinned :size="12" />
+            <span>{{ source.routeLabel ?? '前往来源' }}</span>
+          </button>
         </div>
       </div>
     </section>
@@ -314,7 +324,7 @@
 
 <script setup lang="ts">
   import { computed, ref, type Component } from 'vue'
-  import { AlertTriangle, CheckCircle2, LockKeyhole, RotateCcw, Sparkles, Star, Unlock, Users, X } from 'lucide-vue-next'
+  import { AlertTriangle, CheckCircle2, LockKeyhole, MapPinned, RotateCcw, Sparkles, Star, Unlock, Users, X } from 'lucide-vue-next'
   import {
     POTENTIAL_BRANCH_DEFS,
     POTENTIAL_EFFECT_VALUES,

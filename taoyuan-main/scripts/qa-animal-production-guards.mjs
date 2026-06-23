@@ -16,6 +16,7 @@ const animalTypeSource = readProject('src', 'types', 'animal.ts')
 const animalViewSource = readProject('src', 'views', 'game', 'AnimalView.vue')
 const endDaySource = readProject('src', 'composables', 'useEndDay.ts')
 const farmingExperienceSource = readProject('src', 'utils', 'farmingExperience.ts')
+const npcFunctionEffectsSource = readProject('src', 'data', 'npcFunctionEffects.ts')
 
 // Independent timer architecture: grazing and daily production each have their own cycle
 
@@ -55,5 +56,48 @@ assert.ok(endDaySource.includes('animalResult.products.reduce((sum, product) => 
 // Save migration: normalizeAnimalSave should handle legacy daysSinceProduct
 assert.ok(animalStoreSource.includes('daysSinceAutoProduct: Number.isFinite(animal?.daysSinceAutoProduct)'), 'normalizeAnimalSave should read daysSinceAutoProduct with legacy fallback')
 assert.ok(animalStoreSource.includes('daysSinceGrazingProduct: Number.isFinite(animal?.daysSinceGrazingProduct)'), 'normalizeAnimalSave should read daysSinceGrazingProduct with legacy fallback')
+
+// NPC animal function effects
+for (const effectType of [
+  'animal_mood_slow',
+  'spouse_animal_boost',
+  'auto_animal_affection',
+  'animal_tracker',
+  'pasture_discovery'
+]) {
+  assert.ok(npcFunctionEffectsSource.includes(effectType), `${effectType} should be registered in the NPC function effect registry`)
+}
+assert.ok(
+  animalStoreSource.includes("npcStore.getNpcFunctionEffectValue('animal_mood_slow')"),
+  'daily pet mood settlement should read animal_mood_slow from NPC function effects'
+)
+assert.ok(
+  animalStoreSource.includes("npcStore.getNpcFunctionEffectValue('auto_animal_affection')") &&
+    animalStoreSource.includes('animal.friendship = Math.min(1000, animal.friendship + npcAutoAffection)'),
+  'daily animal update should apply auto_animal_affection as real friendship gain with a hard cap'
+)
+assert.ok(
+  animalStoreSource.includes("npcStore.getNpcFunctionEffectValue('spouse_animal_boost')") &&
+    animalStoreSource.includes('quality = upgradeAnimalProductQuality(quality)'),
+  'animal product quality should apply spouse_animal_boost through bounded quality upgrades'
+)
+assert.ok(
+  animalStoreSource.includes("npcStore.isNpcFunctionEffectUnlocked('animal_tracker')") &&
+    animalStoreSource.includes('const npcAnimalTrackerSummary = computed(() =>'),
+  'animal_tracker should unlock a real tracker summary for the animal UI'
+)
+assert.ok(
+  animalViewSource.includes('data-testid="npc-animal-tracker-panel"') &&
+    animalViewSource.includes('阿福的牧场追踪') &&
+    animalViewSource.includes('entry.productStatus'),
+  'AnimalView should surface tracker output with production status instead of hiding the formula'
+)
+assert.ok(
+  animalStoreSource.includes("npcStore.isNpcFunctionEffectUnlocked('pasture_discovery')") &&
+    animalStoreSource.includes('NPC_PASTURE_DISCOVERY_CHANCE') &&
+    animalStoreSource.includes('pastureDiscoveries.push(discovery)') &&
+    animalStoreSource.includes('inventoryStore.addItem(bp.itemId, 1, bp.quality)'),
+  'pasture_discovery should create real grazing bonus items and add them to inventory'
+)
 
 console.log('qa-animal-production-guards passed')

@@ -1,5 +1,7 @@
 import type { CropDef, FarmPlot } from '@/types'
 
+export const MAX_CROP_GROWTH_SPEEDUP = 0.5
+
 export const getCropCycleDays = (
   crop: Pick<CropDef, 'growthDays' | 'regrowth' | 'regrowthDays'> | null | undefined,
   harvestCount = 0
@@ -16,7 +18,8 @@ export const getCropEffectiveGrowthDays = (
   harvestCount = 0
 ): number => {
   const cycleDays = getCropCycleDays(crop, harvestCount)
-  return Math.max(1, cycleDays * (1 - Math.max(0, Number(speedup) || 0)))
+  const boundedSpeedup = Math.min(MAX_CROP_GROWTH_SPEEDUP, Math.max(0, Number(speedup) || 0))
+  return Math.max(1, cycleDays * (1 - boundedSpeedup))
 }
 
 export const getPlotEffectiveGrowthDays = (

@@ -174,7 +174,7 @@ export interface WeeklyGoalState extends GoalState {
   linkedThemeWeekId?: string
 }
 
-export type WeeklyActivityThemeId = 'fishpond' | 'breeding' | 'gathering' | 'mining' | 'planting' | 'region_map'
+export type WeeklyActivityThemeId = 'fishpond' | 'breeding' | 'gathering' | 'mining' | 'planting' | 'region_map' | 'life_linkage'
 
 export type WeeklyActivityTaskKind = 'counter' | 'metric' | 'itemSubmission' | 'fishSubmission' | 'seedSubmission'
 
@@ -192,6 +192,9 @@ export type WeeklyActivityCounterKey =
   | 'farm_watered'
   | 'farm_fertilizer_applied'
   | 'region_map_progress_actions'
+  | 'life_linkage_actions'
+  | 'processed_order_submitted'
+  | 'npc_function_advanced_order_completed'
 
 export type WeeklyActivityMetricKey =
   | 'totalCropsHarvested'
@@ -205,6 +208,18 @@ export type WeeklyActivityMetricKey =
   | 'regionRouteCompletions'
   | 'expeditionBossClears'
   | 'regionalResourceTurnIns'
+  | 'processedOrderSubmissions'
+  | 'museumExhibitSetCompletions'
+  | 'speciesNoteCompletions'
+  | 'npcFunctionAdvancedOrderCompletions'
+  | 'quarryLifetimeClears'
+  | 'quarryDeepClears'
+  | 'quarryWeeklyClaims'
+  | 'familyWishCompletions'
+  | 'processedOrderSubmissions'
+  | 'museumExhibitSetCompletions'
+  | 'speciesNoteCompletions'
+  | 'npcFunctionAdvancedOrderCompletions'
   | 'discoveredCount'
 
 export interface WeeklyActivityItemSubmission {

@@ -136,6 +136,9 @@
             <p v-if="modalInfo.recommendationText" class="text-xs text-accent/80 mt-0.5">
               {{ modalInfo.recommendationText }}
             </p>
+            <p v-if="modalInfo.canCook && cookingStore.getNpcCookingQualityHint()" class="text-xs text-accent/80 mt-0.5">
+              {{ cookingStore.getNpcCookingQualityHint() }}
+            </p>
           </div>
 
           <!-- 材料 -->
@@ -324,7 +327,7 @@
     return cookingStore.recipes.map(recipe => {
       const cookingPlan = cookingStore.getCookingUsePlan(recipe.id)
       const canCook = hasRequiredCookingSkill(recipe) && cookingPlan.fulfilled
-      const quality = getCookingPlanQuality(cookingPlan)
+      const quality = canCook ? cookingStore.getPreviewCookQualityWithNpc(recipe.id) : getCookingPlanQuality(cookingPlan)
       const outputItem = getItemById(`food_${recipe.id}`) ?? null
       const substitutionText = formatCropUseSubstitutionSummary(cookingPlan, getItemName)
       const categoryText = getRecipeCategoryLabels(recipe).join('、')
@@ -360,6 +363,7 @@
       info.recipe.effect.buff?.description ?? '',
       info.cropUseText,
       info.substitutionText,
+      info.canCook ? cookingStore.getNpcCookingQualityHint() : '',
       info.recommendationText
     ].filter(Boolean).join('\n')
   }

@@ -50,6 +50,8 @@ const normalizePositiveInt = (value: unknown): number => {
 }
 const normalizeQuality = (value: unknown): Quality =>
   value === 'fine' || value === 'excellent' || value === 'supreme' ? value : 'normal'
+const normalizeOptionalQuality = (value: unknown): Quality | undefined =>
+  value === 'normal' || value === 'fine' || value === 'excellent' || value === 'supreme' ? value : undefined
 
 const getMoneyDelta = (costs: FestivalStallBundleEntry[], rewards: FestivalStallBundleEntry[]): number => {
   const spent = costs
@@ -71,6 +73,16 @@ const getItemRewards = (rewards: FestivalStallBundleEntry[]): { itemId: string; 
     }))
     .filter(entry => entry.itemId && entry.quantity > 0)
 
+const getItemCosts = (costs: FestivalStallBundleEntry[]): { itemId: string; quantity: number; quality?: Quality }[] =>
+  costs
+    .filter(entry => entry.type === 'item')
+    .map(entry => ({
+      itemId: String(entry.item_id || '').trim(),
+      quantity: normalizePositiveInt(entry.quantity),
+      quality: normalizeOptionalQuality(entry.quality)
+    }))
+    .filter(entry => entry.itemId && entry.quantity > 0)
+
 const getTicketRewards = (rewards: FestivalStallBundleEntry[]): RewardTicketLedger => {
   const ledger: RewardTicketLedger = {}
   for (const reward of rewards) {
@@ -86,10 +98,16 @@ const getTicketRewards = (rewards: FestivalStallBundleEntry[]): RewardTicketLedg
 const applyPurchaseDeltaToCurrentSession = (result: FestivalStallActionResponse): boolean => {
   const costs = result.record?.costs ?? []
   const rewards = result.record?.rewards ?? []
+  const itemCosts = getItemCosts(costs)
   const itemRewards = getItemRewards(rewards)
   const ticketRewards = getTicketRewards(rewards)
   const moneyDelta = getMoneyDelta(costs, rewards)
   const inventoryStore = useInventoryStore()
+
+  if (itemCosts.some(cost => inventoryStore.getTotalItemCount(cost.itemId, cost.quality) < cost.quantity)) return false
+  for (const cost of itemCosts) {
+    if (!inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity, cost.quality)) return false
+  }
 
   if (itemRewards.length > 0 && !inventoryStore.addItemsExact(itemRewards)) return false
 

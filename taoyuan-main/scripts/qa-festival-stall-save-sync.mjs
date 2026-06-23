@@ -23,11 +23,13 @@ const [
   festivalStallStore,
   festivalStallApi,
   festivalStallRuntime,
+  festivalStallPanel,
   shopView,
 ] = await Promise.all([
   readAppSource(path.join('src', 'stores', 'useFestivalStallStore.ts')),
   readAppSource(path.join('src', 'utils', 'festivalStallApi.ts')),
   readRepoSource(path.join('server', 'src', 'taoyuanFestivalStall.js')),
+  readAppSource(path.join('src', 'components', 'game', 'FestivalStallPanel.vue')),
   readAppSource(path.join('src', 'views', 'game', 'ShopView.vue')),
 ])
 
@@ -45,6 +47,11 @@ const buildOfferSummary = extractBetween(
   festivalStallRuntime,
   'function buildOfferSummary',
   'function listFestivalStall'
+)
+const finalizeCatalog = extractBetween(
+  festivalStallRuntime,
+  'function finalizeCatalog',
+  'function getFestivalCatalog'
 )
 const purchaseFestivalStallOffer = extractBetween(
   festivalStallRuntime,
@@ -110,6 +117,10 @@ assert(
   'festival stall API response type must expose save_revision'
 )
 assert(
+  festivalStallApi.includes("'supply'"),
+  'festival stall API types must expose the supply booth category'
+)
+assert(
   festivalStallRuntime.includes('let saveRevision = 0') &&
     festivalStallRuntime.includes('saveRevision = persistGameplayData(context)'),
   'festival stall runtime must capture the server save revision created by purchase persistence'
@@ -134,14 +145,65 @@ assert(
   'festival stall snapshots must show personal purchase-limit exhaustion before operation cooldown governance'
 )
 assert(
+  finalizeCatalog.includes('Array.isArray(entry.costs)') &&
+    finalizeCatalog.includes('entry.costs.map(normalizeBundleCostEntry)') &&
+    !finalizeCatalog.includes("costs: [{ type: 'money', amount: entry.price_money }]"),
+  'festival stall catalog finalization must preserve custom item costs for supply offers'
+)
+assert(
+  festivalStallRuntime.includes("id: 'festival_lantern_oil_supply'") &&
+    festivalStallRuntime.includes("id: 'festival_banquet_flour_supply'") &&
+    festivalStallRuntime.includes("id: 'festival_hearth_dried_supply'") &&
+    festivalStallRuntime.includes("categories: ['supply']") &&
+    festivalStallRuntime.includes("tags: ['节会备料', '加工品消耗池'"),
+  'festival stall runtime must expose supply offers that consume processed item groups'
+)
+assert(
+  buildOfferSummary.includes('const moneyCost = getOfferMoneyCost(offer)') &&
+    buildOfferSummary.includes('if (moneyCost > 0)') &&
+    buildOfferSummary.includes('money_volume: moneyCost'),
+  'festival stall snapshots must use real money costs for governance and allow item-only supply offers'
+)
+assert(
   purchaseFestivalStallOffer.indexOf('claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)') <
     purchaseFestivalStallOffer.indexOf('marketGovernance.ensureUserRateLimit'),
   'festival stall purchase attempts must reject exhausted personal limits before operation cooldown governance'
 )
 assert(
+  purchaseFestivalStallOffer.includes('const moneyCost = getOfferMoneyCost(offer)') &&
+    purchaseFestivalStallOffer.includes('if (moneyCost > 0)') &&
+    purchaseFestivalStallOffer.includes('applyCostsToSave(context.data, offer.costs)') &&
+    purchaseFestivalStallOffer.includes('costs: offer.costs') &&
+    purchaseFestivalStallOffer.includes('money_volume: moneyCost') &&
+    !purchaseFestivalStallOffer.includes('context.data.player.money = previousMainMoney - offer.price_money'),
+  'festival stall purchase path must deduct the generic offer costs and record item-cost supply submissions'
+)
+assert(
+  festivalStallStore.includes('const getItemCosts = (costs: FestivalStallBundleEntry[])') &&
+    festivalStallStore.includes('inventoryStore.getTotalItemCount(cost.itemId, cost.quality)') &&
+    festivalStallStore.includes('inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity, cost.quality)') &&
+    festivalStallStore.indexOf('inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity, cost.quality)') <
+      festivalStallStore.indexOf('inventoryStore.addItemsExact(itemRewards)'),
+  'festival stall current-session delta merge must remove item costs before adding rewards'
+)
+assert(
+  festivalStallPanel.includes('festival-stall-submit-supply') &&
+    festivalStallPanel.includes('提交备料') &&
+    festivalStallPanel.includes('个人{{ isSupplyOffer(offer) ?') &&
+    festivalStallPanel.includes('本周摊位记录'),
+  'festival stall panel must present supply offers as submissions instead of 0-money purchases'
+)
+assert(
   shopView.includes('const isIdempotencyReplay = result.idempotency_replayed === true') &&
-    shopView.includes('本次未重复发放奖励'),
+    shopView.includes("本次未重复${isSupplyOffer ? '提交备料或发放回礼' : '发放奖励'}"),
   'festival stall UI must label idempotency replay as confirmation instead of a fresh purchase'
+)
+assert(
+  shopView.includes('const isSupplyOffer = isFestivalStallSupplyOffer(result.offer)') &&
+    shopView.includes('提交成功') &&
+    shopView.includes('【节庆备料】已提交') &&
+    shopView.includes('交出${formatExchangeBundle(result.record.costs)}'),
+  'festival stall UI must log supply submissions with submitted costs and return gifts'
 )
 
 console.log('qa-festival-stall-save-sync: ok')

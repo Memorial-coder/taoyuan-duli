@@ -21,6 +21,7 @@ import type {
   VillageProjectContentTier,
   VillageProjectDebugSnapshot,
   VillageProjectDonationState,
+  VillageProjectDonationMilestone,
   VillageProjectDonationSummary,
   VillageProjectLinkedSystem,
   VillageProjectMaintenanceState,
@@ -885,6 +886,49 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     return updateMaintenanceState(projectId, { status: 'inactive' })
   }
 
+  const activateDonationMilestoneEffect = (
+    milestone: VillageProjectDonationMilestone,
+    sourceProjectId: string,
+    planId: string
+  ): { success: boolean; effectText: string; message?: string } => {
+    const activation = milestone.activation
+    if (!activation) {
+      return { success: true, effectText: '' }
+    }
+    if (activation.type !== 'maintenanceWindow') {
+      return { success: false, effectText: '', message: '未知的捐赠里程碑效果。' }
+    }
+
+    const targetProject = getProject(activation.projectId)
+    if (!targetProject?.maintenancePlan) {
+      return { success: false, effectText: '', message: '目标项目没有可启用的维护计划。' }
+    }
+    if (!targetProject.completed) {
+      return { success: false, effectText: '', message: '目标项目尚未完工，不能启用维护窗口。' }
+    }
+
+    const nextDueDayTag = addDaysToDayTag(getCurrentDayTag(), activation.durationDays)
+    const nextState = activateMaintenancePlan(activation.projectId, nextDueDayTag)
+    if (!nextState) {
+      return { success: false, effectText: '', message: '启用维护窗口失败。' }
+    }
+
+    const effectText = `${activation.summary}（至 ${nextDueDayTag}）`
+    addLog(`【村庄建设】${milestone.label}启用${targetProject.name}维护窗口：${targetProject.maintenancePlan.effectSummary}`, {
+      category: 'village',
+      tags: ['village_project_donation_milestone', 'village_project_maintenance_cycle', 'late_game_cycle'],
+      meta: {
+        projectId: sourceProjectId,
+        planId,
+        milestoneId: milestone.id,
+        targetProjectId: activation.projectId,
+        durationDays: activation.durationDays,
+        nextDueDayTag
+      }
+    })
+    return { success: true, effectText }
+  }
+
   const payProjectMaintenance = (projectId: string) => {
     const summary = getProjectMaintenanceSummary(projectId)
     if (!summary) return { success: false, message: '该项目没有维护计划。' }
@@ -1028,6 +1072,23 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       return { success: false, message: rewardResult.message ?? '奖励发放失败。' }
     }
 
+    const project = getProject(projectId)
+    const milestoneDef = project?.donationPlan?.milestones?.find(entry => entry.id === milestoneId)
+    if (!milestoneDef) {
+      inventoryStore.deserialize(inventorySnapshot)
+      playerStore.deserialize(playerSnapshot)
+      achievementStore.deserialize(achievementSnapshot)
+      return { success: false, message: '捐赠里程碑定义不存在。' }
+    }
+
+    const activationResult = activateDonationMilestoneEffect(milestoneDef, projectId, donationSummary.plan.id)
+    if (!activationResult.success) {
+      inventoryStore.deserialize(inventorySnapshot)
+      playerStore.deserialize(playerSnapshot)
+      achievementStore.deserialize(achievementSnapshot)
+      return { success: false, message: activationResult.message ?? '启用捐赠里程碑效果失败。' }
+    }
+
     const nextState = updateDonationState(projectId, {
       claimedMilestoneIds: [...donationSummary.state.claimedMilestoneIds, milestoneId]
     })
@@ -1046,7 +1107,9 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
 
     return {
       success: true,
-      message: rewardResult.rewardText ? `${milestone.label} 已领取：${rewardResult.rewardText}。` : `${milestone.label} 已记录为已领取。`
+      message: [rewardResult.rewardText ? `${milestone.label} 已领取：${rewardResult.rewardText}` : `${milestone.label} 已记录为已领取`, activationResult.effectText]
+        .filter(Boolean)
+        .join('；') + '。'
     }
   }
 

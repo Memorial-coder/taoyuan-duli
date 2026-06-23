@@ -1064,6 +1064,49 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       effectSummary: '维持清道、支架和矿料分拣，维护生效时采石场每日生成上限 +2。',
       autoRenew: false
     },
+    donationPlan: {
+      id: 'quarry_stewardship_supply_drive',
+      label: '采石场维护供材',
+      targetSystem: 'mining',
+      requirementSummary: '消耗采石场回流的石材、木材、铁锭与深脉矿材，为清道、支架和分拣棚补足一轮维护物资。',
+      rewardSummary: '达到阶段目标后可领取采石场维护窗口，限时 7 天提高每日资源生成上限，不会永久叠加。',
+      acceptedItemIds: ['stone', 'wood', 'iron_bar', 'obsidian', 'dragon_jade'],
+      targetAmount: 16,
+      repeatable: true,
+      milestones: [
+        {
+          id: 'quarry_basic_supply_window',
+          label: '清道供材到位',
+          targetAmount: 8,
+          rewardSummary: '启用 7 天采石场清道维护，维护期内每日生成上限 +2。',
+          activation: {
+            type: 'maintenanceWindow',
+            projectId: QUARRY_PROJECT_ID,
+            durationDays: 7,
+            summary: '采石场清道维护 7 天'
+          },
+          reward: {
+            money: 1200
+          }
+        },
+        {
+          id: 'quarry_deep_supply_window',
+          label: '深脉支架补强',
+          targetAmount: 16,
+          rewardSummary: '再次校准维护窗口并返还少量基础建材，作为深脉支架补强回馈。',
+          activation: {
+            type: 'maintenanceWindow',
+            projectId: QUARRY_PROJECT_ID,
+            durationDays: 7,
+            summary: '采石场深脉支架维护 7 天'
+          },
+          reward: {
+            money: 2600,
+            items: [{ itemId: 'stone', quantity: 24 }]
+          }
+        }
+      ]
+    },
     regionalEffects: [
       {
         areaId: 'mountain_old_quarry',

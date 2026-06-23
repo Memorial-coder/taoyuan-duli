@@ -226,6 +226,37 @@
           <p class="text-[0.625rem] text-muted mt-2 leading-4">遗迹勘探会消耗一笔探索费用，但能稳定带回商路遗物、异域素材与藏宝图线索。</p>
         </div>
 
+        <div data-testid="hanhai-travel-prep-panel" class="border border-accent/20 rounded-xs p-2 mb-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent">出行准备</p>
+            <span class="text-[0.625rem] text-muted">可选消耗，不带也能出发</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            <button
+              v-for="prep in hanhaiStore.travelPrepPreviews"
+              :key="prep.prepId ?? 'none'"
+              type="button"
+              data-testid="hanhai-travel-prep-option"
+              class="border rounded-xs p-2 text-left transition-colors"
+              :class="selectedTravelPrepId === prep.prepId ? 'border-accent bg-accent/10' : 'border-accent/10 hover:border-accent/30'"
+              :disabled="prep.locked"
+              @click="selectedTravelPrepId = prep.prepId"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs" :class="prep.canUse ? 'text-accent' : prep.locked ? 'text-muted/50' : 'text-danger'">{{ prep.label }}</span>
+                <span class="text-[0.5625rem]" :class="prep.canUse ? 'text-success' : prep.locked ? 'text-muted/50' : 'text-danger'">
+                  {{ prep.locked ? '未解锁' : prep.canUse ? '可用' : '缺材料' }}
+                </span>
+              </div>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ prep.costSummary }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ prep.successRateText }} · {{ prep.riskText }} · {{ prep.rewardText }}</p>
+              <p v-if="prep.missingCostLabels.length" class="text-[0.625rem] text-danger leading-4 mt-1">缺：{{ prep.missingCostLabels.join('、') }}</p>
+            </button>
+          </div>
+          <p class="text-[0.625rem] text-muted leading-4 mt-2">{{ selectedTravelPrepPreview?.effectSummary }}</p>
+          <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ selectedTravelPrepPreview?.sinkSummary }}</p>
+        </div>
+
         <div class="flex flex-col space-y-2 max-h-80 overflow-y-auto pr-1">
           <div v-for="site in hanhaiStore.relicSites" :key="site.id" class="border border-accent/20 rounded-xs p-2">
             <div class="flex items-start justify-between gap-2">
@@ -241,13 +272,13 @@
             <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[0.625rem]">
               <div class="flex items-center justify-between">
                 <span class="text-muted">探索费用</span>
-                <span :class="playerStore.money >= site.unlockCost ? 'text-success' : 'text-danger'">{{ site.unlockCost }}文</span>
+                <span :class="playerStore.money >= getPreparedRelicCost(site.id) ? 'text-success' : 'text-danger'">{{ getPreparedRelicCost(site.id) }}文</span>
               </div>
               <div class="flex items-center justify-between mt-0.5">
                 <span class="text-muted">遗迹主题</span>
                 <span class="text-accent">{{ getRelicTagLabel(site.relicTag) }}</span>
               </div>
-              <p class="text-muted mt-1 leading-4">预计收获：{{ getRelicRewardText(site) }}</p>
+              <p class="text-muted mt-1 leading-4">预计收获：{{ getPreparedRelicRewardText(site.id) }}</p>
             </div>
 
             <div class="mt-2 flex items-center justify-between gap-2">
@@ -919,7 +950,7 @@
   } from '@/data/hanhai'
   import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
   import type { Component } from 'vue'
-  import type { BuckshotPlayerAction, BuckshotSetup, CricketDef, HanhaiRelicSiteDef, HanhaiShopItemDef, TexasSessionReport, TexasSetup, TexasTierId } from '@/types'
+  import type { BuckshotPlayerAction, BuckshotSetup, CricketDef, HanhaiShopItemDef, TexasSessionReport, TexasSetup, TexasTierId } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { useAudio } from '@/composables/useAudio'
   import {
@@ -974,6 +1005,7 @@
   const activeTab = ref<HanhaiMapNodeId>('shop')
   const hanhaiTabs = ['shop', 'route', 'relic', 'casino', 'rotation'] as const
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
+  const selectedTravelPrepId = ref<string | null>(null)
   const animationTimers = new Set<ReturnType<typeof setTimeout>>()
   let disposed = false
 
@@ -1264,8 +1296,9 @@
     }
   }
 
-  const canReceiveRelicExploreRewards = (site: HanhaiRelicSiteDef): boolean => {
-    const rewardItems = (site.rewards.items ?? []).map(item => ({
+  const canReceiveRelicExploreRewardsForPreparedBundle = (siteId: string): boolean => {
+    const bundle = hanhaiStore.getRelicPreparedRewardBundle(siteId, selectedUsableTravelPrepId.value)
+    const rewardItems = (bundle.items ?? []).map(item => ({
       itemId: item.itemId,
       quantity: item.quantity,
       quality: 'normal' as const
@@ -1277,13 +1310,24 @@
     return inventoryStore.canAddItems([{ itemId: 'hanhai_map', quantity: 1, quality: 'normal' as const }])
   }
 
-  const getRelicRewardText = (site: HanhaiRelicSiteDef): string => {
+  const selectedTravelPrepPreview = computed(() =>
+    hanhaiStore.travelPrepPreviews.find(prep => prep.prepId === selectedTravelPrepId.value) ?? hanhaiStore.travelPrepPreviews[0]
+  )
+
+  const selectedUsableTravelPrepId = computed(() =>
+    selectedTravelPrepPreview.value?.canUse ? selectedTravelPrepPreview.value.prepId : null
+  )
+
+  const getPreparedRelicCost = (siteId: string): number =>
+    hanhaiStore.getRelicExploreCost(siteId, selectedUsableTravelPrepId.value)
+
+  const getRelicRewardTextFromBundle = (bundle: { money?: number; items?: { itemId: string; quantity: number }[]; ticketRewards?: Record<string, number | undefined> }): string => {
     const rewards: string[] = []
-    if (site.rewards.money) rewards.push(`${site.rewards.money}文`)
-    for (const item of site.rewards.items ?? []) {
+    if (bundle.money) rewards.push(`${bundle.money}文`)
+    for (const item of bundle.items ?? []) {
       rewards.push(`${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
     }
-    for (const [ticketType, quantity] of Object.entries(site.rewards.ticketRewards ?? {})) {
+    for (const [ticketType, quantity] of Object.entries(bundle.ticketRewards ?? {})) {
       const normalizedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
       if (normalizedQuantity > 0) {
         rewards.push(`${REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType}×${normalizedQuantity}`)
@@ -1292,10 +1336,16 @@
     return rewards.join('、')
   }
 
+  const getPreparedRelicRewardText = (siteId: string): string =>
+    getRelicRewardTextFromBundle(hanhaiStore.getRelicPreparedRewardBundle(siteId, selectedUsableTravelPrepId.value))
+
   const canExploreRelic = (siteId: string): boolean => {
     const site = hanhaiStore.relicSites.find(entry => entry.id === siteId)
     if (!site) return false
-    return hanhaiStore.getRelicRemaining(siteId) > 0 && playerStore.money >= site.unlockCost && canReceiveRelicExploreRewards(site)
+    return hanhaiStore.getRelicRemaining(siteId) > 0 &&
+      playerStore.money >= getPreparedRelicCost(siteId) &&
+      canReceiveRelicExploreRewardsForPreparedBundle(siteId) &&
+      selectedTravelPrepPreview.value?.canUse !== false
   }
 
   const canClaimRelicMilestone = (siteId: string): boolean => {
@@ -1313,14 +1363,18 @@
     if (record.claimedMilestone) return '本周驻点奖励已领取，等下周再来。'
     if (record.clears >= site.weeklyLimit && !canReceiveRelicMilestoneRewards()) return '背包空间不足，暂时无法领取驻点奖励。'
     if (record.clears >= site.weeklyLimit) return '已完成本周全部勘探，可领取驻点奖励。'
-    if (playerStore.money < site.unlockCost) return `金钱不足，还差 ${site.unlockCost - playerStore.money} 文探索费用。`
-    if (!canReceiveRelicExploreRewards(site)) return '背包空间不足，暂时无法进行这处遗迹勘探。'
-    return `本周已勘探 ${record.clears}/${site.weeklyLimit} 次。`
+    if (selectedTravelPrepPreview.value?.canUse === false) {
+      if (selectedTravelPrepPreview.value.locked) return `${selectedTravelPrepPreview.value.label}尚未解锁，可切换为不带准备物。`
+      return `当前准备物材料不足：${selectedTravelPrepPreview.value.missingCostLabels.join('、')}。`
+    }
+    const preparedCost = getPreparedRelicCost(siteId)
+    if (playerStore.money < preparedCost) return `金钱不足，还差 ${preparedCost - playerStore.money} 文探索费用。`
+    if (!canReceiveRelicExploreRewardsForPreparedBundle(siteId)) return '背包空间不足，暂时无法进行这处遗迹勘探。'
+    return `本周已勘探 ${record.clears}/${site.weeklyLimit} 次${selectedUsableTravelPrepId.value ? `，当前准备：${selectedTravelPrepPreview.value?.label}` : ''}。`
   }
 
   const handleExploreRelic = (siteId: string) => {
-    const result = hanhaiStore.exploreRelicSite(siteId)
-    if (!result.success) addLog(result.message)
+    hanhaiStore.exploreRelicSite(siteId, selectedUsableTravelPrepId.value)
   }
 
   const handleClaimRelicMilestone = (siteId: string) => {

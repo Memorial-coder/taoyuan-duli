@@ -50,6 +50,11 @@
             <span class="mt-2 block text-[0.625rem] leading-4 text-muted">
               {{ memberLimitText(template) }}
             </span>
+            <span class="mt-2 grid gap-1 text-[0.625rem] leading-4" data-testid="online-room-wizard-template-play-hooks">
+              <span class="border border-accent/10 bg-black/10 px-2 py-1 text-muted">{{ templatePlayHint(template) }}</span>
+              <span class="border border-accent/10 bg-black/10 px-2 py-1 text-muted">{{ templateEventHint(template) }}</span>
+              <span class="border border-accent/10 bg-black/10 px-2 py-1 text-accent">{{ templateRewardHint(template) }}</span>
+            </span>
           </button>
         </div>
       </section>
@@ -147,6 +152,51 @@
         data-testid="online-room-wizard-step-invite"
         aria-labelledby="online-room-wizard-step-invite-title"
       >
+        <section v-if="inviteCandidateGroups.length > 0" class="space-y-2" aria-labelledby="online-room-wizard-invite-candidates-title">
+          <div class="flex items-center justify-between gap-2">
+            <p id="online-room-wizard-invite-candidates-title" class="text-[0.625rem] leading-4 text-muted">可直接选择</p>
+            <span class="text-[0.625rem] leading-4 text-muted">{{ selectableInviteCandidateCount }} 人可选</span>
+          </div>
+          <div class="space-y-3" data-testid="online-room-wizard-invite-candidates">
+            <section
+              v-for="group in inviteCandidateGroups"
+              :key="group.id"
+              class="space-y-2"
+              :data-testid="`online-room-wizard-invite-candidate-group-${group.id}`"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[0.625rem] leading-4 text-accent">{{ group.label }}</p>
+                <span class="text-[0.625rem] leading-4 text-muted">{{ group.players.length }} 人</span>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <button
+                  v-for="player in group.players"
+                  :key="inviteCandidateKey(player)"
+                  type="button"
+                  class="game-panel-muted min-h-[60px] p-2 text-left transition-colors"
+                  :class="inviteCandidateButtonClass(player)"
+                  :disabled="busy || !isInviteCandidateSelectable(player)"
+                  :aria-pressed="isInviteCandidateSelected(player)"
+                  :data-testid="`online-room-wizard-invite-candidate-${inviteCandidateKey(player)}`"
+                  @click="addInviteCandidate(player)"
+                >
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block truncate text-xs leading-5 text-accent">{{ player.displayName || player.username }}</span>
+                      <span class="mt-0.5 block truncate text-[0.625rem] leading-4 text-muted">
+                        {{ player.reason || player.subtitle || player.username }}
+                      </span>
+                    </span>
+                    <span class="shrink-0 border border-accent/15 px-1.5 py-0.5 text-[0.625rem] leading-4 text-muted">
+                      {{ inviteCandidateStatusLabel(player) }}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+
         <div>
           <p id="online-room-wizard-step-invite-title" class="text-sm leading-5 text-accent">邀请成员</p>
           <p class="mt-1 text-xs leading-5 text-muted">可以先创建房间，也可以稍后在房间里继续邀请。</p>
@@ -301,6 +351,7 @@
 
   export type OnlineRoomWizardDomain = 'festival' | 'expedition'
   export type OnlineRoomVisibility = 'public' | 'private'
+  export type OnlineRoomWizardInviteCandidateGroup = 'online-friends' | 'friends' | 'recent' | 'recommended' | 'blocked' | 'other'
 
   export type OnlineRoomWizardOption = {
     id: string
@@ -315,6 +366,17 @@
     recommended_gameplay_template_ids?: string[]
     recommendedGameplayTemplateIds?: string[]
     recommended_room_template_ids?: string[]
+  }
+
+  export type OnlineRoomWizardInviteCandidate = {
+    id?: string
+    username: string
+    displayName?: string
+    subtitle?: string
+    disabled?: boolean
+    reason?: string
+    group?: OnlineRoomWizardInviteCandidateGroup
+    groupLabel?: string
   }
 
   export type OnlineRoomWizardDraft = {
@@ -350,6 +412,7 @@
     templates?: OnlineRoomWizardOption[]
     gameplayTemplates?: OnlineRoomWizardOption[]
     memberLimitOptions?: number[]
+    inviteCandidates?: OnlineRoomWizardInviteCandidate[]
     busy?: boolean
     errorMessage?: string
   }>(), {
@@ -361,6 +424,7 @@
     templates: () => [],
     gameplayTemplates: () => [],
     memberLimitOptions: () => [],
+    inviteCandidates: () => [],
     busy: false,
     errorMessage: '',
   })
@@ -380,27 +444,31 @@
   ]
 
   const fallbackFestivalTemplates: OnlineRoomWizardOption[] = [
-    { id: 'lantern_fair', label: '上元灯会', summary: '共建花灯墙，留下好友与纪念记录。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 8, recommended_gameplay_template_ids: ['public_progress', 'squad_coop'] },
-    { id: 'dragon_boat', label: '龙舟赛道', summary: '多人赛舟，按船位和行动节奏推进名次。', default_member_limit: 8, min_member_limit: 2, max_member_limit: 8, recommended_gameplay_template_ids: ['squad_coop'] },
-    { id: 'laba_kitchen', label: '腊八共灶', summary: '合备食材和火候，完成节令共灶。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 6, recommended_gameplay_template_ids: ['public_progress'] },
-    { id: 'firework_photo', label: '烟火留影', summary: '组织烟火和留影目标，完成节会纪念。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 6, recommended_gameplay_template_ids: ['squad_coop'] },
+    { id: 'lantern_fair', label: '上元灯会', summary: '灯谜竞猜、点灯和花灯巡游集中在同一个热闹短局里。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 8, recommended_gameplay_template_ids: ['quiz_buzz', 'assembly'] },
+    { id: 'dragon_boat', label: '端午赛舟', summary: '多人赛舟，按船位和行动节奏推进名次。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 8, recommended_gameplay_template_ids: ['squad_coop', 'gathering'] },
+    { id: 'laba_cookpot', label: '腊八共煮', summary: '合备食材和火候，完成节令共灶。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 6, recommended_gameplay_template_ids: ['assembly', 'gathering'] },
+    { id: 'mid_autumn_moonwatch', label: '中秋赏月', summary: '组织赏月、合照和公共展示，完成节会纪念。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 6, recommended_gameplay_template_ids: ['public_progress', 'group_photo'] },
   ]
 
   const fallbackExpeditionTemplates: OnlineRoomWizardOption[] = [
-    { id: 'expedition_cavern', label: '协作矿洞', summary: '分工采集、控制风险，并可提前撤离。', default_member_limit: 4, recommended_gameplay_template_ids: ['expedition_roles'] },
-    { id: 'expedition_escort', label: '护送抵运', summary: '沿路线护送货物，处理风险格和抵运完整度。', default_member_limit: 4, recommended_gameplay_template_ids: ['expedition_roles'] },
-    { id: 'expedition_sea', label: '海域共探', summary: '共同探索海域节点，带回发现与资源。', default_member_limit: 4, recommended_gameplay_template_ids: ['expedition_roles'] },
-    { id: 'expedition_forest', label: '山林采集', summary: '规划山林路线，采集材料并控制队伍消耗。', default_member_limit: 4, recommended_gameplay_template_ids: ['expedition_roles'] },
+    { id: 'cavern_duo', label: '双人矿洞', summary: '一人探路一人采集，控制风险并可提前撤离。', default_member_limit: 2, min_member_limit: 2, max_member_limit: 2, recommended_gameplay_template_ids: ['expedition_cavern'] },
+    { id: 'cavern_quartet', label: '四人矿洞', summary: '四人分工采集、路线标记和危机处理。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 4, recommended_gameplay_template_ids: ['expedition_cavern', 'expedition_escort'] },
+    { id: 'escort_convoy', label: '资源护送', summary: '沿路线护送货物，处理风险格和抵运完整度。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 4, recommended_gameplay_template_ids: ['expedition_escort'] },
+    { id: 'sea_probe', label: '海域共探', summary: '共同探索海域节点，带回发现与资源。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 4, recommended_gameplay_template_ids: ['expedition_sea'] },
   ]
 
   const fallbackFestivalGameplay: OnlineRoomWizardOption[] = [
+    { id: 'quiz_buzz', label: '灯谜抢答', summary: '2-5 分钟短局，抢答、整理题签和观众秩序会一起影响结算。' },
+    { id: 'assembly', label: '花灯拼装', summary: '多人拼装花灯或灶台，部件进度会立刻显示。' },
     { id: 'squad_coop', label: '协作共建', summary: '成员分工行动，合计推进目标。' },
     { id: 'public_progress', label: '公共进度', summary: '所有成员贡献进入同一个进度目标。' },
   ]
 
   const fallbackExpeditionGameplay: OnlineRoomWizardOption[] = [
     { id: 'expedition_roles', label: '分工远征', summary: '按职责行动，风险、资源和撤离状态会影响结算。' },
-    { id: 'expedition_route', label: '路线推进', summary: '按路线节点推进，沿途处理事件和奖励。' },
+    { id: 'expedition_cavern', label: '协作矿洞', summary: '分工采集、路线标记和危机处理都会写入共享进度。' },
+    { id: 'expedition_escort', label: '资源护送', summary: '2-5 分钟短局，护送里程、货物完整度和途中事件共同结算。' },
+    { id: 'expedition_gathering', label: '协作采集', summary: '把采集、稀有发现和包裹同步做成多人回合。' },
   ]
 
   const currentStepIndex = ref(0)
@@ -556,6 +624,62 @@
     .filter(Boolean)
     .filter((name, index, names) => names.indexOf(name) === index && !inviteUsernames.value.includes(name)))
 
+  const inviteCandidateGroupLabels: Record<OnlineRoomWizardInviteCandidateGroup, string> = {
+    'online-friends': '在线好友',
+    friends: '好友',
+    recent: '近期玩家',
+    recommended: '推荐队友',
+    blocked: '不可邀请',
+    other: '其他',
+  }
+  const inviteCandidateGroupOrder: OnlineRoomWizardInviteCandidateGroup[] = ['online-friends', 'friends', 'recent', 'recommended', 'other', 'blocked']
+  const normalizeInviteName = (value = '') => value.trim().toLowerCase()
+  const inviteCandidateKey = (player: OnlineRoomWizardInviteCandidate) =>
+    player.id || player.username || player.displayName || 'unknown'
+  const isInviteCandidateSelected = (player: OnlineRoomWizardInviteCandidate) => {
+    const keys = [player.username, player.displayName].map(value => normalizeInviteName(value || '')).filter(Boolean)
+    return inviteUsernames.value.some(name => keys.includes(normalizeInviteName(name)))
+  }
+  const isInviteCandidateSelectable = (player: OnlineRoomWizardInviteCandidate) =>
+    Boolean(player.username.trim()) && !player.disabled && !isInviteCandidateSelected(player)
+  const inviteCandidateStatusLabel = (player: OnlineRoomWizardInviteCandidate) => {
+    if (isInviteCandidateSelected(player)) return '已加入'
+    if (player.disabled) return player.reason || '不可邀请'
+    if (player.group === 'online-friends') return '在线'
+    if (player.group === 'recent') return '近期'
+    return '选择'
+  }
+  const inviteCandidateButtonClass = (player: OnlineRoomWizardInviteCandidate) => ({
+    'border-accent/60 bg-accent/10': isInviteCandidateSelected(player),
+    'opacity-60': player.disabled,
+    'hover:border-accent/35': isInviteCandidateSelectable(player),
+  })
+  const selectableInviteCandidateCount = computed(() =>
+    props.inviteCandidates.filter(isInviteCandidateSelectable).length
+  )
+  const inviteCandidateGroups = computed(() => {
+    const buckets = new Map<OnlineRoomWizardInviteCandidateGroup, OnlineRoomWizardInviteCandidate[]>()
+    const seen = new Set<string>()
+    for (const candidate of props.inviteCandidates) {
+      const username = candidate.username.trim()
+      if (!username) continue
+      const key = normalizeInviteName(username)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      const group = candidate.group ?? 'other'
+      const list = buckets.get(group) ?? []
+      list.push(candidate)
+      buckets.set(group, list)
+    }
+    return inviteCandidateGroupOrder
+      .map(group => ({
+        id: group,
+        label: buckets.get(group)?.[0]?.groupLabel || inviteCandidateGroupLabels[group],
+        players: buckets.get(group) ?? [],
+      }))
+      .filter(group => group.players.length > 0)
+  })
+
   const canContinue = computed(() => {
     if (activeStepId.value === 'gameplay') return Boolean(selectedTemplate.value)
     if (activeStepId.value === 'config') return Boolean(submitDraft.value.title && selectedGameplay.value && normalizedMemberLimit.value)
@@ -584,6 +708,27 @@
   const memberLimitText = (template: NormalizedWizardOption) => {
     if (template.minMemberLimit === template.maxMemberLimit) return `${template.defaultMemberLimit} 人上限`
     return `${template.minMemberLimit}-${template.maxMemberLimit} 人`
+  }
+  const templatePlayHint = (template: NormalizedWizardOption) => {
+    if (template.id === 'lantern_fair') return '短局：灯谜竞猜 / 点灯 / 花灯巡游'
+    if (template.id === 'escort_convoy') return '短局：资源护送 / 途中事件 / 抵运结算'
+    if (template.id.includes('cavern')) return '短局：路线标记 / 分工采集 / 提前撤离'
+    if (template.id === 'laba_cookpot') return '短局：备料 / 火候 / 共灶收尾'
+    if (template.id === 'dragon_boat') return '短局：同步划桨 / 稳舵 / 冲刺'
+    return '短局：2-5 分钟完成一轮协作'
+  }
+  const templateEventHint = (template: NormalizedWizardOption) => {
+    if (template.id === 'lantern_fair') return '事件：NPC 乱入、灯谜连发、花灯缠线'
+    if (template.id === 'escort_convoy') return '事件：天气、破车、夜巡和隐藏目标'
+    if (template.id.includes('cavern')) return '事件：岔路、坍塌、稀有矿脉'
+    if (template.id === 'sea_probe') return '事件：海况变化、航线分歧、海货发现'
+    return '事件：季节限定、随机插曲、隐藏目标'
+  }
+  const templateRewardHint = (template: NormalizedWizardOption) => {
+    if (template.id === 'escort_convoy') return '奖励：远征材料、护送评分、失败保底友情点'
+    if (template.id === 'lantern_fair') return '奖励：节会票券、纪念册、失败保底协作经验'
+    if (template.id.includes('cavern')) return '奖励：矿材、稀有样本、撤离记录'
+    return '奖励：每日小奖 + 本周进度 + 纪念记录'
   }
 
   const ensureGameplaySelection = () => {
@@ -623,6 +768,11 @@
     if (parsedInviteNames.value.length === 0) return
     inviteUsernames.value = [...inviteUsernames.value, ...parsedInviteNames.value]
     inviteInput.value = ''
+  }
+
+  const addInviteCandidate = (player: OnlineRoomWizardInviteCandidate) => {
+    if (!isInviteCandidateSelectable(player)) return
+    inviteUsernames.value = [...inviteUsernames.value, player.username.trim()]
   }
 
   const removeInviteName = (name: string) => {

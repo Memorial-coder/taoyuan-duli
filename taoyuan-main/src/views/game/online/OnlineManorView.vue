@@ -857,7 +857,7 @@
                     <p class="text-xs">{{ isOwner ? '庄园照料后台' : '今日可互动' }}</p>
                   </div>
                   <p class="mt-2 text-[0.625rem] leading-5 text-muted">
-                    先在场景里选物件，再做照料或轻采；次数、白名单和反刷规则默认收在明细里。
+                    先在场景里选物件，再做照料或轻采；次数、白名单和频次限制默认收在明细里。
                   </p>
                 </div>
                 <button
@@ -901,7 +901,7 @@
               <OnlineTechnicalDetails
                 class="mt-3"
                 title="次数与规则明细"
-                summary="展开查看照料 / 轻采次数、短时窗口、主人保留比例和反刷记录。"
+                summary="展开查看照料 / 轻采次数、短时窗口、主人保留比例和频次记录。"
               >
                 <div class="grid gap-2 md:grid-cols-2" data-testid="online-manor-care-readable-limits">
                   <div v-for="row in careReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
@@ -926,6 +926,82 @@
                 <p class="mt-1">{{ stealReadableImpactSummary }}</p>
               </OnlineTechnicalDetails>
             </div>
+
+            <section
+              class="online-manor-coop-stage"
+              data-testid="online-manor-coop-gameplay-stage"
+            >
+              <div class="online-manor-coop-stage__header">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 text-accent">
+                    <Sparkles :size="13" />
+                    <p class="text-xs">庄园协作短局</p>
+                  </div>
+                  <p class="mt-2 text-[0.625rem] leading-5 text-muted">
+                    把照料、护理房、来访和轻采收成 2-5 分钟的小玩法；玩家能直接看到状态、分工、奖励、事件变化和保底收益。
+                  </p>
+                </div>
+                <button
+                  data-testid="online-manor-coop-gameplay-rematch"
+                  class="online-action-btn online-action-btn--compact shrink-0 justify-center"
+                  type="button"
+                  :disabled="!careRoomState?.can_create_room || manorStore.careRoomActionRunning"
+                  @click="openCareRoomCreateDialog"
+                >
+                  <Plus :size="12" />
+                  再开护理房
+                </button>
+              </div>
+
+              <div class="online-manor-coop-stage__grid">
+                <article
+                  v-for="card in onlineManorCoopMiniGameCards"
+                  :key="card.id"
+                  class="online-manor-coop-card"
+                  data-testid="online-manor-coop-gameplay-card"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-[0.625rem] text-muted">{{ card.theme }}</p>
+                      <h3 class="mt-1 truncate text-sm text-accent">{{ card.title }}</h3>
+                    </div>
+                    <span
+                      class="online-manor-coop-card__status"
+                      data-testid="online-manor-coop-gameplay-status"
+                    >
+                      {{ card.status }}
+                    </span>
+                  </div>
+                  <p class="mt-2 min-h-[2.5rem] text-[0.625rem] leading-5 text-muted">{{ card.summary }}</p>
+
+                  <div class="mt-3" data-testid="online-manor-coop-gameplay-progress">
+                    <div class="online-manor-coop-card__track" aria-hidden="true">
+                      <span :style="{ width: `${card.progressPercent}%` }" />
+                    </div>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ card.progressLabel }}</p>
+                  </div>
+
+                  <div class="mt-3 grid gap-2 text-[0.625rem] leading-4 text-muted sm:grid-cols-2">
+                    <p><span class="text-accent">队友分工</span><br>{{ card.teamLabel }}</p>
+                    <p><span class="text-accent">下一步</span><br>{{ card.nextAction }}</p>
+                    <p data-testid="online-manor-coop-gameplay-reward"><span class="text-accent">奖励预览</span><br>{{ card.rewardPreview }}</p>
+                    <p data-testid="online-manor-coop-gameplay-fallback"><span class="text-accent">失败保底</span><br>{{ card.fallbackReward }}</p>
+                    <p data-testid="online-manor-coop-gameplay-event"><span class="text-accent">事件变化</span><br>{{ card.eventVariation }}</p>
+                    <p data-testid="online-manor-coop-gameplay-hidden-objective"><span class="text-accent">隐藏目标</span><br>{{ card.hiddenObjective }}</p>
+                  </div>
+
+                  <button
+                    class="online-action-btn online-action-btn--compact mt-3 w-full justify-center"
+                    type="button"
+                    :disabled="card.actionDisabled"
+                    @click="handleManorCoopMiniGameAction(card)"
+                  >
+                    <Route :size="12" />
+                    {{ card.actionLabel }}
+                  </button>
+                </article>
+              </div>
+            </section>
 
             <VisualSceneBoard
               v-if="showCareSceneBoard"
@@ -1835,6 +1911,24 @@
   type OnlineManorStealEntry = OnlineManorSnapshot['steal_entries'][number]
   type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
   type VisitPurpose = 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
+  type OnlineManorCoopMiniGameCard = {
+    id: 'watering' | 'animal-care' | 'workshop-relay' | 'visitor-order'
+    theme: string
+    title: string
+    status: string
+    summary: string
+    progressPercent: number
+    progressLabel: string
+    teamLabel: string
+    nextAction: string
+    rewardPreview: string
+    fallbackReward: string
+    eventVariation: string
+    hiddenObjective: string
+    actionLabel: string
+    actionTarget: 'care-room' | 'care-scene' | 'visit'
+    actionDisabled: boolean
+  }
   type ManorActivityFeedEntry = {
     id: string
     kind: 'guestbook' | 'visit' | 'care' | 'steal'
@@ -2189,6 +2283,122 @@
   const recentCareRoomRecords = computed(() => snapshot.value?.care_room_records ?? [])
   const selectedCareRoom = computed(() => activeCareRooms.value.find(room => room.id === selectedCareRoomId.value) ?? null)
   const selectedCareRoomForSettle = computed(() => activeCareRooms.value.find(room => room.id === careRoomSettleConfirmRoomId.value) ?? null)
+  const clampPercent = (value: number) => Math.max(0, Math.min(100, Math.round(value)))
+  const careRoomActionProgressPercent = (room: OnlineManorCareRoom | null) => {
+    if (!room) return 0
+    return clampPercent((careRoomCompletedActionCount(room) / careRoomActionTotal.value) * 100)
+  }
+  const onlineManorCoopPrimaryRoom = computed(() => activeCareRooms.value[0] ?? recentCareRoomRecords.value[0] ?? null)
+  const onlineManorCoopTeamLabel = computed(() => {
+    const room = onlineManorCoopPrimaryRoom.value
+    if (room?.participants.length) {
+      return room.participants
+        .slice(0, 4)
+        .map(participant => `${participant.display_name}负责${participant.role_label}`)
+        .join('、')
+    }
+    return '采集 / 护理 / 加工 / 支援四类分工待组队'
+  })
+  const onlineManorCoopEventLabel = computed(() => {
+    const season = snapshot.value?.theme_week?.season || '本周主题'
+    const focus = snapshot.value?.current_focus || snapshot.value?.weekly_goal || '庄园共同建设'
+    const visitCount = visitEntries.value.length
+    if (visitCount >= 3) return `${season} · 访客变多，访客订单奖励提高。`
+    if (activeCareRooms.value.length > 0) return `${season} · 护理窗口开启，队伍连携更容易触发。`
+    return `${season} · ${focus}，适合先开一局共同护理。`
+  })
+  const onlineManorCoopMiniGameCards = computed<OnlineManorCoopMiniGameCard[]>(() => {
+    const careState = snapshot.value?.care_state
+    const stealState = snapshot.value?.steal_state
+    const room = onlineManorCoopPrimaryRoom.value
+    const roomProgress = room ? careRoomActionProgressPercent(room) : 0
+    const roomProgressLabel = room ? careRoomProgressSummary(room) : '0/4 项 · 等待创建护理房'
+    const careProgress = careState
+      ? clampPercent((careState.visitor_daily_count / Math.max(1, careState.limits.visitor_daily_limit)) * 100)
+      : 0
+    const stealProgress = stealState
+      ? clampPercent((stealState.visitor_daily_count / Math.max(1, stealState.limits.visitor_daily_limit)) * 100)
+      : 0
+    const visitProgress = clampPercent((recentVisitEntries.value.length / 3) * 100)
+    const lastCareReward = recentCareEntries.value[0]?.visitor_reward || careEffectEntries.value[0]?.visitorReward || '友情点、协作经验'
+    const lastStealReward = recentStealEntries.value[0]?.visitor_reward || stealEffectEntries.value[0]?.visitorReward || '好友币、庄园材料'
+    const careFallback = careFailureReason.value || '失败也保留友情点、协作经验和下次加成线索。'
+    const stealFallback = stealFailureReason.value || '轻采次数用完也保留访问记录和下次加成。'
+    return [
+      {
+        id: 'watering',
+        theme: '庄园协作 · 共同建设',
+        title: '共同浇灌',
+        status: careState?.can_care ? '可加入' : '今日已完成',
+        summary: '围绕田地、果树和鱼塘做快速照料，队友动作会共同推进庄园健康度。',
+        progressPercent: careProgress,
+        progressLabel: `今日照料 ${careRemainingLabel.value} 剩余 · 庄园承载 ${manorCareRemainingLabel.value}`,
+        teamLabel: '采集负责选物件，支援负责补动作，房主负责收口领奖。',
+        nextAction: showCareSceneBoard.value ? '选择场景物件并触发浇水 / 喂食 / 除虫。' : '刷新快照后选择可照料对象。',
+        rewardPreview: lastCareReward,
+        fallbackReward: careFallback,
+        eventVariation: onlineManorCoopEventLabel.value,
+        hiddenObjective: '连续照料不同对象可完成“满园回声”。',
+        actionLabel: careState?.can_care ? '去照料物件' : '查看照料状态',
+        actionTarget: 'care-scene',
+        actionDisabled: false,
+      },
+      {
+        id: 'animal-care',
+        theme: '庄园协作 · 队伍分工',
+        title: '动物护理',
+        status: room?.can_settle ? '可结算' : room ? careRoomStatusLabel(room.status) : '可邀请',
+        summary: room?.summary || '创建 2-4 人护理房后，队员按角色完成护理、清理、支援与收尾。',
+        progressPercent: roomProgress,
+        progressLabel: roomProgressLabel,
+        teamLabel: onlineManorCoopTeamLabel.value,
+        nextAction: room ? careRoomPendingActionLabels(room) : '邀请好友进入护理房。',
+        rewardPreview: room?.settlement_receipt_id ? `结算凭证 ${room.settlement_receipt_id}` : '队伍宝箱、健康度收口、房主额外奖励',
+        fallbackReward: '窗口结束也保留已完成分工、风险回看和下次护理加成。',
+        eventVariation: room ? careRoomRiskSummary(room) : onlineManorCoopEventLabel.value,
+        hiddenObjective: '按推荐顺序完成全部分工可触发“无缝护理”。',
+        actionLabel: room ? '查看护理详情' : '创建护理房',
+        actionTarget: 'care-room',
+        actionDisabled: !room && (!careRoomState.value?.can_create_room || manorStore.careRoomActionRunning),
+      },
+      {
+        id: 'workshop-relay',
+        theme: '庄园协作 · 作坊接力',
+        title: '作坊接力',
+        status: stealState?.can_steal ? '可加入' : '本周奖励剩余',
+        summary: '访客轻采、主人保留、作坊提交串成一次接力，适合离线好友留下委托。',
+        progressPercent: stealProgress,
+        progressLabel: `轻采 ${stealRemainingLabel.value} 剩余 · 庄园承载 ${manorStealRemainingLabel.value}`,
+        teamLabel: '访客负责采集，主人保留库存，加工位负责提交，支援位给下次加成。',
+        nextAction: stealState?.can_steal ? '选择白名单物件轻采，或查看用途摘要。' : '今日次数不足时先留下留言或参观记录。',
+        rewardPreview: lastStealReward,
+        fallbackReward: stealFallback,
+        eventVariation: stealState?.whitelist_summary || onlineManorCoopEventLabel.value,
+        hiddenObjective: '轻采后完成一次留言可点亮“工坊回礼”。',
+        actionLabel: '查看轻采对象',
+        actionTarget: 'care-scene',
+        actionDisabled: false,
+      },
+      {
+        id: 'visitor-order',
+        theme: '庄园协作 · 访客订单',
+        title: '访客订单',
+        status: recentVisitEntries.value.length >= 3 ? '今日已完成' : '可邀请',
+        summary: '把参观、留言、点赞和回访包装成轻协作订单，不在线的好友也能留下贡献。',
+        progressPercent: visitProgress,
+        progressLabel: `最近来访 ${recentVisitEntries.value.length}/3 · 留言 ${guestbookEntries.value.length} 条`,
+        teamLabel: '访客负责下单，好友负责留言，庄园主负责回访和领奖。',
+        nextAction: isOwner.value ? '查看最近互动并回访好友。' : '留下访问记录或留言，帮助庄园完成今日订单。',
+        rewardPreview: '保底友情点、好友币、庄园点赞奖励',
+        fallbackReward: '没有组队也能留下委托，次日领取异步协作奖励。',
+        eventVariation: onlineManorCoopEventLabel.value,
+        hiddenObjective: '同一主题庄园互访可收集好友徽章。',
+        actionLabel: isOwner.value ? '看互动动态' : '留下访问记录',
+        actionTarget: 'visit',
+        actionDisabled: false,
+      },
+    ]
+  })
   const careRoomSummary = computed(() => {
     const state = careRoomState.value
     if (!state) return '刷新庄园快照后可建立 2-4 人护理房间。'
@@ -2516,6 +2726,29 @@
     await manorStore.createVisitRecord().catch(() => {})
   }
 
+  const handleManorCoopMiniGameAction = (card: OnlineManorCoopMiniGameCard) => {
+    if (card.actionTarget === 'care-room') {
+      activeTab.value = 'care'
+      const room = onlineManorCoopPrimaryRoom.value
+      if (room) {
+        openCareRoomDetail(room.id)
+        return
+      }
+      openCareRoomCreateDialog()
+      return
+    }
+    if (card.actionTarget === 'visit') {
+      if (isOwner.value) {
+        activeTab.value = 'visits'
+        return
+      }
+      openVisitCardFromOverview()
+      return
+    }
+    activeTab.value = 'care'
+    if (!showCareSceneBoard.value) void refreshSnapshot()
+  }
+
   const openActivityFeedEntry = (entry: ManorActivityFeedEntry) => {
     if (entry.kind === 'guestbook') {
       activeTab.value = 'guestbook'
@@ -2788,6 +3021,8 @@
 
   .online-manor-hero__stat,
   .online-manor-status-chip,
+  .online-manor-coop-stage,
+  .online-manor-coop-card,
   .online-manor-visit-card,
   .online-manor-activity-feed {
     border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
@@ -2881,6 +3116,59 @@
     white-space: nowrap;
   }
 
+  .online-manor-coop-stage {
+    padding: 0.85rem;
+    background:
+      radial-gradient(circle at 12% 0%, color-mix(in srgb, #7fd36b 12%, transparent), transparent 34%),
+      linear-gradient(135deg, color-mix(in srgb, var(--color-accent) 9%, transparent), rgb(0 0 0 / 0.1));
+  }
+
+  .online-manor-coop-stage__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .online-manor-coop-stage__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-top: 0.75rem;
+  }
+
+  .online-manor-coop-card {
+    min-width: 0;
+    padding: 0.75rem;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 7%, transparent), transparent 56%),
+      rgb(var(--color-bg) / 0.2);
+  }
+
+  .online-manor-coop-card__status {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 24%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+    padding: 0.18rem 0.42rem;
+    font-size: 0.62rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .online-manor-coop-card__track {
+    height: 0.4rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 14%, transparent);
+    background: rgb(0 0 0 / 0.24);
+  }
+
+  .online-manor-coop-card__track span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #7fd36b, color-mix(in srgb, var(--color-accent) 72%, #f7c948));
+    transition: width 0.2s ease;
+  }
+
   .online-manor-visit-card,
   .online-manor-activity-feed {
     padding: 0.85rem;
@@ -2928,6 +3216,7 @@
   @media (max-width: 520px) {
     .online-manor-hero,
     .online-manor-hero__content,
+    .online-manor-coop-stage,
     .online-manor-visit-card,
     .online-manor-activity-feed {
       padding: 0.65rem;
@@ -2939,6 +3228,15 @@
 
     .online-manor-quick-action {
       min-height: 4rem;
+    }
+
+    .online-manor-coop-stage__header,
+    .online-manor-coop-stage__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .online-manor-coop-stage__header {
+      display: grid;
     }
 
     .online-manor-activity-entry {

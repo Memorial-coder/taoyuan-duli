@@ -125,7 +125,7 @@
 
     <!-- 装备页 -->
     <template v-if="tab === 'tools'">
-      <div class="desktop-adaptive-grid" data-testid="inventory-equipment-layout">
+      <div class="inventory-equipment-layout desktop-adaptive-grid" data-testid="inventory-equipment-layout">
       <!-- 方案按钮 -->
       <div class="desktop-adaptive-span-all flex items-center justify-end mb-1.5 space-x-1.5">
         <span v-if="activePresetName" class="text-[0.625rem] text-success truncate">{{ activePresetName }}</span>
@@ -135,17 +135,33 @@
       <!-- 武器 -->
       <div class="border border-accent/20 rounded-xs p-2 mb-3">
         <p class="text-xs text-muted mb-1">武器</p>
+        <div v-if="equippedWeaponName" class="border border-accent/10 rounded-xs px-2 py-1 text-center mb-1">
+          <p class="text-[0.625rem] text-muted">装备中</p>
+          <p class="text-xs text-accent">{{ equippedWeaponName }}</p>
+          <p v-if="equippedWeaponDurability" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+            <span>耐 {{ equippedWeaponDurability.current }}/{{ equippedWeaponDurability.max }}</span>
+            <span class="h-1 w-12 overflow-hidden rounded-full bg-accent/10">
+              <span class="block h-full rounded-full" :class="getDurabilityColor(equippedWeaponDurability.current, equippedWeaponDurability.max)" :style="{ width: getDurabilityPercent(equippedWeaponDurability) + '%' }"></span>
+            </span>
+          </p>
+          <p v-if="equippedWeaponSturdiness" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+            <span>固 {{ equippedWeaponSturdiness.current }}/{{ equippedWeaponSturdiness.max }}</span>
+            <span class="h-1 w-12 overflow-hidden rounded-full bg-accent/10">
+              <span class="block h-full rounded-full" :class="getSturdinessStateColor(equippedWeaponSturdiness)" :style="{ width: getSturdinessPercent(equippedWeaponSturdiness) + '%' }"></span>
+            </span>
+          </p>
+        </div>
         <div class="flex flex-col space-y-1 max-h-40 overflow-y-auto">
           <div
             v-for="(weapon, idx) in inventoryStore.ownedWeapons"
             :key="idx"
-            class="flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
+            class="inventory-equipment-row flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
             :class="idx === inventoryStore.equippedWeaponIndex ? 'border-accent/30' : 'border-accent/10'"
             @click="activeWeaponIdx = idx"
           >
-            <div class="flex min-w-0 flex-1 items-center gap-1.5">
+            <div class="inventory-equipment-info flex min-w-0 flex-1 items-center gap-1.5">
               <ItemIcon :item="getItemById(weapon.defId)" size="xs" :show-badge="false" />
-              <span class="flex items-center gap-1 min-w-0 text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
+              <span class="inventory-equipment-copy flex items-center gap-1 min-w-0 text-xs" :class="idx === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
                 <Lock v-if="weapon.locked" :size="11" class="shrink-0 text-accent/70" />
                 <span class="truncate">{{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes) }}</span>
               </span>
@@ -154,12 +170,21 @@
             <span v-else-if="weapon.locked" class="text-xs text-accent">已锁定</span>
             <span v-else class="text-xs text-muted">{{ getWeaponSellPrice(weapon.defId, weapon.enchantmentId, weapon.affixes) }}文</span>
             <!-- 耐久条 -->
-            <div v-if="weapon.durability != null" class="flex items-center gap-1 ml-2 shrink-0">
-              <span class="text-[0.5rem] text-muted w-10 text-right">{{ getWeaponDurability(idx).current }}/{{ getWeaponDurability(idx).max }}</span>
-              <div class="w-12 h-1 bg-accent/10 rounded-full overflow-hidden">
-                <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getWeaponDurability(idx).current, getWeaponDurability(idx).max)" :style="{ width: (getWeaponDurability(idx).current / getWeaponDurability(idx).max * 100) + '%' }"></div>
+            <div v-if="getWeaponDurability(idx)" class="inventory-equipment-actions inventory-equipment-durability flex flex-col gap-0.5 ml-2 shrink-0">
+              <div class="flex items-center gap-1">
+                <span class="text-[0.5rem] text-muted w-12 text-right">耐 {{ formatDurability(getWeaponDurability(idx)) }}</span>
+                <div class="w-12 h-1 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getDurabilityStateColor(getWeaponDurability(idx))" :style="{ width: getDurabilityPercent(getWeaponDurability(idx)) + '%' }"></div>
+                </div>
+                <span v-if="isDurabilityBroken(getWeaponDurability(idx))" class="text-[0.5rem] text-danger font-bold">破损</span>
               </div>
-              <span v-if="weapon.durability === 0" class="text-[0.5rem] text-danger font-bold">破损</span>
+              <div v-if="getWeaponSturdiness(idx)" class="flex items-center gap-1">
+                <span class="text-[0.5rem] text-muted w-12 text-right">固 {{ formatSturdiness(getWeaponSturdiness(idx)) }}</span>
+                <div class="w-12 h-1 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(getWeaponSturdiness(idx))" :style="{ width: getSturdinessPercent(getWeaponSturdiness(idx)) + '%' }"></div>
+                </div>
+                <span v-if="isSturdinessDepleted(getWeaponSturdiness(idx))" class="text-[0.5rem] text-danger font-bold">失固</span>
+              </div>
             </div>
           </div>
         </div>
@@ -175,19 +200,31 @@
             <p class="text-xs" :class="equippedHatName ? 'text-accent' : 'text-muted/40'">
               {{ equippedHatName ?? '空' }}
             </p>
+            <p v-if="equippedHatDurability" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+              <span>耐 {{ equippedHatDurability.current }}/{{ equippedHatDurability.max }}</span>
+              <span class="h-1 w-12 overflow-hidden rounded-full bg-accent/10">
+                <span class="block h-full rounded-full" :class="getDurabilityColor(equippedHatDurability.current, equippedHatDurability.max)" :style="{ width: getDurabilityPercent(equippedHatDurability) + '%' }"></span>
+              </span>
+            </p>
+            <p v-if="equippedHatSturdiness" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+              <span>固 {{ equippedHatSturdiness.current }}/{{ equippedHatSturdiness.max }}</span>
+              <span class="h-1 w-12 overflow-hidden rounded-full bg-accent/10">
+                <span class="block h-full rounded-full" :class="getSturdinessStateColor(equippedHatSturdiness)" :style="{ width: getSturdinessPercent(equippedHatSturdiness) + '%' }"></span>
+              </span>
+            </p>
           </div>
           <!-- 拥有的帽子列表 -->
           <div class="max-h-40 overflow-y-auto flex flex-col space-y-1">
             <div
               v-for="(hat, idx) in inventoryStore.ownedHats"
               :key="idx"
-              class="flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
+              class="inventory-equipment-row flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
               :class="inventoryStore.equippedHatIndex === idx ? 'border-accent/30' : 'border-accent/10'"
               @click="activeHatIdx = idx"
             >
-              <div class="flex min-w-0 flex-1 items-center gap-1.5">
+              <div class="inventory-equipment-info flex min-w-0 flex-1 items-center gap-1.5">
                 <ItemIcon :item="getItemById(hat.defId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
+                <div class="inventory-equipment-copy min-w-0 flex-1">
                 <span class="flex items-center gap-1 min-w-0 text-xs" :class="inventoryStore.equippedHatIndex === idx ? 'text-accent' : ''">
                   <Lock v-if="hat.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getHatById(hat.defId)?.name ?? hat.defId }}</span>
@@ -198,11 +235,21 @@
                 </p>
                 </div>
               </div>
-              <div class="flex items-center gap-1 shrink-0 ml-2">
-                <div v-if="hat.durability != null" class="flex items-center gap-1">
-                  <span class="text-[0.5rem] text-muted w-10 text-right">{{ getHatDurability(idx).current }}/{{ getHatDurability(idx).max }}</span>
-                  <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getHatDurability(idx).current, getHatDurability(idx).max)" :style="{ width: (getHatDurability(idx).current / getHatDurability(idx).max * 100) + '%' }"></div>
+              <div class="inventory-equipment-actions flex items-center gap-1 shrink-0 ml-2">
+                <div v-if="getHatDurability(idx)" class="inventory-equipment-durability flex flex-col gap-0.5">
+                  <div class="flex items-center gap-1">
+                    <span class="text-[0.5rem] text-muted w-12 text-right">耐 {{ formatDurability(getHatDurability(idx)) }}</span>
+                    <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" :class="getDurabilityStateColor(getHatDurability(idx))" :style="{ width: getDurabilityPercent(getHatDurability(idx)) + '%' }"></div>
+                    </div>
+                    <span v-if="isDurabilityBroken(getHatDurability(idx))" class="text-[0.5rem] text-danger font-bold">破损</span>
+                  </div>
+                  <div v-if="getHatSturdiness(idx)" class="flex items-center gap-1">
+                    <span class="text-[0.5rem] text-muted w-12 text-right">固 {{ formatSturdiness(getHatSturdiness(idx)) }}</span>
+                    <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(getHatSturdiness(idx))" :style="{ width: getSturdinessPercent(getHatSturdiness(idx)) + '%' }"></div>
+                    </div>
+                    <span v-if="isSturdinessDepleted(getHatSturdiness(idx))" class="text-[0.5rem] text-danger font-bold">失固</span>
                   </div>
                 </div>
                 <Button
@@ -229,19 +276,31 @@
             <p class="text-xs" :class="equippedShoeName ? 'text-accent' : 'text-muted/40'">
               {{ equippedShoeName ?? '空' }}
             </p>
+            <p v-if="equippedShoeDurability" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+              <span>耐 {{ equippedShoeDurability.current }}/{{ equippedShoeDurability.max }}</span>
+              <span class="h-1 w-12 overflow-hidden rounded-full bg-accent/10">
+                <span class="block h-full rounded-full" :class="getDurabilityColor(equippedShoeDurability.current, equippedShoeDurability.max)" :style="{ width: getDurabilityPercent(equippedShoeDurability) + '%' }"></span>
+              </span>
+            </p>
+            <p v-if="equippedShoeSturdiness" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+              <span>固 {{ equippedShoeSturdiness.current }}/{{ equippedShoeSturdiness.max }}</span>
+              <span class="h-1 w-12 overflow-hidden rounded-full bg-accent/10">
+                <span class="block h-full rounded-full" :class="getSturdinessStateColor(equippedShoeSturdiness)" :style="{ width: getSturdinessPercent(equippedShoeSturdiness) + '%' }"></span>
+              </span>
+            </p>
           </div>
           <!-- 拥有的鞋子列表 -->
           <div class="max-h-40 overflow-y-auto flex flex-col space-y-1">
             <div
               v-for="(shoe, idx) in inventoryStore.ownedShoes"
               :key="idx"
-              class="flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
+              class="inventory-equipment-row flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
               :class="inventoryStore.equippedShoeIndex === idx ? 'border-accent/30' : 'border-accent/10'"
               @click="activeShoeIdx = idx"
             >
-              <div class="flex min-w-0 flex-1 items-center gap-1.5">
+              <div class="inventory-equipment-info flex min-w-0 flex-1 items-center gap-1.5">
                 <ItemIcon :item="getItemById(shoe.defId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
+                <div class="inventory-equipment-copy min-w-0 flex-1">
                 <span class="flex items-center gap-1 min-w-0 text-xs" :class="inventoryStore.equippedShoeIndex === idx ? 'text-accent' : ''">
                   <Lock v-if="shoe.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getShoeById(shoe.defId)?.name ?? shoe.defId }}</span>
@@ -252,11 +311,21 @@
                 </p>
                 </div>
               </div>
-              <div class="flex items-center gap-1 shrink-0 ml-2">
-                <div v-if="shoe.durability != null" class="flex items-center gap-1">
-                  <span class="text-[0.5rem] text-muted w-10 text-right">{{ getShoeDurability(idx).current }}/{{ getShoeDurability(idx).max }}</span>
-                  <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getShoeDurability(idx).current, getShoeDurability(idx).max)" :style="{ width: (getShoeDurability(idx).current / getShoeDurability(idx).max * 100) + '%' }"></div>
+              <div class="inventory-equipment-actions flex items-center gap-1 shrink-0 ml-2">
+                <div v-if="getShoeDurability(idx)" class="inventory-equipment-durability flex flex-col gap-0.5">
+                  <div class="flex items-center gap-1">
+                    <span class="text-[0.5rem] text-muted w-12 text-right">耐 {{ formatDurability(getShoeDurability(idx)) }}</span>
+                    <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" :class="getDurabilityStateColor(getShoeDurability(idx))" :style="{ width: getDurabilityPercent(getShoeDurability(idx)) + '%' }"></div>
+                    </div>
+                    <span v-if="isDurabilityBroken(getShoeDurability(idx))" class="text-[0.5rem] text-danger font-bold">破损</span>
+                  </div>
+                  <div v-if="getShoeSturdiness(idx)" class="flex items-center gap-1">
+                    <span class="text-[0.5rem] text-muted w-12 text-right">固 {{ formatSturdiness(getShoeSturdiness(idx)) }}</span>
+                    <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(getShoeSturdiness(idx))" :style="{ width: getSturdinessPercent(getShoeSturdiness(idx)) + '%' }"></div>
+                    </div>
+                    <span v-if="isSturdinessDepleted(getShoeSturdiness(idx))" class="text-[0.5rem] text-danger font-bold">失固</span>
                   </div>
                 </div>
                 <Button
@@ -284,11 +353,35 @@
               <p class="text-xs" :class="equippedRing1Name ? 'text-accent' : 'text-muted/40'">
                 {{ equippedRing1Name ?? '空' }}
               </p>
+              <p v-if="equippedRing1Durability" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+                <span>耐 {{ equippedRing1Durability.current }}/{{ equippedRing1Durability.max }}</span>
+                <span class="h-1 w-10 overflow-hidden rounded-full bg-accent/10">
+                  <span class="block h-full rounded-full" :class="getDurabilityColor(equippedRing1Durability.current, equippedRing1Durability.max)" :style="{ width: getDurabilityPercent(equippedRing1Durability) + '%' }"></span>
+                </span>
+              </p>
+              <p v-if="equippedRing1Sturdiness" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+                <span>固 {{ equippedRing1Sturdiness.current }}/{{ equippedRing1Sturdiness.max }}</span>
+                <span class="h-1 w-10 overflow-hidden rounded-full bg-accent/10">
+                  <span class="block h-full rounded-full" :class="getSturdinessStateColor(equippedRing1Sturdiness)" :style="{ width: getSturdinessPercent(equippedRing1Sturdiness) + '%' }"></span>
+                </span>
+              </p>
             </div>
             <div class="flex-1 border border-accent/10 rounded-xs px-2 py-1 text-center">
               <p class="text-[0.625rem] text-muted">槽位2</p>
               <p class="text-xs" :class="equippedRing2Name ? 'text-accent' : 'text-muted/40'">
                 {{ equippedRing2Name ?? '空' }}
+              </p>
+              <p v-if="equippedRing2Durability" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+                <span>耐 {{ equippedRing2Durability.current }}/{{ equippedRing2Durability.max }}</span>
+                <span class="h-1 w-10 overflow-hidden rounded-full bg-accent/10">
+                  <span class="block h-full rounded-full" :class="getDurabilityColor(equippedRing2Durability.current, equippedRing2Durability.max)" :style="{ width: getDurabilityPercent(equippedRing2Durability) + '%' }"></span>
+                </span>
+              </p>
+              <p v-if="equippedRing2Sturdiness" class="mt-0.5 flex items-center justify-center gap-1 text-[0.625rem] text-muted">
+                <span>固 {{ equippedRing2Sturdiness.current }}/{{ equippedRing2Sturdiness.max }}</span>
+                <span class="h-1 w-10 overflow-hidden rounded-full bg-accent/10">
+                  <span class="block h-full rounded-full" :class="getSturdinessStateColor(equippedRing2Sturdiness)" :style="{ width: getSturdinessPercent(equippedRing2Sturdiness) + '%' }"></span>
+                </span>
               </p>
             </div>
           </div>
@@ -297,13 +390,13 @@
             <div
               v-for="(ring, idx) in inventoryStore.ownedRings"
               :key="idx"
-              class="flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
+              class="inventory-equipment-row flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
               :class="isRingEquipped(idx) ? 'border-accent/30' : 'border-accent/10'"
               @click="activeRingIdx = idx"
             >
-              <div class="flex min-w-0 flex-1 items-center gap-1.5">
+              <div class="inventory-equipment-info flex min-w-0 flex-1 items-center gap-1.5">
                 <ItemIcon :item="getItemById(ring.defId)" size="xs" :show-badge="false" />
-                <div class="min-w-0">
+                <div class="inventory-equipment-copy min-w-0 flex-1">
                 <span class="flex items-center gap-1 min-w-0 text-xs" :class="isRingEquipped(idx) ? 'text-accent' : ''">
                   <Lock v-if="ring.locked" :size="11" class="shrink-0 text-accent/70" />
                   <span class="truncate">{{ getRingById(ring.defId)?.name ?? ring.defId }}</span>
@@ -314,14 +407,24 @@
                 </p>
                 </div>
               </div>
-              <div class="flex items-center gap-1 shrink-0 ml-2">
-                <div v-if="ring.durability != null" class="flex items-center gap-1">
-                  <span class="text-[0.5rem] text-muted w-10 text-right">{{ getRingDurability(idx).current }}/{{ getRingDurability(idx).max }}</span>
-                  <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getRingDurability(idx).current, getRingDurability(idx).max)" :style="{ width: (getRingDurability(idx).current / getRingDurability(idx).max * 100) + '%' }"></div>
+              <div class="inventory-equipment-actions flex items-center gap-1 shrink-0 ml-2">
+                <div v-if="getRingDurability(idx)" class="inventory-equipment-durability flex flex-col gap-0.5">
+                  <div class="flex items-center gap-1">
+                    <span class="text-[0.5rem] text-muted w-12 text-right">耐 {{ formatDurability(getRingDurability(idx)) }}</span>
+                    <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" :class="getDurabilityStateColor(getRingDurability(idx))" :style="{ width: getDurabilityPercent(getRingDurability(idx)) + '%' }"></div>
+                    </div>
+                    <span v-if="isDurabilityBroken(getRingDurability(idx))" class="text-[0.5rem] text-danger font-bold">破损</span>
+                  </div>
+                  <div v-if="getRingSturdiness(idx)" class="flex items-center gap-1">
+                    <span class="text-[0.5rem] text-muted w-12 text-right">固 {{ formatSturdiness(getRingSturdiness(idx)) }}</span>
+                    <div class="w-10 h-1 bg-accent/10 rounded-full overflow-hidden">
+                      <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(getRingSturdiness(idx))" :style="{ width: getSturdinessPercent(getRingSturdiness(idx)) + '%' }"></div>
+                    </div>
+                    <span v-if="isSturdinessDepleted(getRingSturdiness(idx))" class="text-[0.5rem] text-danger font-bold">失固</span>
                   </div>
                 </div>
-                <div class="flex space-x-1">
+                <div class="inventory-equipment-action-buttons flex space-x-1">
                 <Button
                   class="py-0 px-1.5"
                   :class="
@@ -376,11 +479,11 @@
           <div
             v-for="trinket in unlockedTrinketList"
             :key="trinket.id"
-            class="flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
+            class="inventory-equipment-row flex items-center justify-between border rounded-xs px-2 py-1 mr-1 cursor-pointer hover:bg-accent/5"
             :class="trinket.id === inventoryStore.equippedTrinketId ? 'border-accent/30' : 'border-accent/10'"
             @click="handleToggleTrinket(trinket.id)"
           >
-            <div class="min-w-0">
+            <div class="inventory-equipment-info inventory-equipment-copy min-w-0 flex-1">
               <span class="text-xs truncate" :class="trinket.id === inventoryStore.equippedTrinketId ? 'text-accent' : ''">
                 {{ trinket.name }}
               </span>
@@ -388,7 +491,7 @@
               <p class="text-[0.625rem] text-muted/80 truncate">{{ trinket.sourceSummary }}</p>
             </div>
             <Button
-              class="py-0 px-1.5 shrink-0 ml-2"
+              class="inventory-equipment-actions py-0 px-1.5 shrink-0 ml-2"
               :class="trinket.id === inventoryStore.equippedTrinketId ? '!bg-accent !text-bg' : ''"
               @click.stop="handleToggleTrinket(trinket.id)"
             >
@@ -882,14 +985,24 @@
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeWeaponPrice }}文</span>
             </div>
-            <div v-if="activeWeaponIdx !== null && inventoryStore.ownedWeapons[activeWeaponIdx]?.durability != null" class="flex items-center justify-between mt-0.5">
+            <div v-if="activeWeaponDurability" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">耐久</span>
               <div class="flex items-center gap-2">
                 <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
-                  <div class="h-full rounded-full transition-all" :class="getDurabilityColor(getWeaponDurability(activeWeaponIdx).current, getWeaponDurability(activeWeaponIdx).max)" :style="{ width: (getWeaponDurability(activeWeaponIdx).current / getWeaponDurability(activeWeaponIdx).max * 100) + '%' }"></div>
+                  <div class="h-full rounded-full transition-all" :class="getDurabilityColor(activeWeaponDurability.current, activeWeaponDurability.max)" :style="{ width: getDurabilityPercent(activeWeaponDurability) + '%' }"></div>
                 </div>
-                <span class="text-xs">{{ getWeaponDurability(activeWeaponIdx).current }}/{{ getWeaponDurability(activeWeaponIdx).max }}</span>
-                <span v-if="inventoryStore.ownedWeapons[activeWeaponIdx]?.durability === 0" class="text-xs text-danger font-bold">破损</span>
+                <span class="text-xs">{{ activeWeaponDurability.current }}/{{ activeWeaponDurability.max }}</span>
+                <span v-if="isDurabilityBroken(activeWeaponDurability)" class="text-xs text-danger font-bold">破损</span>
+              </div>
+            </div>
+            <div v-if="activeWeaponSturdiness" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">坚固</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(activeWeaponSturdiness)" :style="{ width: getSturdinessPercent(activeWeaponSturdiness) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeWeaponSturdiness.current }}/{{ activeWeaponSturdiness.max }}</span>
+                <span v-if="isSturdinessDepleted(activeWeaponSturdiness)" class="text-xs text-danger font-bold">失固</span>
               </div>
             </div>
           </div>
@@ -950,6 +1063,26 @@
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeRingDef.sellPrice }}文</span>
+            </div>
+            <div v-if="activeRingDurability" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">耐久</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getDurabilityColor(activeRingDurability.current, activeRingDurability.max)" :style="{ width: getDurabilityPercent(activeRingDurability) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeRingDurability.current }}/{{ activeRingDurability.max }}</span>
+                <span v-if="isDurabilityBroken(activeRingDurability)" class="text-xs text-danger font-bold">破损</span>
+              </div>
+            </div>
+            <div v-if="activeRingSturdiness" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">坚固</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(activeRingSturdiness)" :style="{ width: getSturdinessPercent(activeRingSturdiness) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeRingSturdiness.current }}/{{ activeRingSturdiness.max }}</span>
+                <span v-if="isSturdinessDepleted(activeRingSturdiness)" class="text-xs text-danger font-bold">失固</span>
+              </div>
             </div>
           </div>
           <div class="flex flex-col space-y-1.5">
@@ -1017,6 +1150,26 @@
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeHatDef.sellPrice }}文</span>
             </div>
+            <div v-if="activeHatDurability" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">耐久</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getDurabilityColor(activeHatDurability.current, activeHatDurability.max)" :style="{ width: getDurabilityPercent(activeHatDurability) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeHatDurability.current }}/{{ activeHatDurability.max }}</span>
+                <span v-if="isDurabilityBroken(activeHatDurability)" class="text-xs text-danger font-bold">破损</span>
+              </div>
+            </div>
+            <div v-if="activeHatSturdiness" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">坚固</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(activeHatSturdiness)" :style="{ width: getSturdinessPercent(activeHatSturdiness) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeHatSturdiness.current }}/{{ activeHatSturdiness.max }}</span>
+                <span v-if="isSturdinessDepleted(activeHatSturdiness)" class="text-xs text-danger font-bold">失固</span>
+              </div>
+            </div>
           </div>
           <div class="flex flex-col space-y-1.5">
             <Button
@@ -1068,6 +1221,26 @@
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeShoeDef.sellPrice }}文</span>
             </div>
+            <div v-if="activeShoeDurability" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">耐久</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getDurabilityColor(activeShoeDurability.current, activeShoeDurability.max)" :style="{ width: getDurabilityPercent(activeShoeDurability) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeShoeDurability.current }}/{{ activeShoeDurability.max }}</span>
+                <span v-if="isDurabilityBroken(activeShoeDurability)" class="text-xs text-danger font-bold">破损</span>
+              </div>
+            </div>
+            <div v-if="activeShoeSturdiness" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">坚固</span>
+              <div class="flex items-center gap-2">
+                <div class="w-20 h-1.5 bg-accent/10 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="getSturdinessStateColor(activeShoeSturdiness)" :style="{ width: getSturdinessPercent(activeShoeSturdiness) + '%' }"></div>
+                </div>
+                <span class="text-xs">{{ activeShoeSturdiness.current }}/{{ activeShoeSturdiness.max }}</span>
+                <span v-if="isSturdinessDepleted(activeShoeSturdiness)" class="text-xs text-danger font-bold">失固</span>
+              </div>
+            </div>
           </div>
           <div class="flex flex-col space-y-1.5">
             <Button
@@ -1101,7 +1274,6 @@
   import { useCookingStore } from '@/stores/useCookingStore'
   import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
   import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore, type VisibleInventoryItemStack } from '@/stores/useInventoryStore'
-  import { getCurrentDurability } from '@/composables/useDurability'
   import { useMiningStore } from '@/stores/useMiningStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
@@ -1140,6 +1312,10 @@
 
   const inventoryStore = useInventoryStore()
 
+  type EquipmentDurabilityType = 'weapon' | 'ring' | 'hat' | 'shoe'
+  type EquipmentDurabilityState = { current: number; max: number }
+  type EquipmentSturdinessState = { current: number; max: number }
+
   /** 获取耐久条颜色 */
   const getDurabilityColor = (current: number, max: number): string => {
     if (max <= 0) return 'bg-gray-400'
@@ -1149,37 +1325,59 @@
     return 'bg-red-500'
   }
 
-  /** 获取武器耐久 */
-  const getWeaponDurability = (idx: number): { current: number; max: number } => {
-    const w = inventoryStore.ownedWeapons[idx]
-    if (!w) return { current: 0, max: 100 }
-    const max = inventoryStore.getWeaponMaxDurability?.() ?? 100
-    return { current: getCurrentDurability(w, max), max }
+  const getDurabilityPercent = (durability: EquipmentDurabilityState | null): number => {
+    if (!durability || durability.max <= 0) return 0
+    return Math.max(0, Math.min(100, Math.round((durability.current / durability.max) * 100)))
   }
+
+  const getDurabilityStateColor = (durability: EquipmentDurabilityState | null): string =>
+    durability ? getDurabilityColor(durability.current, durability.max) : getDurabilityColor(0, 1)
+
+  const formatDurability = (durability: EquipmentDurabilityState | null): string =>
+    durability ? `${durability.current}/${durability.max}` : ''
+
+  const isDurabilityBroken = (durability: EquipmentDurabilityState | null): boolean =>
+    !!durability && durability.current <= 0
+
+  const getSturdinessPercent = (sturdiness: EquipmentSturdinessState | null): number => {
+    if (!sturdiness || sturdiness.max <= 0) return 0
+    return Math.max(0, Math.min(100, Math.round((sturdiness.current / sturdiness.max) * 100)))
+  }
+
+  const getSturdinessStateColor = (sturdiness: EquipmentSturdinessState | null): string =>
+    sturdiness ? getDurabilityColor(sturdiness.current, sturdiness.max) : getDurabilityColor(0, 1)
+
+  const formatSturdiness = (sturdiness: EquipmentSturdinessState | null): string =>
+    sturdiness ? `${sturdiness.current}/${sturdiness.max}` : ''
+
+  const isSturdinessDepleted = (sturdiness: EquipmentSturdinessState | null): boolean =>
+    !!sturdiness && sturdiness.current <= 0
+
+  const getEquipmentDurability = (type: EquipmentDurabilityType, idx: number | null): EquipmentDurabilityState | null => {
+    if (idx === null || idx < 0) return null
+    return inventoryStore.getOwnedEquipmentDurability(type, idx)
+  }
+
+  const getEquipmentSturdiness = (type: EquipmentDurabilityType, idx: number | null): EquipmentSturdinessState | null => {
+    if (idx === null || idx < 0) return null
+    return inventoryStore.getOwnedEquipmentSturdiness(type, idx)
+  }
+
+  /** 获取武器耐久 */
+  const getWeaponDurability = (idx: number | null): EquipmentDurabilityState | null => getEquipmentDurability('weapon', idx)
+  const getWeaponSturdiness = (idx: number | null): EquipmentSturdinessState | null => getEquipmentSturdiness('weapon', idx)
 
   /** 获取戒指耐久 */
-  const getRingDurability = (idx: number): { current: number; max: number } => {
-    const r = inventoryStore.ownedRings[idx]
-    if (!r) return { current: 0, max: 100 }
-    const max = inventoryStore.getRingMaxDurability?.(idx) ?? 100
-    return { current: getCurrentDurability(r, max), max }
-  }
+  const getRingDurability = (idx: number | null): EquipmentDurabilityState | null => getEquipmentDurability('ring', idx)
+  const getRingSturdiness = (idx: number | null): EquipmentSturdinessState | null => getEquipmentSturdiness('ring', idx)
 
   /** 获取帽子耐久 */
-  const getHatDurability = (idx: number): { current: number; max: number } => {
-    const h = inventoryStore.ownedHats[idx]
-    if (!h) return { current: 0, max: 100 }
-    const max = inventoryStore.getHatMaxDurability?.(idx) ?? 100
-    return { current: getCurrentDurability(h, max), max }
-  }
+  const getHatDurability = (idx: number | null): EquipmentDurabilityState | null => getEquipmentDurability('hat', idx)
+  const getHatSturdiness = (idx: number | null): EquipmentSturdinessState | null => getEquipmentSturdiness('hat', idx)
 
   /** 获取鞋子耐久 */
-  const getShoeDurability = (idx: number): { current: number; max: number } => {
-    const s = inventoryStore.ownedShoes[idx]
-    if (!s) return { current: 0, max: 100 }
-    const max = inventoryStore.getShoeMaxDurability?.(idx) ?? 100
-    return { current: getCurrentDurability(s, max), max }
-  }
+  const getShoeDurability = (idx: number | null): EquipmentDurabilityState | null => getEquipmentDurability('shoe', idx)
+  const getShoeSturdiness = (idx: number | null): EquipmentSturdinessState | null => getEquipmentSturdiness('shoe', idx)
   const miningStore = useMiningStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
@@ -1463,12 +1661,18 @@
     return getRingById(ring.defId)?.name ?? null
   })
 
+  const equippedRing1Durability = computed(() => getRingDurability(inventoryStore.equippedRingSlot1))
+  const equippedRing1Sturdiness = computed(() => getRingSturdiness(inventoryStore.equippedRingSlot1))
+
   const equippedRing2Name = computed(() => {
     const idx = inventoryStore.equippedRingSlot2
     const ring = inventoryStore.ownedRings[idx]
     if (!ring) return null
     return getRingById(ring.defId)?.name ?? null
   })
+
+  const equippedRing2Durability = computed(() => getRingDurability(inventoryStore.equippedRingSlot2))
+  const equippedRing2Sturdiness = computed(() => getRingSturdiness(inventoryStore.equippedRingSlot2))
 
   const isRingEquipped = (idx: number): boolean => {
     return inventoryStore.equippedRingSlot1 === idx || inventoryStore.equippedRingSlot2 === idx
@@ -1608,10 +1812,22 @@
     return getWeaponSellPrice(weapon.defId, weapon.enchantmentId, weapon.affixes)
   })
 
+  const equippedWeaponName = computed(() => {
+    const weapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
+    if (!weapon) return null
+    return getWeaponDisplayName(weapon.defId, weapon.enchantmentId, weapon.affixes)
+  })
+
+  const equippedWeaponDurability = computed(() => getWeaponDurability(inventoryStore.equippedWeaponIndex))
+  const equippedWeaponSturdiness = computed(() => getWeaponSturdiness(inventoryStore.equippedWeaponIndex))
+
   const activeWeaponLocked = computed(() => {
     if (activeWeaponIdx.value === null) return false
     return !!inventoryStore.ownedWeapons[activeWeaponIdx.value]?.locked
   })
+
+  const activeWeaponDurability = computed(() => getWeaponDurability(activeWeaponIdx.value))
+  const activeWeaponSturdiness = computed(() => getWeaponSturdiness(activeWeaponIdx.value))
 
   const handleToggleWeaponLock = () => {
     if (activeWeaponIdx.value === null) return
@@ -1653,6 +1869,9 @@
     return !!inventoryStore.ownedRings[activeRingIdx.value]?.locked
   })
 
+  const activeRingDurability = computed(() => getRingDurability(activeRingIdx.value))
+  const activeRingSturdiness = computed(() => getRingSturdiness(activeRingIdx.value))
+
   const handleToggleRingLock = () => {
     if (activeRingIdx.value === null) return
     inventoryStore.toggleEquipmentLock('ring', activeRingIdx.value)
@@ -1685,6 +1904,9 @@
     return getHatById(hat.defId)?.name ?? null
   })
 
+  const equippedHatDurability = computed(() => getHatDurability(inventoryStore.equippedHatIndex))
+  const equippedHatSturdiness = computed(() => getHatSturdiness(inventoryStore.equippedHatIndex))
+
   const handleToggleHat = (idx: number) => {
     if (inventoryStore.equippedHatIndex === idx) {
       inventoryStore.unequipHat()
@@ -1715,6 +1937,9 @@
     return !!inventoryStore.ownedHats[activeHatIdx.value]?.locked
   })
 
+  const activeHatDurability = computed(() => getHatDurability(activeHatIdx.value))
+  const activeHatSturdiness = computed(() => getHatSturdiness(activeHatIdx.value))
+
   const handleToggleHatLock = () => {
     if (activeHatIdx.value === null) return
     inventoryStore.toggleEquipmentLock('hat', activeHatIdx.value)
@@ -1740,6 +1965,9 @@
     if (!shoe) return null
     return getShoeById(shoe.defId)?.name ?? null
   })
+
+  const equippedShoeDurability = computed(() => getShoeDurability(inventoryStore.equippedShoeIndex))
+  const equippedShoeSturdiness = computed(() => getShoeSturdiness(inventoryStore.equippedShoeIndex))
 
   const handleToggleShoe = (idx: number) => {
     if (inventoryStore.equippedShoeIndex === idx) {
@@ -1770,6 +1998,9 @@
     if (activeShoeIdx.value === null) return false
     return !!inventoryStore.ownedShoes[activeShoeIdx.value]?.locked
   })
+
+  const activeShoeDurability = computed(() => getShoeDurability(activeShoeIdx.value))
+  const activeShoeSturdiness = computed(() => getShoeSturdiness(activeShoeIdx.value))
 
   const handleToggleShoeLock = () => {
     if (activeShoeIdx.value === null) return
@@ -2157,3 +2388,70 @@
     discardMode.value = false
   }
 </script>
+
+<style scoped>
+  .inventory-equipment-row {
+    min-width: 0;
+    max-width: 100%;
+    gap: 0.5rem;
+  }
+
+  .inventory-equipment-layout,
+  .inventory-equipment-layout > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .inventory-equipment-info,
+  .inventory-equipment-copy,
+  .inventory-equipment-actions {
+    min-width: 0;
+  }
+
+  .inventory-equipment-copy {
+    overflow: hidden;
+  }
+
+  .inventory-equipment-actions {
+    max-width: min(48%, 9rem);
+  }
+
+  .inventory-equipment-durability,
+  .inventory-equipment-action-buttons {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 420px) {
+    .inventory-equipment-row {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .inventory-equipment-info {
+      flex: 1 1 10rem;
+    }
+
+    .inventory-equipment-actions {
+      flex-shrink: 1;
+      margin-left: auto;
+      max-width: 100%;
+    }
+
+    .inventory-equipment-durability {
+      row-gap: 0.125rem;
+    }
+
+    .inventory-equipment-action-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      min-width: 3.25rem;
+    }
+
+    .inventory-equipment-action-buttons :deep(.btn) {
+      min-width: 0;
+      padding-left: 0.25rem;
+      padding-right: 0.25rem;
+    }
+  }
+</style>

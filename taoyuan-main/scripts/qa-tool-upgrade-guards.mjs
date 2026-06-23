@@ -157,9 +157,10 @@ assert(
   'greenhouse crop daily growth should share global crop speedup and keep the green-rain extra progress hook.'
 )
 assert(
-  farmGrowthSource.includes('return Math.max(1, Number(days) || 1)') &&
-    farmGrowthSource.includes('return Math.max(1, cycleDays * (1 - Math.max(0, Number(speedup) || 0)))') &&
-    !farmGrowthSource.includes('Math.floor(cycleDays * (1 - Math.max(0, Number(speedup) || 0)))'),
+  farmGrowthSource.includes('export const MAX_CROP_GROWTH_SPEEDUP = 0.5') &&
+    farmGrowthSource.includes('const boundedSpeedup = Math.min(MAX_CROP_GROWTH_SPEEDUP, Math.max(0, Number(speedup) || 0))') &&
+    farmGrowthSource.includes('return Math.max(1, cycleDays * (1 - boundedSpeedup))') &&
+    !farmGrowthSource.includes('Math.floor(cycleDays * (1 - boundedSpeedup))'),
   'crop effective growth days should keep fractional thresholds instead of rounding maturity days.'
 )
 assert(

@@ -72,6 +72,24 @@ export interface HouseholdRoleDef {
   rewardSummary: string
 }
 
+export type HouseholdRoleEffectKey =
+  | 'familyWishProgress'
+  | 'familyWishItemRelief'
+  | 'animalMoodFloor'
+  | 'processingSpeedPercent'
+  | 'familyFavorTicket'
+  | 'childTrainingFriendshipBonus'
+
+export interface HouseholdRoleEffectSummary {
+  roleId: HouseholdRoleId
+  label: string
+  effectKey: HouseholdRoleEffectKey
+  value: number
+  summary: string
+  weeklySummary: string
+  active: boolean
+}
+
 export interface HouseholdRoleAssignmentState {
   npcId: string
   roleId: HouseholdRoleId
@@ -97,6 +115,9 @@ export interface FamilyWishItemRequirement {
   minQuality?: Quality
   sourceHint?: string
   sourceGroupId?: ProcessedItemGroupId
+  demandId?: string
+  demandTags?: string[]
+  antiRepeatTags?: string[]
 }
 
 export interface RelationshipEventChainStep {
@@ -771,6 +792,14 @@ export interface HeartEventDef {
 export type ChildStage = 'baby' | 'toddler' | 'child' | 'teen'
 
 export type ChildTrainingFocus = 'farm' | 'craft' | 'social' | 'spirit'
+
+export interface ChildTrainingItemRequirement {
+  itemId: string
+  quantity: number
+  minQuality?: Quality
+  sourceHint?: string
+  sourceGroupId?: ProcessedItemGroupId
+}
 
 export interface ChildTrainingInfluenceEntry {
   id: string

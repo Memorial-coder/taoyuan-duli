@@ -1,10 +1,10 @@
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" data-testid="admin-log-center-panel">
     <div class="game-panel space-y-4">
-      <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p class="text-sm text-accent">日志中心</p>
-          <p class="text-xs text-muted mt-1">查看管理审计、内容发布记录和长期游戏日志。</p>
+          <p class="text-xs text-muted mt-1">统一检索管理审计、在线审计、内容审核、内容发布和游戏长期日志。</p>
         </div>
         <button class="btn !px-3 !py-2" @click="refreshAll" :disabled="loadingAny">
           {{ loadingAny ? '刷新中...' : '刷新日志' }}
@@ -13,87 +13,107 @@
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
 
-      <div class="grid gap-3 md:grid-cols-3">
+      <div class="admin-log-overview-grid" data-testid="admin-log-overview">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          class="admin-log-source"
+          :class="{ 'admin-log-source--active': activeTab === tab.key }"
+          :disabled="tab.key === 'admin_audit' && !canViewAudit"
+          @click="setActiveTab(tab.key)"
+        >
+          <span class="text-[0.6875rem] text-muted">{{ tab.label }}</span>
+          <span class="admin-log-source__count">{{ formatCount(sourceTotal(tab.key)) }}</span>
+          <span class="text-[0.6875rem] text-muted">{{ sourceSubline(tab.key) }}</span>
+          <span class="text-[0.6875rem] text-muted">{{ sourceLatestLine(tab.key) }}</span>
+        </button>
+      </div>
+
+      <div class="admin-log-tabs" data-testid="admin-log-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          class="admin-log-tab"
+          :class="{ 'admin-log-tab--active': activeTab === tab.key }"
+          :disabled="tab.key === 'admin_audit' && !canViewAudit"
+          @click="setActiveTab(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6" data-testid="admin-log-filters">
         <label class="admin-label">
           <span>用户名</span>
-          <input v-model="filters.username" type="text" class="admin-input" placeholder="留空查看全部" />
+          <input v-model="filters.username" type="text" class="admin-input" placeholder="目标或玩家账号" @keydown.enter.prevent="refreshActive" />
         </label>
         <label class="admin-label">
-          <span>分类</span>
-          <input v-model="filters.category" type="text" class="admin-input" placeholder="如 system / goal / economy" />
+          <span>动作</span>
+          <input v-model="filters.action" type="text" class="admin-input" placeholder="action / route" @keydown.enter.prevent="refreshActive" />
         </label>
+        <label class="admin-label">
+          <span>结果</span>
+          <input v-model="filters.outcome" type="text" class="admin-input" placeholder="completed / rejected" @keydown.enter.prevent="refreshActive" />
+        </label>
+        <label class="admin-label">
+          <span>分类/场景</span>
+          <input v-model="filters.category" type="text" class="admin-input" placeholder="system / hall / scene" @keydown.enter.prevent="refreshActive" />
+        </label>
+        <label class="admin-label">
+          <span>开始时间</span>
+          <input v-model="filters.createdFrom" type="datetime-local" class="admin-input" />
+        </label>
+        <label class="admin-label">
+          <span>结束时间</span>
+          <input v-model="filters.createdTo" type="datetime-local" class="admin-input" />
+        </label>
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <label class="admin-label">
           <span>关键词</span>
-          <input v-model="filters.keyword" type="text" class="admin-input" placeholder="日志关键词" @keydown.enter.prevent="refreshGameplayLogs" />
+          <input v-model="filters.keyword" type="text" class="admin-input" placeholder="游戏日志消息、元数据或内容标题" @keydown.enter.prevent="refreshActive" />
         </label>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div class="game-panel space-y-4">
-        <div class="flex items-center justify-between gap-3">
-          <p class="text-sm text-accent">内容发布日志</p>
-          <span class="text-xs text-muted">{{ contentRevisions.length }} 条</span>
-        </div>
-        <div v-if="loadingContentLogs" class="text-xs text-muted">内容日志加载中...</div>
-        <div v-else-if="!contentRevisions.length" class="text-xs text-muted">暂无内容发布日志。</div>
-        <div v-else class="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
-          <div v-for="revision in contentRevisions" :key="revision.id" class="admin-record-card text-xs text-muted space-y-2">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <div class="text-text">{{ revision.title || revision.content_key }}</div>
-                <div class="text-[0.6875rem] text-muted mt-1">#{{ revision.id }} · {{ revision.action }}</div>
-              </div>
-              <span class="admin-status" :class="revision.published ? 'admin-status--sent' : 'admin-status--draft'">
-                {{ revision.published ? '已发布' : '草稿' }}
-              </span>
-            </div>
-            <div>{{ formatTime(revision.created_at) }} · {{ revision.operator_name || revision.operator_role || '管理员' }}</div>
-            <div>{{ revision.summary || '无备注' }}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="game-panel space-y-4">
-        <div class="flex items-center justify-between gap-3">
-          <p class="text-sm text-accent">游戏长期日志</p>
-          <span class="text-xs text-muted">{{ gameplayLogs.length }} 条</span>
-        </div>
-        <div v-if="loadingGameplayLogs" class="text-xs text-muted">游戏日志加载中...</div>
-        <div v-else-if="!gameplayLogs.length" class="text-xs text-muted">暂无游戏日志。</div>
-        <div v-else class="space-y-3 max-h-[52vh] overflow-y-auto pr-1">
-          <div v-for="log in gameplayLogs" :key="log.id" class="admin-record-card text-xs text-muted space-y-2">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <div class="text-text break-all">{{ log.message }}</div>
-                <div class="text-[0.6875rem] text-muted mt-1">{{ log.username || 'guest' }} · {{ log.category }}</div>
-              </div>
-              <span class="admin-chip">{{ log.day_label || '未标记日期' }}</span>
-            </div>
-            <div>{{ formatTime(log.created_at) }} · 路由 {{ log.route_name || '-' }}</div>
-            <div v-if="log.tags?.length">标签：{{ log.tags.join('、') }}</div>
-            <div v-if="Object.keys(log.meta || {}).length">元数据：{{ formatDetail(log.meta) }}</div>
-          </div>
+        <div class="flex items-end gap-2">
+          <button class="btn !px-3 !py-2" @click="refreshActive" :disabled="loadingAny">应用筛选</button>
+          <button class="btn !px-3 !py-2" @click="resetFilters" :disabled="loadingAny">清空</button>
         </div>
       </div>
     </div>
 
-    <div v-if="canViewAudit" class="game-panel space-y-4">
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-sm text-accent">管理员审计日志</p>
-        <span class="text-xs text-muted">{{ auditLogs.length }} 条</span>
-      </div>
-      <div v-if="loadingAuditLogs" class="text-xs text-muted">审计日志加载中...</div>
-      <div v-else-if="!auditLogs.length" class="text-xs text-muted">暂无审计日志。</div>
-      <div v-else class="space-y-3 max-h-[42vh] overflow-y-auto pr-1">
-        <div v-for="log in auditLogs" :key="log.id" class="admin-record-card text-xs text-muted space-y-2">
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-text">{{ formatAuditAction(log.action) }}</div>
-            <span class="admin-chip">{{ log.operator_name || log.operator_role }}</span>
-          </div>
-          <div>{{ formatTime(log.created_at) }} · 目标账号：{{ log.target_username || '-' }}</div>
-          <div>详情：{{ formatDetail(log.detail) }}</div>
+    <div class="game-panel space-y-4" data-testid="admin-log-results">
+      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p class="text-sm text-accent">{{ activeTabLabel }}</p>
+          <p class="text-xs text-muted mt-1">{{ activePolicyText }}</p>
+          <p class="text-xs text-muted mt-1">{{ activeFilterText }}</p>
         </div>
+        <div class="text-xs text-muted">
+          共 {{ formatCount(activeTotal) }} 条 · 第 {{ activePage }} / {{ activePageCount }} 页
+        </div>
+      </div>
+
+      <div v-if="activeLoading" class="text-xs text-muted">日志加载中...</div>
+      <div v-else-if="!activeRows.length" class="text-xs text-muted">当前筛选下暂无日志。</div>
+      <div v-else class="admin-log-list">
+        <article v-for="row in activeRows" :key="row.id" class="admin-record-card text-xs text-muted space-y-2">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <div class="text-text break-all">{{ row.title }}</div>
+              <div class="text-[0.6875rem] text-muted mt-1">{{ row.subtitle }}</div>
+            </div>
+            <span class="admin-chip">{{ row.badge }}</span>
+          </div>
+          <div>{{ formatTime(row.created_at) }} · {{ row.sourceLabel }}</div>
+          <div v-if="row.detail">详情：{{ row.detail }}</div>
+        </article>
+      </div>
+
+      <div class="admin-log-pager" data-testid="admin-log-pager">
+        <button class="btn !px-3 !py-2" :disabled="activePage <= 1 || activeLoading" @click="goPage(-1)">上一页</button>
+        <button class="btn !px-3 !py-2" :disabled="activePage >= activePageCount || activeLoading" @click="goPage(1)">下一页</button>
       </div>
     </div>
   </div>
@@ -101,30 +121,118 @@
 
 <script setup lang="ts">
   import { computed, reactive, ref, watch } from 'vue'
-  import { fetchGameplayLogs, fetchContentRevisions, type ContentRevisionEntry, type GameplayLogEntry } from '@/utils/adminContentApi'
+  import {
+    fetchAdminLogCenterOverview,
+    fetchContentRevisions,
+    fetchGameplayLogs,
+    type AdminLogCenterOverviewResult,
+    type ContentRevisionEntry,
+    type GameplayLogEntry,
+  } from '@/utils/adminContentApi'
+  import {
+    fetchAdminContentModerationEvents,
+    fetchAdminContentRiskSignals,
+    fetchAdminOnlineAuditLogPage,
+  } from '@/utils/adminOnlineApi'
+  import type { AdminContentModerationEvent, AdminContentRiskSignal } from '@/types'
   import { fetchAdminAuditLogs, type AdminAuditLogEntry } from '@/utils/userAdminApi'
   import { showFloat } from '@/composables/useGameLog'
+
+  type LogTabKey = 'all' | 'admin_audit' | 'online_audit' | 'content_moderation' | 'gameplay' | 'content_revision'
+
+  interface NormalizedLogRow {
+    id: string
+    source: LogTabKey
+    sourceLabel: string
+    title: string
+    subtitle: string
+    badge: string
+    detail: string
+    created_at: number
+  }
 
   const props = defineProps<{
     canLoad: boolean
     canViewAudit: boolean
   }>()
 
+  const announcementAuditActions = [
+    'create_taoyuan_announcement',
+    'update_taoyuan_announcement',
+    'publish_taoyuan_announcement',
+    'offline_taoyuan_announcement',
+    'delete_taoyuan_announcement',
+  ]
+
+  const tabs: Array<{ key: LogTabKey; label: string }> = [
+    { key: 'all', label: '全部' },
+    { key: 'admin_audit', label: '管理审计' },
+    { key: 'online_audit', label: '在线审计' },
+    { key: 'content_moderation', label: '内容审核' },
+    { key: 'gameplay', label: '游戏日志' },
+    { key: 'content_revision', label: '内容发布' },
+  ]
+
+  const activeTab = ref<LogTabKey>('all')
+  const overview = ref<AdminLogCenterOverviewResult['sources'] | null>(null)
+  const pageSize = 40
+  const pages = reactive<Record<LogTabKey, number>>({
+    all: 1,
+    admin_audit: 1,
+    online_audit: 1,
+    content_moderation: 1,
+    gameplay: 1,
+    content_revision: 1,
+  })
+  const totals = reactive<Record<LogTabKey, number>>({
+    all: 0,
+    admin_audit: 0,
+    online_audit: 0,
+    content_moderation: 0,
+    gameplay: 0,
+    content_revision: 0,
+  })
+  const rows = reactive<Record<LogTabKey, NormalizedLogRow[]>>({
+    all: [],
+    admin_audit: [],
+    online_audit: [],
+    content_moderation: [],
+    gameplay: [],
+    content_revision: [],
+  })
+  const loading = reactive<Record<LogTabKey | 'overview', boolean>>({
+    all: false,
+    admin_audit: false,
+    online_audit: false,
+    content_moderation: false,
+    gameplay: false,
+    content_revision: false,
+    overview: false,
+  })
   const filters = reactive({
     username: '',
+    action: '',
+    outcome: '',
     category: '',
     keyword: '',
+    createdFrom: '',
+    createdTo: '',
   })
-
-  const contentRevisions = ref<ContentRevisionEntry[]>([])
-  const gameplayLogs = ref<GameplayLogEntry[]>([])
-  const auditLogs = ref<AdminAuditLogEntry[]>([])
-  const loadingContentLogs = ref(false)
-  const loadingGameplayLogs = ref(false)
-  const loadingAuditLogs = ref(false)
   const errorMessage = ref('')
 
-  const loadingAny = computed(() => loadingContentLogs.value || loadingGameplayLogs.value || loadingAuditLogs.value)
+  const loadingAny = computed(() => Object.values(loading).some(Boolean))
+  const activeTabLabel = computed(() => tabs.find(tab => tab.key === activeTab.value)?.label || '全部')
+  const activeRows = computed(() => rows[activeTab.value])
+  const activePage = computed(() => pages[activeTab.value])
+  const activeTotal = computed(() => totals[activeTab.value])
+  const activeLoading = computed(() => loading[activeTab.value])
+  const activePageCount = computed(() => Math.max(1, Math.ceil(activeTotal.value / pageSize)))
+
+  const toTimestamp = (value: string) => {
+    if (!value) return undefined
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : undefined
+  }
 
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '-'
@@ -137,87 +245,438 @@
     })
   }
 
-  const formatAuditAction = (action: string) => {
-    const mapping: Record<string, string> = {
-      set_user_quota: '修改额度',
-      reset_user_password: '重置密码',
-      set_user_status: '修改状态',
-      delete_user: '删除用户',
-      export_user_save: '导出存档',
-      migrate_user_save: '迁移存档',
-      publish_homepage_about: '发布首页关于内容',
-      restore_homepage_about: '恢复首页关于内容',
-      upload_content_image: '上传内容图片',
-      update_android_release_config: '更新安卓发布配置',
+  const formatCount = (value?: number | null) => new Intl.NumberFormat('zh-CN').format(Math.max(0, Number(value) || 0))
+
+  const formatDetail = (detail: Record<string, unknown> = {}, maxEntries = 8) => {
+    const entries = Object.entries(detail || {}).filter(([, value]) => value !== undefined && value !== null && String(value) !== '')
+    if (!entries.length) return ''
+    return entries.slice(0, maxEntries).map(([key, value]) => `${key}: ${String(value)}`).join('；')
+  }
+
+  const sourceOverview = (key: LogTabKey) => {
+    if (key === 'all') return null
+    return overview.value?.[key] || null
+  }
+
+  const sourceTotal = (key: LogTabKey) => {
+    if (key !== 'all') return sourceOverview(key)?.total || 0
+    return ['admin_audit', 'online_audit', 'content_moderation', 'gameplay', 'content_revision']
+      .reduce((sum, item) => sum + (overview.value?.[item as Exclude<LogTabKey, 'all'>]?.total || 0), 0)
+  }
+
+  const sourceSubline = (key: LogTabKey) => {
+    if (key === 'all') {
+      return `汇总 ${formatCount(sourceTotal(key))} 条`
     }
-    return mapping[action] || action
+    const source = sourceOverview(key)
+    if (!source) return '等待刷新'
+    if (key === 'gameplay') return `30 天 · 上限 ${formatCount(source.max_total)}`
+    if (source.retention_label) return source.retention_label
+    if (source.retention_days) return `${source.retention_days} 天留存${source.preserves_major_evidence ? ' · 重大保留' : ''}`
+    return source.latest_created_at ? `最近 ${formatTime(source.latest_created_at)}` : '暂无记录'
   }
 
-  const formatDetail = (detail: Record<string, unknown>) => {
-    const entries = Object.entries(detail || {})
-    if (!entries.length) return '-'
-    return entries.map(([key, value]) => `${key}: ${String(value)}`).join('；')
+  const sourceLatestLine = (key: LogTabKey) => {
+    if (key === 'all') {
+      const latest = ['admin_audit', 'online_audit', 'content_moderation', 'gameplay', 'content_revision']
+        .reduce((max, item) => Math.max(max, overview.value?.[item as Exclude<LogTabKey, 'all'>]?.latest_created_at || 0), 0)
+      return latest ? `最近写入 ${formatTime(latest)}` : '最近写入 -'
+    }
+    const source = sourceOverview(key)
+    return source?.latest_created_at ? `最近写入 ${formatTime(source.latest_created_at)}` : '最近写入 -'
   }
 
-  const refreshContentLogs = async () => {
+  const activePolicyText = computed(() => {
+    if (activeTab.value === 'all') return '聚合展示各日志源第一页结果，按时间倒序合并。'
+    const source = sourceOverview(activeTab.value)
+    if (activeTab.value === 'gameplay') return `默认留存 30 天，最多 ${formatCount(source?.max_total || 500000)} 条，单用户单存档最多 ${formatCount(source?.max_per_user_slot || 12000)} 条。`
+    if (source?.retention_label) return `${source.retention_label}，当前总数 ${formatCount(source.total)} 条。`
+    if (source?.retention_days) return `至少留存 ${source.retention_days} 天${source.preserves_major_evidence ? '，重大证据类日志不过期清理' : ''}。`
+    return '显示真实总数、分页和当前筛选条件。'
+  })
+
+  const activeFilterText = computed(() => {
+    const items = [
+      filters.createdFrom ? `开始 ${filters.createdFrom}` : '',
+      filters.createdTo ? `结束 ${filters.createdTo}` : '',
+      filters.username.trim() ? `用户 ${filters.username.trim()}` : '',
+      filters.action.trim() ? `动作 ${filters.action.trim()}` : '',
+      filters.outcome.trim() ? `结果 ${filters.outcome.trim()}` : '',
+      filters.category.trim() ? `分类/场景 ${filters.category.trim()}` : '',
+      filters.keyword.trim() ? `关键词 ${filters.keyword.trim()}` : '',
+    ].filter(Boolean)
+    return items.length ? `当前筛选：${items.join(' · ')}` : '当前筛选：全部'
+  })
+
+  const normalizeAdminAudit = (log: AdminAuditLogEntry): NormalizedLogRow => ({
+    id: `admin_${log.id}`,
+    source: 'admin_audit',
+    sourceLabel: '管理审计',
+    title: log.action || 'admin_action',
+    subtitle: `${log.operator_name || log.operator_role || '管理员'} · 目标 ${log.target_username || '-'}`,
+    badge: String((log as AdminAuditLogEntry & { outcome?: string }).outcome || log.detail?.outcome || 'completed'),
+    detail: formatDetail(log.detail),
+    created_at: Number(log.created_at) || 0,
+  })
+
+  const normalizeOnlineAudit = (log: Record<string, any>): NormalizedLogRow => ({
+    id: `online_${log.id}`,
+    source: 'online_audit',
+    sourceLabel: '在线审计',
+    title: String(log.action || log.route_key || 'online_action'),
+    subtitle: `${log.username || 'guest'} · ${log.method || 'POST'} ${log.path || log.route_key || '-'}`,
+    badge: String(log.outcome || log.status_code || 'completed'),
+    detail: formatDetail(log.detail || {}),
+    created_at: Number(log.created_at) || 0,
+  })
+
+  const normalizeModerationEvent = (event: AdminContentModerationEvent): NormalizedLogRow => ({
+    id: `moderation_${event.id}`,
+    source: 'content_moderation',
+    sourceLabel: '内容审核',
+    title: `${event.action || 'moderation'} · ${event.scene || event.content_type || '-'}`,
+    subtitle: `${event.username || 'guest'} · ${event.matched_category || event.severity || '-'}`,
+    badge: event.outcome || event.severity || 'review',
+    detail: formatDetail({
+      excerpt: event.content_excerpt,
+      rule: event.rule_version,
+      request_id: event.request_id,
+    }),
+    created_at: Number(event.created_at) || 0,
+  })
+
+  const normalizeRiskSignal = (signal: AdminContentRiskSignal): NormalizedLogRow => ({
+    id: `risk_${signal.id}`,
+    source: 'content_moderation',
+    sourceLabel: '风险信号',
+    title: `${signal.signal_type || 'risk_signal'} · 风险 ${signal.risk_score || 0}`,
+    subtitle: `${signal.username || signal.usernames?.[0] || 'guest'} · ${signal.scene || signal.target_type || '-'}`,
+    badge: signal.status || signal.outcome || 'pending',
+    detail: formatDetail({
+      reason: signal.reason_code,
+      events: signal.event_count,
+      reports: signal.report_count,
+    }),
+    created_at: Number(signal.updated_at || signal.created_at) || 0,
+  })
+
+  const normalizeGameplay = (log: GameplayLogEntry): NormalizedLogRow => ({
+    id: `gameplay_${log.id}`,
+    source: 'gameplay',
+    sourceLabel: '游戏日志',
+    title: log.message || 'gameplay_log',
+    subtitle: `${log.username || 'guest'} · ${log.category || 'system'} · ${log.route_name || '-'}`,
+    badge: log.day_label || '未标记日期',
+    detail: [
+      log.tags?.length ? `标签: ${log.tags.join('、')}` : '',
+      formatDetail(log.meta || {}),
+    ].filter(Boolean).join('；'),
+    created_at: Number(log.created_at) || 0,
+  })
+
+  const normalizeContentRevision = (revision: ContentRevisionEntry): NormalizedLogRow => ({
+    id: `revision_${revision.id}`,
+    source: 'content_revision',
+    sourceLabel: '内容发布',
+    title: revision.title || revision.content_key || 'content_revision',
+    subtitle: `${revision.operator_name || revision.operator_role || '管理员'} · ${revision.content_key}`,
+    badge: revision.published ? '已发布' : '草稿',
+    detail: revision.summary || '',
+    created_at: Number(revision.created_at) || 0,
+  })
+
+  const normalizeAnnouncementAudit = (log: AdminAuditLogEntry): NormalizedLogRow => ({
+    id: `announcement_${log.id}`,
+    source: 'content_revision',
+    sourceLabel: '公告审计',
+    title: log.action || 'announcement_audit',
+    subtitle: `${log.operator_name || log.operator_role || '管理员'} · ${String(log.detail?.title || log.detail?.target_id || '公告')}`,
+    badge: String((log as AdminAuditLogEntry & { outcome?: string }).outcome || log.detail?.outcome || 'completed'),
+    detail: formatDetail({
+      target_id: log.detail?.target_id,
+      status: log.detail?.status,
+      template_type: log.detail?.template_type,
+      reason: log.detail?.reason,
+    }),
+    created_at: Number(log.created_at) || 0,
+  })
+
+  const commonParams = () => ({
+    username: filters.username.trim(),
+    action: filters.action.trim(),
+    outcome: filters.outcome.trim(),
+    createdFrom: toTimestamp(filters.createdFrom),
+    createdTo: toTimestamp(filters.createdTo),
+  })
+
+  const refreshOverview = async () => {
     if (!props.canLoad) return
-    loadingContentLogs.value = true
+    loading.overview = true
     try {
-      const result = await fetchContentRevisions({ contentKey: 'homepage_about', page: 1, pageSize: 40 })
-      contentRevisions.value = result.revisions
+      overview.value = (await fetchAdminLogCenterOverview()).sources
     } finally {
-      loadingContentLogs.value = false
+      loading.overview = false
     }
   }
 
-  const refreshGameplayLogs = async () => {
-    if (!props.canLoad) return
-    loadingGameplayLogs.value = true
+  const refreshAdminAudit = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
+    if (!props.canLoad || !props.canViewAudit) {
+      rows.admin_audit = []
+      totals.admin_audit = 0
+      return { total: 0, rows: [] as NormalizedLogRow[] }
+    }
+    loading.admin_audit = true
+    try {
+      const result = await fetchAdminAuditLogs({
+        ...commonParams(),
+        operatorName: filters.category.trim(),
+        page: options.page || pages.admin_audit,
+        pageSize: options.pageSize || pageSize,
+      })
+      const nextRows = result.logs.map(normalizeAdminAudit)
+      if (options.assign !== false) {
+        totals.admin_audit = result.total
+        rows.admin_audit = nextRows
+      }
+      return { total: result.total, rows: nextRows }
+    } finally {
+      loading.admin_audit = false
+    }
+  }
+
+  const refreshOnlineAudit = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
+    if (!props.canLoad) return { total: 0, rows: [] as NormalizedLogRow[] }
+    loading.online_audit = true
+    try {
+      const result = await fetchAdminOnlineAuditLogPage({
+        ...commonParams(),
+        routeKey: filters.category.trim(),
+        page: options.page || pages.online_audit,
+        pageSize: options.pageSize || pageSize,
+      })
+      const nextTotal = Number(result.total) || 0
+      const nextRows = (Array.isArray(result.logs) ? result.logs : []).map(normalizeOnlineAudit)
+      if (options.assign !== false) {
+        totals.online_audit = nextTotal
+        rows.online_audit = nextRows
+      }
+      return { total: nextTotal, rows: nextRows }
+    } finally {
+      loading.online_audit = false
+    }
+  }
+
+  const refreshContentModeration = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
+    if (!props.canLoad) return { total: 0, rows: [] as NormalizedLogRow[] }
+    loading.content_moderation = true
+    try {
+      const effectivePageSize = options.pageSize || pageSize
+      const params = {
+        username: filters.username.trim(),
+        scene: filters.category.trim(),
+        action: filters.action.trim(),
+        outcome: filters.outcome.trim(),
+        createdFrom: toTimestamp(filters.createdFrom),
+        createdTo: toTimestamp(filters.createdTo),
+        page: options.page || pages.content_moderation,
+        pageSize: Math.max(10, Math.floor(effectivePageSize / 2)),
+      }
+      const [events, signals] = await Promise.all([
+        fetchAdminContentModerationEvents(params),
+        fetchAdminContentRiskSignals({
+          username: filters.username.trim(),
+          scene: filters.category.trim(),
+          status: filters.outcome.trim() as AdminContentRiskSignal['status'] | 'all' || 'all',
+          createdFrom: toTimestamp(filters.createdFrom),
+          createdTo: toTimestamp(filters.createdTo),
+          page: options.page || pages.content_moderation,
+          pageSize: Math.max(10, Math.floor(effectivePageSize / 2)),
+        }),
+      ])
+      const nextTotal = (Number(events.total) || 0) + (Number(signals.total) || 0)
+      const nextRows = [
+        ...(Array.isArray(events.events) ? events.events.map(normalizeModerationEvent) : []),
+        ...(Array.isArray(signals.signals) ? signals.signals.map(normalizeRiskSignal) : []),
+      ].sort((left, right) => right.created_at - left.created_at).slice(0, effectivePageSize)
+      if (options.assign !== false) {
+        totals.content_moderation = nextTotal
+        rows.content_moderation = nextRows
+      }
+      return { total: nextTotal, rows: nextRows }
+    } finally {
+      loading.content_moderation = false
+    }
+  }
+
+  const refreshGameplay = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
+    if (!props.canLoad) return { total: 0, rows: [] as NormalizedLogRow[] }
+    loading.gameplay = true
     try {
       const result = await fetchGameplayLogs({
         username: filters.username.trim(),
         category: filters.category.trim(),
         keyword: filters.keyword.trim(),
-        page: 1,
-        pageSize: 80,
+        action: filters.action.trim(),
+        outcome: filters.outcome.trim(),
+        createdFrom: toTimestamp(filters.createdFrom),
+        createdTo: toTimestamp(filters.createdTo),
+        page: options.page || pages.gameplay,
+        pageSize: options.pageSize || pageSize,
       })
-      gameplayLogs.value = result.logs
+      const nextRows = result.logs.map(normalizeGameplay)
+      if (options.assign !== false) {
+        totals.gameplay = result.total
+        rows.gameplay = nextRows
+      }
+      return { total: result.total, rows: nextRows }
     } finally {
-      loadingGameplayLogs.value = false
+      loading.gameplay = false
     }
   }
 
-  const refreshAuditLogs = async () => {
-    if (!props.canLoad || !props.canViewAudit) return
-    loadingAuditLogs.value = true
+  const refreshContentRevisions = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
+    if (!props.canLoad) return { total: 0, rows: [] as NormalizedLogRow[] }
+    loading.content_revision = true
     try {
-      const result = await fetchAdminAuditLogs({ page: 1, pageSize: 40 })
-      auditLogs.value = result.logs
+      const effectivePageSize = options.pageSize || pageSize
+      const revisionResult = await fetchContentRevisions({
+        contentKey: filters.category.trim(),
+        action: filters.action.trim(),
+        operatorName: filters.username.trim(),
+        keyword: filters.keyword.trim(),
+        createdFrom: toTimestamp(filters.createdFrom),
+        createdTo: toTimestamp(filters.createdTo),
+        page: options.page || pages.content_revision,
+        pageSize: effectivePageSize,
+      })
+      const shouldIncludeAnnouncements = props.canViewAudit && (
+        !filters.category.trim()
+        || '公告审计'.includes(filters.category.trim())
+        || '内容发布'.includes(filters.category.trim())
+        || 'announcement'.includes(filters.category.trim().toLocaleLowerCase('zh-CN'))
+      )
+      const actionFilter = filters.action.trim()
+      const announcementActions = actionFilter
+        ? announcementAuditActions.filter(action => action === actionFilter)
+        : announcementAuditActions
+      const announcementBatches = shouldIncludeAnnouncements
+        ? await Promise.all(announcementActions.map(action => fetchAdminAuditLogs({
+          username: filters.username.trim(),
+          action,
+          outcome: filters.outcome.trim(),
+          keyword: filters.keyword.trim(),
+          createdFrom: toTimestamp(filters.createdFrom),
+          createdTo: toTimestamp(filters.createdTo),
+          page: options.page || pages.content_revision,
+          pageSize: Math.max(20, Math.floor(effectivePageSize / 2)),
+        })))
+        : []
+      const announcementRows = announcementBatches.flatMap(batch => batch.logs.map(normalizeAnnouncementAudit))
+      const nextTotal = (Number(revisionResult.total) || 0) + announcementBatches.reduce((sum, batch) => sum + (Number(batch.total) || 0), 0)
+      const nextRows = [
+        ...revisionResult.revisions.map(normalizeContentRevision),
+        ...announcementRows,
+      ].sort((left, right) => right.created_at - left.created_at).slice(0, effectivePageSize)
+      if (options.assign !== false) {
+        totals.content_revision = nextTotal
+        rows.content_revision = nextRows
+      }
+      return { total: nextTotal, rows: nextRows }
     } finally {
-      loadingAuditLogs.value = false
+      loading.content_revision = false
     }
   }
 
-  const refreshAll = async () => {
+  const refreshAllLogs = async () => {
+    loading.all = true
+    try {
+      const candidatePageSize = Math.min(100, Math.max(pageSize, pages.all * pageSize))
+      const [adminAudit, onlineAudit, contentModeration, gameplay, contentRevision] = await Promise.all([
+        refreshAdminAudit({ page: 1, pageSize: candidatePageSize, assign: false }),
+        refreshOnlineAudit({ page: 1, pageSize: candidatePageSize, assign: false }),
+        refreshContentModeration({ page: 1, pageSize: candidatePageSize, assign: false }),
+        refreshGameplay({ page: 1, pageSize: candidatePageSize, assign: false }),
+        refreshContentRevisions({ page: 1, pageSize: candidatePageSize, assign: false }),
+      ])
+      const merged = [
+        ...(props.canViewAudit ? adminAudit.rows : []),
+        ...onlineAudit.rows,
+        ...contentModeration.rows,
+        ...gameplay.rows,
+        ...contentRevision.rows,
+      ].sort((left, right) => right.created_at - left.created_at)
+      totals.admin_audit = adminAudit.total
+      totals.online_audit = onlineAudit.total
+      totals.content_moderation = contentModeration.total
+      totals.gameplay = gameplay.total
+      totals.content_revision = contentRevision.total
+      totals.all = onlineAudit.total + contentModeration.total + gameplay.total + contentRevision.total + (props.canViewAudit ? adminAudit.total : 0)
+      rows.all = merged.slice((pages.all - 1) * pageSize, pages.all * pageSize)
+    } finally {
+      loading.all = false
+    }
+  }
+
+  const refreshActive = async () => {
     errorMessage.value = ''
     try {
-      await Promise.all([
-        refreshContentLogs(),
-        refreshGameplayLogs(),
-        refreshAuditLogs(),
-      ])
+      if (activeTab.value === 'all') {
+        await refreshAllLogs()
+      } else if (activeTab.value === 'admin_audit') {
+        await refreshAdminAudit()
+      } else if (activeTab.value === 'online_audit') {
+        await refreshOnlineAudit()
+      } else if (activeTab.value === 'content_moderation') {
+        await refreshContentModeration()
+      } else if (activeTab.value === 'gameplay') {
+        await refreshGameplay()
+      } else {
+        await refreshContentRevisions()
+      }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '读取日志失败'
       showFloat(errorMessage.value, 'danger')
     }
   }
 
+  const refreshAll = async () => {
+    errorMessage.value = ''
+    try {
+      await refreshOverview()
+      await refreshAllLogs()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '读取日志失败'
+      showFloat(errorMessage.value, 'danger')
+    }
+  }
+
+  const setActiveTab = (key: LogTabKey) => {
+    if (key === 'admin_audit' && !props.canViewAudit) return
+    activeTab.value = key
+    void refreshActive()
+  }
+
+  const resetFilters = () => {
+    filters.username = ''
+    filters.action = ''
+    filters.outcome = ''
+    filters.category = ''
+    filters.keyword = ''
+    filters.createdFrom = ''
+    filters.createdTo = ''
+    for (const key of Object.keys(pages) as LogTabKey[]) pages[key] = 1
+    void refreshAll()
+  }
+
+  const goPage = (delta: number) => {
+    pages[activeTab.value] = Math.min(activePageCount.value, Math.max(1, pages[activeTab.value] + delta))
+    void refreshActive()
+  }
+
   watch(
     () => props.canLoad,
     value => {
-      if (value) {
-        void refreshAll()
-      }
+      if (value) void refreshAll()
     },
     { immediate: true }
   )
@@ -243,6 +702,76 @@
     font-size: 0.8125rem;
   }
 
+  .admin-log-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .admin-log-source {
+    min-height: 108px;
+    border: 1px solid rgba(200, 164, 92, 0.18);
+    border-radius: 2px;
+    background: rgba(14, 18, 28, 0.42);
+    padding: 12px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    color: rgb(var(--color-text));
+  }
+
+  .admin-log-source--active {
+    border-color: rgba(200, 164, 92, 0.55);
+    background: rgba(200, 164, 92, 0.1);
+  }
+
+  .admin-log-source:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .admin-log-source__count {
+    color: rgb(var(--color-accent));
+    font-size: 1.25rem;
+    line-height: 1.35;
+  }
+
+  .admin-log-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .admin-log-tab {
+    min-width: max-content;
+    border: 1px solid rgba(200, 164, 92, 0.18);
+    border-radius: 2px;
+    padding: 8px 12px;
+    color: rgb(var(--color-muted));
+    background: rgba(14, 18, 28, 0.48);
+    font-size: 0.75rem;
+  }
+
+  .admin-log-tab--active {
+    color: rgb(var(--color-bg));
+    background: rgb(var(--color-accent));
+  }
+
+  .admin-log-tab:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .admin-log-list {
+    display: grid;
+    gap: 10px;
+    max-height: 58vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
   .admin-record-card {
     border: 1px solid rgba(200, 164, 92, 0.16);
     border-radius: 2px;
@@ -258,29 +787,12 @@
     padding: 4px 8px;
     background: rgba(200, 164, 92, 0.08);
     font-size: 0.75rem;
-    color: rgb(var(--color-text));
-  }
-
-  .admin-status {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    padding: 2px 10px;
-    font-size: 0.6875rem;
-    border: 1px solid transparent;
     white-space: nowrap;
   }
 
-  .admin-status--draft {
-    color: #c9ced9;
-    background: rgba(120, 130, 150, 0.14);
-    border-color: rgba(120, 130, 150, 0.25);
-  }
-
-  .admin-status--sent {
-    color: #96deac;
-    background: rgba(72, 146, 95, 0.14);
-    border-color: rgba(72, 146, 95, 0.3);
+  .admin-log-pager {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
   }
 </style>

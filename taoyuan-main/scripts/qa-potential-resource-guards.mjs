@@ -108,6 +108,8 @@ assert(gameplaySources.quarry.includes('claimPotentialSourceReward') && gameplay
 assert(gameplaySources.quarry.includes('QUARRY_WEEKLY_STEWARDSHIP_TARGET') && gameplaySources.quarry.includes('QUARRY_WEEKLY_STEWARDSHIP_MAX_CLAIMS'), '旧采石场周清理必须使用固定周目标与周领取上限。')
 assert(potentialDataSource.includes("id: 'quarry_stewardship'") && potentialDataSource.includes("cap: { period: 'weekly', maxClaims: 2, maxResourceAmount: 4 }"), '采石场管护潜能来源必须有每周 2 次、最多 4 份材料的上限。')
 assert(potentialDataSource.includes("id: 'quarry_stewardship'") && potentialDataSource.includes("{ resourceId: 'potential_insight', amount: 1 }") && potentialDataSource.includes("{ resourceId: 'mountain_jade', amount: 1 }"), '采石场管护潜能来源必须奖励潜能心得和山野玉各 1。')
+assert(potentialDataSource.includes("id: 'quarry_stewardship'") && potentialDataSource.includes("routeName: 'quarry'"), '采石场管护潜能来源必须能从潜能页指向旧采石场。')
+assert(gameplaySources.quarry.includes('if (result.success)') && gameplaySources.quarry.includes('nextClaimedKeys.add(milestoneKey)'), '采石场周清理只有潜能发奖成功时才能标记里程碑已领取。')
 assert(gameplaySources.regionMap.includes("claimPotentialSourceReward('journey_high_risk'"), '高风险行旅或区域首领必须接入潜能来源。')
 assert(gameplaySources.quest.includes("claimPotentialSourceReward('special_order_finish'"), '特殊订单完成必须接入潜能来源。')
 assert(gameplaySources.goal.includes("claimPotentialSourceReward('theme_week_settlement'"), '主题周结算必须接入潜能来源。')

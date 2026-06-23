@@ -208,6 +208,7 @@ export interface RegionOpenWorldRegionWindowView {
   visibleRowCount: number
   totalTileCount: number
   discoveredCount: number
+  playerTile: RegionOpenWorldTileDef | null
   tiles: RegionOpenWorldTileView[]
 }
 

@@ -34,6 +34,7 @@ const BASE_CRAB_POTS_LIMIT = 10
 const SKILLED_CRAB_POTS_LIMIT = 14
 const MASTER_CRAB_POTS_LIMIT = 18
 const MAX_CRAB_POTS_PER_LOCATION = 3
+const DEEP_WATER_LOCATIONS = new Set<FishingLocation>(['waterfall', 'swamp'])
 
 type TackleDurabilityMap = Partial<Record<TackleType, number>>
 
@@ -273,9 +274,24 @@ export const useFishingStore = defineStore('fishing', () => {
   }
 
   /** 切换钓鱼地点 */
-  const setLocation = (loc: FishingLocation) => {
+  const isDeepWaterSpotUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('deep_water_spot'))
+  const isDeepWaterLocation = (loc: FishingLocation): boolean => DEEP_WATER_LOCATIONS.has(loc)
+  const isFishingLocationUnlocked = (loc: FishingLocation): boolean =>
+    !isDeepWaterLocation(loc) || isDeepWaterSpotUnlocked.value
+  const fishingLocationOptions = computed(() =>
+    FISHING_LOCATIONS.map(location => ({
+      ...location,
+      deepWater: isDeepWaterLocation(location.id),
+      unlocked: isFishingLocationUnlocked(location.id),
+      lockedReason: isFishingLocationUnlocked(location.id) ? '' : '需要李渔「深水线索」'
+    }))
+  )
+
+  const setLocation = (loc: FishingLocation): boolean => {
+    if (!isFishingLocationUnlocked(loc)) return false
     fishingLocation.value = loc
     resetFishGodPressure()
+    return true
   }
 
   const recordTideNotebookCast = (): number => {
@@ -317,7 +333,21 @@ export const useFishingStore = defineStore('fishing', () => {
   }
 
   /** 当前可钓的鱼 */
-  const availableFish = computed(() => getAvailableFish(gameStore.season, gameStore.weather, fishingLocation.value))
+  const availableFish = computed(() =>
+    isFishingLocationUnlocked(fishingLocation.value)
+      ? getAvailableFish(gameStore.season, gameStore.weather, fishingLocation.value)
+      : []
+  )
+  const deepWaterAvailableFish = computed(() =>
+    isDeepWaterSpotUnlocked.value
+      ? FISH.filter(fish => {
+        const location = fish.location ?? 'creek'
+        const seasonMatch = fish.season.includes(gameStore.season)
+        const weatherMatch = fish.weather.includes('any') || fish.weather.includes(gameStore.weather as any)
+        return DEEP_WATER_LOCATIONS.has(location) && seasonMatch && weatherMatch
+      })
+      : []
+  )
   const fishOddsPreview = computed(() => {
     if (!npcStore.isNpcFunctionEffectUnlocked('fish_odds_display')) return []
     const difficultyBaseWeight: Record<FishDef['difficulty'], number> = {
@@ -463,6 +493,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
   const getFishPoolForBait = (baitDef: BaitDef | null): FishDef[] => {
     const loc = fishingLocation.value
+    if (!isFishingLocationUnlocked(loc)) return []
     return baitDef?.ignoresSeason
       ? FISH.filter(f => (f.location ?? 'creek') === loc && (f.weather.includes('any') || f.weather.includes(gameStore.weather as any)))
       : availableFish.value
@@ -1165,7 +1196,8 @@ export const useFishingStore = defineStore('fishing', () => {
     equippedTackle.value = savedTackle && restoredDurability > 0 ? savedTackle : null
     tackleDurability.value = equippedTackle.value ? restoredDurability : 0
     unequippedTackleDurabilities.value = normalizeTackleDurabilityMap((data as any).unequippedTackleDurabilities)
-    fishingLocation.value = data.fishingLocation ?? 'creek'
+    const savedLocation = data.fishingLocation ?? 'creek'
+    fishingLocation.value = isFishingLocationUnlocked(savedLocation) ? savedLocation : 'creek'
     fishGodPressureKey.value = typeof (data as any).fishGodPressureKey === 'string' ? (data as any).fishGodPressureKey : getFishGodPressureKey()
     fishGodLegendaryMissStreak.value = Math.min(
       FISH_GOD_MISS_STREAK_CAP,
@@ -1181,11 +1213,15 @@ export const useFishingStore = defineStore('fishing', () => {
 
   return {
     availableFish,
+    deepWaterAvailableFish,
     fishOddsPreview,
     environmentWindow,
     tideMarkerHint,
     companionshipFishingFocus,
     fishingLocation,
+    fishingLocationOptions,
+    isDeepWaterSpotUnlocked,
+    isFishingLocationUnlocked,
     currentFish,
     lastTreasure,
     lastPerfect,

@@ -1,7 +1,7 @@
 import type { EquipmentEffect, EquipmentEffectType, ForgeAffixQuality, ForgeAffixRoll } from '@/types'
 
 export type ForgeAffixTarget = 'weapon' | 'pickaxe' | 'ring' | 'hat' | 'shoe'
-export type ForgeAffixMode = 'random' | 'directed' | 'protected'
+export type ForgeAffixMode = 'random' | 'directed' | 'protected' | 'deep_refine'
 export type ForgeAffixDirectionId =
   | 'weapon_output'
   | 'weapon_survival'
@@ -10,6 +10,7 @@ export type ForgeAffixDirectionId =
   | 'weapon_durability'
   | 'pickaxe_efficiency'
   | 'pickaxe_yield'
+  | 'pickaxe_quarry_deep'
   | 'ring_profit'
   | 'ring_combat'
   | 'ring_treasure'
@@ -39,6 +40,9 @@ export type ForgeAffixEffectType =
   | 'pickaxe_ore_bonus_chance'
   | 'pickaxe_ore_smelter_chance'
   | 'pickaxe_treasure_sense_chance'
+  | 'pickaxe_quarry_double_chance'
+  | 'pickaxe_quarry_deep_stamina_reduction'
+  | 'pickaxe_quarry_artifact_chance'
   | 'durability_bonus'
   | 'durability_consumption_reduction'
 
@@ -332,6 +336,45 @@ export const FORGE_AFFIXES: Record<string, ForgeAffixDef> = {
     defaultValue: percent(0.08),
     displayKind: 'percent',
     description: '挖到矿石时有概率额外发现宝石或古物。'
+  },
+  quarry_resonance: {
+    id: 'quarry_resonance',
+    name: '岩鸣',
+    target: 'pickaxe',
+    directions: ['pickaxe_quarry_deep', 'pickaxe_yield'],
+    effectType: 'pickaxe_quarry_double_chance',
+    min: percent(0.06),
+    max: percent(0.16),
+    step: percent(0.01),
+    defaultValue: percent(0.1),
+    displayKind: 'percent',
+    description: '旧采石场收取非木材资源时有概率额外获得 1 份主产物。'
+  },
+  deep_vein_grip: {
+    id: 'deep_vein_grip',
+    name: '脉握',
+    target: 'pickaxe',
+    directions: ['pickaxe_quarry_deep', 'pickaxe_efficiency'],
+    effectType: 'pickaxe_quarry_deep_stamina_reduction',
+    min: percent(0.12),
+    max: percent(0.28),
+    step: percent(0.01),
+    defaultValue: percent(0.18),
+    displayKind: 'reduction',
+    description: '旧采石场深脉点和旧支道推进的体力消耗降低。'
+  },
+  relic_sense: {
+    id: 'relic_sense',
+    name: '遗感',
+    target: 'pickaxe',
+    directions: ['pickaxe_quarry_deep', 'pickaxe_yield'],
+    effectType: 'pickaxe_quarry_artifact_chance',
+    min: percent(0.03),
+    max: percent(0.09),
+    step: percent(0.01),
+    defaultValue: percent(0.05),
+    displayKind: 'percent',
+    description: '旧采石场收取深脉、宝箱或古物点时，有概率额外发现一件采石场遗物。'
   },
   ring_focus: {
     id: 'ring_focus',
@@ -751,6 +794,7 @@ export const FORGE_AFFIX_DIRECTIONS: ForgeAffixDirectionDef[] = [
   { id: 'weapon_slayer', target: 'weapon', label: '克制技巧', description: '针对特定敌群。', affixIds: ['armor_breaker', 'spirit_slayer', 'bug_slayer', 'exorcist'] },
   { id: 'pickaxe_efficiency', target: 'pickaxe', label: '效率', description: '省体力、减耗时和空格收益。', affixIds: ['stone_chips', 'efficient', 'swift_pick'] },
   { id: 'pickaxe_yield', target: 'pickaxe', label: '产出', description: '矿石、进阶矿与宝物。', affixIds: ['generous_pick', 'ore_smelter', 'treasure_sense'] },
+  { id: 'pickaxe_quarry_deep', target: 'pickaxe', label: '深脉', description: '旧采石场体力、双采和遗物发现。', affixIds: ['quarry_resonance', 'deep_vein_grip', 'relic_sense'] },
   { id: 'ring_profit', target: 'ring', label: '收益', description: '经验与出售收益。', affixIds: ['ring_focus', 'ring_fortune'] },
   { id: 'ring_combat', target: 'ring', label: '战斗', description: '攻击与吸血。', affixIds: ['ring_battle', 'ring_vampiric'] },
   { id: 'ring_treasure', target: 'ring', label: '探宝', description: '宝物发现与掉落。', affixIds: ['ring_treasure', 'ring_luck'] },
@@ -802,6 +846,18 @@ export const FORGE_AFFIX_MODE_DEFS: ForgeAffixModeDef[] = [
       { itemId: 'void_ore', quantity: 6 },
       { itemId: 'prismatic_shard', quantity: 1 },
       { itemId: 'dragon_jade', quantity: 1 }
+    ]
+  },
+  {
+    id: 'deep_refine',
+    label: '深脉精锻',
+    description: '消耗旧采石场深脉稀材，限定镐子获得采石场相关词条。',
+    minLevel: 12,
+    cost: 110000,
+    materials: [
+      { itemId: 'obsidian', quantity: 3 },
+      { itemId: 'dragon_jade', quantity: 1 },
+      { itemId: 'rare_lotus_guard_elixir', quantity: 1 }
     ]
   }
 ]

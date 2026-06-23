@@ -1408,6 +1408,13 @@ const BAR_ITEMS: ItemDef[] = [
   { id: 'mythril_bar', name: '秘银锭', category: 'material', description: '由水晶矿与铁锭熔合而成，散发神秘光芒。', sellPrice: 350, edible: false }
 ]
 
+/** 装备配件材料 */
+const EQUIPMENT_ACCESSORY_ITEMS: ItemDef[] = [
+  { id: 'accessory_material', name: '配件材料', category: 'material', description: '用于配件调校和升级的通用材料。', sellPrice: 12, edible: false },
+  { id: 'accessory_tuning_stone', name: '调校石', category: 'material', description: '用于中后段配件升级的稳定石材。', sellPrice: 120, edible: false },
+  { id: 'accessory_protection_sand', name: '稳固石', category: 'material', description: '配件合成失败时可减少配件本体损耗。', sellPrice: 360, edible: false }
+]
+
 /** 木炭物品 */
 const CHARCOAL_ITEMS: ItemDef[] = [
   { id: 'charcoal', name: '木炭', category: 'material', description: '烧制的木炭，可用作燃料和制作。', sellPrice: 55, edible: false }
@@ -2022,6 +2029,7 @@ export const ITEMS: ItemDef[] = [
   ...CHEESE_ITEMS,
   ...CLOTH_ITEMS,
   ...BAR_ITEMS,
+  ...EQUIPMENT_ACCESSORY_ITEMS,
   ...CHARCOAL_ITEMS,
   ...FLOUR_ITEMS,
   ...TEA_DRINK_ITEMS,

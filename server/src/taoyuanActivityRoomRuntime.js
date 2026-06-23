@@ -3891,6 +3891,31 @@ function getRoomInvitation(room, username) {
   return (room.invitations || []).find(invite => invite.target_username === normalizedUsername && invite.status === 'pending') || null;
 }
 
+function revokePendingRoomInvitations(room, currentTime = nowSeconds()) {
+  let changed = false;
+  room.invitations = (room.invitations || []).map(invite => {
+    const normalized = normalizeRoomInvitation(invite);
+    if (normalized.status === 'pending') {
+      normalized.status = 'rejected';
+      normalized.responded_at = currentTime;
+      normalized.updated_at = currentTime;
+      changed = true;
+    }
+    return normalized;
+  });
+  room.members = (room.members || []).map(member => {
+    const normalized = normalizeRoomMember(member);
+    if (normalized.status === 'invited') {
+      normalized.status = 'left';
+      normalized.left_at = currentTime;
+      normalized.last_seen_at = currentTime;
+      changed = true;
+    }
+    return normalized;
+  });
+  return changed;
+}
+
 function getActiveRoomSaveIdentity(username) {
   try {
     const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档');
@@ -6177,6 +6202,7 @@ function buildOverview(store, viewerUsername, domain = DEFAULT_ACTIVITY_DOMAIN) 
   }) || null;
 
   const invitedRooms = visibleRooms
+    .filter(room => !['closed', 'aborted'].includes(room.state))
     .filter(room => room.id !== currentRoom?.id && Boolean(getRoomInvitation(room, normalizedViewer)))
     .map(room => buildRoomSnapshot(store, room, normalizedViewer));
 
@@ -6786,11 +6812,15 @@ async function closeFestivalRoom(roomId, actor = {}) {
       if (normalized.status === 'finished') normalized.status = 'settled';
       return normalized;
     });
-    room.closed_at = nowSeconds();
+    const currentTime = nowSeconds();
+    revokePendingRoomInvitations(room, currentTime);
+    room.closed_at = currentTime;
     updateRoomState(room, 'closed', '');
     recordRoomEvent(room, 'room.close', actor, '房间结算已完成，正式关闭');
   } else {
-    room.aborted_at = nowSeconds();
+    const currentTime = nowSeconds();
+    revokePendingRoomInvitations(room, currentTime);
+    room.aborted_at = currentTime;
     updateRoomState(room, 'aborted', '房主主动取消了当前节会房间');
     recordRoomEvent(room, 'room.abort', actor, '房主取消了当前节会房间');
   }
@@ -7182,11 +7212,15 @@ async function closeActivityRoom(roomId, actor = {}) {
       if (normalized.status === 'finished') normalized.status = 'settled';
       return normalized;
     });
-    room.closed_at = nowSeconds();
+    const currentTime = nowSeconds();
+    revokePendingRoomInvitations(room, currentTime);
+    room.closed_at = currentTime;
     updateRoomState(room, 'closed', '');
     recordRoomEvent(room, 'room.close', actor, '房间结算已完成，正式关闭');
   } else {
-    room.aborted_at = nowSeconds();
+    const currentTime = nowSeconds();
+    revokePendingRoomInvitations(room, currentTime);
+    room.aborted_at = currentTime;
     updateRoomState(room, 'aborted', '房主主动取消了当前活动房间');
     recordRoomEvent(room, 'room.abort', actor, '房主取消了当前活动房间');
   }

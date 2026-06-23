@@ -112,6 +112,8 @@ export interface ProcessingRecipeDef {
   extraInputs?: { itemId: string; quantity: number }[]
   outputItemId: string | null
   outputQuantity: number
+  /** Fixed output quality; unset means the product inherits the input quality. */
+  outputQuality?: Quality
   /** 加工天数 */
   processingDays: number
   description: string
@@ -129,6 +131,8 @@ export interface ProcessingSlot {
   repairTargetId?: string
   /** 修理台：装备类型 weapon/ring/hat/shoe */
   repairTargetSlot?: string
+  /** 修理台：修理方式 fine/simple/refurbish/dismantle */
+  repairMode?: string
   consumedInputs?: {
     requirementItemId?: string
     itemId: string
@@ -143,6 +147,17 @@ export interface ProcessingSlot {
     label: string
     description: string
   }
+  daysProcessed: number
+  totalDays: number
+  ready: boolean
+}
+
+export interface SmithyRepairJob {
+  id: string
+  equipType: 'weapon' | 'ring' | 'hat' | 'shoe'
+  equipIndex: number
+  defId: string
+  mode: 'fine' | 'simple' | 'refurbish'
   daysProcessed: number
   totalDays: number
   ready: boolean

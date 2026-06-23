@@ -1,10 +1,11 @@
 ﻿import type { ForgeAffixRoll } from '@/types'
-import { getDurabilityConsumptionReduction, calculateMaxDurability, getNpcDurabilityBonus, getAffixDurabilityBonus, getEnchantmentDurabilityBonus } from '@/utils/durability'
+import { getDurabilityConsumptionReduction, calculateMaxDurability, calculateMaxSturdiness, getNpcDurabilityBonus, getAffixDurabilityBonus, getEnchantmentDurabilityBonus } from '@/utils/durability'
 import type { EquipmentQualityTier } from '@/types'
 
 /** equipment instance shape for durability operations */
 interface DurableInstance {
   durability?: number
+  sturdiness?: number
   durabilityWearProgress?: number
   locked?: boolean
   [key: string]: unknown
@@ -46,9 +47,28 @@ export function consumeEquipmentDurability(
 /** repair equipment (restore full durability) */
 export function repairEquipment(
   instance: DurableInstance,
-  maxDurability: number
+  maxDurability: number,
+  sturdinessLoss: number = 0,
+  maxSturdiness?: number
 ): void {
   instance.durability = maxDurability
+  instance.durabilityWearProgress = 0
+  if (maxSturdiness != null) {
+    const currentSturdiness = getCurrentSturdiness(instance, maxSturdiness)
+    instance.sturdiness = Math.max(0, Math.min(maxSturdiness, currentSturdiness - Math.max(0, Math.floor(sturdinessLoss))))
+  }
+  instance.locked = false
+}
+
+/** refurbish equipment (restore full durability and part of repair lifespan) */
+export function refurbishEquipment(
+  instance: DurableInstance,
+  maxDurability: number,
+  maxSturdiness: number,
+  restoredSturdiness: number
+): void {
+  instance.durability = maxDurability
+  instance.sturdiness = Math.max(0, Math.min(maxSturdiness, Math.floor(restoredSturdiness)))
   instance.durabilityWearProgress = 0
   instance.locked = false
 }
@@ -60,6 +80,15 @@ export function getCurrentDurability(
 ): number {
   if (instance.durability == null) return maxDurability
   return Math.min(instance.durability, maxDurability)
+}
+
+/** get current sturdiness (handles undefined for migration compat) */
+export function getCurrentSturdiness(
+  instance: DurableInstance,
+  maxSturdiness: number
+): number {
+  if (instance.sturdiness == null) return maxSturdiness
+  return Math.max(0, Math.min(Math.floor(instance.sturdiness), maxSturdiness))
 }
 
 /** calculate max durability with all bonuses applied */
@@ -76,6 +105,19 @@ export function calculateEffectiveMaxDurability(
   const affixBonus = getAffixDurabilityBonus(affixes)
   const enchantBonus = getEnchantmentDurabilityBonus(enchantmentId)
   return Math.max(1, Math.floor(base * (1 + affixBonus + enchantBonus)))
+}
+
+/** calculate max sturdiness with durability-direction bonuses applied */
+export function calculateEffectiveMaxSturdiness(
+  qualityTier: EquipmentQualityTier,
+  recipe: { itemId: string; quantity: number }[] | null,
+  recipeMoney: number,
+  affixes: ForgeAffixRoll[] | undefined | null,
+  enchantmentId: string | undefined | null
+): number {
+  const affixBonus = getAffixDurabilityBonus(affixes)
+  const enchantBonus = getEnchantmentDurabilityBonus(enchantmentId)
+  return calculateMaxSturdiness(qualityTier, recipe, recipeMoney, affixBonus + enchantBonus)
 }
 
 /** calculate total consumption reduction from all sources */

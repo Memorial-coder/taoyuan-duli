@@ -19,6 +19,7 @@ const packageJson = JSON.parse(read('package.json'))
 const npcFunctionsSource = read('src', 'data', 'npcFunctions.ts')
 const npcTypeSource = read('src', 'types', 'npc.ts')
 const npcStoreSource = read('src', 'stores', 'useNpcStore.ts')
+const npcFunctionEffectsSource = read('src', 'data', 'npcFunctionEffects.ts')
 const npcViewSource = read('src', 'views', 'game', 'NpcView.vue')
 const npcSource = read('src', 'data', 'npcs.ts')
 const itemsSource = read('src', 'data', 'items.ts')
@@ -82,11 +83,57 @@ for (const m of effectTypeMatches) {
   assert(m[1] && m[1].length > 0, 'Found empty effectType.')
 }
 
+const uniqueEffectTypes = [...new Set(effectTypeMatches.map(m => m[1]))]
+
 // Check unique function IDs
 const fnIdMatches = [...npcFunctionsSource.matchAll(/id:\s*'([^']+)'/g)]
 const fnIdList = fnIdMatches.map(m => m[1]).filter(id => id.includes('_T'))
 const uniqueFnIds = new Set(fnIdList)
 assert(uniqueFnIds.size === fnIdList.length, `Duplicate function IDs found: ${fnIdList.length} total, ${uniqueFnIds.size} unique.`)
+
+// ===== npcFunctionEffects.ts checks =====
+assertIncludes(npcFunctionEffectsSource, 'export type NpcFunctionEffectAggregation', 'NPC function effect aggregation type should exist.')
+assertIncludes(npcFunctionEffectsSource, 'export interface NpcFunctionEffectDef', 'NPC function effect registry def should exist.')
+assertIncludes(npcFunctionEffectsSource, 'export interface NpcFunctionEffectContext', 'NPC function effect context should exist.')
+assertIncludes(npcFunctionEffectsSource, 'export interface NpcFunctionEffectSummary', 'NPC function effect summary should exist.')
+assertIncludes(npcFunctionEffectsSource, 'export const NPC_FUNCTION_EFFECTS', 'NPC function effect registry should be exported.')
+assertIncludes(npcFunctionEffectsSource, 'NPC_FUNCTION_UNLOCKS.map(def => def.effectType)', 'Effect registry should derive coverage from NPC_FUNCTION_UNLOCKS.')
+assertIncludes(npcFunctionEffectsSource, 'export const getRegisteredNpcFunctionEffectTypes', 'Effect registry should expose registered effect types.')
+assertIncludes(npcFunctionEffectsSource, 'export const getNpcFunctionEffectDef', 'Effect registry should expose single effect lookup.')
+assertIncludes(npcFunctionEffectsSource, 'export const getNpcFunctionEffectSources', 'Effect registry should expose source lookup.')
+assertIncludes(npcFunctionEffectsSource, 'export const isNpcFunctionEffectActive', 'Effect registry should expose active checks.')
+assertIncludes(npcFunctionEffectsSource, 'export const getNpcFunctionEffectValue', 'Effect registry should expose value aggregation.')
+assertIncludes(npcFunctionEffectsSource, 'export const getNpcFunctionEffectSummaries', 'Effect registry should expose summaries.')
+assertIncludes(npcFunctionEffectsSource, 'export const getUnlockedNpcFunctionEffectSummary', 'Effect registry should expose unlocked ID summaries.')
+
+for (const effectType of uniqueEffectTypes) {
+  assert(
+    npcFunctionEffectsSource.includes(effectType),
+    `npcFunctionEffects.ts should classify or label effectType "${effectType}".`
+  )
+}
+
+for (const effectType of [
+  'shop_discount_bonus',
+  'rare_commission',
+  'bulk_buy',
+  'rare_shop_stock',
+  'breeding_boost',
+  'spouse_animal_boost',
+  'mine_extra_node',
+  'forge_success_boost',
+  'fish_odds_display',
+  'daily_stamina_regen',
+  'cook_success_boost',
+  'wine_cellar',
+  'festival_music',
+  'weekly_surprise'
+]) {
+  assert(
+    npcFunctionEffectsSource.includes(effectType),
+    `NPC function effect registry should keep explicit metadata for ${effectType}.`
+  )
+}
 
 // ===== NpcState type checks =====
 assertIncludes(npcTypeSource, 'unlockedFunctionIds?: string[]', 'NpcState should have unlockedFunctionIds field.')
@@ -102,6 +149,20 @@ assertIncludes(npcStoreSource, 'const unlockNpcFunction =', 'Store should export
 assertIncludes(npcStoreSource, "spendMoney(def.costMoney, 'npc_function_unlock')", 'unlockNpcFunction should charge money.')
 assertIncludes(npcStoreSource, 'removeItemsWithRollback(def.materialCost)', 'unlockNpcFunction should remove materials.')
 assertIncludes(npcStoreSource, "state.unlockedFunctionIds = [...", 'unlockNpcFunction should push to unlockedFunctionIds.')
+assertIncludes(npcStoreSource, "from '@/data/npcFunctionEffects'", 'Store should read NPC effect helpers from the centralized registry.')
+assertIncludes(npcStoreSource, 'const getUnlockedNpcFunctionDefs = (): NpcFunctionUnlockDef[]', 'Store should collect unlocked function defs before resolving effects.')
+assertIncludes(npcStoreSource, 'resolveNpcFunctionEffectValue(effectType, { unlockedFunctionDefs: getUnlockedNpcFunctionDefs() })', 'Store effect values should use centralized value aggregation.')
+assertIncludes(npcStoreSource, 'resolveNpcFunctionEffectActive(effectType, { unlockedFunctionDefs: getUnlockedNpcFunctionDefs() })', 'Store effect active checks should use centralized active checks.')
+assertIncludes(npcStoreSource, 'const getUnlockedNpcFunctionEffectSummaries = (): NpcFunctionEffectSummary[]', 'Store should expose unlocked effect summaries.')
+assertIncludes(npcStoreSource, 'resolveNpcFunctionEffectSummaries({ unlockedFunctionDefs: getUnlockedNpcFunctionDefs() })', 'Store effect summaries should use centralized summaries.')
+assert(
+  !/npcStates\.value\.reduce\(\(sum,\s*state\)[\s\S]*?effectPayload\?\.value/.test(npcStoreSource),
+  'Store should not hand-roll NPC function effect value aggregation.'
+)
+assert(
+  !/npcStates\.value\.some\([\s\S]*?def\.effectType === effectType[\s\S]*?isNpcFunctionUnlocked\(def\.id\)/.test(npcStoreSource),
+  'Store should not hand-roll NPC function effect active checks.'
+)
 
 // ===== NpcView.vue checks =====
 assertIncludes(npcViewSource, 'data-testid="npc-function-unlocks-panel"', 'NpcView should render function unlocks panel.')

@@ -108,8 +108,9 @@ for (const site of relicSites) {
 }
 
 assert(
-  /const rewardSummary = grantRewardBundle\(\{[\s\S]*site\.rewards[\s\S]*ticketSource: 'hanhai_relic'/.test(hanhaiStoreSource),
-  'exploreRelicSite() must settle relic rewards through grantRewardBundle() with a relic ticket source.'
+  /const preparedRewards = getRelicPreparedRewardBundle\(siteId, travelPrep\?\.def\.id \?\? null\)/.test(hanhaiStoreSource) &&
+    /const rewardSummary = grantRewardBundle\(preparedRewards, \{ ticketSource: 'hanhai_relic' \}\)/.test(hanhaiStoreSource),
+  'exploreRelicSite() must settle prepared relic rewards through grantRewardBundle() with a relic ticket source.'
 )
 assert(
   /const ticketRewardMeta = rewardSummary\.tickets\.map/.test(hanhaiStoreSource) &&

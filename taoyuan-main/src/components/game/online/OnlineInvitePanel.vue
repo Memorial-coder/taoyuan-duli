@@ -47,6 +47,55 @@
           <p id="online-invite-recent-title" class="text-[0.625rem] leading-4 text-muted">可直接选择</p>
           <span class="text-[0.625rem] leading-4 text-muted">{{ selectablePlayerCount }} 人可选</span>
         </div>
+        <div
+          v-if="recommendedInvitePlayers.length > 0"
+          class="space-y-2 border border-accent/10 bg-black/10 p-2"
+          data-testid="online-invite-priority-picks"
+        >
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div class="min-w-0">
+              <p class="text-[0.625rem] leading-4 text-accent">推荐一起开局</p>
+              <p class="mt-0.5 text-[0.625rem] leading-4 text-muted" data-testid="online-invite-priority-summary">
+                优先在线好友、近期队友和推荐玩家，先把最可能响应的人加入邀请名单。
+              </p>
+            </div>
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact min-h-[36px] shrink-0 justify-center"
+              data-testid="online-invite-priority-add-all"
+              :disabled="busy || recommendedInvitablePlayers.length === 0"
+              @click="addRecommendedPlayers"
+            >
+              <UserPlus :size="12" aria-hidden="true" />
+              加入推荐 {{ recommendedInvitablePlayers.length }}
+            </button>
+          </div>
+          <div class="grid gap-2 sm:grid-cols-3">
+            <button
+              v-for="player in recommendedInvitePlayers"
+              :key="`priority-${playerKey(player)}`"
+              type="button"
+              class="game-panel-muted min-h-[72px] p-2 text-left transition-colors"
+              :class="getPlayerCardClass(player)"
+              :disabled="!isPlayerSelectable(player)"
+              :aria-pressed="isRecipientSelected(player)"
+              :data-testid="`online-invite-priority-player-${playerKey(player)}`"
+              @click="addRecentPlayer(player)"
+            >
+              <span class="flex min-w-0 items-start justify-between gap-2">
+                <span class="min-w-0">
+                  <span class="block truncate text-xs leading-5 text-accent">{{ player.displayName || player.username }}</span>
+                  <span class="mt-0.5 block truncate text-[0.625rem] leading-4 text-muted">
+                    {{ getPlayerRecommendationLabel(player) }}
+                  </span>
+                </span>
+                <span class="shrink-0 border border-accent/15 px-1.5 py-0.5 text-[0.625rem] leading-4 text-muted">
+                  {{ getPlayerSelectionLabel(player) }}
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
         <slot name="recent-players" :recent-players="recentPlayers" :add="addRecentPlayer">
           <div class="space-y-3" data-testid="online-invite-player-groups">
             <section
@@ -300,8 +349,10 @@
   }
   const isRecipientSelected = (player: OnlineInviteRecentPlayer) =>
     selectedRecipientKeys.value.has(normalizeRecipient(getRecipientForPlayer(player)))
+  const isPlayerAvailable = (player: OnlineInviteRecentPlayer) =>
+    !player.disabled && !isExistingPlayer(player) && !isRecipientSelected(player)
   const isPlayerSelectable = (player: OnlineInviteRecentPlayer) =>
-    !props.busy && !player.disabled && !isExistingPlayer(player) && !isRecipientSelected(player)
+    !props.busy && isPlayerAvailable(player)
 
   const getPlayerSelectionLabel = (player: OnlineInviteRecentPlayer) => {
     if (isExistingPlayer(player)) return '已在房'
@@ -332,6 +383,36 @@
       }))
   })
 
+  const inviteGroupPriority: Record<OnlineInvitePlayerGroup, number> = {
+    'online-friends': 0,
+    friends: 1,
+    recent: 2,
+    recommended: 3,
+    other: 4,
+    blocked: 5,
+  }
+  const getPlayerRecommendationLabel = (player: OnlineInviteRecentPlayer) => {
+    const groupId = getPlayerGroupId(player)
+    if (player.reason) return player.reason
+    if (player.subtitle) return player.subtitle
+    if (groupId === 'online-friends') return '在线好友，适合马上准备。'
+    if (groupId === 'friends') return '好友，适合固定队协作。'
+    if (groupId === 'recent') return '近期一起出现过，适合快速复开。'
+    if (groupId === 'recommended') return '推荐玩家，适合补位开局。'
+    return player.username
+  }
+  const recommendedInvitePlayers = computed(() =>
+    props.recentPlayers
+      .filter(isPlayerAvailable)
+      .slice()
+      .sort((left, right) => {
+        const priorityDiff = inviteGroupPriority[getPlayerGroupId(left)] - inviteGroupPriority[getPlayerGroupId(right)]
+        if (priorityDiff !== 0) return priorityDiff
+        return (left.displayName || left.username).localeCompare(right.displayName || right.username, 'zh-Hans-CN')
+      })
+      .slice(0, 3)
+  )
+  const recommendedInvitablePlayers = computed(() => recommendedInvitePlayers.value.filter(isPlayerAvailable))
   const selectablePlayerCount = computed(() => props.recentPlayers.filter(isPlayerSelectable).length)
 
   const invitableRecipients = computed(() =>
@@ -366,6 +447,18 @@
     const nextRecipients = [...draftRecipients.value]
     if (!nextRecipients.some(item => normalizeRecipient(item) === normalizeRecipient(recipient))) {
       nextRecipients.push(recipient)
+    }
+    draftInput.value = nextRecipients.join('\n')
+  }
+  const addRecommendedPlayers = () => {
+    if (props.busy || recommendedInvitablePlayers.value.length === 0) return
+    const nextRecipients = [...draftRecipients.value]
+    for (const player of recommendedInvitablePlayers.value) {
+      const recipient = getRecipientForPlayer(player)
+      if (!recipient) continue
+      if (!nextRecipients.some(item => normalizeRecipient(item) === normalizeRecipient(recipient))) {
+        nextRecipients.push(recipient)
+      }
     }
     draftInput.value = nextRecipients.join('\n')
   }

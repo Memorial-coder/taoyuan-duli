@@ -151,6 +151,10 @@
     memberLimit?: number
     max_member_limit?: number
     maxMemberLimit?: number
+    joined_member_count?: number
+    joinedMemberCount?: number
+    ready_member_count?: number
+    readyMemberCount?: number
     members?: OnlineRoomLobbyMember[]
     can_invite?: boolean
     can_join?: boolean
@@ -343,7 +347,6 @@
   )
   const dialogDescription = computed(() => `${gameplayLabel.value} · ${roomStateLabel.value}`)
   const memberLimit = computed(() => props.room?.member_limit || props.room?.memberLimit || props.room?.max_member_limit || props.room?.maxMemberLimit || members.value.length || 0)
-  const memberCountLabel = computed(() => memberLimit.value > 0 ? `${members.value.length}/${memberLimit.value} 人` : `${members.value.length} 人`)
   const hostUsername = computed(() => normalizeKey(props.room?.host_username || props.room?.hostUsername || ''))
   const currentUserKey = computed(() => normalizeKey(props.currentUserId))
   const currentMember = computed(() => {
@@ -366,8 +369,26 @@
     if (isMemberInvited(currentMember.value)) return '被邀请'
     return '成员'
   })
-  const readyMembers = computed(() => members.value.filter(member => isMemberReady(member)).length)
-  const readyCountLabel = computed(() => `${readyMembers.value}/${members.value.length} 已准备`)
+  const explicitJoinedMemberCount = computed(() => Number(props.room?.joined_member_count ?? props.room?.joinedMemberCount ?? -1))
+  const explicitReadyMemberCount = computed(() => Number(props.room?.ready_member_count ?? props.room?.readyMemberCount ?? -1))
+  const joinedMembers = computed(() => {
+    if (Number.isFinite(explicitJoinedMemberCount.value) && explicitJoinedMemberCount.value >= 0) return explicitJoinedMemberCount.value
+    return members.value.filter(member => isMemberParticipating(member)).length
+  })
+  const invitedMembers = computed(() => members.value.filter(member => isMemberInvited(member)).length)
+  const readyMembers = computed(() => {
+    if (Number.isFinite(explicitReadyMemberCount.value) && explicitReadyMemberCount.value >= 0) return explicitReadyMemberCount.value
+    return members.value.filter(member => isMemberReady(member)).length
+  })
+  const memberCountLabel = computed(() => {
+    const inviteLabel = invitedMembers.value > 0 ? ` · ${invitedMembers.value} 已邀请` : ''
+    return memberLimit.value > 0 ? `${joinedMembers.value}/${memberLimit.value} 人${inviteLabel}` : `${joinedMembers.value} 人${inviteLabel}`
+  })
+  const readyCountLabel = computed(() => {
+    const denominator = Math.max(joinedMembers.value, readyMembers.value)
+    const inviteLabel = invitedMembers.value > 0 ? ` · ${invitedMembers.value} 已邀请` : ''
+    return `${readyMembers.value}/${denominator} 已准备${inviteLabel}`
+  })
   const isBusy = computed(() => props.busyAction === true)
   const lastFeedbackText = computed(() => {
     if (!props.lastFeedback) return ''
@@ -385,6 +406,11 @@
     normalizeKey(member.status || '') === 'ready' || Number(member.ready_at || 0) > 0
   const isMemberInvited = (member: OnlineRoomLobbyMember) =>
     normalizeKey(member.status || '') === 'invited' || (!member.joined_at && Number(member.invited_at || 0) > 0)
+  const isMemberParticipating = (member: OnlineRoomLobbyMember) => {
+    const status = normalizeKey(member.status || '')
+    if (['joined', 'ready', 'countdown_locked', 'active', 'disconnected', 'reconnecting', 'finished', 'settled'].includes(status)) return true
+    return Number(member.joined_at || 0) > 0 || isMemberReady(member)
+  }
   const isMemberOffline = (member: OnlineRoomLobbyMember) =>
     ['offline', 'disconnected'].includes(normalizeKey(member.status || '')) || Number(member.disconnected_at || 0) > 0
 

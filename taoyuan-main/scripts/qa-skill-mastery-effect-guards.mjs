@@ -291,7 +291,8 @@ assert(miningStoreSource.includes('首领档案：生命'), '首领档案必须�
 
 assert(processingStoreSource.includes("skillStore.getSkillMasteryEffectValue('processing_flow')"), '加工流程必须读取加工流线效果。')
 assert(processingStoreSource.includes('const getEffectiveProcessingDays = (recipe: ProcessingRecipeDef, machineType: MachineType): number =>'), '加工耗时必须集中计算。')
-assert(processingStoreSource.includes('Math.ceil(totalDays * (1 - processingFlowBonus))'), '加工流线必须缩短加工耗时。')
+assert(processingStoreSource.includes('if (processingFlowBonus > 0) multiplier *= (1 - processingFlowBonus)'), '加工流线必须缩短加工耗时。')
+assert(processingStoreSource.includes('Math.ceil(recipe.processingDays * multiplier)'), '加工耗时必须在合并加速倍率后统一取整。')
 assert(countOccurrences(processingStoreSource, 'slot.totalDays = getEffectiveProcessingDays(recipe, slot.machineType)') >= 3, '手工投产、炼丹投产和虚空原料箱自动续产都必须使用有效加工耗时。')
 assert(processingDataSource.includes("masteryRewardId: 'advanced_workbench'"), '仙灵炉必须绑定高级工台权限。')
 assert(processingStoreSource.includes('const isMachineCraftUnlocked = (machineType: MachineType): boolean =>'), '加工 store 必须集中判断高阶机器制作权限。')

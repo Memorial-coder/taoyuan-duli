@@ -72,6 +72,37 @@ export interface HanhaiCaravanContractDef {
   rewardTierId?: string
 }
 
+export type HanhaiTravelPrepSource = 'ration' | 'medicine' | 'artisan' | 'elixir' | 'deep_vein'
+
+export interface HanhaiTravelPrepDef {
+  id: string
+  label: string
+  unlockTier: HanhaiProgressTier
+  source: HanhaiTravelPrepSource
+  costItems: { itemId: string; quantity: number }[]
+  successRateBonus: number
+  riskReduction: number
+  rewardItemMultiplier?: number
+  moneyMultiplier?: number
+  extraTicketRewards?: RewardTicketLedger
+  effectSummary: string
+  sinkSummary: string
+}
+
+export interface HanhaiTravelPrepPreview {
+  prepId: string | null
+  label: string
+  canUse: boolean
+  locked: boolean
+  costSummary: string
+  effectSummary: string
+  sinkSummary: string
+  successRateText: string
+  riskText: string
+  rewardText: string
+  missingCostLabels: string[]
+}
+
 export interface HanhaiShopRotationDef {
   id: string
   label: string

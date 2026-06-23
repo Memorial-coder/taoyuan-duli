@@ -80,10 +80,15 @@ const {
   PET_SPECIAL_FEEDS,
   ITEM_LINKAGE_DEFS,
   LINKAGE_DEMAND_POOL,
+  ONLINE_WEAK_ITEM_ORDER_ITEM_IDS,
+  getOnlineWeakItemOrderPool,
+  getOnlineWeakItemOrderConflictTagsForFamilyWish,
   SUPPLEMENTAL_ALCHEMY_USE_RECIPES,
   QUARRY_MINE_ELIXIR_PREP_OPTIONS,
   REGION_EXPEDITION_ELIXIR_PREP_OPTIONS,
   getAlchemyRecipeByOutputItemId,
+  getFamilyWishDemandEntries,
+  getPublicStorageDemandEntries,
   getItemLinkageUsageLines,
   getItemLinkageUseLabels,
   getItemLinkageUseTags
@@ -134,6 +139,11 @@ assert(
 const npcDataSource = read('src/data/npcs.ts')
 assert(npcDataSource.includes("id: 'wish_shared_breakfast'") && npcDataSource.includes("itemId: 'mixed_seed_oil'"), '家庭心愿未接入 mixed_seed_oil 材料需求')
 assert(npcDataSource.includes("id: 'wish_market_feast'") && npcDataSource.includes("itemId: 'rice_flour'"), '节前家庭心愿未接入米粉备料需求')
+assert(getFamilyWishDemandEntries('wish_shared_breakfast').some(entry => entry.itemId === 'mixed_seed_oil' && entry.tags.includes('family_breakfast')), '共享需求池未把家庭早餐映射到 mixed_seed_oil')
+assert(getFamilyWishDemandEntries('wish_market_feast').some(entry => entry.itemId === 'rice_flour' && entry.tags.includes('festival_prep')), '共享需求池未把节前家庭心愿映射到 rice_flour')
+assert(getPublicStorageDemandEntries().some(entry => entry.itemId === 'mixed_seed_oil' && entry.systems.includes('onlineOrder')), '公共仓共享需求池未暴露 mixed_seed_oil 线上订单')
+assert(getPublicStorageDemandEntries().some(entry => entry.itemId === 'standard_bait' && entry.systems.includes('onlineOrder')), '公共仓共享需求池未暴露 standard_bait 线上订单')
+assert(getOnlineWeakItemOrderConflictTagsForFamilyWish('wish_shared_breakfast').includes('family_breakfast'), '线上订单无法读取家庭早餐反重复标签')
 
 assert(PET_SPECIAL_FEEDS.some(feed => feed.id === 'manor_edge_pet_bowl' && feed.itemId === 'manor_edge_bundle'), '宠物点心未接入 manor_edge_bundle')
 assert(
@@ -146,11 +156,14 @@ assert(
   'manor_edge_bundle 用途标签必须能跳转到线上/宠物入口'
 )
 const onlineOrdersSource = read('src/views/game/online/OnlineOrdersView.vue')
-assert(onlineOrdersSource.includes('data-testid="online-orders-manor-edge-submit"'), '线上订单页缺少边角菜包提交按钮')
-assert(onlineOrdersSource.includes('getUnlockedItemCount(MANOR_EDGE_ORDER_ITEM_ID)'), '边角菜包线上订单库存口径必须排除锁定物品')
-assert(onlineOrdersSource.includes('removeUnlockedItem(MANOR_EDGE_ORDER_ITEM_ID, MANOR_EDGE_ORDER_QUANTITY)'), '边角菜包线上订单没有真实扣除未锁定背包物品')
-assert(onlineOrdersSource.includes('markLifestyleUnlock(manorEdgeOrderLockId.value'), '边角菜包线上订单缺少周锁记录')
-assert(onlineOrdersSource.includes("addRewardTickets(") && onlineOrdersSource.includes('online_manor_edge_bundle_order'), '边角菜包线上订单缺少票券奖励')
+assert(onlineOrdersSource.includes('data-testid="online-orders-weak-item-submit"'), '线上订单页缺少弱用途物品提交按钮')
+assert(onlineOrdersSource.includes('getOnlineWeakItemOrderForCalendar'), '线上订单页必须从弱用途物品池轮换订单')
+assert(onlineOrdersSource.includes('inventoryStore.getUnlockedItemCount(currentWeakItemOrder.value.itemId)'), '弱用途线上订单库存口径必须排除锁定物品')
+assert(onlineOrdersSource.includes('inventoryStore.removeUnlockedItem(order.itemId, order.quantity)'), '弱用途线上订单没有真实扣除当前轮换物品')
+assert(onlineOrdersSource.includes('markLifestyleUnlock(weakItemOrderLockId.value'), '弱用途线上订单缺少周锁记录')
+assert(onlineOrdersSource.includes("addRewardTickets(") && onlineOrdersSource.includes('online_weak_item_order'), '弱用途线上订单缺少票券奖励')
+assert(ONLINE_WEAK_ITEM_ORDER_ITEM_IDS.includes('manor_edge_bundle'), '弱用途线上订单池必须包含 manor_edge_bundle')
+assert(getOnlineWeakItemOrderPool().some(order => order.itemId === 'manor_edge_bundle'), '弱用途线上订单池未生成边角菜包订单')
 
 const eliteElixirIds = requiredWeakItems.slice(2)
 for (const itemId of eliteElixirIds) {

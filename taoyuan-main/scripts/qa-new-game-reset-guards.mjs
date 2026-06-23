@@ -120,7 +120,14 @@ const installBrowserShims = () => {
   const documentObj = {
     hidden: false,
     visibilityState: 'visible',
-    documentElement: { style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} } },
+    documentElement: {
+      dataset: {},
+      style: { fontSize: '', setProperty: () => {}, removeProperty: () => {} },
+      classList: { add: () => {}, remove: () => {}, toggle: () => false },
+      setAttribute: () => {},
+      removeAttribute: () => {},
+      getAttribute: () => null
+    },
     body: { appendChild: () => {}, removeChild: () => {} },
     createElement: () => ({ style: {}, classList: { add: () => {}, remove: () => {} } }),
     querySelector: () => null,

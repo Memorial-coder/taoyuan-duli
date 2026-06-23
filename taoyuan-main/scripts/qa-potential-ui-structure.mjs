@@ -96,6 +96,13 @@ assert(
   'potential upgrade dialog transition must include reduced-motion handling.'
 )
 assert(potentialViewSource.includes('getPotentialSourceProgress'), 'potential source rows must show current period progress.')
+assert(
+  potentialViewSource.includes('source.routeName') &&
+    potentialViewSource.includes('potential-source-route-${source.id}') &&
+    potentialViewSource.includes('navigateToPanel(source.routeName)') &&
+    potentialViewSource.includes('MapPinned'),
+  'potential source rows must provide route actions for connected source systems.'
+)
 assert(potentialViewSource.includes('potential-status-badge'), 'potential nodes must expose clear state badges.')
 assert(potentialViewSource.includes('potential-node-ready') && !potentialViewSource.includes('potential-node-planned'), 'potential nodes must distinguish ready states without showing planned-state styling.')
 assert(potentialViewSource.includes("nextStep.action === 'randomNpc'") && potentialViewSource.includes("navigateToPanel('village')"), 'potential page must route random NPC gates to the village panel.')

@@ -77,11 +77,180 @@
           <span class="text-[0.625rem] leading-4 text-muted">{{ onlineActivityCenterSummary }}</span>
         </div>
 
+        <section class="border border-accent/20 bg-black/15 p-3" data-testid="online-center-daily-priority-stage">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <h4 class="text-xs leading-4 text-accent">今日三局</h4>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ onlineDailyPrioritySummary }}</p>
+            </div>
+            <span class="text-[0.625rem] leading-4 text-muted">3 个优先入口</span>
+          </div>
+          <div class="mt-3 grid gap-2 lg:grid-cols-3">
+            <RouterLink
+              v-for="(activity, index) in onlineDailyActivityCards"
+              :key="`daily-priority-${activity.id}`"
+              class="group flex min-h-[208px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+              :class="activityThemeClass(activity.theme)"
+              :data-testid="`online-center-daily-priority-card-${activity.id}`"
+              :to="activity.to"
+            >
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-start justify-between gap-2">
+                  <span class="min-w-0">
+                    <span class="block text-[0.625rem] leading-4 text-muted" data-testid="online-center-daily-priority-slot">
+                      今日第 {{ index + 1 }} 项 · {{ activity.eyebrow }}
+                    </span>
+                    <span class="mt-1 block truncate text-sm leading-5 text-text">{{ activity.title }}</span>
+                    <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ activity.stateLabel }}</span>
+                  </span>
+                  <span class="grid size-9 shrink-0 place-items-center border border-accent/15 bg-black/15 text-accent" aria-hidden="true">
+                    <component :is="activity.icon" :size="16" />
+                  </span>
+                </span>
+                <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ activity.summary }}</span>
+                <span class="mt-3 grid gap-1 text-[0.625rem] leading-4 text-muted" data-testid="online-center-daily-priority-plan">
+                  <span data-testid="online-center-daily-priority-reason">{{ activity.reasonLabel }}</span>
+                  <span data-testid="online-center-daily-priority-duration">{{ activity.durationLabel }}</span>
+                  <span data-testid="online-center-daily-priority-reward">{{ activity.rewardLabel }}</span>
+                  <span data-testid="online-center-daily-priority-teamwork">{{ activity.teamworkLabel }}</span>
+                </span>
+              </span>
+              <span class="mt-3 block">
+                <span class="flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                  <span class="min-w-0 truncate text-muted">{{ activity.stateLabel }}</span>
+                  <span class="shrink-0 text-accent" data-testid="online-center-daily-priority-action">
+                    {{ dailyPriorityActionLabel(activity) }}
+                  </span>
+                </span>
+                <span class="mt-1.5 block h-1.5 overflow-hidden bg-black/20" aria-hidden="true">
+                  <span
+                    class="block h-full"
+                    :class="activityProgressClass(activity.theme)"
+                    :style="{ width: `${activity.progressPercent}%` }"
+                  />
+                </span>
+              </span>
+            </RouterLink>
+          </div>
+        </section>
+
+        <section class="grid gap-2 lg:grid-cols-3" data-testid="online-center-theme-stage">
+          <RouterLink
+            v-for="activity in onlineThemeActivityCards"
+            :key="`theme-stage-${activity.id}`"
+            class="group flex min-h-[248px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+            :class="activityThemeStageClass(activity.theme)"
+            :data-testid="`online-center-theme-stage-${activity.id}`"
+            :to="activity.to"
+          >
+            <span class="min-w-0">
+              <span class="flex min-w-0 items-start justify-between gap-3">
+                <span class="min-w-0">
+                  <span class="block text-[0.625rem] leading-4 text-muted" data-testid="online-center-theme-stage-mood">
+                    {{ activity.moodLabel }}
+                  </span>
+                  <span class="mt-1 block truncate text-sm leading-5 text-text">{{ activity.title }}</span>
+                  <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ activity.stateLabel }}</span>
+                </span>
+                <span class="grid size-10 shrink-0 place-items-center border border-accent/20 bg-black/15 text-accent" aria-hidden="true">
+                  <component :is="activity.icon" :size="18" />
+                </span>
+              </span>
+
+              <span class="mt-3 grid grid-cols-3 gap-1" data-testid="online-center-theme-stage-scene">
+                <span
+                  v-for="cue in activity.sceneCues"
+                  :key="`${activity.id}-${cue}`"
+                  class="min-w-0 border border-accent/10 bg-black/15 px-2 py-1 text-center text-[0.625rem] leading-4 text-muted"
+                >
+                  {{ cue }}
+                </span>
+              </span>
+
+              <span class="mt-3 grid grid-cols-3 gap-1" data-testid="online-center-game-card-statuses">
+                <span
+                  v-for="status in activity.statuses"
+                  :key="`${activity.id}-${status}`"
+                  class="min-w-0 border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
+                >
+                  {{ status }}
+                </span>
+              </span>
+
+              <p class="mt-3 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ activity.summary }}</p>
+
+              <span class="mt-3 block border border-accent/15 bg-black/15 p-2" data-testid="online-center-theme-stage-focus">
+                <span class="flex min-w-0 items-start justify-between gap-2">
+                  <span class="min-w-0">
+                    <span class="block text-[0.625rem] leading-4 text-muted">当前焦点</span>
+                    <span class="mt-1 block truncate text-xs leading-4 text-text">{{ activity.focusLabel }}</span>
+                  </span>
+                  <span class="shrink-0 border border-accent/15 px-2 py-0.5 text-[0.625rem] leading-4 text-accent" data-testid="online-center-theme-stage-primary-action">
+                    {{ activity.actionLabel }}
+                  </span>
+                </span>
+                <span class="mt-2 block h-1.5 overflow-hidden bg-black/25" aria-hidden="true">
+                  <span
+                    class="block h-full"
+                    :class="activityProgressClass(activity.theme)"
+                    :style="{ width: `${activity.progressPercent}%` }"
+                  />
+                </span>
+                <span class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted" data-testid="online-center-theme-stage-flow">
+                  <span>下一步：{{ activity.nextStepLabel }}</span>
+                  <span>好友动向：{{ activity.friendSignalLabel }}</span>
+                  <span>奖励落点：{{ activity.rewardAnchorLabel }}</span>
+                </span>
+              </span>
+
+              <dl class="mt-3 grid grid-cols-3 gap-1 text-[0.625rem] leading-4" data-testid="online-center-theme-stage-stats">
+                <div
+                  v-for="stat in activity.stats"
+                  :key="`${activity.id}-${stat.label}`"
+                  class="min-w-0 border border-accent/10 bg-black/10 px-2 py-1"
+                >
+                  <dt class="truncate text-muted">{{ stat.label }}</dt>
+                  <dd class="mt-0.5 truncate text-accent">{{ stat.value }}</dd>
+                </div>
+              </dl>
+            </span>
+
+            <span class="mt-3 grid gap-2">
+              <span class="grid grid-cols-2 gap-1" data-testid="online-center-collaboration-roles">
+                <span
+                  v-for="role in activity.collaborationRoles"
+                  :key="`${activity.id}-${role}`"
+                  class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
+                >
+                  {{ role }}
+                </span>
+              </span>
+              <span class="line-clamp-2 text-[0.625rem] leading-4 text-accent" data-testid="online-center-reward-preview">
+                {{ activity.rewardPreview.join(' · ') }}
+              </span>
+              <span class="block">
+                <span class="flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                  <span class="text-muted">{{ activity.todayLabel }}</span>
+                  <span class="text-accent">{{ activity.actionLabel }}</span>
+                </span>
+                <span class="mt-1 block h-1.5 overflow-hidden bg-black/20" aria-hidden="true">
+                  <span
+                    class="block h-full"
+                    :class="activityProgressClass(activity.theme)"
+                    :style="{ width: `${activity.progressPercent}%` }"
+                  />
+                </span>
+                <span class="mt-1 block truncate text-[0.625rem] leading-4 text-muted">{{ activity.weeklyRewardLabel }}</span>
+              </span>
+            </span>
+          </RouterLink>
+        </section>
+
         <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-5" data-testid="online-center-playable-minigames">
           <RouterLink
             v-for="minigame in onlinePlayableMiniGameCards"
             :key="minigame.id"
-            class="group flex min-h-[172px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+            class="group flex min-h-[250px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
             :class="activityThemeClass(minigame.theme)"
             :data-testid="`online-center-playable-minigame-${minigame.id}`"
             :to="minigame.to"
@@ -95,6 +264,18 @@
                 <component :is="minigame.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
               </span>
               <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ minigame.summary }}</span>
+              <span class="mt-2 grid grid-cols-2 gap-1" data-testid="online-center-minigame-status-matrix">
+                <span
+                  v-for="cell in minigame.statusCells"
+                  :key="`${minigame.id}-${cell.id}`"
+                  class="min-w-0 border px-2 py-1"
+                  :class="cell.active ? 'border-accent/25 bg-accent/10 text-text' : 'border-accent/10 bg-black/10 text-muted'"
+                  :data-testid="`online-center-minigame-status-${cell.id}`"
+                >
+                  <span class="block truncate text-[0.5625rem] leading-3 text-muted">{{ cell.label }}</span>
+                  <span class="mt-0.5 block truncate text-[0.625rem] leading-4">{{ cell.value }}</span>
+                </span>
+              </span>
               <span class="mt-2 flex flex-wrap gap-1" data-testid="online-center-minigame-event-hooks">
                 <span
                   v-for="hook in minigame.eventHooks"
@@ -104,12 +285,78 @@
                   {{ hook }}
                 </span>
               </span>
+              <span class="mt-2 grid gap-1 border border-accent/10 bg-black/10 p-2" data-testid="online-center-minigame-reward-pursuit">
+                <span class="flex min-w-0 justify-between gap-2 text-[0.625rem] leading-4" data-testid="online-center-minigame-weekly-remaining">
+                  <span class="shrink-0 text-muted">周奖励</span>
+                  <span class="min-w-0 truncate text-accent">{{ minigame.weeklyRemainingLabel }}</span>
+                </span>
+                <span class="flex min-w-0 justify-between gap-2 text-[0.625rem] leading-4" data-testid="online-center-minigame-reward-progress">
+                  <span class="shrink-0 text-muted">本局追求</span>
+                  <span class="min-w-0 truncate text-text">{{ minigame.rewardProgressLabel }}</span>
+                </span>
+                <span class="flex min-w-0 justify-between gap-2 text-[0.625rem] leading-4" data-testid="online-center-minigame-collection-target">
+                  <span class="shrink-0 text-muted">长期目标</span>
+                  <span class="min-w-0 truncate text-text">{{ minigame.collectionLabel }}</span>
+                </span>
+              </span>
             </span>
             <span class="mt-2 text-[0.625rem] leading-4 text-accent" data-testid="online-center-minigame-reward-loop">
               {{ minigame.rewardHint }}
             </span>
           </RouterLink>
         </div>
+
+        <section class="border border-accent/15 bg-black/10 p-3" data-testid="online-center-minigame-variety-catalog">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <h4 class="text-xs leading-4 text-accent">小游戏种类目录</h4>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">
+                把节会、远征、庄园、好友轻互动和周末大型活动分开陈列，后续接入新玩法时不用再藏在普通表单里。
+              </p>
+            </div>
+            <span class="text-[0.625rem] leading-4 text-muted">{{ onlineMiniGameVarietyCatalogSummary }}</span>
+          </div>
+          <div class="mt-3 grid gap-2 xl:grid-cols-5" data-testid="online-center-minigame-variety-categories">
+            <article
+              v-for="category in onlineMiniGameVarietyCatalog"
+              :key="category.id"
+              class="min-w-0 border p-3"
+              :class="activityThemeClass(category.theme)"
+              :data-testid="`online-center-minigame-variety-category-${category.id}`"
+            >
+              <div class="flex min-w-0 items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="truncate text-xs leading-4 text-text">{{ category.title }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-accent">{{ category.status }}</p>
+                </div>
+                <component :is="category.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
+              </div>
+              <p class="mt-2 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ category.summary }}</p>
+              <div class="mt-3 grid gap-2" data-testid="online-center-minigame-variety-activities">
+                <RouterLink
+                  v-for="activity in category.activities"
+                  :key="activity.id"
+                  class="group min-w-0 border border-accent/10 bg-black/10 p-2 text-left transition-colors hover:border-accent/35 hover:bg-accent/5"
+                  :data-testid="`online-center-minigame-variety-${activity.id}`"
+                  :to="activity.to"
+                >
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block truncate text-[0.6875rem] leading-4 text-text">{{ activity.title }}</span>
+                      <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ activity.status }}</span>
+                    </span>
+                    <component :is="activity.icon" class="shrink-0 text-accent" :size="13" aria-hidden="true" />
+                  </span>
+                  <span class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted">
+                    <span data-testid="online-center-minigame-variety-duration">{{ activity.durationLabel }}</span>
+                    <span data-testid="online-center-minigame-variety-event">{{ activity.eventLabel }}</span>
+                    <span data-testid="online-center-minigame-variety-reward">{{ activity.rewardLabel }}</span>
+                  </span>
+                </RouterLink>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <section class="border border-accent/15 bg-black/10 p-3" data-testid="online-center-async-collaboration">
           <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
@@ -120,6 +367,58 @@
               </p>
             </div>
             <span class="text-[0.625rem] leading-4 text-muted">{{ onlineAsyncCollaborationSummary }}</span>
+          </div>
+          <div class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-center-async-collaboration-queue">
+            <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div class="min-w-0">
+                <p class="text-[0.625rem] leading-4 text-accent">离线协作队列</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-center-async-collaboration-queue-summary">
+                  {{ onlineAsyncCollaborationQueueSummary }}
+                </p>
+              </div>
+              <RouterLink
+                class="w-fit shrink-0 border border-accent/15 bg-accent/5 px-2 py-1 text-[0.625rem] leading-4 text-accent transition-colors hover:border-accent/35 hover:bg-accent/10"
+                data-testid="online-center-async-collaboration-next-action"
+                :to="onlineAsyncCollaborationNextAction.to"
+              >
+                {{ onlineAsyncCollaborationNextAction.actionLabel }}
+              </RouterLink>
+            </div>
+            <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="online-center-async-collaboration-queue-steps">
+              <RouterLink
+                v-for="step in onlineAsyncCollaborationQueueSteps"
+                :key="step.id"
+                class="group flex min-h-[132px] min-w-0 flex-col justify-between border p-2 text-left transition-colors"
+                :class="step.ready ? 'border-accent/20 bg-accent/5 hover:border-accent/40 hover:bg-accent/10' : 'border-accent/10 bg-black/10 hover:border-accent/25'"
+                :data-testid="`online-center-async-collaboration-step-${step.id}`"
+                :to="step.to"
+              >
+                <span class="min-w-0">
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block text-[0.625rem] leading-4 text-muted" data-testid="online-center-async-collaboration-step-order">
+                        第 {{ step.order }} 步
+                      </span>
+                      <span class="mt-1 block truncate text-xs leading-4 text-text">{{ step.title }}</span>
+                      <span class="mt-1 block text-[0.625rem] leading-4 text-accent" data-testid="online-center-async-collaboration-step-status">
+                        {{ step.status }}
+                      </span>
+                    </span>
+                    <component :is="step.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
+                  </span>
+                  <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted" data-testid="online-center-async-collaboration-step-summary">
+                    {{ step.summary }}
+                  </span>
+                  <span class="mt-2 block text-[0.625rem] leading-4 text-muted" data-testid="online-center-async-collaboration-step-reward">
+                    {{ step.rewardHint }}
+                  </span>
+                </span>
+                <span class="mt-2 flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                  <span class="min-w-0 truncate text-muted" data-testid="online-center-async-collaboration-step-impact">{{ step.impactLabel }}</span>
+                  <span class="shrink-0 text-accent" data-testid="online-center-async-collaboration-step-action">{{ step.actionLabel }}</span>
+                </span>
+              </RouterLink>
+            </div>
           </div>
           <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="online-center-async-collaboration-modes">
             <RouterLink
@@ -356,6 +655,239 @@
           </div>
         </section>
 
+        <section class="border border-accent/15 bg-black/10 p-3" data-testid="online-center-season-pass">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <h4 class="text-xs leading-4 text-accent">联机赛季进度</h4>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">
+                把每日短局、每周主题、好友协作和收集凭证合成一条赛季轨道，玩家每天联机都有长期积累。
+              </p>
+            </div>
+            <span class="text-[0.625rem] leading-4 text-muted">{{ onlineSeasonPassSummary }}</span>
+          </div>
+
+          <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+            <RouterLink
+              class="group flex min-h-[188px] min-w-0 flex-col justify-between border border-accent/20 bg-accent/5 p-3 text-left transition-colors hover:border-accent/45 hover:bg-accent/10"
+              data-testid="online-center-season-pass-track"
+              :to="onlineSeasonPassPrimaryRoute"
+            >
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-start justify-between gap-2">
+                  <span class="min-w-0">
+                    <span class="block text-[0.625rem] leading-4 text-muted">赛季通行证式进度</span>
+                    <span class="mt-1 block truncate text-sm leading-5 text-text" data-testid="online-center-season-pass-level">{{ onlineSeasonPassLevelLabel }}</span>
+                    <span class="mt-1 block text-[0.625rem] leading-4 text-accent" data-testid="online-center-season-pass-next-reward">{{ onlineSeasonPassNextRewardLabel }}</span>
+                  </span>
+                  <ShieldCheck class="shrink-0 text-accent" :size="16" aria-hidden="true" />
+                </span>
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ onlineSeasonPassTrackSummary }}</p>
+                <span class="mt-3 block">
+                  <span class="flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                    <span class="text-muted">{{ onlineSeasonPassProgressLabel }}</span>
+                    <span class="text-accent">{{ onlineSeasonPassActionLabel }}</span>
+                  </span>
+                  <span class="mt-1 block h-2 overflow-hidden bg-black/20" aria-hidden="true">
+                    <span
+                      class="block h-full bg-accent/80"
+                      data-testid="online-center-season-pass-progress-bar"
+                      :style="{ width: `${onlineSeasonPassProgressPercent}%` }"
+                    />
+                  </span>
+                </span>
+              </span>
+
+              <span class="mt-3 grid gap-1 sm:grid-cols-2" data-testid="online-center-season-pass-sources">
+                <span
+                  v-for="source in onlineSeasonPassSources"
+                  :key="source.id"
+                  class="min-w-0 border border-accent/10 bg-black/10 px-2 py-1"
+                  :data-testid="`online-center-season-pass-source-${source.id}`"
+                >
+                  <span class="block truncate text-[0.625rem] leading-4 text-muted">{{ source.label }}</span>
+                  <span class="mt-0.5 block truncate text-[0.625rem] leading-4 text-accent">{{ source.value }}</span>
+                  <span class="mt-0.5 block truncate text-[0.5625rem] leading-3 text-muted">{{ source.summary }}</span>
+                </span>
+              </span>
+            </RouterLink>
+
+            <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-5" data-testid="online-center-season-pass-milestones">
+              <RouterLink
+                v-for="milestone in onlineSeasonPassMilestones"
+                :key="milestone.id"
+                class="group flex min-h-[188px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+                :class="activityThemeClass(milestone.theme)"
+                :data-testid="`online-center-season-pass-milestone-${milestone.id}`"
+                :to="milestone.to"
+              >
+                <span class="min-w-0">
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block text-[0.625rem] leading-4 text-muted">{{ milestone.tierLabel }}</span>
+                      <span class="mt-1 block truncate text-xs leading-4 text-text">{{ milestone.title }}</span>
+                      <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ milestone.status }}</span>
+                    </span>
+                    <component :is="milestone.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
+                  </span>
+                  <span class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted">
+                    <span data-testid="online-center-season-pass-milestone-reward">{{ milestone.rewardLabel }}</span>
+                    <span data-testid="online-center-season-pass-milestone-source">{{ milestone.sourceLabel }}</span>
+                  </span>
+                </span>
+                <span class="mt-2 block">
+                  <span class="flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                    <span class="text-muted">{{ milestone.progressLabel }}</span>
+                    <span class="text-accent">{{ milestone.actionLabel }}</span>
+                  </span>
+                  <span class="mt-1 block h-1.5 overflow-hidden bg-black/20" aria-hidden="true">
+                    <span
+                      class="block h-full"
+                      :class="activityProgressClass(milestone.theme)"
+                      :style="{ width: `${milestone.progressPercent}%` }"
+                    />
+                  </span>
+                </span>
+              </RouterLink>
+            </div>
+          </div>
+        </section>
+
+        <section class="border border-accent/15 bg-black/10 p-3" data-testid="online-center-weekend-events">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <h4 class="text-xs leading-4 text-accent">周末大型活动</h4>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">
+                把全服目标、限时首领、村社建设赛和主题排行榜直接放到活动中心，玩家不必翻目录也能看到本周热闹点。
+              </p>
+            </div>
+            <span class="text-[0.625rem] leading-4 text-muted">{{ onlineWeekendEventSummary }}</span>
+          </div>
+          <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="online-center-weekend-event-cards">
+            <RouterLink
+              v-for="event in onlineWeekendEventCards"
+              :key="event.id"
+              class="group flex min-h-[176px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+              :class="activityThemeClass(event.theme)"
+              :data-testid="`online-center-weekend-event-${event.id}`"
+              :to="event.to"
+            >
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-start justify-between gap-2">
+                  <span class="min-w-0">
+                    <span class="block truncate text-xs leading-4 text-text">{{ event.title }}</span>
+                    <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ event.status }}</span>
+                  </span>
+                  <component :is="event.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
+                </span>
+                <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ event.summary }}</span>
+                <span class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted" data-testid="online-center-weekend-event-detail">
+                  <span data-testid="online-center-weekend-event-goal">{{ event.goalLabel }}</span>
+                  <span data-testid="online-center-weekend-event-reward">{{ event.rewardLabel }}</span>
+                  <span data-testid="online-center-weekend-event-team">{{ event.teamLabel }}</span>
+                </span>
+              </span>
+              <span class="mt-2 block">
+                <span class="flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                  <span class="min-w-0 truncate text-muted">{{ event.progressLabel }}</span>
+                  <span class="shrink-0 text-accent">{{ event.actionLabel }}</span>
+                </span>
+                <span class="mt-1 block h-1.5 overflow-hidden bg-black/20" aria-hidden="true">
+                  <span
+                    class="block h-full"
+                    :class="activityProgressClass(event.theme)"
+                    data-testid="online-center-weekend-event-progress"
+                    :style="{ width: `${event.progressPercent}%` }"
+                  />
+                </span>
+              </span>
+            </RouterLink>
+          </div>
+        </section>
+
+        <section class="border border-accent/15 bg-black/10 p-3" data-testid="online-center-replay-loop">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <h4 class="text-xs leading-4 text-accent">再开一局 / 约人复玩</h4>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">
+                把结算回执、好友挑战、低差距榜单和老带新奖励放在同一个复玩入口，结算后不用重新找目标。
+              </p>
+            </div>
+            <span class="text-[0.625rem] leading-4 text-muted">{{ onlineReplayLoopSummary }}</span>
+          </div>
+          <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="online-center-replay-loop-cards">
+            <RouterLink
+              v-for="card in onlineReplayLoopCards"
+              :key="card.id"
+              class="group flex min-h-[160px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+              :class="activityThemeClass(card.theme)"
+              :data-testid="`online-center-replay-loop-${card.id}`"
+              :to="card.to"
+            >
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-start justify-between gap-2">
+                  <span class="min-w-0">
+                    <span class="block truncate text-xs leading-4 text-text">{{ card.title }}</span>
+                    <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ card.status }}</span>
+                  </span>
+                  <component :is="card.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
+                </span>
+                <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ card.summary }}</span>
+                <span class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted" data-testid="online-center-replay-loop-detail">
+                  <span data-testid="online-center-replay-loop-replay">{{ card.replayHint }}</span>
+                  <span data-testid="online-center-replay-loop-reward">{{ card.rewardHint }}</span>
+                  <span data-testid="online-center-replay-loop-fairness">{{ card.fairnessHint }}</span>
+                </span>
+              </span>
+              <span class="mt-2 flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                <span class="min-w-0 truncate text-muted">{{ card.progressLabel }}</span>
+                <span class="shrink-0 text-accent">{{ card.actionLabel }}</span>
+              </span>
+            </RouterLink>
+          </div>
+        </section>
+
+        <section class="border border-accent/15 bg-black/10 p-3" data-testid="online-center-event-variation">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <h4 class="text-xs leading-4 text-accent">今日事件变化</h4>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">
+                把天气、季节限定、NPC 乱入、随机事件和隐藏目标集中展示，避免小游戏只是重复点按钮。
+              </p>
+            </div>
+            <span class="text-[0.625rem] leading-4 text-muted">{{ onlineEventVariationSummary }}</span>
+          </div>
+          <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5" data-testid="online-center-event-variation-cards">
+            <RouterLink
+              v-for="event in onlineEventVariationCards"
+              :key="event.id"
+              class="group flex min-h-[148px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
+              :class="activityThemeClass(event.theme)"
+              :data-testid="`online-center-event-variation-${event.id}`"
+              :to="event.to"
+            >
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-start justify-between gap-2">
+                  <span class="min-w-0">
+                    <span class="block text-[0.625rem] leading-4 text-muted">{{ event.kindLabel }}</span>
+                    <span class="mt-1 block truncate text-xs leading-4 text-text">{{ event.title }}</span>
+                    <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ event.status }}</span>
+                  </span>
+                  <component :is="event.icon" class="shrink-0 text-accent" :size="15" aria-hidden="true" />
+                </span>
+                <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ event.summary }}</span>
+                <span class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted" data-testid="online-center-event-variation-detail">
+                  <span data-testid="online-center-event-variation-trigger">{{ event.triggerLabel }}</span>
+                  <span data-testid="online-center-event-variation-payoff">{{ event.payoffLabel }}</span>
+                </span>
+              </span>
+              <span class="mt-2 flex items-center justify-between gap-2 text-[0.625rem] leading-4">
+                <span class="min-w-0 truncate text-muted">{{ event.progressLabel }}</span>
+                <span class="shrink-0 text-accent">{{ event.actionLabel }}</span>
+              </span>
+            </RouterLink>
+          </div>
+        </section>
+
         <div class="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(18rem,0.9fr)]">
           <div class="space-y-3">
             <div class="grid gap-2 md:grid-cols-3" data-testid="online-center-daily-recommendations">
@@ -392,56 +924,6 @@
               </RouterLink>
             </div>
 
-            <div class="grid gap-2 lg:grid-cols-3" data-testid="online-center-theme-activity-grid">
-              <RouterLink
-                v-for="activity in onlineThemeActivityCards"
-                :key="`theme-${activity.id}`"
-                class="flex min-h-[236px] min-w-0 flex-col justify-between border p-3 text-left transition-colors"
-                :class="activityThemeClass(activity.theme)"
-                :data-testid="`online-center-theme-activity-${activity.id}`"
-                :to="activity.to"
-              >
-                <span class="min-w-0">
-                  <span class="flex min-w-0 items-start justify-between gap-2">
-                    <span class="min-w-0">
-                      <span class="block text-[0.625rem] leading-4 text-muted">{{ activity.eyebrow }}</span>
-                      <span class="mt-1 block truncate text-sm leading-5 text-text">{{ activity.title }}</span>
-                    </span>
-                    <span class="shrink-0 border border-accent/20 px-2 py-1 text-[0.625rem] leading-4 text-accent">{{ activity.actionLabel }}</span>
-                  </span>
-                  <span class="mt-3 grid grid-cols-3 gap-1" data-testid="online-center-game-card-statuses">
-                    <span
-                      v-for="status in activity.statuses"
-                      :key="status"
-                      class="min-w-0 border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
-                    >
-                      {{ status }}
-                    </span>
-                  </span>
-                  <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ activity.summary }}</p>
-                  <dl class="mt-3 grid gap-1 text-[0.625rem] leading-4 text-muted">
-                    <div v-for="stat in activity.stats" :key="stat.label" class="flex justify-between gap-2">
-                      <dt>{{ stat.label }}</dt>
-                      <dd class="text-accent">{{ stat.value }}</dd>
-                    </div>
-                  </dl>
-                </span>
-                <span class="mt-3 grid gap-2">
-                  <span class="grid grid-cols-2 gap-1" data-testid="online-center-collaboration-roles">
-                    <span
-                      v-for="role in activity.collaborationRoles"
-                      :key="role"
-                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
-                    >
-                      {{ role }}
-                    </span>
-                  </span>
-                  <span class="line-clamp-2 text-[0.625rem] leading-4 text-accent" data-testid="online-center-reward-preview">
-                    {{ activity.rewardPreview.join(' · ') }}
-                  </span>
-                </span>
-              </RouterLink>
-            </div>
           </div>
 
           <aside class="grid gap-3" data-testid="online-center-side-progress">
@@ -988,10 +1470,18 @@
     tone: 'urgent' | 'default' | 'reward'
   }
   type OnlineActivityTheme = 'festival' | 'expedition' | 'manor'
+  type OnlinePlayableMiniGameStatusId = 'joinable' | 'invitable' | 'settleable' | 'today-complete' | 'weekly-remaining'
+  type OnlinePlayableMiniGameStatusCell = {
+    id: OnlinePlayableMiniGameStatusId
+    label: string
+    value: string
+    active: boolean
+  }
   type OnlineActivityCard = {
     id: string
     theme: OnlineActivityTheme
     eyebrow: string
+    moodLabel: string
     title: string
     summary: string
     stateLabel: string
@@ -1003,8 +1493,13 @@
     icon: Component
     statuses: string[]
     stats: ModuleStat[]
+    sceneCues: string[]
     collaborationRoles: string[]
     rewardPreview: string[]
+    focusLabel: string
+    nextStepLabel: string
+    friendSignalLabel: string
+    rewardAnchorLabel: string
   }
   type OnlineDailyActivityCard = {
     id: string
@@ -1030,8 +1525,33 @@
     summary: string
     eventHooks: string[]
     rewardHint: string
+    statusCells: OnlinePlayableMiniGameStatusCell[]
+    weeklyRemainingLabel: string
+    rewardProgressLabel: string
+    collectionLabel: string
     to: RouteLocationRaw
     icon: Component
+  }
+  type OnlineMiniGameVarietyActivity = {
+    id: string
+    theme: OnlineActivityTheme
+    title: string
+    status: string
+    durationLabel: string
+    eventLabel: string
+    rewardLabel: string
+    to: RouteLocationRaw
+    icon: Component
+    ready: boolean
+  }
+  type OnlineMiniGameVarietyCategory = {
+    id: 'festival' | 'expedition' | 'manor' | 'friend' | 'weekend'
+    theme: OnlineActivityTheme
+    title: string
+    status: string
+    summary: string
+    icon: Component
+    activities: OnlineMiniGameVarietyActivity[]
   }
   type OnlineAsyncCollaborationCard = {
     id: string
@@ -1045,6 +1565,9 @@
     to: RouteLocationRaw
     icon: Component
     ready: boolean
+  }
+  type OnlineAsyncCollaborationQueueStep = OnlineAsyncCollaborationCard & {
+    order: number
   }
   type OnlineRewardPathCard = {
     id: string
@@ -1100,6 +1623,73 @@
     limitedReward: string
     progressLabel: string
     progressPercent: number
+    actionLabel: string
+    to: RouteLocationRaw
+    icon: Component
+    active: boolean
+  }
+  type OnlineSeasonPassSource = {
+    id: string
+    label: string
+    value: string
+    summary: string
+  }
+  type OnlineSeasonPassMilestone = {
+    id: string
+    theme: OnlineActivityTheme
+    tierLabel: string
+    title: string
+    status: string
+    rewardLabel: string
+    sourceLabel: string
+    progressLabel: string
+    progressPercent: number
+    actionLabel: string
+    to: RouteLocationRaw
+    icon: Component
+    achieved: boolean
+  }
+  type OnlineReplayLoopCard = {
+    id: string
+    theme: OnlineActivityTheme
+    title: string
+    status: string
+    summary: string
+    replayHint: string
+    rewardHint: string
+    fairnessHint: string
+    progressLabel: string
+    actionLabel: string
+    to: RouteLocationRaw
+    icon: Component
+    ready: boolean
+  }
+  type OnlineWeekendEventCard = {
+    id: 'server-festival-goal' | 'limited-expedition-boss' | 'society-build-race' | 'theme-leaderboard'
+    theme: OnlineActivityTheme
+    title: string
+    status: string
+    summary: string
+    goalLabel: string
+    rewardLabel: string
+    teamLabel: string
+    progressLabel: string
+    progressPercent: number
+    actionLabel: string
+    to: RouteLocationRaw
+    icon: Component
+    active: boolean
+  }
+  type OnlineEventVariationCard = {
+    id: 'weather' | 'season' | 'npc' | 'random' | 'hidden'
+    theme: OnlineActivityTheme
+    kindLabel: string
+    title: string
+    status: string
+    summary: string
+    triggerLabel: string
+    payoffLabel: string
+    progressLabel: string
     actionLabel: string
     to: RouteLocationRaw
     icon: Component
@@ -1181,6 +1771,53 @@
   const clampPercent = (value: number) => Math.max(0, Math.min(100, Math.round(value)))
   const progressFromRoom = (room: { gameplay: { progress_percent: number } } | null | undefined, fallback = 0) =>
     clampPercent(room ? room.gameplay.progress_percent : fallback)
+  const miniGameWeeklyRewardLimit = 3
+  const weeklyRemainingCount = (completedCount: number, limit = miniGameWeeklyRewardLimit) =>
+    Math.max(0, limit - Math.min(limit, completedCount))
+  const miniGameWeeklyRemainingLabel = (completedCount: number, limit = miniGameWeeklyRewardLimit) => {
+    const remaining = weeklyRemainingCount(completedCount, limit)
+    return remaining > 0 ? `本周奖励剩余 ${remaining} 次` : '本周奖励已打满'
+  }
+  const buildPlayableMiniGameStatusCells = (options: {
+    joinable: boolean
+    joinableValue: string
+    invitable: boolean
+    invitableValue: string
+    settleable: boolean
+    todayComplete: boolean
+    weeklyRemaining: number
+  }): OnlinePlayableMiniGameStatusCell[] => [
+    {
+      id: 'joinable',
+      label: '可加入',
+      value: options.joinable ? options.joinableValue : '暂无房间',
+      active: options.joinable,
+    },
+    {
+      id: 'invitable',
+      label: '可邀请',
+      value: options.invitable ? options.invitableValue : '先处理当前局',
+      active: options.invitable,
+    },
+    {
+      id: 'settleable',
+      label: '可结算',
+      value: options.settleable ? '奖励可落袋' : '待推进',
+      active: options.settleable,
+    },
+    {
+      id: 'today-complete',
+      label: '今日已完成',
+      value: options.todayComplete ? '已有凭证' : '未完成',
+      active: options.todayComplete,
+    },
+    {
+      id: 'weekly-remaining',
+      label: '本周奖励',
+      value: options.weeklyRemaining > 0 ? `剩 ${options.weeklyRemaining} 次` : '已打满',
+      active: options.weeklyRemaining > 0,
+    },
+  ]
   const roomPrimaryStateLabel = (room: {
     state_label: string
     can_host_settle: boolean
@@ -1202,6 +1839,11 @@
     'border-rose-300/25 bg-rose-500/10 hover:border-rose-200/55 hover:bg-rose-500/15': theme === 'festival',
     'border-sky-300/25 bg-sky-500/10 hover:border-sky-200/55 hover:bg-sky-500/15': theme === 'expedition',
     'border-emerald-300/25 bg-emerald-500/10 hover:border-emerald-200/55 hover:bg-emerald-500/15': theme === 'manor',
+  })
+  const activityThemeStageClass = (theme: OnlineActivityTheme) => ({
+    'border-rose-300/35 bg-[radial-gradient(circle_at_20%_0%,rgba(251,113,133,0.18),transparent_34%),linear-gradient(135deg,rgba(159,18,57,0.32),rgba(30,12,18,0.82))] hover:border-rose-200/65': theme === 'festival',
+    'border-sky-300/35 bg-[radial-gradient(circle_at_80%_0%,rgba(125,211,252,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.32),rgba(8,20,34,0.84))] hover:border-sky-200/65': theme === 'expedition',
+    'border-emerald-300/35 bg-[radial-gradient(circle_at_70%_10%,rgba(110,231,183,0.18),transparent_34%),linear-gradient(135deg,rgba(6,95,70,0.3),rgba(9,31,27,0.84))] hover:border-emerald-200/65': theme === 'manor',
   })
   const activityProgressClass = (theme: OnlineActivityTheme) => ({
     'bg-rose-300/80': theme === 'festival',
@@ -1279,6 +1921,10 @@
     mailboxStore.mails.filter(mail => mail.can_claim && !mail.is_claimed && !mail.is_expired).length
   )
   const unreadMailCount = computed(() => mailboxStore.inboxStatus.unread_count || mailboxStore.unreadCount)
+  const onlineRewardClaimRoute = (): RouteLocationRaw => ({
+    name: 'online-festival',
+    query: { tab: 'memorials', panel: 'reward-claim' },
+  })
   const manorCareTodo = computed(() => {
     const snapshot = manorStore.snapshot
     if (!snapshot || snapshot.viewer_is_owner !== false) return null
@@ -1414,6 +2060,7 @@
       id: 'festival',
       theme: 'festival',
       eyebrow: '节会 · 市集 · 灯会',
+      moodLabel: '热闹灯会 / 市集短局',
       title: room ? room.title : '节会小游戏',
       summary: room
         ? `${room.gameplay.objective_label}，当前 ${room.gameplay.progress_text}。`
@@ -1437,8 +2084,13 @@
         { label: '邀请', value: countLabel(inviteCount) },
         { label: '纪念', value: countLabel(festivalRoomStore.recentMemorials.length) },
       ],
+      sceneCues: ['灯会', '市集', '纪念'],
       collaborationRoles: ['点灯 / 解谜', '摆摊 / 供品', '秩序 / 互动', '留影 / 结算'],
       rewardPreview: ['节会票券', '留影纪念', '称号 / 人气', '好友回看'],
+      focusLabel: room ? room.gameplay.phase_label : inviteCount > 0 ? '先处理节会邀请' : visibleCount > 0 ? '加入正在开的节会房' : '开一局灯会短局',
+      nextStepLabel: room ? roomPrimaryStateLabel(room) || room.gameplay.phase_label : inviteCount > 0 ? '接受或拒绝邀请' : '创建房间并选择好友',
+      friendSignalLabel: room ? `${room.joined_member_count}/${room.member_limit} 人在房` : visibleCount > 0 ? `${visibleCount} 间房可加入` : '可从好友列表直接邀请',
+      rewardAnchorLabel: receiptCount > 0 ? `${receiptCount} 条纪念可回看` : '结算后拿节会票券 / 纪念册进度',
     }
   })
   const expeditionActivityCard = computed<OnlineActivityCard>(() => {
@@ -1450,6 +2102,7 @@
       id: 'expedition',
       theme: 'expedition',
       eyebrow: '远征 · 地图 · 战利品',
+      moodLabel: '路线地图 / 队伍战利品',
       title: room ? room.title : '资源护送',
       summary: room
         ? `${room.gameplay.objective_label}，当前 ${room.gameplay.progress_text}。`
@@ -1473,8 +2126,13 @@
         { label: '邀请', value: countLabel(inviteCount) },
         { label: '结算', value: countLabel(receiptCount) },
       ],
+      sceneCues: ['地图', '护送', '战利品'],
       collaborationRoles: ['采集 / 探路', '护送 / 战斗', '补给 / 支援', '撤离 / 结算'],
       rewardPreview: ['路线战利品', '节点贡献', '协作称号', '回放记录'],
+      focusLabel: room ? room.gameplay.phase_label : inviteCount > 0 ? '先处理远征邀请' : visibleCount > 0 ? '加入正在招募的队伍' : '开一局资源护送',
+      nextStepLabel: room ? roomPrimaryStateLabel(room) || room.gameplay.phase_label : inviteCount > 0 ? '确认是否入队' : '创建队伍并选路线',
+      friendSignalLabel: room ? `${room.joined_member_count}/${room.member_limit} 人在队` : visibleCount > 0 ? `${visibleCount} 间队伍可加入` : '适合拉好友分工护送',
+      rewardAnchorLabel: receiptCount > 0 ? `${receiptCount} 条战利品可回看` : '结算后拿远征材料 / 图鉴进度',
     }
   })
   const manorActivityCard = computed<OnlineActivityCard>(() => {
@@ -1493,6 +2151,7 @@
       id: 'manor',
       theme: 'manor',
       eyebrow: '庄园 · 协作经营 · 共同建设',
+      moodLabel: '协作经营 / 共同建设',
       title: snapshot?.theme_week?.active_theme || snapshot?.showcase_theme || '庄园协作',
       summary: careTodo?.summary || '共同浇灌、动物护理、作坊接力和访客订单都从庄园入口串起来。',
       stateLabel: careTodo ? careTodo.status : pendingCohabitationCount.value > 0 ? `${pendingCohabitationCount.value} 份契约待确认` : activeContractCount > 0 ? `${activeContractCount} 份共同庄园` : '可拜访 / 可展示',
@@ -1513,8 +2172,13 @@
         { label: '热门庄园', value: countLabel(hotCount) },
         { label: '共同契约', value: countLabel(cohabitationStore.summary.total, '份') },
       ],
+      sceneCues: ['经营', '照料', '共建'],
       collaborationRoles: ['共同浇灌', '动物护理', '作坊接力', '访客订单'],
       rewardPreview: ['友情点', '轻伴手礼', '协作经验', '庄园称号'],
+      focusLabel: careTodo ? '好友庄园可协助' : activeContractCount > 0 ? '共同庄园可推进' : snapshot ? '更新庄园展示' : '同步我的庄园',
+      nextStepLabel: careTodo ? careTodo.status : pendingCohabitationCount.value > 0 ? '确认共同庄园契约' : '进入庄园查看照料 / 访问',
+      friendSignalLabel: favoriteCount > 0 ? `${favoriteCount} 个收藏好友庄园` : hotCount > 0 ? `${hotCount} 个热门庄园可逛` : '可留言、参观、留下委托',
+      rewardAnchorLabel: activeContractCount > 0 ? '共同目标给协作经验 / 家具线索' : '照料和访问给友情点 / 好友徽章',
     }
   })
   const onlineThemeActivityCards = computed<OnlineActivityCard[]>(() => [
@@ -1710,13 +2374,53 @@
 
     return pickDailyActivityCards(candidates)
   })
+  const onlineDailyPrioritySummary = computed(() => {
+    const titles = onlineDailyActivityCards.value.map(activity => activity.title).join(' / ')
+    return titles ? `先玩：${titles}` : '先处理邀请、房间或领取奖励。'
+  })
+  const dailyPriorityActionLabel = (activity: OnlineDailyActivityCard) => {
+    if (activity.id === 'handle-room-invites') return '处理邀请'
+    if (activity.id === 'claim-online-rewards') return activity.stateLabel.includes('可领取') ? '去领奖' : '看回执'
+    if (activity.stateLabel.includes('可结算')) return '去结算'
+    if (activity.stateLabel.includes('可开始')) return '去开始'
+    if (activity.stateLabel.includes('可准备')) return '去准备'
+    if (activity.stateLabel.includes('可加入')) return '去加入'
+    if (activity.stateLabel.includes('可邀请') || activity.stateLabel.includes('组队')) return '去邀请'
+    if (activity.stateLabel.includes('已完成')) return '看奖励'
+    return activity.progressPercent >= 70 ? '继续推进' : '去开局'
+  }
   const onlinePlayableMiniGameCards = computed<OnlinePlayableMiniGameCard[]>(() => {
     const festivalRoom = festivalRoomStore.myRoom
     const expeditionRoom = expeditionRoomStore.myRoom
     const hasLanternRoom = festivalRoom?.template_id === 'lantern_fair'
+    const hasStallRoom = festivalRoom?.template_id === 'laba_cookpot'
     const hasEscortRoom = expeditionRoom?.template_id === 'escort_convoy'
     const lanternVisibleCount = festivalRoomStore.visibleRooms.filter(room => room.template_id === 'lantern_fair').length
+    const stallVisibleCount = festivalRoomStore.visibleRooms.filter(room => room.template_id === 'laba_cookpot').length
     const escortVisibleCount = expeditionRoomStore.visibleRooms.filter(room => room.template_id === 'escort_convoy').length
+    const festivalReceiptCount = festivalRoomStore.recentReceipts.length
+    const expeditionReceiptCount = expeditionRoomStore.recentReceipts.length
+    const festivalCollectionCount = festivalRoomStore.recentMemorials.length + festivalReceiptCount
+    const friendInteractionCount = socialStore.friends.length + socialStore.friendDiscoveryPlayers.length
+    const sharedCareProgress = [
+      Boolean(manorCareTodo.value),
+      cohabitationStore.summary.active > 0,
+      cohabitationStore.summary.total > 0,
+      Boolean(manorStore.favoriteOverview?.favorites.length),
+      Boolean(manorStore.favoriteOverview?.hot_manors.length),
+    ].filter(Boolean).length
+    const dailyHelpProgress = [
+      relayOrderCount.value > 0,
+      acceptedOrderCount.value > 0,
+      claimableMailCount.value > 0 || unreadMailCount.value > 0,
+      socialStore.friends.length > 0,
+    ].filter(Boolean).length
+    const lanternWeeklyRemaining = weeklyRemainingCount(festivalReceiptCount)
+    const stallWeeklyProofCount = festivalReceiptCount + acceptedOrderCount.value
+    const stallWeeklyRemaining = weeklyRemainingCount(stallWeeklyProofCount)
+    const escortWeeklyRemaining = weeklyRemainingCount(expeditionReceiptCount)
+    const sharedCareWeeklyRemaining = weeklyRemainingCount(sharedCareProgress)
+    const dailyHelpWeeklyRemaining = weeklyRemainingCount(dailyHelpProgress)
     return [
       {
         id: 'lantern-riddle',
@@ -1726,6 +2430,24 @@
         summary: '2-5 分钟短局，抢答、整理题签和观众秩序一起影响结算。',
         eventHooks: ['灯谜连发', 'NPC 乱入', '隐藏题签'],
         rewardHint: '节会票券 / 纪念册 / 失败保底协作经验',
+        statusCells: buildPlayableMiniGameStatusCells({
+          joinable: hasLanternRoom || lanternVisibleCount > 0,
+          joinableValue: hasLanternRoom ? '已在房间' : `${lanternVisibleCount} 间`,
+          invitable: !hasLanternRoom,
+          invitableValue: socialStore.friends.length > 0 ? `${socialStore.friends.length} 位好友` : '开局后选择',
+          settleable: Boolean(hasLanternRoom && festivalRoom?.can_host_settle),
+          todayComplete: festivalReceiptCount > 0,
+          weeklyRemaining: lanternWeeklyRemaining,
+        }),
+        weeklyRemainingLabel: miniGameWeeklyRemainingLabel(festivalReceiptCount),
+        rewardProgressLabel: festivalRoom?.can_host_settle && hasLanternRoom
+          ? '结算票券 / 纪念册'
+          : hasLanternRoom
+            ? `房间进度 ${progressFromRoom(festivalRoom)}%`
+            : lanternVisibleCount > 0
+              ? '加入现成灯会'
+              : '开局邀请好友',
+        collectionLabel: festivalCollectionCount > 0 ? `节会纪念 ${Math.min(6, festivalCollectionCount)}/6` : '首局留纪念',
         to: { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
         icon: Lamp,
       },
@@ -1737,6 +2459,24 @@
         summary: '分工备料、分拣和提交，适合把节会订单做成多人接力。',
         eventHooks: ['客流波动', '季节订单', '隐藏伴手礼'],
         rewardHint: '好友币 / 节庆订单分 / 本周进度',
+        statusCells: buildPlayableMiniGameStatusCells({
+          joinable: hasStallRoom || stallVisibleCount > 0,
+          joinableValue: hasStallRoom ? '已在房间' : `${stallVisibleCount} 间`,
+          invitable: !festivalRoom,
+          invitableValue: socialStore.friends.length > 0 ? `${socialStore.friends.length} 位好友` : '可开公开房',
+          settleable: Boolean(hasStallRoom && festivalRoom?.can_host_settle) || acceptedOrderCount.value > 0,
+          todayComplete: stallWeeklyProofCount > 0,
+          weeklyRemaining: stallWeeklyRemaining,
+        }),
+        weeklyRemainingLabel: miniGameWeeklyRemainingLabel(stallWeeklyProofCount),
+        rewardProgressLabel: acceptedOrderCount.value > 0
+          ? `${acceptedOrderCount.value} 张已接单`
+          : hasStallRoom && festivalRoom
+            ? `房间进度 ${progressFromRoom(festivalRoom)}%`
+            : relayOrderCount.value > 0
+              ? `${relayOrderCount.value} 张可接`
+              : '发起节会接力',
+        collectionLabel: festivalCollectionCount > 0 ? `节庆订单 ${Math.min(5, festivalCollectionCount)}/5` : '首张接力凭证',
         to: { name: 'online-festival', query: { tab: 'festival-room', template: 'laba_cookpot', gameplay: 'gathering', open_wizard: '1' } },
         icon: ClipboardList,
       },
@@ -1748,6 +2488,24 @@
         summary: '2-5 分钟短局，护送里程、货物完整度和途中事件共同结算。',
         eventHooks: ['天气影响', '破车事件', '夜巡隐藏目标'],
         rewardHint: '远征材料 / 护送评分 / 失败保底友情点',
+        statusCells: buildPlayableMiniGameStatusCells({
+          joinable: hasEscortRoom || escortVisibleCount > 0,
+          joinableValue: hasEscortRoom ? '已在队伍' : `${escortVisibleCount} 队`,
+          invitable: !hasEscortRoom,
+          invitableValue: socialStore.friends.length > 0 ? `${socialStore.friends.length} 位好友` : '开队后选择',
+          settleable: Boolean(hasEscortRoom && expeditionRoom?.can_host_settle),
+          todayComplete: expeditionReceiptCount > 0,
+          weeklyRemaining: escortWeeklyRemaining,
+        }),
+        weeklyRemainingLabel: miniGameWeeklyRemainingLabel(expeditionReceiptCount),
+        rewardProgressLabel: expeditionRoom?.can_host_settle && hasEscortRoom
+          ? '结算战利品 / 护送评分'
+          : hasEscortRoom
+            ? `路线进度 ${progressFromRoom(expeditionRoom)}%`
+            : escortVisibleCount > 0
+              ? '加入现成护送队'
+              : '组队开护送线',
+        collectionLabel: expeditionReceiptCount > 0 ? `远征图鉴 ${Math.min(6, expeditionReceiptCount)}/6` : '首条路线记录',
         to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: '1' } },
         icon: Pickaxe,
       },
@@ -1759,6 +2517,20 @@
         summary: '好友不在线也能留下照料记录，把庄园协作做成轻量日常。',
         eventHooks: ['天气加成', '动物心情', '设施借用'],
         rewardHint: '友情点 / 协作经验 / 庄园称号进度',
+        statusCells: buildPlayableMiniGameStatusCells({
+          joinable: Boolean(manorCareTodo.value) || cohabitationStore.summary.active > 0,
+          joinableValue: manorCareTodo.value?.status ?? `${cohabitationStore.summary.active} 份契约`,
+          invitable: friendInteractionCount > 0,
+          invitableValue: friendInteractionCount > 0 ? `${friendInteractionCount} 位对象` : '先发现好友',
+          settleable: claimableMailCount.value > 0 || Boolean(manorCareTodo.value),
+          todayComplete: sharedCareProgress > 0,
+          weeklyRemaining: sharedCareWeeklyRemaining,
+        }),
+        weeklyRemainingLabel: miniGameWeeklyRemainingLabel(sharedCareProgress),
+        rewardProgressLabel: claimableMailCount.value > 0
+          ? `${claimableMailCount.value} 封可领取`
+          : manorCareTodo.value?.status ?? (cohabitationStore.summary.active > 0 ? `${cohabitationStore.summary.active} 份共同庄园` : '拜访照料拿友情点'),
+        collectionLabel: `协作称号 ${Math.min(5, sharedCareProgress)}/5`,
         to: { name: 'online-manor', query: { tab: 'care' } },
         icon: Home,
       },
@@ -1770,11 +2542,347 @@
         summary: '留言礼物、好友挑战和异步委托放到同一条轻协作入口里。',
         eventHooks: ['好友挑战', '留言礼物', '异步奖励'],
         rewardHint: '每日材料 / 好友币 / 新人协助奖励',
+        statusCells: buildPlayableMiniGameStatusCells({
+          joinable: relayOrderCount.value > 0 || acceptedOrderCount.value > 0,
+          joinableValue: relayOrderCount.value > 0 ? `${relayOrderCount.value} 张可接` : `${acceptedOrderCount.value} 张已接`,
+          invitable: friendInteractionCount > 0,
+          invitableValue: friendInteractionCount > 0 ? `${friendInteractionCount} 位对象` : '先发现好友',
+          settleable: claimableMailCount.value > 0 || acceptedOrderCount.value > 0,
+          todayComplete: dailyHelpProgress > 0,
+          weeklyRemaining: dailyHelpWeeklyRemaining,
+        }),
+        weeklyRemainingLabel: miniGameWeeklyRemainingLabel(dailyHelpProgress),
+        rewardProgressLabel: claimableMailCount.value > 0
+          ? `${claimableMailCount.value} 封奖励邮件`
+          : relayOrderCount.value > 0
+            ? `${relayOrderCount.value} 张接力单`
+            : '发布委托等好友',
+        collectionLabel: friendInteractionCount > 0 ? `好友徽章 ${Math.min(6, friendInteractionCount)}/6` : '先发现好友',
         to: { name: 'online-orders', query: { tab: relayOrderCount.value > 0 ? 'available' : 'publish' } },
         icon: Handshake,
       },
     ]
   })
+  const onlineMiniGameVarietyCatalog = computed<OnlineMiniGameVarietyCategory[]>(() => {
+    const hasLanternRoom = festivalRoomStore.visibleRooms.some(room => room.template_id === 'lantern_fair')
+    const hasStallRoom = festivalRoomStore.visibleRooms.some(room => room.template_id === 'laba_cookpot')
+    const hasEscortRoom = expeditionRoomStore.visibleRooms.some(room => room.template_id === 'escort_convoy')
+    const hasDuoRoom = expeditionRoomStore.visibleRooms.some(room => room.template_id === 'cavern_duo')
+    const hasExpeditionRoom = Boolean(expeditionRoomStore.myRoom || expeditionRoomStore.visibleRooms.length > 0)
+    const hasFestivalRoom = Boolean(festivalRoomStore.myRoom || festivalRoomStore.visibleRooms.length > 0)
+    const hasFriends = socialStore.friends.length > 0 || socialStore.friendDiscoveryPlayers.length > 0
+    const hasManorLink = Boolean(manorCareTodo.value || cohabitationStore.summary.active > 0)
+    const hasSociety = Boolean(societyStore.mySociety)
+    const totalReceiptCount = festivalRoomStore.recentReceipts.length + expeditionRoomStore.recentReceipts.length
+    const hasWeeklyProof =
+      festivalRoomStore.recentReceipts.length > 0
+      || expeditionRoomStore.recentReceipts.length > 0
+      || Boolean(societyStore.mySociety?.public_warehouse.weekly_settlement)
+
+    return [
+      {
+        id: 'festival',
+        theme: 'festival',
+        title: '节会小游戏',
+        status: hasFestivalRoom ? '已有房间可推进' : '4 个热闹短局',
+        summary: '灯会、市集和节庆订单集中成可邀请的短局，优先解决入口冷清和玩法少的问题。',
+        icon: Lamp,
+        activities: [
+          {
+            id: 'lantern-quiz',
+            theme: 'festival',
+            title: '灯谜竞猜',
+            status: hasLanternRoom ? '可加入' : '可邀请',
+            durationLabel: '耗时：2-5 分钟',
+            eventLabel: '事件：灯谜连发、NPC 乱入、隐藏题签',
+            rewardLabel: '奖励：节会票券、纪念册、失败保底协作经验',
+            to: { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
+            icon: Lamp,
+            ready: true,
+          },
+          {
+            id: 'stall-relay',
+            theme: 'festival',
+            title: '摆摊接力',
+            status: hasStallRoom ? '可加入' : '可邀请',
+            durationLabel: '耗时：3-5 分钟',
+            eventLabel: '事件：客流波动、季节订单、隐藏伴手礼',
+            rewardLabel: '奖励：好友币、节庆订单券、本周进度',
+            to: { name: 'online-festival', query: { tab: 'festival-room', template: 'laba_cookpot', gameplay: 'gathering', open_wizard: '1' } },
+            icon: ClipboardList,
+            ready: true,
+          },
+          {
+            id: 'lantern-parade',
+            theme: 'festival',
+            title: '花灯巡游',
+            status: '活动池候选',
+            durationLabel: '耗时：3-5 分钟',
+            eventLabel: '事件：路线拥堵、灯线缠绕、NPC 加入队伍',
+            rewardLabel: '奖励：灯会纪念章、限定装饰碎片、协作经验',
+            to: { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'assembly', open_wizard: '1' } },
+            icon: Waves,
+            ready: hasLanternRoom,
+          },
+          {
+            id: 'festival-order-rush',
+            theme: 'festival',
+            title: '节庆订单抢单',
+            status: relayOrderCount.value > 0 ? '可接单' : '可预热',
+            durationLabel: '耗时：2-4 分钟',
+            eventLabel: '事件：限时客单、缺料求助、隐藏加急单',
+            rewardLabel: '奖励：铜钱、材料、节会周宝箱进度',
+            to: { name: 'online-orders', query: { tab: relayOrderCount.value > 0 ? 'available' : 'publish', source: 'festival-order-rush' } },
+            icon: Inbox,
+            ready: relayOrderCount.value > 0,
+          },
+        ],
+      },
+      {
+        id: 'expedition',
+        theme: 'expedition',
+        title: '远征小游戏',
+        status: hasExpeditionRoom ? '已有队伍可推进' : '4 个队伍短局',
+        summary: '路线、遭遇、护送和探索都用地图感表达，让远征像一次小任务而不是列表按钮。',
+        icon: Map,
+        activities: [
+          {
+            id: 'duo-route-choice',
+            theme: 'expedition',
+            title: '双人路线选择',
+            status: hasDuoRoom ? '可加入' : '可邀请',
+            durationLabel: '耗时：2-4 分钟',
+            eventLabel: '事件：岔路天气、风险格、隐藏矿点',
+            rewardLabel: '奖励：远征材料、路线图鉴、失败保底友情点',
+            to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'cavern_duo', gameplay: 'expedition_cavern', open_wizard: '1' } },
+            icon: Map,
+            ready: true,
+          },
+          {
+            id: 'squad-encounter',
+            theme: 'expedition',
+            title: '小队遭遇战',
+            status: hasExpeditionRoom ? '可组队' : '可邀请',
+            durationLabel: '耗时：3-5 分钟',
+            eventLabel: '事件：敌群乱入、队伍连携、临时撤离',
+            rewardLabel: '奖励：战利品、协作评分、稀有材料线索',
+            to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'cavern_quartet', gameplay: 'expedition_cavern', open_wizard: '1' } },
+            icon: ShieldCheck,
+            ready: true,
+          },
+          {
+            id: 'resource-escort',
+            theme: 'expedition',
+            title: '资源护送',
+            status: hasEscortRoom ? '可加入' : '可邀请',
+            durationLabel: '耗时：2-5 分钟',
+            eventLabel: '事件：天气、破车、夜巡和隐藏目标',
+            rewardLabel: '奖励：远征材料、护送评分、失败保底友情点',
+            to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: '1' } },
+            icon: Pickaxe,
+            ready: true,
+          },
+          {
+            id: 'relic-explore',
+            theme: 'expedition',
+            title: '遗迹探索',
+            status: '活动池候选',
+            durationLabel: '耗时：3-5 分钟',
+            eventLabel: '事件：潮汐门、古物辨认、隐藏房间',
+            rewardLabel: '奖励：远征图鉴、潜能资源、陈列品碎片',
+            to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'sea_probe', gameplay: 'expedition_sea', open_wizard: '1' } },
+            icon: Warehouse,
+            ready: expeditionRoomStore.visibleRooms.some(room => room.template_id === 'sea_probe'),
+          },
+        ],
+      },
+      {
+        id: 'manor',
+        theme: 'manor',
+        title: '庄园协作',
+        status: hasManorLink ? '今日可推进' : '4 个经营短局',
+        summary: '把浇灌、动物、作坊和访客订单拆成短动作，好友不在线也能留下协作痕迹。',
+        icon: Home,
+        activities: [
+          {
+            id: 'shared-watering',
+            theme: 'manor',
+            title: '共同浇灌',
+            status: manorCareTodo.value ? '今日可做' : '可拜访',
+            durationLabel: '耗时：1-3 分钟',
+            eventLabel: '事件：天气加成、缺水地块、设施借用',
+            rewardLabel: '奖励：友情点、协作经验、庄园称号进度',
+            to: { name: 'online-manor', query: { tab: 'care' } },
+            icon: Home,
+            ready: Boolean(manorCareTodo.value),
+          },
+          {
+            id: 'animal-care',
+            theme: 'manor',
+            title: '动物护理',
+            status: hasFriends ? '可派帮手' : '待发现好友',
+            durationLabel: '耗时：1-3 分钟',
+            eventLabel: '事件：动物心情、喂食顺序、随机感谢',
+            rewardLabel: '奖励：材料、好友币、轻协作回执',
+            to: { name: 'online-manor', query: { tab: 'care', focus: 'animal-care' } },
+            icon: HeartHandshake,
+            ready: hasFriends,
+          },
+          {
+            id: 'workshop-relay',
+            theme: 'manor',
+            title: '作坊接力',
+            status: relayOrderCount.value > 0 ? '可接力' : '可发布',
+            durationLabel: '耗时：2-4 分钟',
+            eventLabel: '事件：缺料补位、加工排程、隐藏返利',
+            rewardLabel: '奖励：材料、分账、公共订单周进度',
+            to: { name: 'online-orders', query: { tab: relayOrderCount.value > 0 ? 'available' : 'publish', source: 'workshop-relay' } },
+            icon: ClipboardList,
+            ready: relayOrderCount.value > 0 || acceptedOrderCount.value > 0,
+          },
+          {
+            id: 'visitor-orders',
+            theme: 'manor',
+            title: '访客订单',
+            status: acceptedOrderCount.value > 0 ? '可结算' : '可邀请',
+            durationLabel: '耗时：2-5 分钟',
+            eventLabel: '事件：访客偏好、季节物资、隐藏好评',
+            rewardLabel: '奖励：铜钱、庄园声望、访客纪念',
+            to: { name: 'online-orders', query: { tab: acceptedOrderCount.value > 0 ? 'accepted' : 'available', source: 'visitor-orders' } },
+            icon: Users,
+            ready: acceptedOrderCount.value > 0,
+          },
+        ],
+      },
+      {
+        id: 'friend',
+        theme: 'manor',
+        title: '好友轻互动',
+        status: hasFriends ? '好友链路可用' : '先去发现好友',
+        summary: '把每日互助、留言礼物、挑战和拜访点赞做成低门槛入口，没人组队时也有事可做。',
+        icon: MessageCircle,
+        activities: [
+          {
+            id: 'daily-help',
+            theme: 'manor',
+            title: '每日互助',
+            status: hasFriends ? '可互助' : '可发现',
+            durationLabel: '耗时：1-3 分钟',
+            eventLabel: '事件：好友需求、随机谢礼、新人协助',
+            rewardLabel: '奖励：好友币、材料、联机经验',
+            to: { name: 'online-neighbor', query: { tab: hasFriends ? 'friends' : 'discover' } },
+            icon: Handshake,
+            ready: hasFriends,
+          },
+          {
+            id: 'message-gifts',
+            theme: 'manor',
+            title: '留言礼物',
+            status: hasFriends ? '可留言' : '待好友',
+            durationLabel: '耗时：1-2 分钟',
+            eventLabel: '事件：留言回赠、节日祝福、隐藏贴纸',
+            rewardLabel: '奖励：友情点、好友徽章、回访提醒',
+            to: { name: 'online-neighbor', query: { tab: 'messages' } },
+            icon: MessageCircle,
+            ready: hasFriends,
+          },
+          {
+            id: 'friend-challenge-board',
+            theme: 'manor',
+            title: '好友挑战榜',
+            status: totalReceiptCount > 0 ? '可回看' : '待开榜',
+            durationLabel: '耗时：2-5 分钟',
+            eventLabel: '事件：今日挑战、好友记录、隐藏加赛',
+            rewardLabel: '奖励：挑战徽章、队伍榜曝光、周进度',
+            to: { name: 'online-neighbor', query: { tab: 'friends', panel: 'challenge-board' } },
+            icon: ShieldCheck,
+            ready: totalReceiptCount > 0,
+          },
+          {
+            id: 'manor-like-visit',
+            theme: 'manor',
+            title: '庄园点赞 / 参观奖励',
+            status: hasFriends ? '可拜访' : '可发现',
+            durationLabel: '耗时：1-3 分钟',
+            eventLabel: '事件：热门庄园、随机访客、隐藏合影',
+            rewardLabel: '奖励：友情点、访客徽章、庄园曝光',
+            to: { name: 'online-manor', query: { tab: 'visit' } },
+            icon: Home,
+            ready: hasFriends,
+          },
+        ],
+      },
+      {
+        id: 'weekend',
+        theme: 'festival',
+        title: '周末大型活动',
+        status: hasWeeklyProof ? '本周已有进度' : '周末目标预告',
+        summary: '把全服目标、限时首领、村社竞赛和排行榜放进同一排，给玩家周末约人的理由。',
+        icon: CalendarDays,
+        activities: [
+          {
+            id: 'server-festival-goal',
+            theme: 'festival',
+            title: '全服节庆目标',
+            status: hasFestivalRoom ? '可贡献' : '待开房',
+            durationLabel: '耗时：多局累计',
+            eventLabel: '事件：阶段里程碑、NPC 公告、隐藏全服奖励',
+            rewardLabel: '奖励：限定称号、节庆家具、全服宝箱',
+            to: { name: 'online-festival', query: { tab: 'world-event' } },
+            icon: Lamp,
+            ready: hasFestivalRoom,
+          },
+          {
+            id: 'limited-expedition-boss',
+            theme: 'expedition',
+            title: '限时远征首领',
+            status: hasExpeditionRoom ? '可集结' : '待组队',
+            durationLabel: '耗时：3-5 分钟短段累计',
+            eventLabel: '事件：首领压力、队伍连携、撤离保底',
+            rewardLabel: '奖励：稀有材料、战利品陈列、潜能资源',
+            to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'cavern_quartet', gameplay: 'expedition_cavern', open_wizard: '1', event: 'limited-boss' } },
+            icon: Pickaxe,
+            ready: hasExpeditionRoom,
+          },
+          {
+            id: 'society-build-race',
+            theme: 'manor',
+            title: '村社建设赛',
+            status: hasSociety ? '可参赛' : '待加入村社',
+            durationLabel: '耗时：周目标累计',
+            eventLabel: '事件：公共仓库、建设提案、隐藏贡献榜',
+            rewardLabel: '奖励：村社装饰、建设称号、公共奖励',
+            to: { name: 'online-society', query: { tab: hasSociety ? 'storage' : 'overview', event: 'build-race' } },
+            icon: Warehouse,
+            ready: hasSociety,
+          },
+          {
+            id: 'theme-leaderboard',
+            theme: 'festival',
+            title: '主题排行榜',
+            status: totalReceiptCount > 0 ? '可上榜' : '待结算',
+            durationLabel: '耗时：周主题累计',
+            eventLabel: '事件：灯会周、远征周、丰收周轮换',
+            rewardLabel: '奖励：头像框、限定外观、榜单纪念',
+            to: { name: 'online-neighbor', query: { tab: 'friends', panel: 'theme-leaderboard' } },
+            icon: CalendarDays,
+            ready: totalReceiptCount > 0,
+          },
+        ],
+      },
+    ]
+  })
+  const onlineMiniGameVarietyReadyCount = computed(() =>
+    onlineMiniGameVarietyCatalog.value.reduce((count, category) =>
+      count + category.activities.filter(activity => activity.ready).length, 0
+    )
+  )
+  const onlineMiniGameVarietyTotalCount = computed(() =>
+    onlineMiniGameVarietyCatalog.value.reduce((count, category) => count + category.activities.length, 0)
+  )
+  const onlineMiniGameVarietyCatalogSummary = computed(() =>
+    `${onlineMiniGameVarietyCatalog.value.length} 类 / ${onlineMiniGameVarietyTotalCount.value} 个活动，${onlineMiniGameVarietyReadyCount.value} 个已有入口或进度`
+  )
   const onlineAsyncCollaborationCards = computed<OnlineAsyncCollaborationCard[]>(() => {
     const friendCount = socialStore.friends.length
     const activeCohabitationCount = cohabitationStore.summary.active
@@ -1838,6 +2946,21 @@
   const onlineAsyncCollaborationReadyCount = computed(() =>
     onlineAsyncCollaborationCards.value.filter(card => card.ready).length
   )
+  const onlineAsyncCollaborationQueueSteps = computed<OnlineAsyncCollaborationQueueStep[]>(() =>
+    onlineAsyncCollaborationCards.value.map((card, index) => ({
+      ...card,
+      order: index + 1,
+    }))
+  )
+  const onlineAsyncCollaborationNextAction = computed<OnlineAsyncCollaborationQueueStep>(() =>
+    onlineAsyncCollaborationQueueSteps.value.find(step => step.id === 'claim-async-rewards' && step.ready)
+      ?? onlineAsyncCollaborationQueueSteps.value.find(step => step.ready)
+      ?? onlineAsyncCollaborationQueueSteps.value[0]!
+  )
+  const onlineAsyncCollaborationQueueSummary = computed(() => {
+    const next = onlineAsyncCollaborationNextAction.value
+    return `${onlineAsyncCollaborationReadyCount.value}/${onlineAsyncCollaborationQueueSteps.value.length} 步可推进；下一步：${next.title}。`
+  })
   const onlineAsyncCollaborationSummary = computed(() =>
     `${onlineAsyncCollaborationReadyCount.value}/${onlineAsyncCollaborationCards.value.length} 项可推进`
   )
@@ -1855,7 +2978,7 @@
         ? `已有 ${festivalRoomStore.recentReceipts.length} 条节会结算记录。`
         : '完成一次节会房短局后可查看纪念或结算记录。',
       status: festivalRoomStore.recentReceipts.length > 0 ? '已推进' : '待完成',
-      to: { name: 'online-festival', query: { tab: 'memorials' } },
+      to: onlineRewardClaimRoute(),
       completed: festivalRoomStore.recentReceipts.length > 0,
     },
     {
@@ -1985,7 +3108,9 @@
         progressLabel: `纪念 ${festivalRoomStore.recentMemorials.length} · 战利品 ${expeditionRoomStore.recentReceipts.length}`,
         progressPercent: clampPercent((onlineCollectionGoalCount.value / 4) * 100),
         actionLabel: '看收集',
-        to: { name: 'online-festival', query: { tab: festivalRoomStore.recentMemorials.length > 0 ? 'memorials' : 'festival-room' } },
+        to: festivalRoomStore.recentMemorials.length > 0
+          ? onlineRewardClaimRoute()
+          : { name: 'online-festival', query: { tab: 'festival-room' } },
         icon: ShieldCheck,
         ready: onlineCollectionGoalCount.value > 0,
       },
@@ -2107,7 +3232,9 @@
         progressLabel: `${longTermProofCount}/12 长线凭证`,
         progressPercent: clampPercent((longTermProofCount / 12) * 100),
         actionLabel: onlineCollectionGoalCount.value > 0 ? '看收藏' : '开一局',
-        to: { name: 'online-festival', query: { tab: onlineCollectionGoalCount.value > 0 ? 'memorials' : 'festival-room' } },
+        to: onlineCollectionGoalCount.value > 0
+          ? onlineRewardClaimRoute()
+          : { name: 'online-festival', query: { tab: 'festival-room' } },
         icon: ShieldCheck,
         ready: onlineCollectionGoalCount.value > 0,
       },
@@ -2142,7 +3269,9 @@
         progressLabel: `${festivalCollectionCount}/6 纪念线索`,
         progressPercent: clampPercent((festivalCollectionCount / 6) * 100),
         actionLabel: festivalCollectionCount > 0 ? '看纪念' : '去开局',
-        to: { name: 'online-festival', query: { tab: festivalCollectionCount > 0 ? 'memorials' : 'festival-room' } },
+        to: festivalCollectionCount > 0
+          ? onlineRewardClaimRoute()
+          : { name: 'online-festival', query: { tab: 'festival-room' } },
         icon: Lamp,
         unlocked: festivalCollectionCount > 0,
       },
@@ -2291,6 +3420,435 @@
   const onlineSeasonThemeSummary = computed(() =>
     `${onlineSeasonThemeActiveCount.value}/${onlineSeasonThemeCards.value.length} 个主题已有进度`
   )
+  const onlineSeasonPassScore = computed(() => {
+    const receiptScore = Math.min(24, onlineTotalReceiptCount.value * 4)
+    const weeklyScore = onlineWeeklyRewardCompletedCount.value * 10
+    const friendScore = Math.min(16, (socialStore.friends.length + socialStore.friendDiscoveryPlayers.length) * 2)
+    const collectionScore = onlineCollectionGoalCount.value * 8
+    const claimScore = claimableMailCount.value > 0 ? 8 : unreadMailCount.value > 0 ? 4 : 0
+    const activeRoomScore = festivalRoomStore.myRoom || expeditionRoomStore.myRoom ? 6 : roomInviteCount.value > 0 ? 4 : 0
+    const cohabitationScore = Math.min(10, cohabitationStore.summary.active * 4 + cohabitationStore.summary.pending * 2)
+    return Math.min(100, receiptScore + weeklyScore + friendScore + collectionScore + claimScore + activeRoomScore + cohabitationScore)
+  })
+  const onlineSeasonPassLevel = computed(() =>
+    Math.max(1, Math.min(10, Math.floor(onlineSeasonPassScore.value / 10) + 1))
+  )
+  const onlineSeasonPassProgressPercent = computed(() => onlineSeasonPassScore.value)
+  const onlineSeasonPassProgressLabel = computed(() => `${onlineSeasonPassScore.value}/100 赛季进度`)
+  const onlineSeasonPassLevelLabel = computed(() => `联机 Lv.${onlineSeasonPassLevel.value}`)
+  const onlineSeasonPassTrackSummary = computed(() =>
+    `本周 ${onlineWeeklyRewardProgressLabel.value} 项奖励进度，${onlineTotalReceiptCount.value} 条短局回执，${onlineCollectionGoalCount.value}/4 类收藏目标已起步。`
+  )
+  const onlineSeasonPassPrimaryRoute = computed<RouteLocationRaw>(() => {
+    if (claimableMailCount.value > 0) return { name: 'mail' }
+    if (onlineWeeklyRewardCompletedCount.value < onlineWeeklyRewardSteps.value.length) {
+      return onlineWeeklyRewardSteps.value.find(step => !step.completed)?.to ?? { name: 'online-festival', query: { tab: 'festival-room' } }
+    }
+    if (onlineCollectionGoalCount.value > 0) return onlineRewardClaimRoute()
+    return { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } }
+  })
+  const onlineSeasonPassActionLabel = computed(() => {
+    if (claimableMailCount.value > 0) return '先领奖'
+    if (onlineSeasonPassScore.value >= 80) return '冲限定'
+    if (onlineWeeklyRewardCompletedCount.value < onlineWeeklyRewardSteps.value.length) return '补周进度'
+    return '再开一局'
+  })
+  const onlineSeasonPassNextRewardLabel = computed(() => {
+    if (onlineSeasonPassScore.value >= 80) return '下一档：限定外观 / 家具 / 头像框'
+    if (onlineSeasonPassScore.value >= 60) return '下一档：专属装饰 / 限定称号'
+    if (onlineSeasonPassScore.value >= 40) return '下一档：稀有材料 / 潜能资源'
+    if (onlineSeasonPassScore.value >= 20) return '下一档：好友币 / 联机经验'
+    return '下一档：铜钱 / 材料 / 保底友情点'
+  })
+  const onlineSeasonPassSources = computed<OnlineSeasonPassSource[]>(() => [
+    {
+      id: 'short-session',
+      label: '短局回执',
+      value: `${onlineTotalReceiptCount.value} 条`,
+      summary: '节会 / 远征结算会推赛季进度',
+    },
+    {
+      id: 'weekly',
+      label: '本周目标',
+      value: onlineWeeklyRewardProgressLabel.value,
+      summary: '每周奖励是赛季主来源',
+    },
+    {
+      id: 'social',
+      label: '好友协作',
+      value: `${socialStore.friends.length + socialStore.friendDiscoveryPlayers.length} 人`,
+      summary: '好友、近期玩家和邀请都计入线索',
+    },
+    {
+      id: 'collection',
+      label: '收藏凭证',
+      value: `${onlineCollectionGoalCount.value}/4 类`,
+      summary: '纪念册、图鉴、徽章和庄园称号',
+    },
+  ])
+  const onlineSeasonPassMilestones = computed<OnlineSeasonPassMilestone[]>(() => {
+    const dailyScore = Math.min(20, (claimableMailCount.value > 0 ? 8 : 0) + todayTodoCards.value.length * 3 + (roomInviteCount.value > 0 ? 4 : 0))
+    const weeklyScore = onlineWeeklyRewardCompletedCount.value * 12
+    const collaborationScore = Math.min(20, [
+      Boolean(festivalRoomStore.myRoom || expeditionRoomStore.myRoom),
+      roomInviteCount.value > 0,
+      onlineTotalReceiptCount.value > 0,
+      socialStore.friends.length > 0,
+      cohabitationStore.summary.active > 0,
+    ].filter(Boolean).length * 4)
+    const collectionScore = Math.min(20, onlineCollectionGoalCount.value * 5)
+    const limitedScore = Math.min(20, onlineSeasonThemeActiveCount.value * 5 + (onlineSeasonPassScore.value >= 80 ? 5 : 0))
+
+    return [
+      {
+        id: 'daily',
+        theme: 'festival',
+        tierLabel: '每日档',
+        title: '每日联机补给',
+        status: dailyScore >= 20 ? '已满' : `${dailyScore}/20`,
+        rewardLabel: '奖励：铜钱、材料、好友币、联机经验',
+        sourceLabel: claimableMailCount.value > 0 ? '来源：奖励邮件可领取' : '来源：今日推荐和房间邀请',
+        progressLabel: `${dailyScore}/20 每日进度`,
+        progressPercent: clampPercent((dailyScore / 20) * 100),
+        actionLabel: claimableMailCount.value > 0 ? '领奖' : '做短局',
+        to: claimableMailCount.value > 0 ? { name: 'mail' } : onlineDailyActivityCards.value[0]?.to ?? { name: 'online-festival', query: { tab: 'festival-room' } },
+        icon: Inbox,
+        achieved: dailyScore >= 20,
+      },
+      {
+        id: 'weekly',
+        theme: 'expedition',
+        tierLabel: '每周档',
+        title: '每周稀有资源',
+        status: `${onlineWeeklyRewardProgressLabel.value} 项`,
+        rewardLabel: '奖励：稀有材料、潜能资源、专属装饰、限定称号',
+        sourceLabel: `来源：${onlineWeeklyRewardSummary.value}`,
+        progressLabel: `${Math.min(48, weeklyScore)}/48 周进度`,
+        progressPercent: clampPercent((weeklyScore / 48) * 100),
+        actionLabel: onlineWeeklyRewardCompletedCount.value >= onlineWeeklyRewardSteps.value.length ? '看结算' : '补周进度',
+        to: onlineWeeklyRewardSteps.value.find(step => !step.completed)?.to ?? { name: 'online-festival', query: { tab: 'festival-room' } },
+        icon: CalendarDays,
+        achieved: onlineWeeklyRewardCompletedCount.value >= onlineWeeklyRewardSteps.value.length,
+      },
+      {
+        id: 'collaboration',
+        theme: 'manor',
+        tierLabel: '协作档',
+        title: '队伍连携和默契',
+        status: collaborationScore >= 20 ? '连携达标' : `${collaborationScore}/20`,
+        rewardLabel: '奖励：队伍连携加成、房主额外奖励、新人协助奖励',
+        sourceLabel: onlineTotalReceiptCount.value > 0 ? `来源：${onlineTotalReceiptCount.value} 条结算回执` : '来源：好友、邀请和共同庄园',
+        progressLabel: `${collaborationScore}/20 协作进度`,
+        progressPercent: clampPercent((collaborationScore / 20) * 100),
+        actionLabel: festivalRoomStore.myRoom || expeditionRoomStore.myRoom || roomInviteCount.value > 0 ? '去房间' : '找队友',
+        to: festivalRoomStore.myRoom || roomInviteCount.value > 0
+          ? { name: 'online-festival', query: { tab: 'festival-room' } }
+          : expeditionRoomStore.myRoom
+            ? { name: 'online-festival', query: { tab: 'expedition-room' } }
+            : { name: 'online-neighbor' },
+        icon: HeartHandshake,
+        achieved: collaborationScore >= 20,
+      },
+      {
+        id: 'collection',
+        theme: 'festival',
+        tierLabel: '长线档',
+        title: '熟练度与收藏',
+        status: `${onlineCollectionGoalCount.value}/4 类收藏`,
+        rewardLabel: '奖励：小游戏熟练度、赛季进度、稀有外观 / 家具',
+        sourceLabel: `来源：纪念 ${festivalRoomStore.recentMemorials.length} · 回执 ${onlineTotalReceiptCount.value}`,
+        progressLabel: `${collectionScore}/20 收藏进度`,
+        progressPercent: clampPercent((collectionScore / 20) * 100),
+        actionLabel: onlineCollectionGoalCount.value > 0 ? '看收藏' : '开首局',
+        to: onlineCollectionGoalCount.value > 0
+          ? onlineRewardClaimRoute()
+          : { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
+        icon: ShieldCheck,
+        achieved: collectionScore >= 20,
+      },
+      {
+        id: 'limited',
+        theme: 'expedition',
+        tierLabel: '限定档',
+        title: '赛季限定外观',
+        status: onlineSeasonPassScore.value >= 80 ? '可冲刺' : `${onlineSeasonPassScore.value}/80 解锁线`,
+        rewardLabel: '奖励：限定外观、头像框、主题家具、战利品陈列',
+        sourceLabel: `来源：${onlineSeasonThemeActiveCount.value}/${onlineSeasonThemeCards.value.length} 个每周主题`,
+        progressLabel: `${limitedScore}/20 限定线索`,
+        progressPercent: clampPercent((limitedScore / 20) * 100),
+        actionLabel: onlineSeasonPassScore.value >= 80 ? '冲限定' : '看主题',
+        to: { name: 'online-festival', query: { tab: 'festival-room', template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: '1' } },
+        icon: Pickaxe,
+        achieved: onlineSeasonPassScore.value >= 80,
+      },
+    ]
+  })
+  const onlineSeasonPassAchievedCount = computed(() =>
+    onlineSeasonPassMilestones.value.filter(milestone => milestone.achieved).length
+  )
+  const onlineSeasonPassSummary = computed(() =>
+    `${onlineSeasonPassLevelLabel.value} · ${onlineSeasonPassAchievedCount.value}/${onlineSeasonPassMilestones.value.length} 档达标`
+  )
+  const onlineWeekendEventCards = computed<OnlineWeekendEventCard[]>(() => {
+    const festivalProofCount = festivalRoomStore.recentMemorials.length + festivalRoomStore.recentReceipts.length + (festivalRoomStore.myRoom ? 1 : 0)
+    const expeditionProofCount = expeditionRoomStore.recentReceipts.length + expeditionRoomStore.visibleRooms.length + (expeditionRoomStore.myRoom ? 1 : 0)
+    const societyProjectCount = societyStore.mySociety?.public_projects.length ?? 0
+    const societyProposalCount = societyStore.mySociety?.active_proposals.length ?? 0
+    const societyProgress = Math.min(8, societyProjectCount + societyProposalCount + (societyStore.mySociety?.public_warehouse.weekly_settlement ? 2 : 0))
+    const leaderboardProofCount = Math.min(8, onlineTotalReceiptCount.value + Math.min(3, socialStore.friends.length) + onlineSeasonThemeActiveCount.value)
+    return [
+      {
+        id: 'server-festival-goal',
+        theme: 'festival',
+        title: '全服节庆目标',
+        status: festivalProofCount > 0 ? `${festivalProofCount} 条节庆线索` : '待点亮灯会',
+        summary: '把灯谜竞猜、花灯巡游和节庆订单汇成全服热闹度，适合周末集中约人冲阶段奖励。',
+        goalLabel: festivalRoomStore.myRoom ? `目标：${festivalRoomStore.myRoom.gameplay.progress_text}` : '目标：完成灯会短局、纪念册或节庆订单',
+        rewardLabel: '奖励：限定称号、节庆家具、全服宝箱进度',
+        teamLabel: roomInviteCount.value > 0 ? `组队：${roomInviteCount.value} 个邀请待处理` : '组队：适合 2-8 人公开房或好友房',
+        progressLabel: `${Math.min(8, festivalProofCount)}/8 节庆热闹度`,
+        progressPercent: clampPercent((festivalProofCount / 8) * 100),
+        actionLabel: festivalRoomStore.myRoom ? '回灯会' : '开灯会',
+        to: { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: festivalRoomStore.myRoom ? undefined : '1' } },
+        icon: Lamp,
+        active: festivalProofCount > 0,
+      },
+      {
+        id: 'limited-expedition-boss',
+        theme: 'expedition',
+        title: '限时远征首领',
+        status: expeditionProofCount > 0 ? `${expeditionProofCount} 条远征线索` : '待集结远征队',
+        summary: '把资源护送、路线选择和遭遇战收束成周末首领前哨，先看队伍路线和战利品追求。',
+        goalLabel: expeditionRoomStore.myRoom ? `目标：${expeditionRoomStore.myRoom.gameplay.progress_text}` : '目标：护送资源、完成路线、积累首领前哨线索',
+        rewardLabel: '奖励：稀有材料、战利品陈列、潜能资源',
+        teamLabel: expeditionRoomStore.visibleRooms.length > 0 ? `组队：${expeditionRoomStore.visibleRooms.length} 队可加入` : '组队：采集、护送、支援分工开队',
+        progressLabel: `${Math.min(8, expeditionProofCount)}/8 首领前哨`,
+        progressPercent: clampPercent((expeditionProofCount / 8) * 100),
+        actionLabel: expeditionRoomStore.myRoom ? '回远征' : '去集结',
+        to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: expeditionRoomStore.myRoom ? undefined : '1' } },
+        icon: Pickaxe,
+        active: expeditionProofCount > 0,
+      },
+      {
+        id: 'society-build-race',
+        theme: 'manor',
+        title: '村社建设赛',
+        status: societyStore.mySociety ? `${societyProjectCount} 项公共建设` : '待加入村社',
+        summary: '把公共仓、村社项目和共同庄园贡献合成建设赛，离线也能通过委托和设施支援推进。',
+        goalLabel: societyStore.mySociety?.public_warehouse.weekly_settlement
+          ? `目标：${societyStore.mySociety.public_warehouse.weekly_settlement.status_label}`
+          : '目标：捐入公共仓、推进提案、补共同庄园材料',
+        rewardLabel: '奖励：村社装饰、建设称号、公共奖励',
+        teamLabel: societyStore.mySociety ? `组队：${societyStore.mySociety.member_count} 人村社` : '组队：先加入村社再参加建设赛',
+        progressLabel: `${societyProgress}/8 建设进度`,
+        progressPercent: clampPercent((societyProgress / 8) * 100),
+        actionLabel: societyStore.mySociety ? '去建设' : '找村社',
+        to: { name: 'online-society', query: { tab: societyStore.mySociety ? 'projects' : 'discover' } },
+        icon: Warehouse,
+        active: societyProgress > 0,
+      },
+      {
+        id: 'theme-leaderboard',
+        theme: 'festival',
+        title: '主题排行榜',
+        status: leaderboardProofCount > 0 ? `${leaderboardProofCount}/8 榜单线索` : '待产生回执',
+        summary: '把好友榜、队伍榜和每周主题进度放在轻差距榜单里，奖励重展示和纪念，不靠数值拉开太大差距。',
+        goalLabel: onlineTotalReceiptCount.value > 0 ? `目标：回看 ${onlineTotalReceiptCount.value} 条短局结算` : '目标：完成任意短局或邀请好友组队',
+        rewardLabel: '奖励：头像框、限定外观、榜单纪念',
+        teamLabel: socialStore.friends.length > 0 ? `组队：${socialStore.friends.length} 位好友可约` : '组队：先发现好友或近期玩家',
+        progressLabel: `${leaderboardProofCount}/8 榜单热度`,
+        progressPercent: clampPercent((leaderboardProofCount / 8) * 100),
+        actionLabel: leaderboardProofCount > 0 ? '看榜单' : '去组队',
+        to: { name: 'online-neighbor', query: { tab: 'friends', panel: leaderboardProofCount > 0 ? 'theme-leaderboard' : 'discover' } },
+        icon: ShieldCheck,
+        active: leaderboardProofCount > 0,
+      },
+    ]
+  })
+  const onlineWeekendEventSummary = computed(() => {
+    const activeCount = onlineWeekendEventCards.value.filter(card => card.active).length
+    return `${activeCount}/${onlineWeekendEventCards.value.length} 个周末活动已有进度`
+  })
+  const onlineReplayLoopCards = computed<OnlineReplayLoopCard[]>(() => {
+    const totalReceiptCount = festivalRoomStore.recentReceipts.length + expeditionRoomStore.recentReceipts.length
+    const latestFestivalReceipt = festivalRoomStore.recentReceipts[0]
+    const latestExpeditionReceipt = expeditionRoomStore.recentReceipts[0]
+    const friendCandidateCount = socialStore.friends.length + socialStore.friendDiscoveryPlayers.length
+    const boardProgress = Math.min(6, totalReceiptCount + Math.min(3, socialStore.friends.length))
+    const mentorProgress = Math.min(6, friendCandidateCount + (roomInviteCount.value > 0 ? 1 : 0))
+    return [
+      {
+        id: 'rematch-festival',
+        theme: 'festival',
+        title: latestFestivalReceipt?.room_title || '节会再来一局',
+        status: latestFestivalReceipt ? latestFestivalReceipt.status_label : festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '待生成节会回执',
+        summary: latestFestivalReceipt?.summary || '完成灯谜、摆摊或花灯短局后，可从这里直接回到节会房并复开同类玩法。',
+        replayHint: latestFestivalReceipt ? '复玩：最近节会回执可回看，进入节会页用“再来一局”按上局房型开房。' : '复玩：先开灯谜竞猜或摆摊接力，结算后会生成回执。',
+        rewardHint: '奖励：节会票券、纪念册、限定称号和失败保底协作经验。',
+        fairnessHint: '榜单：节会周奖励重在参与进度，好友差距不会靠单次排名拉开。',
+        progressLabel: `${Math.min(6, festivalRoomStore.recentReceipts.length + (festivalRoomStore.myRoom ? 1 : 0))}/6 节会复玩线索`,
+        actionLabel: latestFestivalReceipt ? '看回执' : '去开局',
+        to: latestFestivalReceipt
+          ? onlineRewardClaimRoute()
+          : { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
+        icon: Lamp,
+        ready: Boolean(latestFestivalReceipt || festivalRoomStore.myRoom),
+      },
+      {
+        id: 'rematch-expedition',
+        theme: 'expedition',
+        title: latestExpeditionReceipt?.room_title || '远征再来一局',
+        status: latestExpeditionReceipt ? latestExpeditionReceipt.status_label : expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '待生成远征回执',
+        summary: latestExpeditionReceipt?.summary || '完成资源护送或路线短局后，可继续补路线图鉴、护送评级和战利品陈列。',
+        replayHint: latestExpeditionReceipt ? '复玩：最近远征回执可回看，进入远征页按上局路线继续组队。' : '复玩：先开资源护送，结算后会生成路线回执。',
+        rewardHint: '奖励：远征材料、护送评分、稀有材料线索和失败保底友情点。',
+        fairnessHint: '榜单：远征榜优先展示队伍表现和路线完整度，不靠高额奖励拉大差距。',
+        progressLabel: `${Math.min(6, expeditionRoomStore.recentReceipts.length + (expeditionRoomStore.myRoom ? 1 : 0))}/6 远征复玩线索`,
+        actionLabel: latestExpeditionReceipt ? '看路线' : '去护送',
+        to: latestExpeditionReceipt
+          ? { name: 'online-festival', query: { tab: 'expedition-room' } }
+          : { name: 'online-festival', query: { tab: 'expedition-room', template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: '1' } },
+        icon: Pickaxe,
+        ready: Boolean(latestExpeditionReceipt || expeditionRoomStore.myRoom),
+      },
+      {
+        id: 'friend-team-rematch',
+        theme: 'manor',
+        title: '好友 / 队伍挑战',
+        status: totalReceiptCount > 0 ? `${totalReceiptCount} 条可回看` : friendCandidateCount > 0 ? `${friendCandidateCount} 位可约` : '待发现好友',
+        summary: '把好友榜、队伍榜和最近结算放在一起，结算后能直接找同一批人再开一局。',
+        replayHint: totalReceiptCount > 0 ? '复玩：从队伍榜回看贡献、路线或纪念，再挑一局复开。' : '复玩：先加好友或发现近期玩家，开局后这里会显示队伍回看。',
+        rewardHint: '奖励：挑战徽章、队伍曝光、每周主题进度和好友默契。',
+        fairnessHint: '榜单：奖励只做轻差距，主要给称号、展示和周进度。',
+        progressLabel: `${boardProgress}/6 榜单线索`,
+        actionLabel: totalReceiptCount > 0 ? '看榜单' : '找队友',
+        to: { name: 'online-neighbor', query: { tab: 'friends', panel: totalReceiptCount > 0 ? 'challenge-board' : 'discover' } },
+        icon: ShieldCheck,
+        ready: totalReceiptCount > 0 || friendCandidateCount > 0,
+      },
+      {
+        id: 'mentor-newcomer',
+        theme: 'manor',
+        title: '老带新复玩',
+        status: mentorProgress > 0 ? `${mentorProgress}/6 带新线索` : '待发现新人',
+        summary: '把新人协助、房主额外奖励和好友默契放成长期复玩目标，缓解没人组队的问题。',
+        replayHint: roomInviteCount.value > 0 ? '复玩：先处理邀请，再把新人或近期玩家拉进短局。' : '复玩：从邻里页发现近期玩家，开房后优先邀请新人。',
+        rewardHint: '奖励：新人协助奖励、房主额外奖励、默契徽章和联机经验。',
+        fairnessHint: '榜单：老带新奖励偏补贴和展示，不压过正常每周奖励。',
+        progressLabel: `${mentorProgress}/6 协助进度`,
+        actionLabel: '去邀请',
+        to: { name: 'online-neighbor', query: { tab: friendCandidateCount > 0 ? 'friends' : 'discover' } },
+        icon: Users,
+        ready: mentorProgress > 0,
+      },
+    ]
+  })
+  const onlineReplayLoopSummary = computed(() => {
+    const readyCount = onlineReplayLoopCards.value.filter(card => card.ready).length
+    const receiptCount = festivalRoomStore.recentReceipts.length + expeditionRoomStore.recentReceipts.length
+    if (receiptCount > 0) return `${receiptCount} 条结算回执可复玩 · ${readyCount}/4 个入口已就绪`
+    return `${readyCount}/4 个复玩入口已就绪`
+  })
+  const onlineEventVariationCards = computed<OnlineEventVariationCard[]>(() => {
+    const festivalReceiptCount = festivalRoomStore.recentReceipts.length
+    const expeditionReceiptCount = expeditionRoomStore.recentReceipts.length
+    const totalReceiptCount = festivalReceiptCount + expeditionReceiptCount
+    const friendCandidateCount = socialStore.friends.length + socialStore.friendDiscoveryPlayers.length
+    const orderEventCount = relayOrderCount.value + acceptedOrderCount.value
+    const hiddenGoalCount = [
+      festivalRoomStore.recentMemorials.length > 0 || festivalReceiptCount > 0,
+      expeditionReceiptCount > 0,
+      friendCandidateCount > 0,
+      cohabitationStore.summary.active > 0 || Boolean(manorCareTodo.value),
+    ].filter(Boolean).length
+    return [
+      {
+        id: 'weather',
+        theme: 'expedition',
+        kindLabel: '天气影响',
+        title: '远征路线天气',
+        status: expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.gameplay.phase_label : expeditionRoomStore.visibleRooms.length > 0 ? `${expeditionRoomStore.visibleRooms.length} 队可加入` : '待开护送线',
+        summary: '资源护送会把天气、破车和夜巡压到同一条路线里，影响护送评分和失败保底。',
+        triggerLabel: expeditionRoomStore.myRoom ? `触发：${expeditionRoomStore.myRoom.gameplay.progress_text}` : '触发：开资源护送或加入远征队',
+        payoffLabel: '收益：远征材料 / 护送评分 / 保底友情点',
+        progressLabel: `${Math.min(5, expeditionReceiptCount + expeditionRoomStore.visibleRooms.length + (expeditionRoomStore.myRoom ? 1 : 0))}/5 路线天气线索`,
+        actionLabel: expeditionRoomStore.myRoom ? '回队伍' : '去护送',
+        to: { name: 'online-festival', query: { tab: 'expedition-room', template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: '1' } },
+        icon: Map,
+        active: Boolean(expeditionRoomStore.myRoom || expeditionRoomStore.visibleRooms.length > 0 || expeditionReceiptCount > 0),
+      },
+      {
+        id: 'season',
+        theme: 'festival',
+        kindLabel: '季节限定',
+        title: '灯会周 / 丰收周轮换',
+        status: onlineSeasonThemeActiveCount.value > 0 ? `${onlineSeasonThemeActiveCount.value} 个主题有进度` : '待开启主题',
+        summary: '每周主题把灯谜、远征和庄园协作换成不同追求，提前展示限定家具、称号和陈列奖励。',
+        triggerLabel: '触发：今日推荐、每周主题或节会房开局',
+        payoffLabel: '收益：限定装饰 / 称号 / 赛季进度',
+        progressLabel: `${onlineSeasonThemeActiveCount.value}/${onlineSeasonThemeCards.value.length} 主题线索`,
+        actionLabel: '看主题',
+        to: { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
+        icon: CalendarDays,
+        active: onlineSeasonThemeActiveCount.value > 0,
+      },
+      {
+        id: 'npc',
+        theme: 'festival',
+        kindLabel: 'NPC 乱入',
+        title: '灯会现场插曲',
+        status: festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : festivalRoomStore.visibleRooms.length > 0 ? `${festivalRoomStore.visibleRooms.length} 间节会房` : '待开灯会',
+        summary: '灯谜竞猜、花灯巡游和节庆订单会展示 NPC 公告、现场秩序或观众反馈，让节会不只是提交按钮。',
+        triggerLabel: festivalRoomStore.myRoom ? `触发：${festivalRoomStore.myRoom.gameplay.progress_text}` : '触发：开灯谜竞猜或节会接力',
+        payoffLabel: '收益：节会票券 / 纪念册 / 现场人气',
+        progressLabel: `${Math.min(5, festivalReceiptCount + festivalRoomStore.visibleRooms.length + (festivalRoomStore.myRoom ? 1 : 0))}/5 灯会插曲`,
+        actionLabel: festivalRoomStore.myRoom ? '回房间' : '去灯会',
+        to: { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
+        icon: Lamp,
+        active: Boolean(festivalRoomStore.myRoom || festivalRoomStore.visibleRooms.length > 0 || festivalReceiptCount > 0),
+      },
+      {
+        id: 'random',
+        theme: 'manor',
+        kindLabel: '随机事件',
+        title: '好友互助临时需求',
+        status: orderEventCount > 0 ? `${orderEventCount} 条委托线索` : roomInviteCount.value > 0 ? `${roomInviteCount.value} 个邀请` : '待刷新互助',
+        summary: '好友留言、接力订单和庄园照料会滚出临时缺料、随机谢礼或回访提醒，没人在线也能推进。',
+        triggerLabel: orderEventCount > 0 ? '触发：接力单 / 已接订单' : '触发：好友发现、留言或邀请',
+        payoffLabel: '收益：好友币 / 材料 / 联机经验',
+        progressLabel: `${Math.min(5, orderEventCount + roomInviteCount.value + (manorCareTodo.value ? 1 : 0))}/5 随机互助`,
+        actionLabel: orderEventCount > 0 ? '去接力' : '找好友',
+        to: orderEventCount > 0
+          ? { name: 'online-orders', query: { tab: relayOrderCount.value > 0 ? 'available' : 'accepted', source: 'random-help' } }
+          : { name: 'online-neighbor', query: { tab: friendCandidateCount > 0 ? 'friends' : 'discover' } },
+        icon: MessageCircle,
+        active: orderEventCount > 0 || roomInviteCount.value > 0 || Boolean(manorCareTodo.value),
+      },
+      {
+        id: 'hidden',
+        theme: 'manor',
+        kindLabel: '隐藏目标',
+        title: '纪念 / 图鉴 / 徽章追踪',
+        status: hiddenGoalCount > 0 ? `${hiddenGoalCount}/4 类已起步` : '待发现首个隐藏目标',
+        summary: '节会纪念册、远征图鉴、好友徽章和庄园协作称号会把短局结果沉淀成长线收藏。',
+        triggerLabel: totalReceiptCount > 0 ? `触发：${totalReceiptCount} 条结算回执` : '触发：完成任意短局或好友互动',
+        payoffLabel: '收益：小游戏熟练度 / 稀有外观 / 家具线索',
+        progressLabel: `${hiddenGoalCount}/4 隐藏目标`,
+        actionLabel: hiddenGoalCount > 0 ? '看收集' : '先开局',
+        to: hiddenGoalCount > 0
+          ? onlineRewardClaimRoute()
+          : { name: 'online-festival', query: { tab: 'festival-room', template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1' } },
+        icon: ShieldCheck,
+        active: hiddenGoalCount > 0,
+      },
+    ]
+  })
+  const onlineEventVariationActiveCount = computed(() =>
+    onlineEventVariationCards.value.filter(card => card.active).length
+  )
+  const onlineEventVariationSummary = computed(() =>
+    `${onlineEventVariationActiveCount.value}/${onlineEventVariationCards.value.length} 类事件已有触发线索`
+  )
   const onlineFriendActivityEntries = computed<OnlineFriendActivityEntry[]>(() => {
     const entries: OnlineFriendActivityEntry[] = []
     for (const relation of socialStore.friends.slice(0, 3)) {
@@ -2354,7 +3912,7 @@
         label: receipt.room_title || receipt.template_label || '节会短局',
         summary: receipt.summary || '最近节会结算记录，可从这里复盘再开一局。',
         status: receipt.status_label || '节会',
-        to: { name: 'online-festival', query: { tab: 'memorials' } },
+        to: onlineRewardClaimRoute(),
       })
     }
     for (const receipt of expeditionRoomStore.recentReceipts.slice(0, 2)) {

@@ -40,6 +40,7 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
       if (!resolved) throw new Error(`Cannot resolve ${specifier}`)
@@ -64,6 +65,13 @@ registerHooks({
       return {
         format: 'module',
         source: 'const currentRoute = { value: { name: "shop", path: "/game/shop" } }; export default { currentRoute, push: async () => {}, replace: async () => {}, back: () => {}, beforeEach: () => {}, afterEach: () => {} };',
+        shortCircuit: true
+      }
+    }
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {};',
         shortCircuit: true
       }
     }
@@ -168,6 +176,16 @@ assert(
     shopStoreSource.includes('const earned = sellInventorySlot(entry.inventoryIndex, entry.quantity)'),
   'Shop sell modal must merge display while preserving slot-based buyback pricing.'
 )
+assert(shopViewSource.includes('ref="sellListRef"'), 'Shop sell list must keep a dedicated scroll container for virtualization.')
+assert(shopViewSource.includes('data-testid="shop-sell-virtual-list"'), 'Shop sell virtual list must expose a stable smoke-test hook.')
+assert(shopViewSource.includes('data-testid="shop-sell-virtual-row"'), 'Shop sell virtual rows must expose a stable smoke-test hook.')
+assert(shopViewSource.includes('@scroll.passive="handleSellListScroll"'), 'Shop sell list scroll tracking must be passive.')
+assert(shopViewSource.includes('visibleSellableRows'), 'Shop sell list must render only virtualized visible rows.')
+assert(shopViewSource.includes('virtualSellListTotalHeight'), 'Shop sell list must reserve virtualized total height.')
+assert(shopViewSource.includes('unitPriceLabel: getSellableUnitPriceLabel'), 'Shop sell list must cache unit price labels while building sellable items.')
+assert(shopViewSource.includes('todayMarketByCategory'), 'Shop sell list must reuse a category-indexed market cache.')
+assert(!shopViewSource.includes('v-for="item in sellableItems"'), 'Shop sell list must not render the full sellableItems array directly.')
+assert(!shopViewSource.includes('getItemTrend(item.itemId)'), 'Shop sell row template must not call trend lookup helpers during scrolling.')
 assert(farmViewSource.includes("item.origin !== 'shop'"), 'Shipping box inventory list must hide shop-origin slots.')
 assert(farmViewSource.includes('商圈购入品只能商店回购'), 'Shipping box failure must explain that shop-origin items only support shop buyback.')
 assert(farmActionsSource.includes('shopStore.sellInventorySlot(item.originalIndex, item.quantity)'), 'Sell-all must use slot-based selling.')

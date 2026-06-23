@@ -8,6 +8,7 @@ import type {
   HanhaiShopRotationDef,
   HanhaiRelicSiteDef,
   HanhaiRouteInvestmentDef,
+  HanhaiTravelPrepDef,
   HanhaiRewardBundle,
   HanhaiWeightedRewardBundle,
   QaCaseDef,
@@ -558,6 +559,72 @@ export const WS14_HANHAI_CARAVAN_CONTRACT_DEFS: HanhaiCaravanContractDef[] = [
     linkedSystems: ['museum', 'goal', 'shop'],
     linkedRouteLabels: ['瀚海', '大厅'],
     rewardTierId: 'showcase'
+  }
+]
+
+export const HANHAI_TRAVEL_PREP_DEFS: HanhaiTravelPrepDef[] = [
+  {
+    id: 'frontier_ration_bundle',
+    label: '行旅干粮包',
+    unlockTier: 'P0',
+    source: 'ration',
+    costItems: [
+      { itemId: 'adventurer_ration', quantity: 1 },
+      { itemId: 'herbal_paste', quantity: 1 }
+    ],
+    successRateBonus: 8,
+    riskReduction: 6,
+    rewardItemMultiplier: 1.12,
+    effectSummary: '稳定队伍续航，略微提高勘探收获。',
+    sinkSummary: '消耗冒险口粮和草药膏，让基础补给进入瀚海出行。'
+  },
+  {
+    id: 'artisan_preserve_crate',
+    label: '茶酒腌品箱',
+    unlockTier: 'P1',
+    source: 'artisan',
+    costItems: [
+      { itemId: 'green_tea_drink', quantity: 1 },
+      { itemId: 'fine_pickles', quantity: 1 }
+    ],
+    successRateBonus: 10,
+    riskReduction: 8,
+    rewardItemMultiplier: 1.18,
+    extraTicketRewards: { caravan: 1 },
+    effectSummary: '适合中段商队，增加一张商路票并提高素材回收。',
+    sinkSummary: '消耗茶饮和腌制品，承接庄园加工线。'
+  },
+  {
+    id: 'elixir_survey_kit',
+    label: '丹药测绘箱',
+    unlockTier: 'P1',
+    source: 'elixir',
+    costItems: [
+      { itemId: 'ley_crystal_focus_elixir', quantity: 1 }
+    ],
+    successRateBonus: 16,
+    riskReduction: 14,
+    rewardItemMultiplier: 1.22,
+    extraTicketRewards: { research: 1 },
+    effectSummary: '用凝神丹稳定方向，降低迷失风险并增加研究票。',
+    sinkSummary: '消耗高阶丹药，让共同丹炉和炼丹线回流到瀚海。'
+  },
+  {
+    id: 'deep_vein_anchor',
+    label: '深脉定砂锚',
+    unlockTier: 'P2',
+    source: 'deep_vein',
+    costItems: [
+      { itemId: 'obsidian', quantity: 1 },
+      { itemId: 'dragon_jade', quantity: 1 }
+    ],
+    successRateBonus: 20,
+    riskReduction: 18,
+    rewardItemMultiplier: 1.3,
+    moneyMultiplier: 1.1,
+    extraTicketRewards: { exhibit: 1, research: 1 },
+    effectSummary: '用采石场深脉材料固定沙层，显著提高高阶遗迹回收。',
+    sinkSummary: '消耗黑曜石和龙玉，给采石场深脉材料一个终局出口。'
   }
 ]
 

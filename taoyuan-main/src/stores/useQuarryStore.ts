@@ -15,6 +15,7 @@ import {
   QUARRY_NIGHT_MONSTER_ATK_MULT,
   QUARRY_NIGHT_MONSTER_HP_MULT,
   QUARRY_PROJECT_ID,
+  QUARRY_ARTIFACT_POOL,
   QUARRY_RARE_TRANSMUTE_UPGRADES,
   QUARRY_REQUIRED_PROJECT_ID,
   QUARRY_RUBBLE_BASE_EXP,
@@ -69,8 +70,10 @@ import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { usePotentialStore } from './usePotentialStore'
 import { useQuestStore } from './useQuestStore'
+import { useGoalStore } from './useGoalStore'
 import { useSkillStore } from './useSkillStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useEquipmentAccessoryStore } from './useEquipmentAccessoryStore'
 
 const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
 const QUARRY_COMBAT_LOG_LIMIT = 80
@@ -99,6 +102,18 @@ const formatRewardLabels = (rewards: QuarryCollectRewardEntry[]): string =>
   rewards
     .map(reward => `${getItemById(reward.itemId)?.name ?? reward.itemId}×${reward.quantity}`)
     .join('、')
+
+const rollQuarryAffixArtifactReward = (): QuarryCollectRewardEntry | null => {
+  const totalWeight = QUARRY_ARTIFACT_POOL.reduce((sum, entry) => sum + Math.max(0, entry.chance), 0)
+  if (totalWeight <= 0) return null
+  let roll = Math.random() * totalWeight
+  for (const entry of QUARRY_ARTIFACT_POOL) {
+    roll -= Math.max(0, entry.chance)
+    if (roll <= 0) return { itemId: entry.itemId, quantity: entry.quantity }
+  }
+  const fallback = QUARRY_ARTIFACT_POOL[QUARRY_ARTIFACT_POOL.length - 1]
+  return fallback ? { itemId: fallback.itemId, quantity: fallback.quantity } : null
+}
 
 const parseDayTag = (dayTag: string): { year: number; season: Season; day: number } | null => {
   const [yearText, seasonText, dayText] = dayTag.split('-')
@@ -158,6 +173,7 @@ export const useQuarryStore = defineStore('quarry', () => {
   const combatRound = ref(0)
   const combatLog = ref<string[]>([])
   const combatCellIndex = ref(-1)
+  const accessoryStore = useEquipmentAccessoryStore()
 
   watch(
     () => combatLog.value.length,
@@ -305,6 +321,7 @@ export const useQuarryStore = defineStore('quarry', () => {
       percent: target > 0 ? Math.min(100, Math.round((Math.min(cappedCleared, target) / target) * 100)) : 0
     }
   })
+  const weeklyStewardshipLifetimeClaimCount = computed(() => Math.floor(lifetimeClearedCount.value / QUARRY_WEEKLY_STEWARDSHIP_TARGET))
 
   const quarryMineStatus = computed(() => {
     const nodes = quarryMine.value.nodes.map(node => ({ ...node, treasureItems: node.treasureItems?.map(item => ({ ...item })) }))
@@ -424,8 +441,11 @@ export const useQuarryStore = defineStore('quarry', () => {
         periodKey: weeklyProgress.value.weekKey,
         reason: '旧采石场周清理'
       })
-      nextClaimedKeys.add(milestoneKey)
-      if (result.success) claimed = true
+      if (result.success) {
+        nextClaimedKeys.add(milestoneKey)
+        claimed = true
+        useGoalStore().recordWeeklyActivityCounter('life_linkage_actions', 1)
+      }
     }
     weeklyProgress.value = { ...weeklyProgress.value, claimedMilestoneKeys: [...nextClaimedKeys] }
     return claimed
@@ -440,17 +460,36 @@ export const useQuarryStore = defineStore('quarry', () => {
 
   const buildCollectionRewards = (cell: QuarryCell): QuarryCollectRewardEntry[] => {
     if (cell.treasureItems && cell.treasureItems.length > 0) {
-      return cell.treasureItems.map(item => ({ itemId: item.itemId, quantity: item.quantity }))
+      const rewards = cell.treasureItems.map(item => ({ itemId: item.itemId, quantity: item.quantity }))
+      const artifactChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_quarry_artifact_chance')
+      if ((cell.kind === 'deep' || cell.kind === 'treasure' || cell.kind === 'artifact') && artifactChance > 0 && Math.random() < artifactChance) {
+        const artifactReward = rollQuarryAffixArtifactReward()
+        if (artifactReward) rewards.push(artifactReward)
+      }
+      return rewards
     }
     const itemId = cell.itemId ?? getQuarryResourceDef(cell.resourceId)?.itemId
     if (!itemId) return []
     const quantity = Math.max(1, Math.floor(Number(cell.quantity) || 1))
     const rewards: QuarryCollectRewardEntry[] = [{ itemId, quantity }]
+    const quarryDoubleChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_quarry_double_chance')
+    if (cell.kind !== 'wood' && quarryDoubleChance > 0 && Math.random() < quarryDoubleChance) {
+      rewards[0]!.quantity += 1
+    }
+    const accessoryDoubleChance = accessoryStore.getAccessoryEffectValue('accessory_quarry_double_chance')
+    if (cell.kind !== 'wood' && accessoryDoubleChance > 0 && Math.random() < accessoryDoubleChance) {
+      rewards[0]!.quantity += 1
+    }
     if (cell.kind !== 'wood') {
       const rareTransmuteChance = skillStore.getSkillMasteryEffectValue('rare_transmute')
       const transmutedItemId =
         rareTransmuteChance > 0 && Math.random() < rareTransmuteChance ? QUARRY_RARE_TRANSMUTE_UPGRADES[itemId] : null
       if (transmutedItemId) rewards.push({ itemId: transmutedItemId, quantity: 1 })
+    }
+    const artifactChance = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_quarry_artifact_chance')
+    if (cell.kind === 'deep' && artifactChance > 0 && Math.random() < artifactChance) {
+      const artifactReward = rollQuarryAffixArtifactReward()
+      if (artifactReward) rewards.push(artifactReward)
     }
     return rewards
   }
@@ -501,8 +540,8 @@ export const useQuarryStore = defineStore('quarry', () => {
     return {
       weaponDef,
       runtime: buildPlayerCombatRuntime({
-        weaponAttack: inventoryStore.getWeaponAttack(),
-        weaponCritRate: inventoryStore.getWeaponCritRate(),
+        weaponAttack: inventoryStore.getWeaponAttack() + accessoryStore.getAccessoryEffectValue('accessory_attack_flat'),
+        weaponCritRate: inventoryStore.getWeaponCritRate() + accessoryStore.getAccessoryEffectValue('accessory_crit_rate'),
         weaponType: weaponDef?.type ?? null,
         weaponDamageReduction: inventoryStore.getWeaponAffixEffectValue('weapon_damage_reduction'),
         weaponDefenseIgnore: inventoryStore.getWeaponAffixEffectValue('weapon_defense_ignore'),
@@ -515,6 +554,7 @@ export const useQuarryStore = defineStore('quarry', () => {
         ringLuck: inventoryStore.getRingEffectValue('luck'),
         ringDefenseBonus: inventoryStore.getRingEffectValue('defense_bonus'),
         ringVampiric: inventoryStore.getRingEffectValue('vampiric'),
+        accessoryDamageReduction: accessoryStore.getAccessoryEffectValue('accessory_damage_reduction'),
         guildAttackBonus: guildStore.getGuildAttackBonus(),
         guildBadgeBonusAttack: 0,
         guildDefenseBonus: 0,
@@ -530,7 +570,15 @@ export const useQuarryStore = defineStore('quarry', () => {
   }
 
   const getWeaponCombatTimeMultiplier = () =>
-    Math.max(0.1, 1 - inventoryStore.getWeaponAffixEffectValue('weapon_combat_time_reduction'))
+    Math.max(
+      0.1,
+      1 -
+        inventoryStore.getWeaponAffixEffectValue('weapon_combat_time_reduction') -
+        accessoryStore.getAccessoryEffectValue('accessory_combat_time_reduction')
+    )
+
+  const getAccessoryDurabilityReduction = (): number =>
+    accessoryStore.getAccessoryEffectValue('accessory_durability_consumption_reduction')
 
   const getAttackCombatTimeCost = (monsterHpBefore: number, totalDamage: number, expectedDamage: number): number => {
     const safeHpBefore = Math.max(1, monsterHpBefore)
@@ -602,7 +650,11 @@ export const useQuarryStore = defineStore('quarry', () => {
     const safeIndex = Math.floor(Number(index))
     const cell = cells.value[safeIndex]
     if (!cell || cell.state !== 'surface') return { success: false, message: '这里没有需要剥开的深脉石壳。' }
-    if (!playerStore.consumeStamina(QUARRY_DEEP_STAMINA_COST, { source: 'tool' })) {
+    const staminaCost = Math.max(
+      1,
+      Math.ceil(QUARRY_DEEP_STAMINA_COST * Math.max(0.1, 1 - accessoryStore.getAccessoryEffectValue('accessory_mining_stamina_reduction')))
+    )
+    if (!playerStore.consumeStamina(staminaCost, { source: 'tool' })) {
       return { success: false, message: '体力不足，无法凿开深脉石壳。' }
     }
     skillStore.addExp('mining', QUARRY_RUBBLE_BASE_EXP)
@@ -763,7 +815,7 @@ export const useQuarryStore = defineStore('quarry', () => {
     const equippedWeapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
     if (equippedWeapon) {
       const wAffixes = equippedWeapon.affixes ?? []
-      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked)
+      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
       const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
       consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
     }
@@ -772,7 +824,7 @@ export const useQuarryStore = defineStore('quarry', () => {
       if (slot >= 0) {
         const ring = inventoryStore.ownedRings[slot]
         if (ring) {
-          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked)
+          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
           const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
           consumeEquipmentDurability(ring, rMax, 1, rReduction)
         }
@@ -914,7 +966,14 @@ export const useQuarryStore = defineStore('quarry', () => {
     const inventorySnapshot = inventoryStore.serialize()
     const playerSnapshot = playerStore.serialize()
     const staminaSource = cell.kind === 'wood' ? 'foraging' : 'tool'
-    const staminaCost = cell.kind === 'deep' ? QUARRY_DEEP_STAMINA_COST : QUARRY_COLLECT_STAMINA_COST
+    const deepStaminaReduction = cell.kind === 'deep'
+      ? inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_quarry_deep_stamina_reduction')
+      : 0
+    const accessoryStaminaReduction = cell.kind === 'wood'
+      ? 0
+      : accessoryStore.getAccessoryEffectValue('accessory_mining_stamina_reduction')
+    const baseStaminaCost = cell.kind === 'deep' ? QUARRY_DEEP_STAMINA_COST : QUARRY_COLLECT_STAMINA_COST
+    const staminaCost = Math.max(1, Math.ceil(baseStaminaCost * Math.max(0.1, 1 - deepStaminaReduction - accessoryStaminaReduction)))
     if (!playerStore.consumeStamina(staminaCost, { source: staminaSource })) {
       return { success: false, message: '体力不足，无法继续收取采石场发现。', rewards: [] }
     }
@@ -1059,6 +1118,14 @@ export const useQuarryStore = defineStore('quarry', () => {
     return '你稳步推进，尽量避开松动岩层。'
   }
 
+  const addQuarryMineSettlementFailureLog = (message: string, meta: Record<string, string | number | boolean | null | undefined> = {}) => {
+    addLog(`【旧采石场】结算失败：${message}`, {
+      category: 'village',
+      tags: ['late_game_cycle', 'resource_sink'],
+      meta
+    })
+  }
+
   const resolveQuarryMineNode = (index: number, mode: QuarryMineExploreMode = 'steady', prepItemId: string | null = null): QuarryCollectResult => {
     ensureUnlockedFromProject()
     if (!isUnlocked.value || !quarryMine.value.unlocked) {
@@ -1068,6 +1135,7 @@ export const useQuarryStore = defineStore('quarry', () => {
     const exploreMode = normalizeQuarryMineExploreMode(mode)
     const elixirPrep = getQuarryMineElixirPrepOption(prepItemId)
     if (prepItemId && !elixirPrep) {
+      addQuarryMineSettlementFailureLog('这种丹药暂时不能用于旧支道准备。', { index, prepItemId })
       return { success: false, message: '这种丹药暂时不能用于旧支道准备。', rewards: [] }
     }
     const safeIndex = Math.floor(Number(index))
@@ -1088,15 +1156,25 @@ export const useQuarryStore = defineStore('quarry', () => {
 
     if (elixirPrep && inventoryStore.getTotalItemCount(elixirPrep.itemId) < 1) {
       const elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
+      addQuarryMineSettlementFailureLog(`${elixirName}不足，无法作为旧支道准备物。`, {
+        index: safeIndex,
+        prepItemId: elixirPrep.itemId
+      })
       return { success: false, message: `${elixirName}不足，无法作为旧支道准备物。`, rewards: [] }
     }
 
-    const staminaCost = Math.max(1, getQuarryMineModeStaminaCost(exploreMode) - (elixirPrep?.staminaReduction ?? 0))
+    const quarryDeepStaminaReduction = inventoryStore.getToolAffixEffectValue('pickaxe', 'pickaxe_quarry_deep_stamina_reduction')
+    const accessoryStaminaReduction = accessoryStore.getAccessoryEffectValue('accessory_mining_stamina_reduction')
+    const staminaCost = Math.max(
+      1,
+      Math.ceil(getQuarryMineModeStaminaCost(exploreMode) * Math.max(0.1, 1 - quarryDeepStaminaReduction - accessoryStaminaReduction)) -
+        (elixirPrep?.staminaReduction ?? 0)
+    )
     const consumeElixirPrep = (): string | null => {
       if (!elixirPrep) return ''
       const elixirName = getItemById(elixirPrep.itemId)?.name ?? elixirPrep.label
       if (!inventoryStore.removeItemAnywhere(elixirPrep.itemId, 1)) return null
-      return `消耗${elixirName}，${elixirPrep.logEffect}。`
+      return `消耗 ${elixirName} x1，${elixirPrep.logEffect}。`
     }
 
     if (node.kind === 'monster') {
@@ -1107,6 +1185,10 @@ export const useQuarryStore = defineStore('quarry', () => {
       }
       const elixirMessage = consumeElixirPrep()
       if (elixirMessage === null) {
+        addQuarryMineSettlementFailureLog('丹药准备状态已变化，旧支道推进已中止。', {
+          index: safeIndex,
+          prepItemId: elixirPrep?.itemId ?? null
+        })
         return { success: false, message: '丹药准备状态已变化，旧支道推进已中止。', rewards: [] }
       }
       const baseDamageRate = exploreMode === 'steady' ? 0.35 : exploreMode === 'force' ? 0.75 : 0.55
@@ -1116,11 +1198,24 @@ export const useQuarryStore = defineStore('quarry', () => {
       skillStore.addExp('combat', monster.expReward)
       skillStore.addExp('mining', QUARRY_MONSTER_BASE_EXP + (exploreMode === 'force' ? 2 : 0))
       markQuarryMineNodeCleared(node.index)
+      if (elixirPrep) {
+        addLog(`【旧采石场】${elixirMessage}本次旧支道探索伤害损耗降低。`, {
+          category: 'village',
+          tags: ['late_game_cycle', 'resource_sink'],
+          meta: {
+            nodeIndex: node.index,
+            nodeKind: node.kind,
+            prepItemId: elixirPrep.itemId,
+            exploreMode
+          }
+        })
+      }
       return {
         success: true,
         message: `${getQuarryMineModeMessagePrefix(exploreMode)}${elixirMessage ? ` ${elixirMessage}` : ''} 你击退了${monster.name}，受到 ${takenDamage} 点伤害，旧支道继续向前延伸。`,
         rewards: [],
-        exploreMode
+        exploreMode,
+        globalLogged: Boolean(elixirPrep)
       }
     }
 
@@ -1134,6 +1229,10 @@ export const useQuarryStore = defineStore('quarry', () => {
     }
     const elixirMessage = consumeElixirPrep()
     if (elixirMessage === null) {
+      addQuarryMineSettlementFailureLog('丹药准备状态已变化，旧支道推进已中止。', {
+        index: safeIndex,
+        prepItemId: elixirPrep?.itemId ?? null
+      })
       return { success: false, message: '丹药准备状态已变化，旧支道推进已中止。', rewards: [] }
     }
     if (rewardEntries.length > 0 && !inventoryStore.addItemsExact(rewardEntries)) {
@@ -1142,11 +1241,24 @@ export const useQuarryStore = defineStore('quarry', () => {
     for (const reward of rewards) questStore.onItemObtained(reward.itemId, reward.quantity)
     skillStore.addExp('mining', node.kind === 'chest' ? 10 : 6)
     markQuarryMineNodeCleared(node.index)
+    if (elixirPrep) {
+      addLog(`【旧采石场】${elixirMessage}本次旧支道探索体力损耗降低。`, {
+        category: 'village',
+        tags: ['late_game_cycle', 'resource_sink'],
+        meta: {
+          nodeIndex: node.index,
+          nodeKind: node.kind,
+          prepItemId: elixirPrep.itemId,
+          exploreMode
+        }
+      })
+    }
     return {
       success: true,
       message: `${getQuarryMineModeMessagePrefix(exploreMode)}${elixirMessage ? ` ${elixirMessage}` : ''} 你清理了${node.label}${rewards.length > 0 ? `，获得${formatRewardLabels(rewards)}` : ''}。`,
       rewards,
-      exploreMode
+      exploreMode,
+      globalLogged: Boolean(elixirPrep)
     }
   }
 
@@ -1262,6 +1374,7 @@ export const useQuarryStore = defineStore('quarry', () => {
     activeSize,
     lifetimeClearedCount,
     deepClearCount,
+    weeklyStewardshipLifetimeClaimCount,
     cells,
     lastRefreshDayTag,
     lastDailySpawnedCount,

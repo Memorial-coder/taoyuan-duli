@@ -32,6 +32,7 @@ export interface PlayerCombatBuildInput {
   ringLuck: number
   ringDefenseBonus: number
   ringVampiric: number
+  accessoryDamageReduction?: number
   guildAttackBonus: number
   guildBadgeBonusAttack: number
   guildDefenseBonus: number
@@ -230,6 +231,7 @@ export const buildPlayerCombatRuntime = (input: PlayerCombatBuildInput): BuiltPl
     1 - input.cookingDefenseReduction,
     sturdyMultiplier,
     1 - input.ringDefenseBonus,
+    1 - (input.accessoryDamageReduction ?? 0),
     1 - input.guildDefenseBonus
   ]
   const attackDefenseReduction =

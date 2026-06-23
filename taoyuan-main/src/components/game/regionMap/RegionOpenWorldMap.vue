@@ -432,6 +432,8 @@
   const tileDetailDialogTitleId = 'region-open-world-tile-dialog-title'
   const activePointerPositions = new Map<number, PointerPosition>()
   let viewportResizeObserver: ResizeObserver | null = null
+  let pendingPanDelta: { deltaX: number; deltaY: number } | null = null
+  let pendingPanFrame: number | null = null
 
   const renderColumnCount = computed(() => Math.max(1, props.activeRegion.bounds.maxX - props.activeRegion.bounds.minX + 1))
   const renderRowCount = computed(() => Math.max(1, props.activeRegion.bounds.maxY - props.activeRegion.bounds.minY + 1))
@@ -465,7 +467,7 @@
   })
   const playerTile = computed<RegionOpenWorldTileDef | RegionOpenWorldTileView | null>(() =>
     props.activeRegion.tiles.find(tile => tile.current) ??
-    props.activeRegion.def.tiles.find(tile => tile.id === props.activeRegion.state.playerTileId) ??
+    props.activeRegion.playerTile ??
     null
   )
   const playerInRenderBounds = computed(() => {
@@ -543,6 +545,29 @@
       width: zoomedTileStepX.value,
       height: zoomedTileStepY.value
     }
+  }
+
+  const flushPanDelta = () => {
+    const delta = pendingPanDelta
+    pendingPanDelta = null
+    pendingPanFrame = null
+    if (!delta || (delta.deltaX === 0 && delta.deltaY === 0)) return
+    emit('pan-viewport', delta)
+  }
+
+  const emitPanViewport = (delta: { deltaX: number; deltaY: number }) => {
+    pendingPanDelta = pendingPanDelta
+      ? {
+          deltaX: pendingPanDelta.deltaX + delta.deltaX,
+          deltaY: pendingPanDelta.deltaY + delta.deltaY
+        }
+      : delta
+    if (pendingPanFrame !== null) return
+    if (typeof window === 'undefined') {
+      flushPanDelta()
+      return
+    }
+    pendingPanFrame = window.requestAnimationFrame(flushPanDelta)
   }
 
   const clampZoomLevel = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number.isFinite(value) ? value : 1))
@@ -660,6 +685,9 @@
   onBeforeUnmount(() => {
     viewportResizeObserver?.disconnect()
     viewportResizeObserver = null
+    if (pendingPanFrame !== null && typeof window !== 'undefined') window.cancelAnimationFrame(pendingPanFrame)
+    pendingPanFrame = null
+    pendingPanDelta = null
     if (typeof window !== 'undefined') window.removeEventListener('keydown', handleTileDetailDialogKeydown)
   })
 
@@ -744,7 +772,7 @@
     if (deltaX === 0 && deltaY === 0) return
     if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return
 
-    emit('pan-viewport', { deltaX, deltaY })
+    emitPanViewport({ deltaX, deltaY })
   }
 
   const handleGridPointerEnd = (event: PointerEvent) => {

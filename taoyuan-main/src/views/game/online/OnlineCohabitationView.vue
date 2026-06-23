@@ -1734,6 +1734,30 @@
                   >
                     自动权重：{{ sharedWorkshopAlchemyWeightPreviewLabel }}
                   </p>
+                  <div
+                    v-if="selectedSharedWorkshopSinglePlayerUseHint"
+                    class="grid gap-1 border border-water/20 bg-water/5 px-2 py-1.5"
+                    data-testid="online-cohabitation-shared-elixir-return-panel"
+                  >
+                    <div class="flex items-start justify-between gap-2">
+                      <p class="text-[0.625rem] text-water" data-testid="online-cohabitation-shared-elixir-return-current">
+                        单人回流：{{ selectedSharedWorkshopSinglePlayerUseHint.label }}
+                      </p>
+                      <span class="shrink-0 text-[0.625rem] text-muted">已接 {{ sharedElixirSinglePlayerUseRows.length }} 种</span>
+                    </div>
+                    <p class="text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-elixir-return-route">
+                      {{ selectedSharedWorkshopSinglePlayerUseHint.route }}
+                    </p>
+                    <div class="flex flex-wrap gap-1" data-testid="online-cohabitation-shared-elixir-return-sinks">
+                      <span
+                        v-for="sink in selectedSharedWorkshopSinglePlayerUseHint.sinks"
+                        :key="`${selectedSharedWorkshopSinglePlayerUseHint.itemId}-${sink}`"
+                        class="border border-water/20 bg-bg/30 px-1.5 py-0.5 text-[0.625rem] text-water"
+                      >
+                        {{ sink }}
+                      </span>
+                    </div>
+                  </div>
                   <p class="text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-workshop-medium-budget">
                     中额预算：{{ sharedWorkshopMediumBudgetLedger ? sharedWorkshopMediumBudgetLedger.id : '未绑定' }}
                   </p>
@@ -3888,6 +3912,12 @@
   }
   type SharedAlchemyHeatLevel = 'gentle' | 'balanced' | 'strong'
   type SharedWorkshopResultRow = { id: string; label: string; value: string }
+  type SharedElixirSinglePlayerUseHint = { route: string; sinks: string[] }
+  type SharedElixirSinglePlayerUseRow = SharedElixirSinglePlayerUseHint & {
+    recipeId: string
+    itemId: string
+    label: string
+  }
   type SharedDecorationStateEntry = Record<string, unknown> & {
     decoration_id?: string
     decoration_kind?: string
@@ -6769,6 +6799,36 @@
     dew_bloom_focus_elixir: '露花凝神丹',
     star_lotus_calm_elixir: '星莲安神丹',
   }
+  const SHARED_ELIXIR_SINGLE_PLAYER_USE_HINTS: Record<string, SharedElixirSinglePlayerUseHint> = {
+    ley_crystal_focus_elixir: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，或作为行旅图远征准备消耗。',
+      sinks: ['背包服用', '当天丹药槽', '行旅图远征', '潜能准备'],
+    },
+    wind_core_guard_pill: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，也能在采石场旧支道准备时消耗。',
+      sinks: ['背包服用', '矿洞防护', '采石场准备', '远征体力'],
+    },
+    marsh_luminous_cleansing_elixir: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，也能在湿地/区域远征准备时消耗。',
+      sinks: ['背包服用', '行旅图远征', '异常净息', '伤害减免'],
+    },
+    moon_pearl_calm_elixir: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，并可作为远征和宠物安抚前的稳定准备。',
+      sinks: ['背包服用', '立即回体', '行旅图远征', '宠物安抚'],
+    },
+    jade_orchid_focus_elixir: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，服务料理、工坊、节会和订单前的专注加成。',
+      sinks: ['背包服用', '行动加速', '节会奖励', '送礼加成'],
+    },
+    rare_lotus_guard_elixir: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，也能在采石场旧支道准备时消耗。',
+      sinks: ['背包服用', '采石场准备', '伤害减免', '宠物安抚'],
+    },
+    jade_peach_spirit_elixir: {
+      route: '产出先入共同仓库；取出到单人背包后可直接服用，服务社交、送礼和节会供品表现。',
+      sinks: ['背包服用', 'NPC 对话', '送礼加成', '节会奖励'],
+    },
+  }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
     wheat: 55,
@@ -7320,6 +7380,33 @@
     if (!recipe) return '未选择配方'
     if (isSharedWorkshopHiddenUndiscovered(recipe)) return '未知产物'
     return `${warehouseItemLabels[recipe.output_item_id] || recipe.output_item_id} x${recipe.output_quantity} · ${qualityLabel(recipe.output_quality)}`
+  })
+  const sharedElixirSinglePlayerUseRows = computed<SharedElixirSinglePlayerUseRow[]>(() =>
+    sharedWorkshopRecipeOptions
+      .filter(recipe =>
+        recipe.station === 'alchemy_furnace' &&
+        recipe.process_kind === 'alchemy_elixir' &&
+        recipe.alchemy_result_kind === 'success' &&
+        Boolean(SHARED_ELIXIR_SINGLE_PLAYER_USE_HINTS[recipe.output_item_id])
+      )
+      .map(recipe => ({
+        recipeId: recipe.id,
+        itemId: recipe.output_item_id,
+        label: warehouseItemLabels[recipe.output_item_id] || recipe.output_item_id,
+        ...SHARED_ELIXIR_SINGLE_PLAYER_USE_HINTS[recipe.output_item_id],
+      }))
+  )
+  const selectedSharedWorkshopSinglePlayerUseHint = computed<SharedElixirSinglePlayerUseRow | null>(() => {
+    const recipe = selectedSharedWorkshopRecipe.value
+    if (!recipe) return null
+    const hint = SHARED_ELIXIR_SINGLE_PLAYER_USE_HINTS[recipe.output_item_id]
+    if (!hint) return null
+    return {
+      recipeId: recipe.id,
+      itemId: recipe.output_item_id,
+      label: warehouseItemLabels[recipe.output_item_id] || recipe.output_item_id,
+      ...hint,
+    }
   })
   const canProcessSelectedSharedWorkshopRecipe = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -9927,6 +10014,7 @@
       const alchemyWeightProfile = typeof action?.alchemy_result_weight_profile === 'string' ? action.alchemy_result_weight_profile : ''
       const alchemyHeatLevel = (typeof action?.alchemy_heat_level === 'string' ? action.alchemy_heat_level : 'balanced') as SharedAlchemyHeatLevel
       const alchemyHeatLabel = (sharedWorkshopAlchemyHeatProfiles[alchemyHeatLevel] ?? sharedWorkshopAlchemyHeatProfiles.balanced).label
+      const singlePlayerUseHint = SHARED_ELIXIR_SINGLE_PLAYER_USE_HINTS[outputItemId]
       sharedWorkshopLastResultRows.value = [
         { id: 'output', label: '产出入仓', value: outputLabel },
         { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '系统已处理，未返回流水 ID' },
@@ -9934,6 +10022,7 @@
         ...(alchemyAutoResultLabel ? [{ id: 'alchemy-result', label: '炼丹结果', value: alchemyAutoResultLabel }] : []),
         ...(action?.alchemy_auto_result && alchemyWeightsLabel ? [{ id: 'alchemy-weights', label: '概率权重', value: [alchemyWeightProfile ? `档位 ${alchemyWeightProfile}` : '', `火候 ${alchemyHeatLabel}`, alchemyWeightsLabel].filter(Boolean).join(' · ') }] : []),
         { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
+        ...(singlePlayerUseHint ? [{ id: 'single-player-return', label: '单人用途', value: `${singlePlayerUseHint.route} ${singlePlayerUseHint.sinks.join(' / ')}` }] : []),
         { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以处理回执为准' },
         { id: 'warehouse', label: '共同仓库', value: action?.shared_warehouse_changed === true ? '已消耗材料并写入产出' : '以刷新后仓库为准' },
         { id: 'fund', label: '共同基金', value: action?.shared_fund_changed === false ? '未重复扣共同基金' : '以处理回执为准' },

@@ -57,10 +57,38 @@
                   </div>
                   <span class="text-xs shrink-0">{{ entry.quantity }}</span>
                 </div>
+                <div
+                  v-if="entry.turnInRequirement"
+                  class="mt-2 rounded-xs border border-accent/10 bg-bg/50 px-2 py-2"
+                  data-testid="region-resource-turn-in-demand"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex items-start gap-2">
+                      <ItemIcon :item="getItemById(entry.turnInRequirement.itemId)" size="xs" :show-badge="false" />
+                      <div class="min-w-0">
+                        <p class="text-[0.625rem] text-accent leading-4">
+                          交付需求：{{ entry.turnInRequirement.itemName }} x{{ entry.turnInRequirement.required }}
+                        </p>
+                        <p class="text-[0.625rem] text-muted leading-4">
+                          库存 {{ entry.turnInRequirement.owned }}/{{ entry.turnInRequirement.required }} · {{ entry.turnInRequirement.sourceHint }}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      class="text-[0.625rem] shrink-0"
+                      :class="entry.turnInRequirement.canTurnIn ? 'text-success' : 'text-warning'"
+                    >
+                      {{ entry.turnInRequirement.canTurnIn ? '可交付' : '缺材料' }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-[0.625rem] text-muted leading-4">
+                    影响：同时扣除区域资源账本和背包材料，并计入区域资源交付数。
+                  </p>
+                </div>
                 <div class="flex flex-wrap gap-2 mt-2">
                   <button
                     class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] text-success hover:bg-success/5"
-                    :disabled="entry.quantity <= 0 || !resourceFeatureEnabled"
+                    :disabled="entry.quantity <= 0 || !resourceFeatureEnabled || !entry.turnInAvailable"
                     @click="emit('turnIn', entry.id)"
                   >
                     交付 1 份

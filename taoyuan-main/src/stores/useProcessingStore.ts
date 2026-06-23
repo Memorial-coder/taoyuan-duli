@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { AlchemyHeat, AlchemyResultKind, MachineType, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
+import type { AlchemyHeat, AlchemyResultKind, MachineType, ProcessingRecipeDef, ProcessingSlot, Quality, SmithyRepairJob } from '@/types'
 import {
   PROCESSING_MACHINES,
   SPRINKLERS,
@@ -20,14 +20,15 @@ import { normalizeInventoryItemQuality, useInventoryStore } from './useInventory
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
-import type { RepairBenchEquipType } from '@/utils/durability'
-import { calculateRepairCost, getRepairEquipName } from '@/utils/durability'
+import type { RepairBenchEquipType, RepairBenchMode, RepairDurabilityState, RepairSturdinessState } from '@/utils/durability'
+import { calculateRepairBenchModeCost, getRepairEquipName } from '@/utils/durability'
 import { usePotentialStore } from './usePotentialStore'
 import { useGameStore } from './useGameStore'
 import { useBreedingStore } from './useBreedingStore'
 import { useWarehouseStore } from './useWarehouseStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { addLog } from '@/composables/useGameLog'
+import { getWeekCycleInfo } from '@/utils/weekCycle'
 import {
   hasCombinedItems,
   removeCombinedItem,
@@ -122,7 +123,17 @@ export interface ProcessingCollectedOutputEntry {
   itemId: string
   quantity: number
   quality: Quality
+  fixedQuality?: boolean
 }
+
+type RepairBenchCostPreview = ReturnType<typeof calculateRepairBenchModeCost> & {
+  freeByNpc: boolean
+  ledgerId: string
+}
+
+const SMITHY_SERVICE_MACHINE_TYPES: MachineType[] = ['enchanting_forge', 'repair_bench']
+
+const isSmithyServiceMachine = (machineType: MachineType): boolean => SMITHY_SERVICE_MACHINE_TYPES.includes(machineType)
 
 export const useProcessingStore = defineStore('processing', () => {
   // ---- DIAGNOSTIC: wrap init to locate actual throw ----
@@ -159,10 +170,13 @@ export const useProcessingStore = defineStore('processing', () => {
     if (idx < 0 || idx >= ORDER.length - 1) return q
     return Math.random() < chance ? (ORDER[idx + 1] ?? q) : q
   }
+  const getRecipeOutputQuality = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): Quality =>
+    recipe.outputQuality ?? applyNpcQualityUpgrade(slot.machineType, slot.inputQuality ?? 'normal')
   const gameStore = useGameStore()
 
   /** 已放置的加工机器（运行中的槽位） */
   const machines = ref<ProcessingSlot[]>([])
+  const smithyRepairJobs = ref<SmithyRepairJob[]>([])
   const discoveredProcessingRecipeIds = ref<string[]>([])
   const alchemyDailyLimitState = ref({
     dayTag: '',
@@ -235,6 +249,74 @@ export const useProcessingStore = defineStore('processing', () => {
   }
 
   const getAlchemyDayTag = () => `${gameStore.year}:${gameStore.season}:${gameStore.day}`
+
+  const getRepairBenchWeekId = () => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
+
+  const getFreeToolRepairLedgerId = (weekId = getRepairBenchWeekId()) => `npc_free_tool_repair:${weekId}`
+
+  const isFreeToolRepairAvailable = (): boolean =>
+    npcStore.isNpcFunctionEffectUnlocked('free_tool_repair') &&
+    !playerStore.hasLifestyleDiscovery('lifestyleUnlocks', getFreeToolRepairLedgerId())
+
+  const getRepairBenchCostPreview = (
+    equipType: RepairBenchEquipType,
+    defId: string,
+    durability: RepairDurabilityState,
+    sturdiness: RepairSturdinessState,
+    mode: RepairBenchMode = 'fine'
+  ): RepairBenchCostPreview => {
+    const unlocked = npcStore.isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const baseCost = calculateRepairBenchModeCost(equipType, defId, unlocked, durability, sturdiness, mode)
+    const ledgerId = getFreeToolRepairLedgerId()
+    const freeByNpc =
+      (mode === 'fine' || mode === 'simple') &&
+      npcStore.isNpcFunctionEffectUnlocked('free_tool_repair') &&
+      !playerStore.hasLifestyleDiscovery('lifestyleUnlocks', ledgerId)
+    return freeByNpc
+      ? {
+          ...baseCost,
+          money: 0,
+          materialQuantity: 0,
+          freeByNpc,
+          ledgerId
+        }
+      : {
+          ...baseCost,
+          freeByNpc,
+          ledgerId
+        }
+  }
+
+  const getOwnedRepairDefId = (equipType: RepairBenchEquipType, equipIndex: number): string | null => {
+    if (equipType === 'weapon') return inventoryStore.ownedWeapons[equipIndex]?.defId ?? null
+    if (equipType === 'ring') return inventoryStore.ownedRings[equipIndex]?.defId ?? null
+    if (equipType === 'hat') return inventoryStore.ownedHats[equipIndex]?.defId ?? null
+    return inventoryStore.ownedShoes[equipIndex]?.defId ?? null
+  }
+
+  const getRepairModeLabel = (mode: RepairBenchMode): string => {
+    if (mode === 'simple') return '简修'
+    if (mode === 'refurbish') return '翻新'
+    if (mode === 'dismantle') return '拆解'
+    return '精修'
+  }
+
+  const buildSmithyRepairJobId = (equipType: RepairBenchEquipType, equipIndex: number, mode: RepairBenchMode): string =>
+    `smithy_repair_${equipType}_${equipIndex}_${mode}_${gameStore.year}_${gameStore.season}_${gameStore.day}_${smithyRepairJobs.value.length + 1}`
+
+  const isSmithyRepairTargetBusy = (equipType: RepairBenchEquipType, equipIndex: number): boolean =>
+    smithyRepairJobs.value.some(job => job.equipType === equipType && job.equipIndex === equipIndex)
+
+  const getSmithyRepairJobName = (job: SmithyRepairJob): string => getRepairEquipName(job.equipType, job.defId)
+
+  const canUseEnchantingForgeService = (): boolean =>
+    workshopLevel.value >= 7 && npcStore.isNpcFunctionEffectUnlocked('premium_forge')
+
+  const getEnchantingForgeServiceLockedReason = (): string => {
+    if (workshopLevel.value < 7) return '需要工坊 Lv.7 后，小满才能稳定铸魔炉火。'
+    if (!npcStore.isNpcFunctionEffectUnlocked('premium_forge')) return '需要解锁铁匠铺高级锻造服务。'
+    return ''
+  }
 
   const refreshAlchemyDailyLimitState = () => {
     const dayTag = getAlchemyDayTag()
@@ -400,6 +482,8 @@ export const useProcessingStore = defineStore('processing', () => {
     // 工坊里程碑：Lv.10 加工速度 +15%
     const workshopSpeedBonus = getWorkshopSpeedBonus(workshopLevel.value)
     if (workshopSpeedBonus > 0) multiplier *= (1 - workshopSpeedBonus)
+    const householdProcessingSpeedBonus = npcStore.getHouseholdRoleEffectValue('processingSpeedPercent') / 100
+    if (householdProcessingSpeedBonus > 0) multiplier *= (1 - householdProcessingSpeedBonus)
     // NPC function percentage speed bonuses (cloth_speed, herb_craft_boost, wine_aging_boost)
     const _npcPctSpeedType = machineType === 'loom' ? 'cloth_speed' : machineType === 'herb_grinder' ? 'herb_craft_boost' : machineType === 'wine_workshop' ? 'wine_aging_boost' : ''
     if (_npcPctSpeedType) {
@@ -549,7 +633,12 @@ export const useProcessingStore = defineStore('processing', () => {
   ): ProcessingCollectedOutputEntry => {
     const output = getSlotOutput(slot, recipe)
     if (!output) throw new Error(`Recipe ${recipe.id} has no output item`)
-    return { itemId: output.itemId, quantity: output.quantity, quality: normalizeInventoryItemQuality(output.itemId, quality) }
+    return {
+      itemId: output.itemId,
+      quantity: output.quantity,
+      quality: normalizeInventoryItemQuality(output.itemId, quality),
+      fixedQuality: !!recipe.outputQuality
+    }
   }
 
   const getOutputSummaryKey = (entry: ProcessingCollectedOutputEntry): string => `${entry.itemId}:${entry.quality}`
@@ -561,6 +650,7 @@ export const useProcessingStore = defineStore('processing', () => {
       const existing = summary.get(key)
       if (existing) {
         existing.quantity += entry.quantity
+        existing.fixedQuality = existing.fixedQuality || entry.fixedQuality
       } else {
         summary.set(key, { ...entry })
       }
@@ -568,7 +658,7 @@ export const useProcessingStore = defineStore('processing', () => {
 
     const qualityLabel: Record<Quality, string> = {
       normal: '',
-      fine: '优质',
+      fine: '优良',
       excellent: '精品',
       supreme: '极品'
     }
@@ -577,7 +667,8 @@ export const useProcessingStore = defineStore('processing', () => {
       .map(entry => {
         const name = getItemName(entry.itemId)
         const qualityText = qualityLabel[entry.quality]
-        return `${qualityText ? `${qualityText}` : ''}${name}×${entry.quantity}`
+        const qualityPrefix = qualityText || entry.fixedQuality ? qualityText || '普通' : ''
+        return `${qualityPrefix}${name}×${entry.quantity}`
       })
       .join('、')
   }
@@ -699,10 +790,37 @@ export const useProcessingStore = defineStore('processing', () => {
     if (machineType === 'repair_bench') {
       const rawRepairId = (slot as any).repairTargetId
       const rawRepairSlot = (slot as any).repairTargetSlot
+      const rawRepairMode = (slot as any).repairMode
       if (typeof rawRepairId === 'string' && rawRepairId) sanitized.repairTargetId = rawRepairId
       if (typeof rawRepairSlot === 'string' && rawRepairSlot) sanitized.repairTargetSlot = rawRepairSlot
+      if (rawRepairMode === 'fine' || rawRepairMode === 'simple' || rawRepairMode === 'refurbish' || rawRepairMode === 'dismantle') {
+        sanitized.repairMode = rawRepairMode
+      }
     }
     return sanitized
+  }
+
+  const sanitizeSmithyRepairJob = (raw: unknown): SmithyRepairJob | null => {
+    if (!raw || typeof raw !== 'object') return null
+    const job = raw as Partial<SmithyRepairJob>
+    const equipType = job.equipType
+    const mode = job.mode
+    if (equipType !== 'weapon' && equipType !== 'ring' && equipType !== 'hat' && equipType !== 'shoe') return null
+    if (mode !== 'fine' && mode !== 'simple' && mode !== 'refurbish') return null
+    const defId = typeof job.defId === 'string' ? job.defId : ''
+    if (!defId) return null
+    const totalDays = Math.max(1, Math.floor(Number(job.totalDays) || (mode === 'refurbish' ? 2 : 1)))
+    const daysProcessed = Math.min(totalDays, Math.max(0, Math.floor(Number(job.daysProcessed) || 0)))
+    return {
+      id: typeof job.id === 'string' && job.id ? job.id : `legacy_smithy_repair_${equipType}_${defId}_${Math.random().toString(36).slice(2)}`,
+      equipType,
+      equipIndex: Math.max(0, Math.floor(Number(job.equipIndex) || 0)),
+      defId,
+      mode,
+      daysProcessed,
+      totalDays,
+      ready: job.ready === true || daysProcessed >= totalDays
+    }
   }
 
   /** 工坊等级：0-7，对应 15-50 */
@@ -723,8 +841,8 @@ export const useProcessingStore = defineStore('processing', () => {
   /** 即将达到的下一个里程碑 */
   const nextMilestone = computed(() => WORKSHOP_MILESTONES.find(m => workshopLevel.value < m.level) ?? null)
 
-  /** 当前放置数量 */
-  const machineCount = computed(() => machines.value.length)
+  /** 当前放置数量：铁匠铺服务台不再占用工坊机器格 */
+  const machineCount = computed(() => machines.value.filter(slot => !isSmithyServiceMachine(slot.machineType)).length)
 
   // === 制造(Craft) ===
 
@@ -747,7 +865,8 @@ export const useProcessingStore = defineStore('processing', () => {
 
   /** 制造并放置一台加工机器 */
   const craftMachine = (machineType: MachineType): boolean => {
-    if (machines.value.length >= maxMachines.value) return false
+    if (isSmithyServiceMachine(machineType)) return false
+    if (machineCount.value >= maxMachines.value) return false
     const def = PROCESSING_MACHINES.find(m => m.id === machineType)
     if (!def) return false
     if (!isMachineCraftUnlocked(machineType)) return false
@@ -979,7 +1098,8 @@ export const useProcessingStore = defineStore('processing', () => {
     slotIndex: number,
     equipType: RepairBenchEquipType,
     equipIndex: number,
-    defId: string
+    defId: string,
+    mode: RepairBenchMode = 'fine'
   ): boolean => {
     const slot = machines.value[slotIndex]
     if (!slot || slot.machineType !== 'repair_bench' || slot.recipeId !== null) return false
@@ -988,17 +1108,16 @@ export const useProcessingStore = defineStore('processing', () => {
     const recipe = getProcessingRecipeById(recipeId)
     if (!recipe || recipe.machineType !== 'repair_bench') return false
 
-    const unlocked = npcStore.isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
-    const cost = calculateRepairCost(equipType, defId, unlocked)
-    if (playerStore.money < cost.money) return false
-    if (!hasCombinedItems([{ itemId: cost.materialItemId, quantity: cost.materialQuantity }])) return false
+    const durability = inventoryStore.getOwnedEquipmentDurability(equipType, equipIndex)
+    const sturdiness = inventoryStore.getOwnedEquipmentSturdiness(equipType, equipIndex)
+    if (!durability || !sturdiness) return false
 
-    const inventorySnapshot = inventoryStore.serialize()
-    if (!playerStore.spendMoney(cost.money)) return false
-    if (!removeCombinedItems([{ itemId: cost.materialItemId, quantity: cost.materialQuantity }])) {
-      inventoryStore.deserialize(inventorySnapshot)
-      playerStore.earnMoney(cost.money, { countAsEarned: false })
-      return false
+    const cost = spendRepairBenchCost(equipType, equipIndex, defId, mode)
+    if (!cost) return false
+    if (mode === 'dismantle') {
+      const result = inventoryStore.dismantleOwnedEquipment(equipType, equipIndex)
+      if (result.success) addLog(result.message)
+      return result.success
     }
 
     slot.recipeId = recipeId
@@ -1008,10 +1127,123 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.alchemyResult = undefined
     slot.repairTargetId = String(equipIndex)
     slot.repairTargetSlot = equipType
+    slot.repairMode = mode
     slot.daysProcessed = 0
-    slot.totalDays = getEffectiveProcessingDays(recipe, slot.machineType)
+    slot.totalDays = mode === 'refurbish' ? 2 : getEffectiveProcessingDays(recipe, slot.machineType)
     slot.ready = false
     return true
+  }
+
+  const spendRepairBenchCost = (
+    equipType: RepairBenchEquipType,
+    equipIndex: number,
+    defId: string,
+    mode: RepairBenchMode
+  ): RepairBenchCostPreview | null => {
+    const durability = inventoryStore.getOwnedEquipmentDurability(equipType, equipIndex)
+    const sturdiness = inventoryStore.getOwnedEquipmentSturdiness(equipType, equipIndex)
+    if (!durability || !sturdiness) return null
+
+    const cost = getRepairBenchCostPreview(equipType, defId, durability, sturdiness, mode)
+    if (!cost.canRepair) return null
+    if (mode === 'dismantle') return cost
+    if (playerStore.money < cost.money) return null
+    const materialCost = cost.materialQuantity > 0 ? [{ itemId: cost.materialItemId, quantity: cost.materialQuantity }] : []
+    if (materialCost.length > 0 && !hasCombinedItems(materialCost)) return null
+
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseStore = useWarehouseStore()
+    const warehouseSnapshot = warehouseStore.serialize()
+    if (!playerStore.spendMoney(cost.money)) return null
+    if (materialCost.length > 0 && !removeCombinedItems(materialCost)) {
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      playerStore.earnMoney(cost.money, { countAsEarned: false })
+      return null
+    }
+    if (cost.freeByNpc) {
+      playerStore.markLifestyleUnlock(cost.ledgerId, getAlchemyDayTag())
+    }
+    return cost
+  }
+
+  const startSmithyRepair = (
+    equipType: RepairBenchEquipType,
+    equipIndex: number,
+    defId: string,
+    mode: RepairBenchMode = 'fine'
+  ): boolean => {
+    const currentDefId = getOwnedRepairDefId(equipType, equipIndex)
+    if (!currentDefId || currentDefId !== defId) return false
+    if (isSmithyRepairTargetBusy(equipType, equipIndex)) return false
+
+    const cost = spendRepairBenchCost(equipType, equipIndex, defId, mode)
+    if (!cost) return false
+
+    if (mode === 'dismantle') {
+      const result = inventoryStore.dismantleOwnedEquipment(equipType, equipIndex)
+      if (result.success) addLog(result.message)
+      return result.success
+    }
+
+    smithyRepairJobs.value.push({
+      id: buildSmithyRepairJobId(equipType, equipIndex, mode),
+      equipType,
+      equipIndex,
+      defId,
+      mode,
+      daysProcessed: 0,
+      totalDays: Math.max(1, cost.processingDays),
+      ready: false
+    })
+    return true
+  }
+
+  const collectSmithyRepairJob = (jobId: string): boolean => {
+    const index = smithyRepairJobs.value.findIndex(job => job.id === jobId)
+    const job = smithyRepairJobs.value[index]
+    if (!job || !job.ready) return false
+    const currentDefId = getOwnedRepairDefId(job.equipType, job.equipIndex)
+    if (!currentDefId || currentDefId !== job.defId) return false
+    if (!inventoryStore.repairOwnedEquipment(job.equipType, job.equipIndex, job.mode)) return false
+    const displayName = getSmithyRepairJobName(job)
+    addLog(
+      job.mode === 'refurbish'
+        ? `铁匠铺翻新完成：${displayName} 恢复全部耐久并补回部分坚固。`
+        : `铁匠铺${getRepairModeLabel(job.mode)}完成：${displayName} 恢复全部耐久。`
+    )
+    smithyRepairJobs.value.splice(index, 1)
+    return true
+  }
+
+  const collectReadySmithyRepairJobs = (): number => {
+    let collected = 0
+    for (const job of [...smithyRepairJobs.value]) {
+      if (job.ready && collectSmithyRepairJob(job.id)) collected++
+    }
+    return collected
+  }
+
+  const migrateLegacyRepairSlotToSmithyJob = (slot: ProcessingSlot, index: number): SmithyRepairJob | null => {
+    if (slot.machineType !== 'repair_bench' || !slot.recipeId || !slot.repairTargetSlot || slot.repairTargetId == null) return null
+    const equipType = slot.repairTargetSlot as RepairBenchEquipType
+    if (equipType !== 'weapon' && equipType !== 'ring' && equipType !== 'hat' && equipType !== 'shoe') return null
+    const equipIndex = Math.max(0, parseInt(slot.repairTargetId, 10) || 0)
+    const defId = getOwnedRepairDefId(equipType, equipIndex)
+    if (!defId) return null
+    const mode = slot.repairMode === 'simple' || slot.repairMode === 'refurbish' ? slot.repairMode : 'fine'
+    const totalDays = Math.max(1, slot.totalDays || (mode === 'refurbish' ? 2 : 1))
+    const daysProcessed = Math.min(totalDays, Math.max(0, slot.daysProcessed || 0))
+    return {
+      id: `legacy_repair_bench_${index}_${equipType}_${equipIndex}`,
+      equipType,
+      equipIndex,
+      defId,
+      mode,
+      daysProcessed,
+      totalDays,
+      ready: slot.ready || daysProcessed >= totalDays
+    }
   }
 
   const startProcessingBatch = (machineType: MachineType, recipeId: string, quantity?: number, specifiedQuality?: Quality): number => {
@@ -1037,7 +1269,10 @@ export const useProcessingStore = defineStore('processing', () => {
     // 修理台：修理装备后重置槽位
     if (slot.machineType === 'repair_bench' && slot.repairTargetId != null && slot.repairTargetSlot) {
       const idx = parseInt(slot.repairTargetId) || 0
-      const repaired = inventoryStore.repairOwnedEquipment(slot.repairTargetSlot, idx)
+      const repairMode = slot.repairMode === 'simple' || slot.repairMode === 'refurbish' || slot.repairMode === 'dismantle'
+        ? slot.repairMode as RepairBenchMode
+        : 'fine'
+      const repaired = inventoryStore.repairOwnedEquipment(slot.repairTargetSlot, idx, repairMode)
       if (repaired) {
         const equipName = slot.repairTargetSlot === 'weapon'
           ? (inventoryStore as any).ownedWeapons?.[idx]?.defId ?? ''
@@ -1047,11 +1282,16 @@ export const useProcessingStore = defineStore('processing', () => {
               ? (inventoryStore as any).ownedHats?.[idx]?.defId ?? ''
               : (inventoryStore as any).ownedShoes?.[idx]?.defId ?? ''
         const displayName = equipName ? getRepairEquipName(slot.repairTargetSlot as RepairBenchEquipType, equipName) : slot.repairTargetSlot
-        addLog(`修理完成：${displayName} 恢复全部耐久。`)
+        addLog(
+          repairMode === 'refurbish'
+            ? `翻新完成：${displayName} 恢复全部耐久并补回部分坚固。`
+            : `${repairMode === 'simple' ? '简修' : '精修'}完成：${displayName} 恢复全部耐久。`
+        )
         slot.recipeId = null
         slot.inputItemId = null
         slot.repairTargetId = undefined
         slot.repairTargetSlot = undefined
+        slot.repairMode = undefined
         slot.consumedInputs = undefined
         slot.alchemyResult = undefined
         slot.daysProcessed = 0
@@ -1065,7 +1305,7 @@ export const useProcessingStore = defineStore('processing', () => {
     // 优先放入虚空成品箱，箱子满则回退到背包
     const warehouseStore = useWarehouseStore()
     const voidOutput = warehouseStore.getVoidOutputChest()
-    const outputQuality = applyNpcQualityUpgrade(slot.machineType, slot.inputQuality ?? 'normal')
+    const outputQuality = getRecipeOutputQuality(slot, recipe)
     const output = getSlotOutput(slot, recipe)
     if (!output) return null
     if (voidOutput) {
@@ -1114,16 +1354,24 @@ export const useProcessingStore = defineStore('processing', () => {
     return output.itemId
   }
 
-  const collectProductsByType = (machineType: MachineType): { collected: number; blocked: number; outputs: string[] } => {
+  const collectProductsByType = (machineType: MachineType): { collected: number; blocked: number; outputs: ProcessingCollectedOutputEntry[] } => {
     let collected = 0
     let blocked = 0
-    const outputs: string[] = []
+    const outputs: ProcessingCollectedOutputEntry[] = []
 
     for (const slotIndex of getReadyMachineIndicesByType(machineType)) {
+      const slot = machines.value[slotIndex]
+      const recipe = slot?.recipeId ? getProcessingRecipeById(slot.recipeId) : null
+      const output = slot && recipe ? getSlotOutput(slot, recipe) : null
       const outputId = collectProduct(slotIndex)
       if (outputId) {
         collected++
-        outputs.push(outputId)
+        outputs.push({
+          itemId: outputId,
+          quantity: output?.quantity ?? 1,
+          quality: recipe?.outputQuality ?? 'normal',
+          fixedQuality: !!recipe?.outputQuality
+        })
       } else {
         blocked++
       }
@@ -1157,6 +1405,7 @@ export const useProcessingStore = defineStore('processing', () => {
     }
     if (slot.repairTargetId) clone.repairTargetId = slot.repairTargetId
     if (slot.repairTargetSlot) clone.repairTargetSlot = slot.repairTargetSlot
+    if (slot.repairMode) clone.repairMode = slot.repairMode
     return clone
   }
 
@@ -1197,7 +1446,7 @@ export const useProcessingStore = defineStore('processing', () => {
         const voidOutput = warehouseStore.getVoidOutputChest()
 
         if (slot.recipeId && slot.ready && recipe) {
-          const outputQuality = applyNpcQualityUpgrade(slot.machineType, slot.inputQuality ?? 'normal')
+          const outputQuality = getRecipeOutputQuality(slot, recipe)
           const output = getSlotOutput(slot, recipe)
           if (!output) continue
           if (voidOutput && warehouseStore.addItemToChest(voidOutput.id, output.itemId, output.quantity, outputQuality)) {
@@ -1314,6 +1563,7 @@ export const useProcessingStore = defineStore('processing', () => {
   const dailyUpdate = () => {
     const collected: ProcessingCollectedOutputEntry[] = []
     const readyNames: string[] = []
+    const smithyReadyNames: string[] = []
     const warehouseStore = useWarehouseStore()
     const resetSlotToIdle = (slot: ProcessingSlot) => {
       slot.recipeId = null
@@ -1349,6 +1599,16 @@ export const useProcessingStore = defineStore('processing', () => {
       return { nextQuality, entries }
     }
 
+    for (const job of smithyRepairJobs.value) {
+      if (job.ready) continue
+      job.daysProcessed++
+      if (job.daysProcessed >= job.totalDays) {
+        job.daysProcessed = job.totalDays
+        job.ready = true
+        smithyReadyNames.push(getSmithyRepairJobName(job))
+      }
+    }
+
     for (const slot of machines.value) {
       if (!slot.recipeId || slot.ready) continue
       slot.daysProcessed++
@@ -1366,7 +1626,7 @@ export const useProcessingStore = defineStore('processing', () => {
           const machineDef = PROCESSING_MACHINES.find(m => m.id === slot.machineType)
           if (recipe.inputItemId === null || machineDef?.autoCollect) {
             // 自动收取：无需原料的机器（蜂箱/蚯蚓箱）或标记了 autoCollect 的机器（熔炉）
-            const outputQuality = applyNpcQualityUpgrade(slot.machineType, slot.inputQuality ?? 'normal')
+            const outputQuality = getRecipeOutputQuality(slot, recipe)
             prepareAlchemyResult(slot, recipe)
             const output = getSlotOutput(slot, recipe)
             if (!output) {
@@ -1411,7 +1671,7 @@ export const useProcessingStore = defineStore('processing', () => {
             const voidInput = warehouseStore.getVoidInputChest()
             if (voidInput && recipe.inputItemId) {
               // 自动收取当前产物
-              const outputQuality = applyNpcQualityUpgrade(slot.machineType, slot.inputQuality ?? 'normal')
+              const outputQuality = getRecipeOutputQuality(slot, recipe)
               prepareAlchemyResult(slot, recipe)
               const output = getSlotOutput(slot, recipe)
               if (!output) {
@@ -1491,6 +1751,16 @@ export const useProcessingStore = defineStore('processing', () => {
         .join('、')
       addLog(`加工完成：${summary}，去工坊收取吧。`)
     }
+    if (smithyReadyNames.length > 0) {
+      const counts = new Map<string, number>()
+      for (const name of smithyReadyNames) {
+        counts.set(name, (counts.get(name) ?? 0) + 1)
+      }
+      const summary = Array.from(counts.entries())
+        .map(([name, count]) => (count > 1 ? `${name}x${count}` : name))
+        .join('、')
+      addLog(`铁匠铺修理完成：${summary}，去铁匠铺领取吧。`)
+    }
   }
 
   // === 工坊升级 ===
@@ -1520,6 +1790,7 @@ export const useProcessingStore = defineStore('processing', () => {
   const serialize = () => {
     return {
       machines: machines.value,
+      smithyRepairJobs: smithyRepairJobs.value,
       workshopLevel: workshopLevel.value,
       discoveredProcessingRecipeIds: discoveredProcessingRecipeIds.value,
       alchemyDailyLimitState: alchemyDailyLimitState.value
@@ -1527,7 +1798,24 @@ export const useProcessingStore = defineStore('processing', () => {
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
-    machines.value = Array.isArray(data?.machines) ? data.machines.map(sanitizeProcessingSlot).filter((slot): slot is ProcessingSlot => !!slot) : []
+    smithyRepairJobs.value = Array.isArray((data as any)?.smithyRepairJobs)
+      ? (data as any).smithyRepairJobs.map(sanitizeSmithyRepairJob).filter((job: SmithyRepairJob | null): job is SmithyRepairJob => !!job)
+      : []
+    const sanitizedMachines = Array.isArray(data?.machines) ? data.machines.map(sanitizeProcessingSlot).filter((slot): slot is ProcessingSlot => !!slot) : []
+    const migratedJobs = sanitizedMachines
+      .map((slot, index) => migrateLegacyRepairSlotToSmithyJob(slot, index))
+      .filter((job): job is SmithyRepairJob => !!job)
+    if (migratedJobs.length > 0) {
+      const existingKeys = new Set(smithyRepairJobs.value.map(job => `${job.equipType}:${job.equipIndex}:${job.defId}`))
+      for (const job of migratedJobs) {
+        const key = `${job.equipType}:${job.equipIndex}:${job.defId}`
+        if (!existingKeys.has(key)) {
+          smithyRepairJobs.value.push(job)
+          existingKeys.add(key)
+        }
+      }
+    }
+    machines.value = sanitizedMachines.filter(slot => !isSmithyServiceMachine(slot.machineType))
     workshopLevel.value = (data as any).workshopLevel ?? 0
     discoveredProcessingRecipeIds.value = normalizeDiscoveredProcessingRecipeIds((data as any)?.discoveredProcessingRecipeIds)
     const rawAlchemyState = (data as any)?.alchemyDailyLimitState
@@ -1544,6 +1832,7 @@ export const useProcessingStore = defineStore('processing', () => {
   }
   return {
     machines,
+    smithyRepairJobs,
     discoveredProcessingRecipeIds,
     machineCount,
     maxMachines,
@@ -1573,6 +1862,14 @@ export const useProcessingStore = defineStore('processing', () => {
     getProcessingRecipeDisplayName,
     isMachineCraftUnlocked,
     getMachineCraftLockedReason,
+    isFreeToolRepairAvailable,
+    getRepairBenchCostPreview,
+    isSmithyRepairTargetBusy,
+    startSmithyRepair,
+    collectSmithyRepairJob,
+    collectReadySmithyRepairJobs,
+    canUseEnchantingForgeService,
+    getEnchantingForgeServiceLockedReason,
     startProcessing,
     startRepairBench,
     startProcessingBatch,

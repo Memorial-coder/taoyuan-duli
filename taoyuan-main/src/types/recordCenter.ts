@@ -1,6 +1,7 @@
 export type DailyDigestSectionId =
   | 'recovery_weather'
   | 'farm_production'
+  | 'workshop_processing'
   | 'hired_helpers'
   | 'animal_fishpond'
   | 'social_events'

@@ -109,6 +109,157 @@ const expectContains = (relativePath, needle, message) => {
   }
 }
 
+const expectOnlineViewVarietyCatalogNeedles = () => {
+  const needles = [
+    ['data-testid="online-center-minigame-variety-catalog"', 'online center should expose the full minigame variety catalog'],
+    ['onlineMiniGameVarietyCatalog', 'minigame variety catalog should use a stable data model'],
+    ['data-testid="online-center-minigame-variety-categories"', 'minigame variety catalog should group activities by category'],
+    ['data-testid="online-center-minigame-variety-activities"', 'minigame variety catalog should list concrete activities'],
+    ['data-testid="online-center-minigame-variety-duration"', 'minigame variety entries should show short-session duration'],
+    ['data-testid="online-center-minigame-variety-event"', 'minigame variety entries should show event variation'],
+    ['data-testid="online-center-minigame-variety-reward"', 'minigame variety entries should show reward expectations'],
+    ["id: 'festival'", 'minigame catalog should include festival category'],
+    ["id: 'expedition'", 'minigame catalog should include expedition category'],
+    ["id: 'manor'", 'minigame catalog should include manor category'],
+    ["id: 'friend'", 'minigame catalog should include friend lightweight interaction category'],
+    ["id: 'weekend'", 'minigame catalog should include weekend large-event category'],
+    ["id: 'lantern-quiz'", 'festival minigames should include lantern quiz'],
+    ["id: 'stall-relay'", 'festival minigames should include stall relay'],
+    ["id: 'lantern-parade'", 'festival minigames should include lantern parade'],
+    ["id: 'festival-order-rush'", 'festival minigames should include festival order rush'],
+    ["id: 'duo-route-choice'", 'expedition minigames should include duo route choice'],
+    ["id: 'squad-encounter'", 'expedition minigames should include squad encounter'],
+    ["id: 'relic-explore'", 'expedition minigames should include relic exploration'],
+    ["id: 'shared-watering'", 'manor minigames should include shared watering'],
+    ["id: 'animal-care'", 'manor minigames should include animal care'],
+    ["id: 'workshop-relay'", 'manor minigames should include workshop relay'],
+    ["id: 'visitor-orders'", 'manor minigames should include visitor orders'],
+    ["id: 'message-gifts'", 'friend minigames should include message gifts'],
+    ["id: 'friend-challenge-board'", 'friend minigames should include challenge board'],
+    ["id: 'manor-like-visit'", 'friend minigames should include manor like and visit reward'],
+    ["id: 'server-festival-goal'", 'weekend events should include server festival goal'],
+    ["id: 'limited-expedition-boss'", 'weekend events should include limited expedition boss'],
+    ["id: 'society-build-race'", 'weekend events should include society build race'],
+    ["id: 'theme-leaderboard'", 'weekend events should include theme leaderboard'],
+  ]
+  for (const [needle, message] of needles) {
+    expectContains('OnlineView.vue', needle, message)
+  }
+}
+
+expectOnlineViewVarietyCatalogNeedles()
+
+const expectOnlinePlayableMiniGamePursuitNeedles = () => {
+  const needles = [
+    ['data-testid="online-center-minigame-status-matrix"', 'playable minigame cards should expose a compact state matrix'],
+    ['online-center-minigame-status-${cell.id}', 'playable minigame cards should expose stable per-status test ids'],
+    ["id: 'joinable'", 'playable minigame cards should show whether the activity is joinable'],
+    ["id: 'invitable'", 'playable minigame cards should show whether friends can be invited'],
+    ["id: 'settleable'", 'playable minigame cards should show settlement readiness'],
+    ["id: 'today-complete'", 'playable minigame cards should show today completion proof'],
+    ["id: 'weekly-remaining'", 'playable minigame cards should show weekly reward availability'],
+    ['data-testid="online-center-minigame-reward-pursuit"', 'playable minigame cards should expose reward pursuit details'],
+    ['data-testid="online-center-minigame-weekly-remaining"', 'playable minigame cards should show weekly remaining reward count'],
+    ['data-testid="online-center-minigame-reward-progress"', 'playable minigame cards should show immediate reward progress'],
+    ['data-testid="online-center-minigame-collection-target"', 'playable minigame cards should show long-term collection targets'],
+    ['type OnlinePlayableMiniGameStatusId', 'playable minigame status cells should use a stable status-id union'],
+    ['buildPlayableMiniGameStatusCells', 'playable minigame status cells should use a shared builder'],
+    ['miniGameWeeklyRemainingLabel', 'playable minigame cards should derive weekly reward text consistently'],
+    ['weeklyRemainingLabel', 'playable minigame cards should carry weekly remaining text in the data model'],
+    ['rewardProgressLabel', 'playable minigame cards should carry immediate reward progress text in the data model'],
+    ['collectionLabel', 'playable minigame cards should carry long-term collection target text in the data model'],
+  ]
+  for (const [needle, message] of needles) {
+    expectContains('OnlineView.vue', needle, message)
+  }
+}
+
+expectOnlinePlayableMiniGamePursuitNeedles()
+
+const expectOnlineRoomGameplayBoardNeedles = () => {
+  const needles = [
+    ['data-testid="online-festival-room-gameplay-board"', 'festival room should expose a playable lantern quiz board'],
+    ['data-testid="online-expedition-room-gameplay-board"', 'expedition room should expose a playable resource escort board'],
+    ['data-testid="online-room-gameplay-board-status"', 'room gameplay board should show current play state'],
+    ['data-testid="online-room-gameplay-board-event"', 'room gameplay board should show current event'],
+    ['data-testid="online-room-gameplay-board-metrics"', 'room gameplay board should show gameplay metrics'],
+    ['data-testid="online-room-gameplay-board-steps"', 'room gameplay board should show short-session steps'],
+    ['data-testid="online-room-gameplay-board-actions"', 'room gameplay board should expose direct actions'],
+    ['data-testid="online-room-gameplay-board-event-variations"', 'room gameplay board should expose event variation cards'],
+    ['data-testid="online-room-gameplay-board-event-variation"', 'room gameplay board should render each event variation'],
+    ['data-testid="online-room-gameplay-board-hidden-objectives"', 'room gameplay board should expose hidden objectives'],
+    ['data-testid="online-room-gameplay-board-hidden-objective"', 'room gameplay board should render each hidden objective'],
+    ['data-testid="online-room-gameplay-board-feedback"', 'room gameplay board should show teammate feedback'],
+    ['data-testid="online-room-gameplay-board-reward"', 'room gameplay board should show settlement reward preview'],
+    ['data-testid="online-room-gameplay-board-failure"', 'room gameplay board should show failure fallback'],
+    ['type OnlineRoomGameplayBoardEventVariation', 'room gameplay board should type event variations'],
+    ['type OnlineRoomGameplayBoardHiddenObjective', 'room gameplay board should type hidden objectives'],
+    ['eventVariations:', 'room gameplay board data should include event variation rows'],
+    ['hiddenObjectives:', 'room gameplay board data should include hidden objective rows'],
+    ['gameplayEventVariation', 'room gameplay board should use a shared event-variation builder'],
+    ['gameplayHiddenObjective', 'room gameplay board should use a shared hidden-objective builder'],
+    ['festivalRoomGameplayBoard', 'festival room gameplay board should be data-derived'],
+    ['expeditionRoomGameplayBoard', 'expedition room gameplay board should be data-derived'],
+    ["id: 'lantern-quiz-board'", 'festival gameplay board should target lantern quiz'],
+    ["id: 'resource-escort-board'", 'expedition gameplay board should target resource escort'],
+    ['天气影响', 'room gameplay board should show weather as an event variation'],
+    ['NPC 乱入', 'festival gameplay board should show NPC event variation'],
+    ['随机事件', 'room gameplay board should show random event variation'],
+    ['隐藏目标：灯谜连答', 'festival gameplay board should show hidden lantern streak objective'],
+    ['隐藏目标：完整护送', 'expedition gameplay board should show hidden escort objective'],
+    ['撤离抉择', 'expedition gameplay board should show withdrawal decisions'],
+    ["gameplayActionById(actions, 'buzz_correct')", 'lantern quiz board should use real buzz action id'],
+    ["gameplayActionById(actions, 'review_hint')", 'lantern quiz board should use real hint action id'],
+    ["gameplayActionById(actions, 'escort_step')", 'escort board should use real route action id'],
+    ["gameplayActionById(actions, 'stabilize_cargo')", 'escort board should use real cargo action id'],
+    ["gameplayActionById(actions, 'answer_incident')", 'escort board should use real incident action id'],
+  ]
+  for (const [needle, message] of needles) {
+    expectContains('online/OnlineFestivalView.vue', needle, message)
+  }
+}
+
+expectOnlineRoomGameplayBoardNeedles()
+
+const expectOnlineRoomRewardBurstNeedles = () => {
+  const needles = [
+    ['data-testid="online-room-short-session-result-banner"', 'room settlement should expose a first-glance result banner after receipts exist'],
+    ['data-testid="online-room-short-session-result-metrics"', 'short-session result banner should group contribution, reward, collection, teammate, and rematch metrics'],
+    ['festivalShortSessionResultBanner', 'festival room should derive a result banner from the latest settlement receipt'],
+    ['expeditionShortSessionResultBanner', 'expedition room should derive a result banner from the latest settlement receipt'],
+    ['buildShortSessionResultBanner', 'result banner should use one shared builder for festival and expedition rooms'],
+    ["id: 'collection'", 'result banner should show collection or rare-progress payoff'],
+    ['data-testid="online-room-short-session-payoff-summary"', 'room settlement should expose a direct payoff summary after receipts exist'],
+    ['data-testid="online-room-short-session-payoff-grid"', 'payoff summary should group contribution, reward, rare, teammate, rematch, and fallback rows'],
+    ['data-testid="online-room-short-session-payoff-rematch"', 'payoff summary should provide a direct rematch CTA'],
+    ['festivalShortSessionPayoffSummary', 'festival room should derive a payoff summary from current settlement receipts'],
+    ['expeditionShortSessionPayoffSummary', 'expedition room should derive a payoff summary from current settlement receipts'],
+    ['buildShortSessionPayoffSummary', 'payoff summary should use one shared builder for festival and expedition rooms'],
+    ['type OnlineShortSessionPayoffSummary', 'payoff summary should use a stable data model'],
+    ['online-room-short-session-payoff-${item.id}', 'payoff summary should expose stable per-item test hooks'],
+    ['这局节会已经有复开价值', 'festival payoff summary should state the short session has rematch value'],
+    ['这局远征已经有复开价值', 'expedition payoff summary should state the short session has rematch value'],
+    ['按本局再来一局', 'payoff summary should give a player-facing rematch action'],
+    ['data-testid="online-room-short-session-reward-burst"', 'room settlement should expose a reward-burst panel after short sessions'],
+    ['data-testid="online-room-short-session-reward-burst-list"', 'reward-burst panel should group contribution, reward, collection, teammate, rematch, and fallback beats'],
+    ['festivalShortSessionRewardBursts', 'festival room should derive reward-burst rows from current room data'],
+    ['expeditionShortSessionRewardBursts', 'expedition room should derive reward-burst rows from current room data'],
+    ['buildShortSessionRewardBursts', 'reward-burst panel should use one shared builder for festival and expedition rooms'],
+    ["id: 'contribution'", 'reward-burst panel should show contribution spotlight'],
+    ["id: 'reward'", 'reward-burst panel should show landed reward'],
+    ["id: 'rare-drop'", 'reward-burst panel should show rare drop or collection progress'],
+    ["id: 'teammate'", 'reward-burst panel should show teammate performance'],
+    ["id: 'rematch'", 'reward-burst panel should show rematch guidance'],
+    ["id: 'fallback'", 'reward-burst panel should show failure fallback rewards'],
+    ['route_replay?: ActivityRouteReplay | null', 'short-session receipt source should keep route replay available for collection and rare-drop copy'],
+  ]
+  for (const [needle, message] of needles) {
+    expectContains('online/OnlineFestivalView.vue', needle, message)
+  }
+}
+
+expectOnlineRoomRewardBurstNeedles()
+
 const expectNotContains = (relativePath, needle, message) => {
   if (getFile(relativePath).includes(needle)) {
     addFailure(relativePath, message)
@@ -208,6 +359,191 @@ for (const relativePath of onlineModuleShellPanelPages) {
 
 expectContains('OnlineView.vue', '<OnlineModuleCard', '在线中心首页应继续使用模块卡组件')
 expectContains('OnlineView.vue', "routeName: 'online-cohabitation'", '在线中心首页应提供共同庄园入口')
+expectContains('OnlineView.vue', 'data-testid="online-activity-center"', '在线中心首页应提供玩家可直接决策的活动中心')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-stage"', '在线活动中心应把今日三局提升到首屏优先行动区')
+expectContains('OnlineView.vue', 'online-center-daily-priority-card-${activity.id}', '今日三局应由固定三条推荐卡渲染')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-slot"', '今日三局应展示第 1/2/3 项行动顺序')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-plan"', '今日三局应展示推荐计划信息')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-reason"', '今日三局应展示推荐原因')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-duration"', '今日三局应展示预计耗时')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-reward"', '今日三局应展示奖励预期')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-teamwork"', '今日三局应展示协作人数或协作方式')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-priority-action"', '今日三局应展示清晰行动按钮文案')
+expectContains('OnlineView.vue', 'onlineDailyPrioritySummary', '今日三局应有首屏摘要而不是只在下方列表出现')
+expectContains('OnlineView.vue', 'dailyPriorityActionLabel', '今日三局应根据状态给出处理邀请、准备、开始、结算或领奖动作')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-recommendations"', '在线活动中心应提供今日推荐活动')
+expectContains('OnlineView.vue', 'type OnlineDailyActivityCard', '今日推荐应使用独立卡片模型而不是复用宽泛主题排序')
+expectContains('OnlineView.vue', 'pickDailyActivityCards', '今日推荐应按优先级收束为固定数量行动项')
+expectContains('OnlineView.vue', '.slice(0, 3)', '今日推荐应固定收束为 3 个行动入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-recommendation-plan"', '今日推荐卡应展示推荐计划信息')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-recommendation-reason"', '今日推荐卡应展示推荐原因')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-recommendation-duration"', '今日推荐卡应展示预计耗时')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-recommendation-reward"', '今日推荐卡应展示奖励预期')
+expectContains('OnlineView.vue', 'data-testid="online-center-daily-recommendation-teamwork"', '今日推荐卡应展示协作人数或协作方式')
+expectContains('OnlineView.vue', "id: 'daily-lantern-riddle'", '今日推荐应保底提供灯谜竞猜短局')
+expectContains('OnlineView.vue', "id: 'daily-resource-escort'", '今日推荐应保底提供资源护送短局')
+expectContains('OnlineView.vue', "id: 'daily-friend-help'", '今日推荐应保底提供好友轻互动')
+expectContains('OnlineView.vue', "id: 'handle-room-invites'", '今日推荐应优先处理待确认房间邀请')
+expectContains('OnlineView.vue', "id: 'claim-online-rewards'", '今日推荐应优先提示可领取联机奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage"', '在线活动中心应把节庆 / 远征 / 庄园三套主题作为首屏活动舞台')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage-mood"', '主题舞台应展示不同玩法氛围而不是普通表单标题')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage-scene"', '主题舞台应展示节庆 / 远征 / 庄园的场景线索')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage-focus"', '主题舞台应展示当前焦点，避免只像普通信息卡')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage-primary-action"', '主题舞台应把今日主行动做成显眼操作提示')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage-flow"', '主题舞台应读回下一步、好友动向和奖励落点')
+expectContains('OnlineView.vue', 'data-testid="online-center-theme-stage-stats"', '主题舞台应展示当前房间、邀请或协作进度数据')
+expectContains('OnlineView.vue', 'activityThemeStageClass', '主题舞台应使用独立主题视觉样式，不应只复用普通信息卡')
+expectContains('OnlineView.vue', 'moodLabel', '主题活动模型应包含氛围文案')
+expectContains('OnlineView.vue', 'sceneCues', '主题活动模型应包含场景线索')
+expectContains('OnlineView.vue', 'focusLabel', '主题活动模型应包含当前焦点文案')
+expectContains('OnlineView.vue', 'nextStepLabel', '主题活动模型应包含下一步文案')
+expectContains('OnlineView.vue', 'friendSignalLabel', '主题活动模型应包含好友动向文案')
+expectContains('OnlineView.vue', 'rewardAnchorLabel', '主题活动模型应包含奖励落点文案')
+expectContains('OnlineView.vue', '热闹灯会 / 市集短局', '节会主题应明确表现灯会、市集和热闹短局氛围')
+expectContains('OnlineView.vue', '路线地图 / 队伍战利品', '远征主题应明确表现地图、队伍和战利品氛围')
+expectContains('OnlineView.vue', '协作经营 / 共同建设', '庄园主题应明确表现协作经营和共同建设氛围')
+expectContains('OnlineView.vue', 'onlineThemeActivityCards', '在线活动中心应从主题活动数据模型渲染节庆 / 远征 / 庄园入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-game-card-statuses"', '在线活动卡片应展示可加入 / 可邀请 / 可结算等状态')
+expectContains('OnlineView.vue', 'data-testid="online-center-collaboration-roles"', '在线活动卡片应展示协作分工')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-preview"', '在线活动卡片应展示奖励预览')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekly-reward-progress"', '在线活动中心应展示本周奖励进度')
+expectContains('OnlineView.vue', 'data-testid="online-center-friend-activity-feed"', '在线活动中心应展示好友正在玩的内容')
+expectContains('OnlineView.vue', 'data-testid="online-center-friend-team-board"', '在线活动中心应展示好友榜 / 队伍榜复玩入口')
+expectContains('OnlineView.vue', 'onlineFriendTeamBoardEntries', '好友榜 / 队伍榜应从好友动态和结算记录派生条目')
+expectContains('OnlineView.vue', 'data-testid="online-center-playable-minigames"', '在线活动中心应提供今日可玩小游戏卡组')
+expectContains('OnlineView.vue', "id: 'lantern-riddle'", '今日可玩小游戏应显式提供灯谜竞猜入口')
+expectContains('OnlineView.vue', "id: 'resource-escort'", '今日可玩小游戏应显式提供资源护送入口')
+expectContains('OnlineView.vue', "template: 'lantern_fair', gameplay: 'quiz_buzz', open_wizard: '1'", '灯谜竞猜入口应直达预填创建向导')
+expectContains('OnlineView.vue', "template: 'escort_convoy', gameplay: 'expedition_escort', open_wizard: '1'", '资源护送入口应直达预填创建向导')
+expectContains('OnlineView.vue', 'data-testid="online-center-minigame-event-hooks"', '小游戏卡片应展示天气、NPC、随机事件或隐藏目标等变化点')
+expectContains('OnlineView.vue', 'data-testid="online-center-minigame-reward-loop"', '小游戏卡片应展示短局结算、每周进度或失败保底奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration"', '在线活动中心应提供好友不在线也能参与的轻协作区')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-modes"', '轻协作区应集中展示异步协作模式')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-queue"', '轻协作区应提供离线协作队列')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-queue-summary"', '离线协作队列应展示当前可推进步骤摘要')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-next-action"', '离线协作队列应提供下一步行动入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-queue-steps"', '离线协作队列应集中展示四步轻协作')
+expectContains('OnlineView.vue', 'online-center-async-collaboration-step-${step.id}', '离线协作队列每步应提供稳定测试钩子')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-step-order"', '离线协作队列应展示步骤顺序')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-step-status"', '离线协作队列应展示步骤状态')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-step-reward"', '离线协作队列应展示步骤奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-async-collaboration-step-impact"', '离线协作队列应展示步骤影响')
+expectContains('OnlineView.vue', 'type OnlineAsyncCollaborationQueueStep', '离线协作队列应使用稳定数据模型')
+expectContains('OnlineView.vue', 'onlineAsyncCollaborationQueueSteps', '离线协作队列应从轻协作卡片派生')
+expectContains('OnlineView.vue', 'onlineAsyncCollaborationNextAction', '离线协作队列应派生下一步行动')
+expectContains('OnlineView.vue', 'onlineAsyncCollaborationQueueSummary', '离线协作队列应派生摘要文案')
+expectContains('OnlineView.vue', 'onlineAsyncCollaborationCards', '轻协作区应从现有在线 store 派生可操作卡片')
+expectContains('OnlineView.vue', "id: 'leave-commission'", '轻协作区应提供留下委托入口')
+expectContains('OnlineView.vue', "id: 'send-helper'", '轻协作区应提供派出帮手入口')
+expectContains('OnlineView.vue', "id: 'borrow-facility'", '轻协作区应提供借用庄园设施入口')
+expectContains('OnlineView.vue', "id: 'claim-async-rewards'", '轻协作区应提供领取异步协作奖励入口')
+expectContains('OnlineView.vue', '领取异步协作奖励', '轻协作区应使用玩家可理解的奖励领取文案')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-path"', '在线活动中心应提供每日 / 每周 / 协作 / 长线奖励路线')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-path-tiers"', '奖励路线应集中展示四层奖励')
+expectContains('OnlineView.vue', 'onlineRewardPathCards', '奖励路线应从邮件、周进度、结算和好友协作数据派生卡片')
+expectContains('OnlineView.vue', "id: 'daily-rewards'", '奖励路线应展示每日奖励')
+expectContains('OnlineView.vue', "id: 'weekly-rewards'", '奖励路线应展示每周奖励')
+expectContains('OnlineView.vue', "id: 'collaboration-rewards'", '奖励路线应展示协作奖励')
+expectContains('OnlineView.vue', "id: 'long-term-rewards'", '奖励路线应展示长线奖励')
+expectContains('OnlineView.vue', '小游戏熟练度', '长线奖励应显式提示小游戏熟练度')
+expectContains('OnlineView.vue', '稀有外观/家具', '长线奖励应显式提示限定外观或家具目标')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-claim-plan"', '在线活动中心应提供可执行的奖励兑现清单')
+expectContains('OnlineView.vue', 'onlineRewardClaimPlanCards', '奖励兑现清单应从邮箱、周进度、结算、好友和收集数据派生')
+expectContains('OnlineView.vue', 'onlineRewardClaimRoute', '在线活动中心的领奖和收藏入口应统一落到领奖收口')
+expectContains('OnlineView.vue', "panel: 'reward-claim'", '在线活动中心跳到纪念记录时应带上领奖收口 panel')
+expectContains('OnlineView.vue', "id: 'daily-cashout'", '奖励兑现清单应展示今日可领取奖励')
+expectContains('OnlineView.vue', "id: 'weekly-cashout'", '奖励兑现清单应展示本周奖励缺口')
+expectContains('OnlineView.vue', "id: 'collaboration-cashout'", '奖励兑现清单应展示协作奖励落点')
+expectContains('OnlineView.vue', "id: 'long-term-cashout'", '奖励兑现清单应展示长期收藏奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-claim-plan-next-action"', '奖励兑现清单应明确下一步行动')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-claim-plan-reward"', '奖励兑现清单应明确奖励内容')
+expectContains('OnlineView.vue', 'data-testid="online-center-reward-claim-plan-proof"', '奖励兑现清单应展示已有凭证或进度来源')
+expectContains('OnlineView.vue', 'data-testid="online-center-collection-goals"', '在线活动中心应提供节会 / 远征 / 好友 / 庄园收集目标')
+expectContains('OnlineView.vue', 'data-testid="online-center-collection-goal-cards"', '收集目标应集中展示四类长期目标卡')
+expectContains('OnlineView.vue', 'onlineCollectionGoalCards', '收集目标应从结算、纪念、好友和庄园数据派生')
+expectContains('OnlineView.vue', "id: 'festival-memorial-book'", '收集目标应提供节会纪念册')
+expectContains('OnlineView.vue', "id: 'expedition-almanac'", '收集目标应提供远征图鉴')
+expectContains('OnlineView.vue', "id: 'friend-badges'", '收集目标应提供好友徽章')
+expectContains('OnlineView.vue', "id: 'manor-collaboration-title'", '收集目标应提供庄园协作称号')
+expectContains('OnlineView.vue', 'data-testid="online-center-collection-goal-reward"', '收集目标应展示对应称号、装饰或长期奖励提示')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-themes"', '在线活动中心应提供每周主题与赛季限定入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-theme-cards"', '赛季区应集中展示灯会周 / 远征周 / 丰收周 / 老带新')
+expectContains('OnlineView.vue', 'onlineSeasonThemeCards', '赛季区应从房间、结算、好友和庄园数据派生主题卡')
+expectContains('OnlineView.vue', "id: 'lantern-week'", '赛季区应提供灯会周入口')
+expectContains('OnlineView.vue', "id: 'expedition-week'", '赛季区应提供远征周入口')
+expectContains('OnlineView.vue', "id: 'harvest-week'", '赛季区应提供丰收周入口')
+expectContains('OnlineView.vue', "id: 'mentor-bonus'", '赛季区应提供老带新奖励入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-theme-limited-reward"', '赛季主题应展示限定家具、称号或新人协助奖励提示')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass"', '在线活动中心应提供赛季通行证式进度面板')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass-track"', '赛季进度应提供总轨道入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass-level"', '赛季进度应展示联机等级')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass-next-reward"', '赛季进度应展示下一档奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass-progress-bar"', '赛季进度应展示总进度条')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass-sources"', '赛季进度应展示短局、周目标、好友和收藏来源')
+expectContains('OnlineView.vue', 'data-testid="online-center-season-pass-milestones"', '赛季进度应展示每日、每周、协作、长线和限定里程碑')
+expectContains('OnlineView.vue', 'type OnlineSeasonPassMilestone', '赛季进度里程碑应使用稳定数据模型')
+expectContains('OnlineView.vue', 'onlineSeasonPassScore', '赛季进度应从现有联机进度派生总分')
+expectContains('OnlineView.vue', 'onlineSeasonPassSources', '赛季进度应列出分数来源')
+expectContains('OnlineView.vue', 'onlineSeasonPassMilestones', '赛季进度应派生里程碑卡片')
+expectContains('OnlineView.vue', "id: 'daily'", '赛季进度应包含每日奖励里程碑')
+expectContains('OnlineView.vue', "id: 'weekly'", '赛季进度应包含每周奖励里程碑')
+expectContains('OnlineView.vue', "id: 'collaboration'", '赛季进度应包含协作奖励里程碑')
+expectContains('OnlineView.vue', "id: 'collection'", '赛季进度应包含长线收集里程碑')
+expectContains('OnlineView.vue', "id: 'limited'", '赛季进度应包含限定外观里程碑')
+expectContains('OnlineView.vue', '赛季通行证式进度', '赛季进度文案应明确长期轨道')
+expectContains('OnlineView.vue', '限定外观、头像框、主题家具、战利品陈列', '赛季限定里程碑应展示外观、头像框、家具或陈列奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekend-events"', '在线活动中心应把周末大型活动提升为可行动看板')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekend-event-cards"', '周末大型活动看板应集中展示四类大型活动')
+expectContains('OnlineView.vue', 'online-center-weekend-event-${event.id}', '周末大型活动卡应提供稳定测试锚点')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekend-event-goal"', '周末大型活动卡应展示本周目标')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekend-event-reward"', '周末大型活动卡应展示限定或周末奖励')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekend-event-team"', '周末大型活动卡应展示组队或村社协作线索')
+expectContains('OnlineView.vue', 'data-testid="online-center-weekend-event-progress"', '周末大型活动卡应展示进度条')
+expectContains('OnlineView.vue', 'type OnlineWeekendEventCard', '周末大型活动卡应使用稳定数据模型')
+expectContains('OnlineView.vue', 'onlineWeekendEventCards', '周末大型活动看板应从现有联机进度派生')
+expectContains('OnlineView.vue', 'onlineWeekendEventSummary', '周末大型活动看板应提供汇总进度')
+expectContains('OnlineView.vue', "id: 'server-festival-goal'", '周末大型活动应包含全服节庆目标')
+expectContains('OnlineView.vue', "id: 'limited-expedition-boss'", '周末大型活动应包含限时远征首领')
+expectContains('OnlineView.vue', "id: 'society-build-race'", '周末大型活动应包含村社建设赛')
+expectContains('OnlineView.vue', "id: 'theme-leaderboard'", '周末大型活动应包含主题排行榜')
+expectContains('OnlineView.vue', '全服节庆目标', '周末大型活动应以玩家可读标题展示全服节庆目标')
+expectContains('OnlineView.vue', '限时远征首领', '周末大型活动应以玩家可读标题展示限时远征首领')
+expectContains('OnlineView.vue', '村社建设赛', '周末大型活动应以玩家可读标题展示村社建设赛')
+expectContains('OnlineView.vue', '主题排行榜', '周末大型活动应以玩家可读标题展示主题排行榜')
+expectContains('OnlineView.vue', 'data-testid="online-center-replay-loop"', '在线活动中心应提供结算后再开一局和约人复玩入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-replay-loop-cards"', '复玩区应集中展示节会复开、远征复开、好友榜和老带新入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-replay-loop-replay"', '复玩卡应展示回执或复开路径')
+expectContains('OnlineView.vue', 'data-testid="online-center-replay-loop-reward"', '复玩卡应展示复玩奖励预期')
+expectContains('OnlineView.vue', 'data-testid="online-center-replay-loop-fairness"', '复玩卡应说明榜单奖励不拉大差距')
+expectContains('OnlineView.vue', 'onlineReplayLoopCards', '在线活动中心复玩区应从当前回执、好友和邀请数据派生')
+expectContains('OnlineView.vue', "id: 'rematch-festival'", '复玩区应提供节会再来一局入口')
+expectContains('OnlineView.vue', "id: 'rematch-expedition'", '复玩区应提供远征再来一局入口')
+expectContains('OnlineView.vue', "id: 'friend-team-rematch'", '复玩区应提供好友榜 / 队伍榜复玩入口')
+expectContains('OnlineView.vue', "id: 'mentor-newcomer'", '复玩区应提供老带新复玩入口')
+expectContains('OnlineView.vue', 'data-testid="online-center-event-variation"', '在线活动中心应集中展示今日事件变化')
+expectContains('OnlineView.vue', 'data-testid="online-center-event-variation-cards"', '事件变化区应集中展示天气、季节、NPC、随机和隐藏目标')
+expectContains('OnlineView.vue', 'data-testid="online-center-event-variation-trigger"', '事件变化卡应展示触发条件')
+expectContains('OnlineView.vue', 'data-testid="online-center-event-variation-payoff"', '事件变化卡应展示事件收益')
+expectContains('OnlineView.vue', 'onlineEventVariationCards', '事件变化区应从房间、回执、好友、订单和庄园数据派生')
+expectContains('OnlineView.vue', "id: 'weather'", '事件变化区应展示天气影响')
+expectContains('OnlineView.vue', "id: 'season'", '事件变化区应展示季节限定')
+expectContains('OnlineView.vue', "id: 'npc'", '事件变化区应展示 NPC 乱入')
+expectContains('OnlineView.vue', "id: 'random'", '事件变化区应展示随机事件')
+expectContains('OnlineView.vue', "id: 'hidden'", '事件变化区应展示隐藏目标')
+expectContains('OnlineView.vue', 'festivalActivityCard', '在线活动中心应聚合节会主题活动')
+expectContains('OnlineView.vue', 'expeditionActivityCard', '在线活动中心应聚合远征主题活动')
+expectContains('OnlineView.vue', 'manorActivityCard', '在线活动中心应聚合庄园主题活动')
+expectContains('OnlineView.vue', 'onlineThemeActivityCards', '在线活动中心应从实时 store 派生主题活动卡')
+expectContains('OnlineView.vue', 'onlinePlayableMiniGameCards', '在线活动中心应从现有 store 派生今日可玩小游戏卡')
+expectContains('OnlineView.vue', 'onlineWeeklyRewardSteps', '在线活动中心应从现有证据派生本周奖励进度')
+expectContains('OnlineView.vue', 'onlineFriendActivityEntries', '在线活动中心应从好友与近期玩家派生活动动态')
+expectContains('OnlineView.vue', 'data-testid="online-center-today-todos"', '在线中心首页应提供今日联机待办聚合区')
+expectContains('OnlineView.vue', "id: 'room-invites'", '在线中心今日待办应优先展示房间邀请')
+expectContains('OnlineView.vue', "id: 'cohabitation-pending'", '在线中心今日待办应展示共同庄园待确认契约')
+expectContains('OnlineView.vue', "id: 'manor-care'", '在线中心今日待办应展示可照料 / 可轻采好友庄园')
+expectContains('OnlineView.vue', "id: 'coop-orders'", '在线中心今日待办应展示互助委托')
+expectContains('OnlineView.vue', "id: 'mail-rewards'", '在线中心今日待办应展示邮件奖励入口')
+expectContains('OnlineView.vue', 'useMailboxStore', '在线中心今日待办应消费现有邮箱 store 摘要')
 expectContains('FriendStationView.vue', 'region-social-friend-manor', '好友驿站应提供进入好友庄园入口')
 expectContains('FriendStationView.vue', 'region-social-friend-care', '好友驿站应提供好友庄园照料入口')
 expectContains('FriendStationView.vue', 'region-social-friend-cohabitation', '好友驿站应提供共同庄园邀请入口')
@@ -262,8 +598,18 @@ expectContains('views/game/MailView.vue', 'mail-detail-layout', 'mailbox desktop
 expectContains('stores/useMailboxStore.ts', 'markAllRead', 'mailbox store should expose bulk mark-read')
 expectContains('utils/mailboxApi.ts', '/api/taoyuan/mail/read-all', 'mailbox API should call the bulk mark-read endpoint')
 expectContains('views/GameLayout.vue', 'friend-chat-badge', '移动端总入口应显示好友私聊未读徽标')
-expectContains('components/game/MobileMapMenu.vue', "pick(['friend-station', 'friend-chat'])", '移动端联机快捷入口应包含好友私聊')
+expectContains('components/game/MobileMapMenu.vue', "pick(['festival', 'friend-station', 'friend-chat'])", '移动端联机快捷入口应包含节会、好友和私聊')
 expectContains('components/game/MobileMapMenu.vue', 'friendChatStore.totalUnreadCount', '移动端地图菜单应展示好友私聊未读状态')
+expectContains('components/game/MobileMapMenu.vue', 'pendingOnlineRoomInviteCount', '移动端地图菜单应聚合节会 / 远征房间邀请')
+expectContains('components/game/MobileMapMenu.vue', '处理联机邀请', '移动端地图菜单应把待处理联机邀请提升到推荐入口')
+expectContains('views/GameLayout.vue', 'online-room-invite-badge', '右下角地图按钮应展示联机房间邀请角标')
+expectContains('views/GameLayout.vue', 'data-testid="mobile-hub-online-invite-prompt"', '右下角地图按钮收到联机邀请时应展示可读提示')
+expectContains('views/GameLayout.vue', '联机邀请待处理', '右下角地图邀请提示应直接说明待处理状态')
+expectContains('views/GameLayout.vue', 'openOnlineRoomInvitesFromPrompt', '右下角地图邀请提示应可点击直达邀请处理页')
+expectContains('views/GameLayout.vue', "focus: 'invites'", '右下角地图邀请提示跳转时应带上邀请聚焦参数')
+expectContains('views/GameLayout.vue', ':online-room-invite-count="pendingOnlineRoomInviteCount"', '游戏布局应把联机邀请数量传给地图菜单')
+expectContains('views/GameLayout.vue', 'festivalRoomStore.refreshOverview({ silent: true })', '游戏布局应刷新节会房间邀请角标')
+expectContains('views/GameLayout.vue', 'expeditionRoomStore.refreshOverview({ silent: true })', '游戏布局应刷新远征房间邀请角标')
 expectContains('composables/useNavigation.ts', "| 'friend-chat'", '导航 PanelKey 应包含好友私聊')
 expectContains('data/timeConstants.ts', "'friend-chat': 'village_area'", '好友私聊应复用好友驿站地点分组')
 expectContains('CottageView.vue', 'cottage-cohabitation-family-entry', '小屋页应提供同居 / 家庭 / 共同庄园入口')
@@ -360,12 +706,22 @@ expectContains('online/OnlineManorView.vue', '<OnlineModuleShell', '庄园子页
 expectContains('online/OnlineManorView.vue', "activeTab = ref<ManorTabKey>('overview')", '庄园默认页应保持概览')
 expectContains('online/OnlineManorView.vue', 'route.query.tab', '在线庄园页应识别好友入口传入的标签页')
 expectContains('online/OnlineManorView.vue', "activeTab === 'theme'", '庄园主题表单应留在主题标签')
+expectContains('online/OnlineManorView.vue', 'online-manor-hero', '庄园概览首屏应提供封面式英雄区')
+expectContains('online/OnlineManorView.vue', 'online-manor-quick-actions', '庄园概览首屏应提供四个主动作区')
 expectContains('online/OnlineManorView.vue', 'online-manor-owner-primary-actions', '庄园主人态概览应有独立主行动区')
 expectContains('online/OnlineManorView.vue', 'online-manor-visitor-primary-actions', '庄园访客态概览应有独立主行动区')
 expectContains('online/OnlineManorView.vue', 'online-manor-owner-primary-manage-theme', '庄园主人主行动应优先管理展示')
 expectContains('online/OnlineManorView.vue', 'online-manor-owner-primary-manage-access', '庄园主人主行动应提供权限管理入口')
 expectContains('online/OnlineManorView.vue', 'online-manor-care-manage-access', '庄园照料页主人态应提供权限管理入口')
+expectContains('online/OnlineManorView.vue', 'online-manor-visitor-primary-visit', '庄园访客主行动应提供访问入口')
+expectContains('online/OnlineManorView.vue', 'online-manor-visitor-primary-guestbook', '庄园访客主行动应提供留言入口')
+expectContains('online/OnlineManorView.vue', 'online-manor-visitor-primary-care', '庄园访客主行动应提供照料入口')
 expectContains('online/OnlineManorView.vue', 'online-manor-visitor-primary-steal', '庄园访客主行动应保留轻采入口')
+expectContains('online/OnlineManorView.vue', '轻采 · {{ stealPermissionLabel }}', '庄园访客轻采主行动应稳定读出轻采文案')
+expectContains('online/OnlineManorView.vue', 'online-manor-visit-card', '庄园概览应把记录来访改成到访卡片')
+expectContains('online/OnlineManorView.vue', 'online-manor-activity-feed', '庄园概览应把留言、访问、照料和轻采汇总成最近互动')
+expectContains('online/OnlineManorView.vue', 'visitorActionChips', '庄园概览应派生今日可做状态胶囊')
+expectContains('online/OnlineManorView.vue', 'manorActivityFeed', '庄园概览应派生最近互动动态')
 expectContains('online/OnlineManorView.vue', 'online-manor-overview-latest-summary', '庄园主人概览应展示最新留言和照料摘要')
 expectContains('online/OnlineManorView.vue', '<OnlineActionDialog', '庄园主图、主题保存和留言输入应复用通用弹窗')
 expectContains('online/OnlineManorView.vue', 'online-manor-access-policy-dialog', '庄园权限管理应复用弹窗并提供稳定 test id')
@@ -409,6 +765,21 @@ expectContains('online/OnlineManorView.vue', 'careRoomSettlementHint', '庄园�
 expectContains('online/OnlineManorView.vue', 'careRoomRecordReceiptLabel', '庄园协作护理记录应提供凭证 fallback，避免旧记录空白')
 expectContains('online/OnlineManorView.vue', 'careRoomRecordHealthLabel', '庄园协作护理记录应整理健康收口摘要')
 expectContains('online/OnlineManorView.vue', 'careRoomRecordRiskLabel', '庄园协作护理记录应整理风险回看摘要')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-stage', '庄园照料页应提供协作短局主舞台')
+expectContains('online/OnlineManorView.vue', 'OnlineManorCoopMiniGameCard', '庄园协作短局应有结构化卡片数据')
+expectContains('online/OnlineManorView.vue', 'onlineManorCoopMiniGameCards', '庄园协作短局应从现有庄园快照派生玩法卡片')
+expectContains('online/OnlineManorView.vue', '共同浇灌', '庄园协作短局应覆盖共同浇灌玩法')
+expectContains('online/OnlineManorView.vue', '动物护理', '庄园协作短局应覆盖动物护理玩法')
+expectContains('online/OnlineManorView.vue', '作坊接力', '庄园协作短局应覆盖作坊接力玩法')
+expectContains('online/OnlineManorView.vue', '访客订单', '庄园协作短局应覆盖访客订单玩法')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-status', '庄园协作短局卡片应展示可加入 / 可邀请 / 可结算等状态')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-progress', '庄园协作短局卡片应展示协作进度')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-reward', '庄园协作短局卡片应展示奖励预览')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-fallback', '庄园协作短局卡片应展示失败保底收益')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-event', '庄园协作短局卡片应展示事件变化')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-hidden-objective', '庄园协作短局卡片应展示隐藏目标')
+expectContains('online/OnlineManorView.vue', 'online-manor-coop-gameplay-rematch', '庄园协作短局应提供再开一局入口')
+expectContains('online/OnlineManorView.vue', 'handleManorCoopMiniGameAction', '庄园协作短局按钮应连接现有护理房 / 场景 / 来访入口')
 expectContains('e2e/game-smoke.spec.ts', 'online manor care room supports full cooperation settlement', '庄园协作护理房应保留浏览器级完整分工 smoke')
 expectContains('e2e/game-smoke.spec.ts', 'online-manor-care-room-create-dialog-trigger', '庄园协作护理房 smoke 应先打开创建弹窗')
 expectContains('e2e/game-smoke.spec.ts', 'online-manor-care-room-detail-sheet', '庄园协作护理房 smoke 应在详情抽屉内完成动作')
@@ -417,14 +788,15 @@ expectContains('e2e/game-smoke.spec.ts', '确认结算护理', '庄园协作护�
 expectContains('e2e/game-smoke.spec.ts', '协作除虫', '庄园协作护理房 smoke 应覆盖除虫分工')
 expectContains('e2e/game-smoke.spec.ts', '协作收拾', '庄园协作护理房 smoke 应覆盖收拾分工')
 expectContains('e2e/game-smoke.spec.ts', 'care-room-e2e-settlement-1', '庄园协作护理房 smoke 应断言结算凭证读回')
-expectContains('online/OnlineManorView.vue', 'online-manor-care-readable-limits', '庄园照料页应展示每日限制与反刷窗口')
+expectContains('online/OnlineManorView.vue', 'online-manor-care-readable-limits', '庄园照料页应展示每日限制与频次窗口')
 expectContains('online/OnlineManorView.vue', 'online-manor-care-failure-reason', '庄园照料页应读回失败原因')
-expectContains('online/OnlineManorView.vue', 'online-manor-care-anti-abuse-summary', '庄园照料页应展示反刷审计摘要')
+expectContains('online/OnlineManorView.vue', 'online-manor-care-anti-abuse-summary', '庄园照料页应展示频次记录摘要')
 expectContains('online/OnlineManorView.vue', 'careReadableImpactSummary', '庄园照料规则应读回服务端落账与审计说明')
-expectContains('online/OnlineManorView.vue', 'online-manor-steal-readable-limits', '庄园轻采页应展示每日限制与反刷窗口')
+expectContains('online/OnlineManorView.vue', 'online-manor-steal-readable-limits', '庄园轻采页应展示每日限制与频次窗口')
 expectContains('online/OnlineManorView.vue', 'online-manor-steal-failure-reason', '庄园轻采页应读回失败原因')
-expectContains('online/OnlineManorView.vue', 'online-manor-steal-anti-abuse-summary', '庄园轻采页应展示反刷审计摘要')
+expectContains('online/OnlineManorView.vue', 'online-manor-steal-anti-abuse-summary', '庄园轻采页应展示频次记录摘要')
 expectContains('online/OnlineManorView.vue', 'stealReadableImpactSummary', '庄园轻采规则应读回收益上限与白名单说明')
+expectContains('online/OnlineManorView.vue', '次数与规则明细', '庄园照料与轻采次数规则应默认收进折叠明细')
 expectContains('online/OnlineManorView.vue', 'online-manor-visit-recent-limit', '庄园来访记录默认应只展示最近记录摘要')
 expectContains('online/OnlineManorView.vue', 'recentVisitEntries', '庄园来访记录应派生最近 3 条默认列表')
 expectContains('online/OnlineManorView.vue', 'online-manor-visit-detail-trigger', '庄园来访记录应提供详情抽屉入口')
@@ -433,7 +805,7 @@ expectContains('online/OnlineManorView.vue', 'online-manor-visitor-activity-rece
 expectContains('online/OnlineManorView.vue', 'online-manor-visitor-activity-detail-trigger', '庄园访客行为应提供详情抽屉入口')
 expectContains('online/OnlineManorView.vue', 'online-manor-visitor-activity-detail-sheet', '庄园访客行为详情应进入抽屉')
 expectContains('online/OnlineManorView.vue', '<OnlineTechnicalDetails', '庄园轻采凭证和规则审计应进入技术详情折叠')
-expectContains('online/OnlineManorView.vue', '轻采规则明细', '庄园轻采反刷审计和主人保留比例应默认折叠')
+expectContains('online/OnlineManorView.vue', '轻采规则明细', '庄园轻采频次记录和主人保留比例应默认折叠')
 expectContains('online/OnlineManorView.vue', 'online-manor-steal-detail-trigger', '庄园轻采记录应提供详情抽屉入口')
 expectContains('online/OnlineManorView.vue', 'online-manor-steal-detail-sheet', '庄园轻采记录详情应进入抽屉')
 expectContains('online/OnlineManorView.vue', '轻采记录详情', '庄园轻采记录详情应进入测试档技术详情')
@@ -470,6 +842,14 @@ checkedScrollBoundaries += expectCountAtLeast('online/OnlineManorView.vue', /ove
 expectContains('online/OnlineCohabitationView.vue', '<OnlineModuleShell', '共同庄园子页应继续使用在线模块壳')
 expectContains('online/OnlineCohabitationView.vue', "activeTab = ref<CohabitationTabKey>('overview')", '共同庄园默认页应保持总览')
 expectContains('online/OnlineCohabitationView.vue', "activeTab === 'map'", '共同庄园应提供共同农田地图标签')
+expectContains('online/OnlineCohabitationView.vue', "const cohabitationPrimaryTabKeys: CohabitationTabKey[] = ['overview', 'map', 'warehouse', 'fund', 'permissions', 'offline']", '共同庄园默认主入口应收束为总览 / 共同地图 / 仓库 / 基金 / 权限 / 离线安全')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-mobile-status', '共同庄园移动端应把状态摘要提升到主面板顶部')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-mobile-status-cards', '共同庄园移动端状态摘要应展示契约 / 基金 / 仓库 / 待办卡')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-mobile-goto-permissions', '共同庄园移动端状态摘要应提供权限入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-mobile-goto-offline', '共同庄园移动端状态摘要应提供离线 / 安全入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-right-goto-permissions', '共同庄园桌面状态栏应提供权限入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-right-goto-offline', '共同庄园桌面状态栏应提供离线 / 安全入口')
+expectContains('online/OnlineCohabitationView.vue', 'min-w-[13rem] shrink-0', '共同庄园移动端契约列表应改为横向切换卡片')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-contract-create-submit', '共同庄园总览应保留发起契约入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-separation-preview-submit', '共同庄园总览应保留分居预览入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-separation-shared-fund-delta-confirm', '分居基金差额确认应有前端入口')
@@ -806,6 +1186,10 @@ expectContains('online/OnlineCohabitationView.vue', 'shared_workshop_process_qua
 expectContains('online/OnlineCohabitationView.vue', 'shared_alchemy_success_rate', 'cohabitation shared workshop should label alchemy success-rate cooperation evidence')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-workshop-alchemy-heat', 'cohabitation shared workshop should expose alchemy heat selector')
 expectContains('online/OnlineCohabitationView.vue', 'sharedWorkshopAlchemyHeatProfiles', 'cohabitation shared workshop should preview alchemy heat weights')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-elixir-return-panel', 'cohabitation shared workshop should show single-player return route for elite elixirs')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-elixir-return-sinks', 'cohabitation shared workshop should show single-player elite elixir sinks')
+expectContains('online/OnlineCohabitationView.vue', 'SHARED_ELIXIR_SINGLE_PLAYER_USE_HINTS', 'cohabitation shared workshop should keep elite elixir return hints')
+expectContains('online/OnlineCohabitationView.vue', "id: 'single-player-return'", 'cohabitation shared workshop result readback should mention single-player use')
 expectContains('utils/cohabitationApi.ts', 'alchemy_heat_level?:', 'cohabitation shared workshop API should expose alchemy heat level payload')
 expectContains('utils/cohabitationApi.ts', 'alchemy_heat_profile?: string', 'cohabitation shared workshop API should expose alchemy heat profile readback')
 expectContains('utils/cohabitationApi.ts', 'output_quality_before_bonus?: string', 'cohabitation shared workshop API should expose pre-bonus output quality')
@@ -1103,6 +1487,28 @@ expectContains('online/OnlineNeighborView.vue', 'neighborCreateError.value = err
 expectContains('online/OnlineNeighborView.vue', '<OnlineInvitePanel', '邻里邀请成员应复用通用邀请面板')
 expectContains('online/OnlineNeighborView.vue', 'domain="neighbor"', '邻里邀请面板应使用 neighbor 域')
 expectContains('online/OnlineNeighborView.vue', 'online-neighbor-invite-panel-trigger', '邻里邀请首屏应只保留邀请面板入口')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-async-collaboration-board"', '邻里好友页应承接离线轻协作看板')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-async-collaboration-steps"', '邻里轻协作看板应集中展示四步落点')
+expectContains('online/OnlineNeighborView.vue', 'type NeighborAsyncCollaborationStep', '邻里轻协作看板应使用稳定数据模型')
+expectContains('online/OnlineNeighborView.vue', "id: 'leave-commission'", '邻里轻协作应提供留下委托落点')
+expectContains('online/OnlineNeighborView.vue', "id: 'send-helper'", '邻里轻协作应提供派出帮手落点')
+expectContains('online/OnlineNeighborView.vue', "id: 'borrow-facility'", '邻里轻协作应提供借用庄园设施落点')
+expectContains('online/OnlineNeighborView.vue', "id: 'claim-async-rewards'", '邻里轻协作应提供异步奖励收口落点')
+expectContains('online/OnlineNeighborView.vue', 'neighborAsyncCollaborationSummary', '邻里轻协作看板应派生下一步摘要')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-friend-team-board"', '邻里好友页应承接活动中心的好友榜 / 队伍榜入口')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-friend-team-board-summary"', '邻里好友榜应展示复玩摘要')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-friend-team-board-tabs"', '邻里好友榜应允许切换好友挑战和主题榜')
+expectContains('online/OnlineNeighborView.vue', 'online-neighbor-friend-team-board-entry-${entry.id}', '邻里好友榜每个条目应提供稳定测试钩子')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-friend-team-board-reward"', '邻里好友榜应展示奖励预期')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-friend-team-board-fairness"', '邻里好友榜应说明轻差距规则')
+expectContains('online/OnlineNeighborView.vue', 'data-testid="online-neighbor-friend-team-board-rematch"', '邻里好友榜应提供复玩或约人动作')
+expectContains('online/OnlineNeighborView.vue', "type NeighborFriendPanelKey = 'challenge-board' | 'theme-leaderboard'", '邻里好友榜应承接活动中心 panel 参数')
+expectContains('online/OnlineNeighborView.vue', 'type NeighborFriendTeamBoardEntry', '邻里好友榜应使用稳定数据模型')
+expectContains('online/OnlineNeighborView.vue', 'neighborFriendTeamBoardEntries', '邻里好友榜应从现有好友、发现玩家和邻里数据派生')
+expectContains('online/OnlineNeighborView.vue', 'hydrateNeighborRouteQuery', '邻里页应读取活动中心跳转 query')
+expectContains('online/OnlineNeighborView.vue', "normalizeNeighborFriendPanelKey(route.query.panel)", '邻里页应根据 panel query 打开好友榜或主题榜')
+expectContains('online/OnlineNeighborView.vue', "if (value === 'discover') return 'friends'", '邻里页应兼容活动中心旧的发现好友 tab 参数')
+expectContains('online/OnlineNeighborView.vue', '() => [route.query.tab, route.query.panel]', '邻里页应在同路由 query 更新时切换好友榜面板')
 expectContains('online/OnlineNeighborView.vue', 'online-neighbor-invite-username-input', '邻里旧单人邀请输入 test id 应保留在备用区')
 expectContains('online/OnlineNeighborView.vue', 'online-neighbor-invite-submit', '邻里旧单人邀请提交 test id 应保留在备用区')
 expectContains('online/OnlineNeighborView.vue', 'inviteNeighborRecipients', '邻里邀请面板提交应由页面层逐项调用原 store action')
@@ -1161,6 +1567,11 @@ expectContains('online/OnlineOrdersView.vue', 'online-orders-relay-settlement-su
 expectContains('online/OnlineOrdersView.vue', 'online-orders-society-board', '在线委托可接页应展示村社公共订单板')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-society-board-settlement', '村社公共订单板应展示公开接力分账状态')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-society-board-receipts', '村社公共订单板应展示最近公开结算凭证')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-weak-item-board', '在线委托可接页应展示弱用途物品轮换订单板')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-weak-item-current', '弱用途物品订单板应展示当前提交物品')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-weak-item-rotation-reason', '弱用途物品订单板应展示本周轮换原因')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-weak-item-next', '弱用途物品订单板应展示下周预告')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-weak-item-submit', '弱用途物品订单板应提供提交入口')
 expectContains('online/OnlineOrdersView.vue', '<OnlineBottomSheet', '在线委托详情应复用移动端抽屉底座')
 expectContains('online/OnlineOrdersView.vue', 'selectedAvailableOrderId', '在线委托可接列表详情抽屉应使用选中委托状态')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-available-detail-trigger', '在线委托可接列表瘦卡应提供详情入口')
@@ -1447,6 +1858,9 @@ expectContains('ExpeditionRoomView.vue', '组合收益 ${routeReplay.combo_recor
 expectContains('ExpeditionRoomView.vue', '提前撤离 ·', '远征统一房间壳应读回矿洞提前撤离摘要')
 expectContains('ExpeditionRoomView.vue', '风险峰值：', '远征统一房间壳应读回矿洞风险峰值摘要')
 expectContains('ExpeditionRoomView.vue', 'routeReplay.risk_peak?.summary', '远征统一房间壳应优先读回矿洞服务端风险峰值摘要')
+expectContains('ExpeditionRoomView.vue', ':collaboration-progress-label="expeditionRoomCollaborationProgressLabel"', '远征独立页应把协作进度传入统一房间壳')
+expectContains('ExpeditionRoomView.vue', ':collaboration-roles="expeditionRoomCollaborationRoles"', '远征独立页应把队友分工传入统一房间壳')
+expectContains('ExpeditionRoomView.vue', ':collaboration-feedback="expeditionRoomCollaborationFeedback"', '远征独立页应把队友即时反馈传入统一房间壳')
 expectContains('e2e/game-smoke.spec.ts', 'online expedition visual map supports cavern node actions', '协作矿洞浏览器 smoke 应保留节点行动路径')
 expectContains('e2e/game-smoke.spec.ts', 'visual-map-action-confirm_withdrawal', '协作矿洞浏览器 smoke 应从撤离点触发提前收尾')
 expectContains('e2e/game-smoke.spec.ts', 'online-expedition-room-shell-settle-submit', '协作矿洞浏览器 smoke 应点击统一房间壳结算按钮')
@@ -1483,6 +1897,9 @@ expectContains('e2e/game-smoke.spec.ts', '失败原因：物件当前受阻', '�
 expectContains('e2e/game-smoke.spec.ts', '需要先处理前置物件或等待权限恢复', '灯会场景浏览器 smoke 应断言场景物件权限 / 前置提示')
 expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-hotzone-stage', '场景棋盘应提供移动端点击热区舞台')
 expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-board__object--hotzone', '场景物件按钮应保留触控热区样式')
+expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-board__stage::after', '场景棋盘应有更清晰的庄园舞台层次')
+expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-board__object::before', '场景物件按钮应有热点底座以增强可点击感')
+expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-board__action:hover:not(:disabled)', '场景动作按钮应提供明确悬停反馈')
 expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-object-list', '场景棋盘移动端应提供物件列表模式')
 expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-list-object-', '场景物件列表应提供稳定测试钩子')
 expectContains('components/game/online/VisualTrackBoard.vue', 'visual-track-readable-feedback', '轨道棋盘应展示失败原因与影响范围')
@@ -1535,6 +1952,9 @@ expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-ro
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-gameplay-select"', '在线节会旧玩法选择 test id 应继续保留')
 expectContains('online/OnlineFestivalView.vue', 'route.query.template', '在线节会向导应继续支持 template query 预填')
 expectContains('online/OnlineFestivalView.vue', 'route.query.gameplay', '在线节会向导应继续支持 gameplay query 预填')
+expectContains('OnlineView.vue', "open_wizard: '1'", '在线活动中心短局入口应能一键打开预填创建向导')
+expectContains('online/OnlineFestivalView.vue', 'route.query.open_wizard', '在线节会向导应读取 open_wizard query 触发一键建房')
+expectContains('online/OnlineFestivalView.vue', 'showFestivalRoomWizard.value = true', '在线节会深链应能直接打开节会创建向导')
 expectContains('stores/useExpeditionRoomStore.ts', 'draftMemberLimit', '远征创建草稿应支持人数上限字段')
 expectContains('stores/useExpeditionRoomStore.ts', 'memberLimitOptions', '远征创建应按当前模板派生人数上限选项')
 expectContains('stores/useExpeditionRoomStore.ts', 'normalizedDraftMemberLimit', '远征创建应归一化提交人数上限')
@@ -1562,6 +1982,7 @@ expectContains('ExpeditionRoomView.vue', 'expedition-room-right-status', '远征
 expectContains('ExpeditionRoomView.vue', 'xl:grid-cols-[18rem_minmax(0,1fr)_320px]', '远征独立页桌面右栏宽度应固定为 320px')
 expectContains('e2e/game-smoke.spec.ts', 'resp-002-standalone-expedition-room-desktop-1366x768.png', '远征独立页桌面 smoke 应保存 1366x768 截图')
 expectContains('ExpeditionRoomView.vue', '<OnlineInvitePanel', '远征独立页邀请主流程应复用统一邀请面板')
+expectContains('ExpeditionRoomView.vue', ':recent-players="expeditionInviteSelectablePlayers"', '远征独立页邀请面板应支持从好友 / 近期玩家中直接选择')
 expectContains('ExpeditionRoomView.vue', '<OnlineRoomLobbyDialog', '远征独立页准备主流程应复用统一准备大厅')
 expectContains('ExpeditionRoomView.vue', '<OnlineConfirmActionDialog', '远征独立页结算和关闭应复用高风险确认弹窗')
 expectContains('ExpeditionRoomView.vue', 'data-testid="online-expedition-room-lobby-trigger"', '远征独立页主行动应打开准备大厅')
@@ -1604,6 +2025,7 @@ expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-room-create-submit"', '在线节会远征旧创建提交 test id 应继续保留')
 expectContains('online/OnlineFestivalView.vue', 'route.query.expedition_template', '在线节会远征向导应支持 expedition_template query 预填')
 expectContains('online/OnlineFestivalView.vue', 'route.query.expedition_gameplay', '在线节会远征向导应支持 expedition_gameplay query 预填')
+expectContains('online/OnlineFestivalView.vue', 'showExpeditionRoomWizard.value = true', '在线节会远征深链应能直接打开远征创建向导')
 expectNotContains('online/OnlineFestivalView.vue', 'useNewOnlineRoomFlow', '在线节会页暂不应引入新房间流程开关，回滚依赖备用操作折叠区')
 expectNotContains('ExpeditionRoomView.vue', 'useNewOnlineRoomFlow', '远征独立页暂不应引入新房间流程开关，回滚依赖备用操作折叠区')
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-create-backup"', 'OUI-003：节会创建旧入口应保留在备用创建表单中')
@@ -1699,12 +2121,18 @@ expectContains('components/game/online/OnlineBottomSheet.vue', 'env(safe-area-in
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'data-testid="online-sticky-action-bar"', '移动端固定主行动栏应提供稳定测试钩子')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'data-testid="online-sticky-primary-action"', '移动端固定主行动栏主按钮应提供稳定测试钩子')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'data-testid="online-sticky-action-bar-spacer"', '移动端固定主行动栏应提供页面底部 spacer')
+expectContains('components/game/online/OnlineStickyActionBar.vue', 'data-testid="online-sticky-fixed-actions"', '移动端固定主行动栏应提供五键固定操作轨道')
+expectContains('components/game/online/OnlineStickyActionBar.vue', '`online-sticky-fixed-action-${action.id}`', '移动端五键固定操作应为每个关键动作提供测试钩子')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'statusLabel', '移动端固定主行动栏应支持状态摘要')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'primaryAction', '移动端固定主行动栏应支持主行动模型')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'secondaryActions', '移动端固定主行动栏应支持次行动模型')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'moreActions', '移动端固定主行动栏应支持更多操作模型')
+expectContains('components/game/online/OnlineStickyActionBar.vue', 'mobileFixedActions', '移动端固定主行动栏应支持邀请 / 准备 / 开始 / 结算 / 领奖固定动作模型')
+expectContains('components/game/online/OnlineStickyActionBar.vue', 'fixed: [id: string]', '移动端固定动作应通过统一事件回传页面动作')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'disabledReason', '移动端固定主行动栏应展示禁用原因')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'min-h-[44px]', '移动端固定主行动栏主触控目标不应低于 44px')
+expectContains('components/game/online/OnlineStickyActionBar.vue', 'min-height: 52px', '移动端五键固定操作触控目标应高于 44px')
+expectContains('components/game/online/OnlineStickyActionBar.vue', 'repeat(5, minmax(0, 1fr))', '移动端固定操作应按五个关键按钮稳定分栏')
 expectContains('components/game/online/OnlineStickyActionBar.vue', 'env(safe-area-inset-bottom', '移动端固定主行动栏底部应适配安全区')
 expectContains('components/game/online/OnlineTechnicalDetails.vue', 'data-testid="online-technical-details"', '技术详情组件应提供稳定测试钩子')
 expectContains('components/game/online/OnlineTechnicalDetails.vue', 'data-testid="online-technical-details-toggle"', '技术详情组件折叠开关应提供稳定测试钩子')
@@ -1737,6 +2165,13 @@ expectContains('components/game/online/OnlineRoomWizard.vue', 'initialGameplayId
 expectContains('components/game/online/OnlineRoomWizard.vue', 'initialMemberLimit', '房间创建向导应支持人数预填')
 expectContains('components/game/online/OnlineRoomWizard.vue', 'initialTitle', '房间创建向导应支持标题预填')
 expectContains('components/game/online/OnlineRoomWizard.vue', 'initialVisibility', '房间创建向导应支持可见性预填')
+expectContains('components/game/online/OnlineRoomWizard.vue', 'inviteCandidates', '房间创建向导应支持好友 / 近期玩家候选名单')
+expectContains('components/game/online/OnlineRoomWizard.vue', 'data-testid="online-room-wizard-invite-candidates"', '房间创建向导邀请步骤应提供直接选择候选人区域')
+expectContains('components/game/online/OnlineRoomWizard.vue', 'online-room-wizard-invite-candidate-', '房间创建向导候选人应提供稳定选择按钮')
+expectContains('components/game/online/OnlineRoomWizard.vue', 'addInviteCandidate', '房间创建向导候选人选择应写入邀请名单')
+expectContains('online/OnlineFestivalView.vue', ':invite-candidates="baseInviteSelectablePlayers"', '节会 / 远征创建向导应复用好友与近期玩家候选来源')
+expectContains('online/OnlineFestivalView.vue', 'submitFestivalInvites(draft.inviteUsernames)', '节会创建成功后应发送向导邀请名单')
+expectContains('online/OnlineFestivalView.vue', 'submitExpeditionInvites(draft.inviteUsernames)', '远征创建成功后应发送向导邀请名单')
 expectContains('components/game/online/OnlineRoomWizard.vue', "submit: [draft: OnlineRoomWizardDraft]", '房间创建向导应提交稳定草稿 payload')
 expectContains('components/game/online/OnlineRoomWizard.vue', "'draft-change': [draft: OnlineRoomWizardDraft]", '房间创建向导应向调用侧同步草稿变化')
 expectContains('components/game/online/OnlineRoomWizard.vue', "cancel: []", '房间创建向导应提供取消事件')
@@ -1754,14 +2189,27 @@ expectContains('scripts/qa-mobile-ui-smoke.mjs', 'online-room-wizard-next', '移
 expectContains('components/game/online/OnlineRoomWizard.vue', 'memberLimitOptions', '房间创建向导应允许页面传入 store 当前人数上限')
 expectContains('components/game/online/OnlineRoomWizard.vue', 'errorMessage', '房间创建向导应能展示创建失败并保留草稿')
 expectContains('components/game/online/OnlineRoomWizard.vue', "emit('submit', submitDraft.value)", '房间创建向导提交时不应直接改 store action')
+expectContains('components/game/online/OnlineRoomWizard.vue', 'online-room-wizard-template-play-hooks', '房间创建向导应在玩法卡上展示短局、事件变化与奖励保底提示')
+expectContains('components/game/online/OnlineRoomWizard.vue', "id: 'lantern_fair'", '房间创建向导备用节会模板应对齐服务端上元灯会模板')
+expectContains('components/game/online/OnlineRoomWizard.vue', "id: 'quiz_buzz'", '房间创建向导备用节会玩法应显式支持灯谜抢答')
+expectContains('components/game/online/OnlineRoomWizard.vue', "id: 'escort_convoy'", '房间创建向导备用远征模板应对齐服务端资源护送模板')
+expectContains('components/game/online/OnlineRoomWizard.vue', "id: 'expedition_escort'", '房间创建向导备用远征玩法应显式支持资源护送')
 expectContains('components/game/online/OnlineRoomWizard.vue', '上元灯会', '节会向导基础玩法应包含上元灯会')
-expectContains('components/game/online/OnlineRoomWizard.vue', '龙舟赛道', '节会向导基础玩法应包含龙舟赛道')
-expectContains('components/game/online/OnlineRoomWizard.vue', '腊八共灶', '节会向导基础玩法应包含腊八共灶')
-expectContains('components/game/online/OnlineRoomWizard.vue', '烟火留影', '节会向导基础玩法应包含烟火留影')
+expectContains('components/game/online/OnlineRoomWizard.vue', '端午赛舟', '节会向导基础玩法应包含端午赛舟')
+expectContains('components/game/online/OnlineRoomWizard.vue', '腊八共煮', '节会向导基础玩法应包含腊八共煮')
+expectContains('components/game/online/OnlineRoomWizard.vue', '中秋赏月', '节会向导基础玩法应包含中秋赏月')
 expectContains('components/game/online/OnlineRoomWizard.vue', '协作矿洞', '远征向导基础玩法应包含协作矿洞')
-expectContains('components/game/online/OnlineRoomWizard.vue', '护送抵运', '远征向导基础玩法应包含护送抵运')
+expectContains('components/game/online/OnlineRoomWizard.vue', '资源护送', '远征向导基础玩法应包含资源护送')
 expectContains('components/game/online/OnlineRoomWizard.vue', '海域共探', '远征向导基础玩法应包含海域共探')
-expectContains('components/game/online/OnlineRoomWizard.vue', '山林采集', '远征向导基础玩法应包含山林采集')
+expectContains('components/game/online/OnlineRoomWizard.vue', '双人矿洞', '远征向导基础玩法应包含双人矿洞')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-replay-create"', '在线节会最近结算应提供再来一局入口')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-room-replay-create"', '在线远征最近结算应提供再来一局入口')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-receipt-highlights"', '在线节会最近结算应展示短局结算高光')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-receipt-highlights"', '在线远征最近结算应展示短局结算高光')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-recent-receipt-highlights"', '纪念记录页最近结算应展示节会/远征合并高光')
+expectContains('online/OnlineFestivalView.vue', 'buildReceiptHighlights', '在线结算卡应把奖励、贡献、连携或路线压缩成高光提示')
+expectContains('online/OnlineFestivalView.vue', 'getRecommendedGameplayTemplateId', '在线结算再来一局应按房型推荐玩法预填')
+expectContains('online/OnlineFestivalView.vue', 'openReceiptReplayWizard', '在线结算再来一局应复用房间创建向导预填')
 expectContains('components/game/online/OnlineInvitePanel.vue', 'data-testid="online-invite-panel"', '邀请面板应提供稳定测试钩子')
 expectContains('components/game/online/OnlineInvitePanel.vue', 'data-testid="online-invite-input"', '邀请面板应提供邀请输入测试钩子')
 expectContains('components/game/online/OnlineInvitePanel.vue', 'data-testid="online-invite-submit"', '邀请面板应提供提交按钮测试钩子')
@@ -1774,6 +2222,13 @@ expectContains('components/game/online/OnlineInvitePanel.vue', "remove: [recipie
 expectContains('components/game/online/OnlineInvitePanel.vue', 'already-in-room', '邀请面板应展示已在房成员状态')
 expectContains('components/game/online/OnlineInvitePanel.vue', "row.status === 'failed'", '邀请面板应仅对失败项展示重试入口')
 expectContains('components/game/online/OnlineInvitePanel.vue', 'recent-players', '邀请面板应支持最近玩家快捷选择 slot 或 props')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'data-testid="online-invite-priority-picks"', '邀请面板应提供优先推荐约人区域')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'data-testid="online-invite-priority-add-all"', '邀请面板应支持一键加入推荐候选')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'recommendedInvitePlayers', '邀请面板应从在线好友、好友和近期玩家派生推荐候选')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'getPlayerRecommendationLabel', '邀请面板推荐候选应展示推荐原因')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'data-testid="online-invite-player-groups"', '邀请面板应把可直接选择的玩家按来源分组展示')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'OnlineInvitePlayerGroup', '邀请面板候选玩家应支持好友 / 在线 / 近期等分组来源')
+expectContains('components/game/online/OnlineInvitePanel.vue', 'getPlayerSelectionLabel', '邀请面板应标记已选、已在房和不可邀请候选')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'data-testid="online-room-lobby"', '房间准备大厅应提供稳定测试钩子')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'data-testid="online-room-member-list"', '房间准备大厅应提供成员列表测试钩子')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'data-testid="online-room-primary-action"', '房间准备大厅应提供主行动测试钩子')
@@ -1807,6 +2262,67 @@ expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'enter-gamep
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'view-settlement': []", '房间准备大厅应提供查看结算事件给页面承接')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'retry-settle': []", '房间准备大厅应提供重试结算事件给页面承接')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "rematch: []", '房间准备大厅应提供再开一局事件给页面承接')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-collaboration-panel"', '统一可视化房间壳应提供协作推进面板')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-team-pulse"', '统一可视化房间壳应把队伍协作脉搏前置到第一眼可读区域')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-team-pulse-summary"', '队伍脉搏应汇总下一步、分工、连携和共同进度')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-team-pulse-progress-bar"', '队伍脉搏应展示共同推进进度条')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-team-pulse-items"', '队伍脉搏应把行动、分工、连携和领奖压成四拍读回')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-team-pulse-item"', '队伍脉搏应逐项展示当前协作节拍')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'teamPulseItems', '队伍脉搏应复用协作节奏数据而不是另写一套状态')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'teamPulseSummary', '队伍脉搏应生成可读摘要')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'showTeamPulse', '队伍脉搏应只在存在战术或协作信息时出现')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-progress', '统一可视化房间壳应展示协作进度')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-progress-bar', '统一可视化房间壳应展示可见协作进度条')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-collaboration-rhythm"', '统一可视化房间壳应提供分工、行动、连携和领奖协作节奏板')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-collaboration-rhythm-beat"', '协作节奏板应逐项展示当前节拍')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'roles'", '协作节奏板应展示分工节拍')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'action'", '协作节奏板应展示行动节拍')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'combo'", '协作节奏板应展示连携节拍')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'reward'", '协作节奏板应展示领奖节拍')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'type OnlineVisualRoomShellCollaborationBeat', '协作节奏板应使用稳定数据模型')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'collaborationRhythmBeats', '协作节奏板应从房间分工、反馈、结算和奖励派生')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'collaborationRhythmMobileLabel', '统一可视化房间壳移动端读回应包含协作节奏摘要')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'rhythm'", '移动端读回列表应包含协作节奏行')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', '协作节奏 ${collaborationRhythmMobileLabel.value}', '读屏摘要应读出协作节奏')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-role-playbook', '统一可视化房间壳应提供队伍分工台')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-roles', '统一可视化房间壳应展示队友分工')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-role-next-action', '统一可视化房间壳应为每类分工展示下一步')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-role-lanes"', '统一可视化房间壳应把队友分工整理成四岗位协作线')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-role-lane-${lane.id}', '四岗位协作线应提供稳定单项测试钩子')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-role-lanes-summary"', '四岗位协作线应展示岗位覆盖摘要')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-role-lane-owner"', '四岗位协作线应展示当前负责人')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-role-lane-status"', '四岗位协作线应展示覆盖或待补位状态')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-role-lane-next-action"', '四岗位协作线应展示每个岗位下一步')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "type OnlineVisualRoomShellRoleLaneId = 'gather' | 'escort' | 'submit' | 'support'", '四岗位协作线应固定采集、护送/战斗、加工/提交、加成/支援四类')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'roleLaneDefinitions', '四岗位协作线应由稳定定义派生')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'collaborationRoleLanes', '四岗位协作线应从现有房间分工自动派生')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'collaborationRoleLaneSummary', '四岗位协作线应提供移动端和读屏可复用摘要')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', '四岗位协作线 ${collaborationRoleLaneSummary.value}', '读屏摘要应读出四岗位覆盖情况')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-teammate-live-feed"', '统一可视化房间壳应提供队友即时动态高光')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-teammate-live-${highlight.id}', '队友动态高光应提供稳定单项测试钩子')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-teammate-live-summary"', '队友动态高光应展示当前高光数量摘要')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-teammate-live-kind"', '队友动态高光应区分最近行动、连携加成和协作评分')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-teammate-live-value"', '队友动态高光应展示已推进、已触发或已计入状态')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'type OnlineVisualRoomShellLiveHighlight', '队友动态高光应使用稳定数据模型')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'teammateLiveHighlights', '队友动态高光应从反馈、信号和协作评分派生')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'recent-action'", '队友动态高光应包含最近行动')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'combo'", '队友动态高光应包含连携加成')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', "id: 'score'", '队友动态高光应包含协作评分')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', '队友动态 ${teammateLiveHighlights.value.map', '读屏摘要应读出队友动态高光')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-feedback', '统一可视化房间壳应展示队友即时反馈')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-feedback-flow', '统一可视化房间壳应把即时反馈作为独立信息流')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-tactical-hud"', '统一可视化房间壳应提供本局战术 HUD')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-tactical-next-action"', '本局战术 HUD 应突出下一步行动')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-tactical-role-gap"', '本局战术 HUD 应展示岗位缺口')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-tactical-reward-cashout"', '本局战术 HUD 应展示奖励落袋状态')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-tactical-progress-bar"', '本局战术 HUD 应展示共同推进进度条')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'type OnlineVisualRoomShellTacticalHud', '本局战术 HUD 应使用稳定数据模型')
+expectContains('online/OnlineFestivalView.vue', ':tactical-hud="festivalRoomTacticalHud"', '节会房应把本局战术 HUD 数据传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', ':tactical-hud="expeditionRoomTacticalHud"', '远征房应把本局战术 HUD 数据传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'buildRoomTacticalHud', '节会 / 远征房应复用同一个本局战术 HUD 派生器')
+expectContains('online/OnlineFestivalView.vue', 'roleGapLabel', '本局战术 HUD 应从队伍分工派生岗位缺口')
+expectContains('online/OnlineFestivalView.vue', 'rewardCashoutLabel', '本局战术 HUD 应从结算和奖励预览派生奖励落袋状态')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'collaborationMobileLabel', '统一可视化房间壳移动端读回应包含协作状态')
 expectMatrixEntriesHaveSinglePrimary(
   'components/game/online/OnlineRoomLobbyDialog.vue',
   'hostStateActionMatrix',
@@ -1819,6 +2335,50 @@ expectMatrixEntriesHaveSinglePrimary(
 )
 expectContains('online/OnlineFestivalView.vue', 'import OnlineInvitePanel', '在线节会页应接入统一邀请面板')
 expectCountAtLeast('online/OnlineFestivalView.vue', /<OnlineInvitePanel/g, 2, '在线节会页应同时接入节会和远征邀请面板')
+expectCountAtLeast('online/OnlineFestivalView.vue', /:recent-players="/g, 2, '在线节会页应为节会和远征邀请面板提供可选玩家')
+expectContains('online/OnlineFestivalView.vue', 'festivalInviteSelectablePlayers', '节会房邀请应支持从好友 / 近期玩家中直接选择')
+expectContains('online/OnlineFestivalView.vue', 'expeditionInviteSelectablePlayers', '远征邀请应支持从好友 / 近期玩家中直接选择')
+expectContains('online/OnlineFestivalView.vue', 'festivalRoomCollaborationRoles', '节会房应把队友分工传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'festivalRoomCollaborationFeedback', '节会房应把队友即时反馈传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'expeditionRoomCollaborationRoles', '远征房应把队友分工传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'expeditionRoomCollaborationFeedback', '远征房应把队友即时反馈传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-mobile-sticky-actions"', '节会房移动端应固定邀请、准备、开始、结算、领奖等关键操作')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-room-mobile-sticky-actions"', '远征房移动端应固定邀请、准备、开始、结算、领奖等关键操作')
+expectContains('online/OnlineFestivalView.vue', 'festivalRoomStickyPrimaryAction', '节会房移动端主操作应按当前房间状态派生')
+expectContains('online/OnlineFestivalView.vue', 'expeditionRoomStickyPrimaryAction', '远征房移动端主操作应按当前房间状态派生')
+expectContains('online/OnlineFestivalView.vue', 'festivalRoomStickyFixedActions', '节会房移动端应提供邀请 / 准备 / 开始 / 结算 / 领奖固定动作')
+expectContains('online/OnlineFestivalView.vue', 'expeditionRoomStickyFixedActions', '远征房移动端应提供邀请 / 准备 / 开始 / 结算 / 领奖固定动作')
+expectContains('online/OnlineFestivalView.vue', 'createRoomFixedStickyActions', '节会 / 远征房应复用同一套移动端固定动作派生逻辑')
+expectContains('online/OnlineFestivalView.vue', ':mobile-fixed-actions="festivalRoomStickyFixedActions"', '节会房应把固定动作传入移动端底部操作区')
+expectContains('online/OnlineFestivalView.vue', ':mobile-fixed-actions="expeditionRoomStickyFixedActions"', '远征房应把固定动作传入移动端底部操作区')
+expectContains('online/OnlineFestivalView.vue', "@fixed=\"handleFestivalStickyAction\"", '节会房固定动作应承接页面现有动作 handler')
+expectContains('online/OnlineFestivalView.vue', "@fixed=\"handleExpeditionStickyAction\"", '远征房固定动作应承接页面现有动作 handler')
+expectContains('online/OnlineFestivalView.vue', 'handleFestivalStickyAction', '节会房移动端固定操作应承接页面现有房间动作')
+expectContains('online/OnlineFestivalView.vue', 'handleExpeditionStickyAction', '远征房移动端固定操作应承接页面现有房间动作')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-reward-claim-hub"', '纪念记录页应提供联机领奖收口面板')
+expectContains('online/OnlineFestivalView.vue', 'ref="onlineRewardClaimHubRef"', '领奖收口应提供可聚焦锚点')
+expectContains('online/OnlineFestivalView.vue', 'shouldOpenRewardClaimPanel(route.query.panel)', '节会页应识别 reward-claim panel query')
+expectContains('online/OnlineFestivalView.vue', 'scrollToOnlineRewardClaimHub', '节会页应能从移动端领奖按钮或外部入口滚动到领奖收口')
+expectContains('online/OnlineFestivalView.vue', "actionId === 'claim') scrollToOnlineRewardClaimHub()", '移动端固定领奖按钮应直达领奖收口')
+expectContains('online/OnlineFestivalView.vue', 'applyInviteRouteFocus', '节会页应识别地图提示传入的邀请聚焦参数')
+expectContains('online/OnlineFestivalView.vue', "getRouteQueryText(route.query.focus) !== 'invites'", '节会页应只在 focus=invites 时切到待处理邀请')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-reward-claim-summary"', '领奖收口应汇总结算、铜钱、奖券和物品线索')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-reward-claim-metrics"', '领奖收口应展示奖励入账指标')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-reward-claim-metric-${metric.id}', '领奖收口每个奖励指标应提供稳定测试钩子')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-reward-claim-actions"', '领奖收口应展示领奖、本周进度和复玩下一步')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-reward-claim-rematch"', '领奖收口应提供再开一局入口')
+expectContains('online/OnlineFestivalView.vue', 'onlineRewardClaimTotals', '领奖收口应从当前回执派生奖励合计')
+expectContains('online/OnlineFestivalView.vue', 'openRewardClaimRematch', '领奖收口的再开一局应接到房间创建向导')
+expectContains('online/OnlineFestivalView.vue', "import { useRealtimeStore } from '@/stores/useRealtimeStore'", '在线节会页应主动接入实时连接 store')
+expectContains('online/OnlineFestivalView.vue', 'void realtimeStore.start()', '在线节会页进入后应启动房间实时刷新连接')
+expectContains('online/OnlineFestivalView.vue', 'startOnlineRoomRealtimeFallback()', '在线节会页应提供断线兜底刷新，不要求玩家手动刷新网页')
+expectContains('online/OnlineFestivalView.vue', 'refreshActivityRoomsSilently', '在线节会页兜底刷新应静默拉取节会和远征房间')
+expectContains('online/OnlineFestivalView.vue', 'realtimeStore.isConnected', '在线节会页兜底刷新应只在实时连接不可用时运行')
+expectContains('online/OnlineFestivalView.vue', ':joined-member-count="festivalRoomStore.myRoom.joined_member_count"', '在线节会主舞台准备统计应使用已加入成员作为分母')
+expectContains('online/OnlineFestivalView.vue', ':joined-member-count="expeditionRoomStore.myRoom.joined_member_count"', '在线远征主舞台准备统计应使用已加入成员作为分母')
+expectContains('online/OnlineFestivalView.vue', 'socialStore.friends.map(relationToInvitePlayer)', '在线节会页应把好友列表作为邀请候选来源')
+expectContains('online/OnlineFestivalView.vue', 'socialStore.friendDiscoveryPlayers.map', '在线节会页应把好友大厅近期玩家作为邀请候选来源')
+expectContains('online/OnlineFestivalView.vue', 'void socialStore.refreshRelationships({ silent: true })', '在线节会页打开时应刷新好友候选来源')
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-invite-trigger"', '节会房主邀请主入口应改为邀请面板按钮')
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-room-invite-trigger"', '远征房主邀请主入口应改为邀请面板按钮')
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-invite-username-input"', '节会旧邀请输入 test id 应保留在备用表单')
@@ -1832,6 +2392,11 @@ expectContains('online/OnlineFestivalView.vue', 'expeditionRoomStore.inviteMembe
 expectContains('online/OnlineFestivalView.vue', 'festivalInviteResults', '节会邀请面板应把成功和失败反馈回传到结果列表')
 expectContains('online/OnlineFestivalView.vue', 'expeditionInviteResults', '远征邀请面板应把成功和失败反馈回传到结果列表')
 expectContains('online/OnlineFestivalView.vue', "status: 'failed'", '邀请面板页面接入应保留失败项以便重试')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'joined_member_count', '准备大厅成员统计应优先读取服务端已加入人数')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'ready_member_count', '准备大厅准备统计应优先读取服务端已准备人数')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'isMemberParticipating', '准备大厅应把已邀请成员和已加入成员分开计数')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', '已邀请', '准备大厅成员统计应显式显示待接受邀请人数')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'joinedMemberCount', '可视化房间壳准备统计应支持已加入成员分母')
 expectCountAtLeast('online/OnlineFestivalView.vue', /title="备用邀请表单"/g, 2, '节会和远征旧邀请表单应默认折叠为备用操作')
 expectContains('online/OnlineFestivalView.vue', 'import OnlineRoomLobbyDialog', '在线节会页应接入统一准备大厅组件')
 expectContains('online/OnlineFestivalView.vue', '<OnlineRoomLobbyDialog', '节会房准备流程应渲染统一准备大厅')
@@ -1951,6 +2516,8 @@ expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visua
 expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-settlement-item', '统一可视化房间壳应为逐条结算凭证提供稳定测试钩子')
 expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-replay-label', '统一可视化房间壳应读回服务端路线 / 场景回看摘要')
 expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-reward-label', '统一可视化房间壳应读回服务端落账摘要')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-collaboration-signals', '统一可视化房间壳应展示协作评分、活跃成员和分工缺口态势')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'OnlineVisualRoomShellCollaborationSignal', '统一可视化房间壳应为协作态势提供稳定类型')
 expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-content', '统一可视化房间壳应为可视化内容与旧按钮备用操作提供统一分组')
 expectContains('components/game/online/OnlineVisualRoomShell.vue', 'aria-label', '统一可视化房间壳应提供可访问房间区域标签')
 expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-entry-readback', '统一可视化房间壳应展示主入口与旧按钮备用状态')
@@ -1972,6 +2539,19 @@ expectContains('ExpeditionRoomView.vue', 'showExpeditionFallbackActions', '远�
 expectContains('ExpeditionRoomView.vue', '奖励已记录：${rewardParts.join', '远征统一房间壳应只读展示玩家态奖励记录摘要')
 expectCountAtLeast('online/OnlineFestivalView.vue', /<template #actions>/g, 1, '在线节会房间应把 ready、倒计时、断线和结算操作收进统一房间壳')
 expectContains('online/OnlineFestivalView.vue', ':settlement-records="festivalRoomSettlementRecords"', '在线节会房间应把服务端结算 / 留影回看凭证传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', ':collaboration-signals="festivalRoomCollaborationSignals"', '在线节会房间应把协作态势传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', ':collaboration-signals="expeditionRoomCollaborationSignals"', '在线远征房间应把协作态势传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'festivalCollaborationRolePlaybook', '在线节会房间应使用固定四职能分工台')
+expectContains('online/OnlineFestivalView.vue', 'expeditionCollaborationRolePlaybook', '在线远征房间应使用固定四职能分工台')
+expectContains('online/OnlineFestivalView.vue', 'buildRolePlaybook', '在线房间应在成员不足时仍展示待认领职责')
+expectContains('online/OnlineFestivalView.vue', '采集供品', '节会分工台应包含采集职责')
+expectContains('online/OnlineFestivalView.vue', '护送/控场', '节会分工台应包含护送或控场职责')
+expectContains('online/OnlineFestivalView.vue', '加工/提交', '在线房间分工台应包含加工 / 提交职责')
+expectContains('online/OnlineFestivalView.vue', '加成/支援', '在线房间分工台应包含加成 / 支援职责')
+expectContains('online/OnlineFestivalView.vue', '护送/战斗', '远征分工台应包含护送 / 战斗职责')
+expectContains('online/OnlineFestivalView.vue', '今日协作评分 +${scoreValue}', '在线房间协作态势应展示今日协作评分提升')
+expectContains('online/OnlineFestivalView.vue', '缺口：${missingRoleLabels.join', '在线房间协作态势应展示队伍分工缺口')
+expectContains('online/OnlineFestivalView.vue', '队伍达成连携 ${cavernState.combo_records.length} 次', '在线远征房间协作态势应展示队伍连携次数')
 expectCountAtLeast('online/OnlineFestivalView.vue', /:visual-content-label="/g, 2, '在线节会页的节会房和远征房都应把主入口说明传入统一房间壳')
 expectCountAtLeast('online/OnlineFestivalView.vue', /:fallback-entry-visible="/g, 2, '在线节会页的节会房和远征房都应把旧按钮可见状态传入统一房间壳')
 expectContains('online/OnlineFestivalView.vue', '节会备用操作', '在线节会房间壳应读回节会备用操作名称')
@@ -1984,6 +2564,32 @@ expectContains('online/OnlineFestivalView.vue', '&& !hasPrimaryFestivalVisualAct
 expectContains('online/OnlineFestivalView.vue', ':default-open="true"', '在线节会无可用视觉主行动时备用玩法按钮可直接作为键盘路径展开')
 expectContains('online/OnlineFestivalView.vue', 'showExpeditionFallbackActions', '在线节会远征房间应统一计算旧远征按钮面板可见状态')
 expectContains('online/OnlineFestivalView.vue', '奖励已记录：${rewardParts.join', '在线节会统一房间壳应只读展示玩家态奖励记录摘要')
+expectContains('online/OnlineFestivalView.vue', 'type OnlineShortSessionPlan', '在线节会 / 远征房间应使用独立短局计划模型')
+expectContains('online/OnlineFestivalView.vue', 'festivalShortSessionPlan', '在线节会房间应生成短局计划')
+expectContains('online/OnlineFestivalView.vue', 'expeditionShortSessionPlan', '在线远征房间应生成短局计划')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-short-session-plan"', '在线节会房间应展示短局计划面板')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-room-short-session-plan"', '在线远征房间应展示短局计划面板')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-room-short-session-duration"', '短局计划应展示预计耗时')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-room-short-session-event"', '短局计划应展示当前事件')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-room-short-session-next-action"', '短局计划应展示下一步行动')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-room-short-session-reward"', '短局计划应展示结算奖励预览')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-room-short-session-failure-fallback"', '短局计划应展示失败或中断保底说明')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-room-short-session-hook-preview"', '短局计划应在开局前集中展示事件、隐藏目标、奖励追求和失败收益')
+expectContains('online/OnlineFestivalView.vue', 'online-room-short-session-hook-${hook.id}', '短局开局爽点应提供稳定 per-hook 测试钩子')
+expectContains('online/OnlineFestivalView.vue', 'type OnlineShortSessionHook', '短局开局爽点应使用独立数据模型')
+expectContains('online/OnlineFestivalView.vue', 'buildShortSessionHooks', '短局开局爽点应复用短局计划和玩法板数据生成')
+expectContains('online/OnlineFestivalView.vue', 'festivalShortSessionHooks', '节会房短局计划应生成灯谜开局爽点')
+expectContains('online/OnlineFestivalView.vue', 'expeditionShortSessionHooks', '远征房短局计划应生成资源护送开局爽点')
+expectContains('online/OnlineFestivalView.vue', "id: 'event'", '短局开局爽点应包含事件变化')
+expectContains('online/OnlineFestivalView.vue', "id: 'hidden'", '短局开局爽点应包含隐藏目标')
+expectContains('online/OnlineFestivalView.vue', "id: 'reward'", '短局开局爽点应包含奖励追求')
+expectContains('online/OnlineFestivalView.vue', "id: 'fallback'", '短局开局爽点应包含失败收益')
+expectContains('online/OnlineFestivalView.vue', 'festivalShortSessionSettlementHighlights', '在线节会房间应生成短局结算高光')
+expectContains('online/OnlineFestivalView.vue', 'expeditionShortSessionSettlementHighlights', '在线远征房间应生成短局结算高光')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-short-session-settlement-highlights"', '在线节会房间应展示短局结算高光面板')
+expectContains('online/OnlineFestivalView.vue', 'data-testid="online-expedition-room-short-session-settlement-highlights"', '在线远征房间应展示短局结算高光面板')
+expectContains('online/OnlineFestivalView.vue', 'online-room-short-session-settlement-highlight-list', '短局结算高光应集中展示贡献、奖励、队友表现或再开建议')
+expectContains('online/OnlineFestivalView.vue', 'buildShortSessionSettlementHighlights', '短局结算高光应从贡献和结算凭证派生')
 expectContains('online/OnlineFestivalView.vue', ':settlement-records="expeditionRoomSettlementRecords"', '在线节会远征标签也应把服务端结算凭证传入统一房间壳')
 expectContains('online/OnlineFestivalView.vue', 'online-expedition-room-shell-settle-submit', '在线节会远征标签应把结算操作收进统一房间壳')
 expectContains('online/OnlineFestivalView.vue', 'online-expedition-room-settle-submit', '在线节会远征标签应保留旧结算按钮备用操作')
@@ -2015,6 +2621,7 @@ expectContains('scripts/qa-mobile-ui-smoke.mjs', 'prepareOnlineSocietyCreateMobi
 expectContains('scripts/qa-mobile-ui-smoke.mjs', '40-online-society-create-mobile-390x844', '移动端 smoke 应覆盖 390x844 创建村社视口')
 expectContains('scripts/qa-mobile-ui-smoke.mjs', '41-online-society-create-mobile-360x780', '移动端 smoke 应覆盖 360x780 创建村社视口')
 expectContains('online/OnlineSocietyView.vue', '<OnlineInvitePanel', '村社邀请应复用通用邀请面板')
+expectContains('online/OnlineSocietyView.vue', ':recent-players="societyInviteSelectablePlayers"', '村社邀请面板应支持从好友候选中直接选择成员')
 expectContains('online/OnlineSocietyView.vue', '<OnlineBottomSheet', '村社申请与邀请详情应进入底部 / 侧边抽屉')
 expectContains('online/OnlineSocietyView.vue', 'online-society-invite-panel-trigger', '村社管理员应通过主按钮打开邀请面板')
 expectContains('online/OnlineSocietyView.vue', 'inviteSocietyRecipients', '村社批量邀请应由页面层复用既有 store action')

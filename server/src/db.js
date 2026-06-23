@@ -20,8 +20,8 @@ const GAMEPLAY_EVENT_LOG_FILE = path.join(DATA_DIR, 'taoyuan_gameplay_event_logs
 const EXCHANGE_RATE = parseInt(process.env.EXCHANGE_RATE || '500000', 10);
 const DEFAULT_USER_QUOTA = parseInt(process.env.DEFAULT_USER_QUOTA || '2000000', 10);
 const QA_ONLINE_SMOKE_FORCE_LOCAL = String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() === 'true';
-const GAMEPLAY_EVENT_LOG_MAX_TOTAL = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_TOTAL || '5000', 10) || 5000);
-const GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT || '1200', 10) || 1200);
+const GAMEPLAY_EVENT_LOG_MAX_TOTAL = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_TOTAL || '500000', 10) || 500000);
+const GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT || '12000', 10) || 12000);
 const GAMEPLAY_EVENT_LOG_RETENTION_DAYS = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_RETENTION_DAYS || '30', 10) || 30);
 const DEFAULT_ADMIN_AUDIT_RETENTION_DAYS = 180;
 const MAJOR_ADMIN_AUDIT_ACTIONS = new Set([
@@ -307,6 +307,36 @@ function getGameplayEventLogSaveSlot(entry = {}) {
   }
 }
 
+function mapGameplayEventLogForResponse(item = {}) {
+  const meta = (() => {
+    try {
+      const parsed = JSON.parse(item.meta_json || '{}');
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  })();
+  return {
+    id: String(item.id || ''),
+    username: String(item.username || ''),
+    day_label: String(item.day_label || ''),
+    category: String(item.category || 'system'),
+    message: String(item.message || ''),
+    route_name: String(item.route_name || ''),
+    tags: (() => {
+      try {
+        const parsed = JSON.parse(item.tags_json || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })(),
+    meta,
+    save_slot: Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null,
+    created_at: Number(item.created_at) || 0,
+  };
+}
+
 function pruneGameplayEventLogEntries(entries = [], now = nowSeconds()) {
   const cutoff = now - GAMEPLAY_EVENT_LOG_RETENTION_DAYS * 86400;
   const perUserSlotCounts = new Map();
@@ -329,6 +359,14 @@ function pruneGameplayEventLogEntries(entries = [], now = nowSeconds()) {
     kept.push(entry);
   }
   return kept;
+}
+
+function getGameplayEventLogRetentionPolicy() {
+  return {
+    retention_days: GAMEPLAY_EVENT_LOG_RETENTION_DAYS,
+    max_total: GAMEPLAY_EVENT_LOG_MAX_TOTAL,
+    max_per_user_slot: GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT,
+  };
 }
 
 function localUserToPublic(user) {
@@ -1238,17 +1276,26 @@ function getAuditTimestampRange(options = {}) {
   };
 }
 
+function getAdminAuditRetentionPolicy() {
+  return {
+    retention_days: getAdminAuditRetentionDays(),
+    preserves_major_evidence: true,
+  };
+}
+
 function auditLogMatchesAdminFilters(entry, filters = {}) {
   const detail = parseAuditDetail(entry.detail_json);
   const createdAt = Number(entry.created_at) || 0;
   const action = String(entry.action || '').toLocaleLowerCase('zh-CN');
   const operatorName = String(entry.operator_name || '').toLocaleLowerCase('zh-CN');
   const outcome = String(detail.outcome || '').toLocaleLowerCase('zh-CN');
+  const haystack = `${entry.action || ''} ${entry.operator_name || ''} ${entry.target_username || ''} ${entry.detail_json || ''}`.toLocaleLowerCase('zh-CN');
 
   if (filters.targetUsernameKey && !auditLogMatchesTargetUsername(entry, filters.targetUsernameKey)) return false;
   if (filters.actionFilter && action !== filters.actionFilter) return false;
   if (filters.operatorNameFilter && !operatorName.includes(filters.operatorNameFilter)) return false;
   if (filters.outcomeFilter && outcome !== filters.outcomeFilter) return false;
+  if (filters.keywordFilter && !haystack.includes(filters.keywordFilter)) return false;
   if (filters.createdFrom !== null && createdAt < filters.createdFrom) return false;
   if (filters.createdTo !== null && createdAt > filters.createdTo) return false;
   return true;
@@ -1262,6 +1309,7 @@ async function listAdminAuditLogs(options = {}) {
   const actionFilter = normalizeAuditFilter(options.action, 80).toLocaleLowerCase('zh-CN');
   const operatorNameFilter = normalizeAuditFilter(options.operatorName || options.operator_name, 64).toLocaleLowerCase('zh-CN');
   const outcomeFilter = normalizeAuditFilter(options.outcome, 40).toLocaleLowerCase('zh-CN');
+  const keywordFilter = normalizeAuditFilter(options.keyword, 120).toLocaleLowerCase('zh-CN');
   const { createdFrom, createdTo } = getAuditTimestampRange(options);
 
   if (MYSQL_ENABLED) {
@@ -1296,6 +1344,10 @@ async function listAdminAuditLogs(options = {}) {
       where.push('(detail_json LIKE ? OR detail_json LIKE ?)');
       params.push(`%"outcome":"${outcomeFilter}"%`, `%"outcome": "${outcomeFilter}"%`);
     }
+    if (keywordFilter) {
+      where.push('(LOWER(action) LIKE ? OR LOWER(operator_name) LIKE ? OR LOWER(target_username) LIKE ? OR LOWER(detail_json) LIKE ?)');
+      params.push(`%${keywordFilter}%`, `%${keywordFilter}%`, `%${keywordFilter}%`, `%${keywordFilter}%`);
+    }
     if (createdFrom !== null) {
       where.push('created_at >= ?');
       params.push(createdFrom);
@@ -1329,6 +1381,7 @@ async function listAdminAuditLogs(options = {}) {
     actionFilter,
     operatorNameFilter,
     outcomeFilter,
+    keywordFilter,
     createdFrom,
     createdTo,
   }));
@@ -1427,6 +1480,10 @@ async function listContentRevisions(options = {}) {
   const page = Math.max(1, parseInt(options.page || '1', 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(options.pageSize || '20', 10) || 20));
   const contentKey = String(options.contentKey || '').trim();
+  const actionFilter = normalizeAuditFilter(options.action, 80).toLocaleLowerCase('zh-CN');
+  const operatorNameFilter = normalizeAuditFilter(options.operatorName || options.operator_name || options.username, 64).toLocaleLowerCase('zh-CN');
+  const keywordFilter = normalizeAuditFilter(options.keyword, 120).toLocaleLowerCase('zh-CN');
+  const { createdFrom, createdTo } = getAuditTimestampRange(options);
 
   if (MYSQL_ENABLED) {
     await ensureMysqlReady();
@@ -1435,6 +1492,26 @@ async function listContentRevisions(options = {}) {
     if (contentKey) {
       where.push('content_key = ?');
       params.push(contentKey);
+    }
+    if (actionFilter) {
+      where.push('LOWER(action) = ?');
+      params.push(actionFilter);
+    }
+    if (operatorNameFilter) {
+      where.push('LOWER(operator_name) LIKE ?');
+      params.push(`%${operatorNameFilter}%`);
+    }
+    if (keywordFilter) {
+      where.push('(LOWER(title) LIKE ? OR LOWER(summary) LIKE ? OR LOWER(content_key) LIKE ? OR LOWER(action) LIKE ?)');
+      params.push(`%${keywordFilter}%`, `%${keywordFilter}%`, `%${keywordFilter}%`, `%${keywordFilter}%`);
+    }
+    if (createdFrom !== null) {
+      where.push('created_at >= ?');
+      params.push(createdFrom);
+    }
+    if (createdTo !== null) {
+      where.push('created_at <= ?');
+      params.push(createdTo);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const [[countRow]] = await buildMysqlPool().execute(
@@ -1476,7 +1553,17 @@ async function listContentRevisions(options = {}) {
   }
 
   const store = loadContentRevisionStore();
-  const filtered = store.revisions.filter(item => !contentKey || item.content_key === contentKey);
+  const filtered = store.revisions.filter(item => {
+    const haystack = `${item.title || ''} ${item.summary || ''} ${item.content_key || ''} ${item.action || ''}`.toLocaleLowerCase('zh-CN');
+    const createdAt = Number(item.created_at) || 0;
+    if (contentKey && item.content_key !== contentKey) return false;
+    if (actionFilter && String(item.action || '').toLocaleLowerCase('zh-CN') !== actionFilter) return false;
+    if (operatorNameFilter && !String(item.operator_name || '').toLocaleLowerCase('zh-CN').includes(operatorNameFilter)) return false;
+    if (keywordFilter && !haystack.includes(keywordFilter)) return false;
+    if (createdFrom !== null && createdAt < createdFrom) return false;
+    if (createdTo !== null && createdAt > createdTo) return false;
+    return true;
+  });
   const offset = (page - 1) * pageSize;
   return {
     total: filtered.length,
@@ -1566,6 +1653,26 @@ async function pruneGameplayEventLogs() {
           []
         );
       }
+      const saveSlotExpr = "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(meta_json), meta_json, '{}'), '$.save_slot')), 'none')";
+      const [overflowGroups] = await buildMysqlPool().query(
+        `SELECT username, ${saveSlotExpr} AS save_slot_key, COUNT(*) AS total
+         FROM gameplay_event_logs
+         GROUP BY username, save_slot_key
+         HAVING total > ?`,
+        [GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT],
+      );
+      for (const group of overflowGroups) {
+        const groupOverflow = (Number(group.total) || 0) - GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT;
+        if (groupOverflow <= 0) continue;
+        await buildMysqlPool().query(
+          `DELETE FROM gameplay_event_logs
+           WHERE username = ?
+             AND ${saveSlotExpr} = ?
+           ORDER BY created_at ASC, id ASC
+           LIMIT ${groupOverflow}`,
+          [group.username, group.save_slot_key || 'none'],
+        );
+      }
       return;
     } catch (error) {
       logMysqlFallback('pruneGameplayEventLogs', error);
@@ -1635,6 +1742,9 @@ async function listGameplayEventLogs(options = {}) {
   const username = normalizeUsername(options.username || '');
   const category = String(options.category || '').trim();
   const keyword = String(options.keyword || '').trim();
+  const actionFilter = String(options.action || '').trim();
+  const outcomeFilter = String(options.outcome || '').trim();
+  const { createdFrom, createdTo } = getAuditTimestampRange(options);
   const saveSlot = Number.isInteger(Number(options.saveSlot)) && Number(options.saveSlot) >= 0
     ? Number(options.saveSlot)
     : null;
@@ -1656,9 +1766,25 @@ async function listGameplayEventLogs(options = {}) {
         where.push('(message LIKE ? OR meta_json LIKE ? OR day_label LIKE ?)');
         params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
       }
+      if (actionFilter) {
+        where.push('JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(meta_json), meta_json, \'{}\'), \'$.action\')) = ?');
+        params.push(actionFilter);
+      }
+      if (outcomeFilter) {
+        where.push('JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(meta_json), meta_json, \'{}\'), \'$.outcome\')) = ?');
+        params.push(outcomeFilter);
+      }
       if (saveSlot !== null) {
         where.push('meta_json LIKE ?');
         params.push(`%"save_slot":${saveSlot}%`);
+      }
+      if (createdFrom !== null) {
+        where.push('created_at >= ?');
+        params.push(createdFrom);
+      }
+      if (createdTo !== null) {
+        where.push('created_at <= ?');
+        params.push(createdTo);
       }
       const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
       const [[countRow]] = await buildMysqlPool().execute(
@@ -1678,37 +1804,8 @@ async function listGameplayEventLogs(options = {}) {
         total: Number(countRow?.total) || 0,
         page,
         pageSize,
-        logs: rows.map(item => ({
-          id: String(item.id),
-          username: item.username,
-          day_label: item.day_label,
-          category: item.category,
-          message: item.message,
-          route_name: item.route_name,
-          tags: (() => {
-            try {
-              return JSON.parse(item.tags_json || '[]');
-            } catch {
-              return [];
-            }
-          })(),
-          meta: (() => {
-            try {
-              return JSON.parse(item.meta_json || '{}');
-            } catch {
-              return {};
-            }
-          })(),
-          save_slot: (() => {
-            try {
-              const meta = JSON.parse(item.meta_json || '{}');
-              return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
-            } catch {
-              return null;
-            }
-          })(),
-          created_at: Number(item.created_at) || 0,
-        })),
+        logs: rows.map(mapGameplayEventLogForResponse),
+        retention: getGameplayEventLogRetentionPolicy(),
       };
     } catch (error) {
       logMysqlFallback('listGameplayEventLogs', error);
@@ -1719,10 +1816,21 @@ async function listGameplayEventLogs(options = {}) {
   const filtered = store.logs.filter(item => {
     if (username && item.username !== username) return false;
     if (category && item.category !== category) return false;
+    if (createdFrom !== null && (Number(item.created_at) || 0) < createdFrom) return false;
+    if (createdTo !== null && (Number(item.created_at) || 0) > createdTo) return false;
     if (saveSlot !== null) {
       try {
         const meta = JSON.parse(item.meta_json || '{}');
         if (Number(meta?.save_slot) !== saveSlot) return false;
+      } catch {
+        return false;
+      }
+    }
+    if (actionFilter || outcomeFilter) {
+      try {
+        const meta = JSON.parse(item.meta_json || '{}');
+        if (actionFilter && String(meta?.action || '') !== actionFilter) return false;
+        if (outcomeFilter && String(meta?.outcome || '') !== outcomeFilter) return false;
       } catch {
         return false;
       }
@@ -1738,31 +1846,34 @@ async function listGameplayEventLogs(options = {}) {
     total: filtered.length,
     page,
     pageSize,
-    logs: filtered.slice(offset, offset + pageSize).map(item => ({
-      ...item,
-      tags: (() => {
-        try {
-          return JSON.parse(item.tags_json || '[]');
-        } catch {
-          return [];
-        }
-      })(),
-      meta: (() => {
-        try {
-          return JSON.parse(item.meta_json || '{}');
-        } catch {
-          return {};
-        }
-      })(),
-      save_slot: (() => {
-        try {
-          const meta = JSON.parse(item.meta_json || '{}');
-          return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
-        } catch {
-          return null;
-        }
-      })(),
-    })),
+    logs: filtered.slice(offset, offset + pageSize).map(mapGameplayEventLogForResponse),
+    retention: getGameplayEventLogRetentionPolicy(),
+  };
+}
+
+async function getGameplayEventLogOverview() {
+  if (MYSQL_ENABLED) {
+    try {
+      await ensureMysqlReady();
+      const [[row]] = await buildMysqlPool().execute(
+        'SELECT COUNT(*) AS total, MAX(created_at) AS latest_created_at FROM gameplay_event_logs',
+        []
+      );
+      return {
+        total: Number(row?.total) || 0,
+        latest_created_at: Number(row?.latest_created_at) || 0,
+        retention: getGameplayEventLogRetentionPolicy(),
+      };
+    } catch (error) {
+      logMysqlFallback('getGameplayEventLogOverview', error);
+    }
+  }
+
+  const store = loadGameplayEventLogStore();
+  return {
+    total: store.logs.length,
+    latest_created_at: store.logs.reduce((latest, item) => Math.max(latest, Number(item.created_at) || 0), 0),
+    retention: getGameplayEventLogRetentionPolicy(),
   };
 }
 
@@ -1784,6 +1895,7 @@ module.exports = {
   recordAdminAuditLog,
   listAdminAuditLogs,
   pruneAdminAuditLogs,
+  getAdminAuditRetentionPolicy,
   recordContentRevision,
   listContentRevisions,
   getContentRevision,
@@ -1791,6 +1903,8 @@ module.exports = {
   recordGameplayEventLogsBatch,
   listGameplayEventLogs,
   pruneGameplayEventLogs,
+  getGameplayEventLogOverview,
+  getGameplayEventLogRetentionPolicy,
   getUserAccessState,
   EXCHANGE_RATE,
   MYSQL_ENABLED,

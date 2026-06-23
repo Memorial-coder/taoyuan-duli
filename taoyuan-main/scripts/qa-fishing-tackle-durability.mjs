@@ -39,6 +39,7 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier.startsWith('@/')) {
       const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
       if (!resolved) throw new Error(`Unable to resolve module: ${specifier}`)
@@ -74,6 +75,13 @@ registerHooks({
           }
           export default router
         `,
+        shortCircuit: true
+      }
+    }
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {}; export default { saveAs };',
         shortCircuit: true
       }
     }

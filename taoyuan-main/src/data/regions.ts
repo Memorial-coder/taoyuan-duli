@@ -848,6 +848,8 @@ const getOpenWorldEmptyTileCopy = (
 
 type OpenWorldGeneratedTileCategory = 'resource' | 'animal' | 'chest' | 'event' | 'obstacle'
 
+const OPEN_WORLD_GENERATED_TILE_CATEGORIES: OpenWorldGeneratedTileCategory[] = ['resource', 'animal', 'chest', 'event', 'obstacle']
+
 type OpenWorldGeneratedTileCopy = {
   objectType: NonNullable<RegionOpenWorldTileDef['objectType']>
   actionId: NonNullable<RegionOpenWorldTileDef['actionId']>
@@ -1358,28 +1360,78 @@ const OPEN_WORLD_LARGE_REGION_PROFILES: Record<RegionOpenWorldId, OpenWorldLarge
 }
 
 const createOpenWorldLargeRegionTiles = (profile: OpenWorldLargeRegionProfile): RegionOpenWorldTileDef[] => {
-  const specialByCoord = new Map(profile.specialTiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
-  const tiles: RegionOpenWorldTileDef[] = []
-  const categories: OpenWorldGeneratedTileCategory[] = ['resource', 'animal', 'chest', 'event', 'obstacle']
-  for (let y = 0; y < OPEN_WORLD_LARGE_MAP_HEIGHT; y += 1) {
-    for (let x = 0; x < OPEN_WORLD_LARGE_MAP_WIDTH; x += 1) {
-      const specialTile = specialByCoord.get(getOpenWorldTileCoordKey(x, y))
-      if (specialTile) {
-        tiles.push(specialTile)
-        continue
-      }
-      const terrain = profile.terrainAt(x, y)
-      const rewardRoll = hashOpenWorldCoord(profile.seed, x, y, 'reward') % 100
-      if (rewardRoll < OPEN_WORLD_REWARD_DENSITY_PERCENT) {
-        const category = categories[Math.floor(hashOpenWorldCoord(profile.seed, x, y, 'category') % categories.length)]!
-        tiles.push(createOpenWorldGeneratedRewardTile(profile, category, x, y, terrain))
-        continue
-      }
-      const copy = getOpenWorldEmptyTileCopy(profile.id, terrain, x, y)
-      tiles.push(createOpenWorldEmptyTile(profile.id, x, y, terrain, copy.label, copy.description))
-    }
+  // The 100x100 open-world grid is virtual; only authored landmarks live in the region def.
+  return profile.specialTiles
+}
+
+const OPEN_WORLD_SPECIAL_TILES_BY_REGION = Object.fromEntries(
+  Object.entries(OPEN_WORLD_LARGE_REGION_PROFILES).map(([regionId, profile]) => [
+    regionId,
+    new Map(profile.specialTiles.map(tile => [tile.id, tile]))
+  ])
+) as Record<RegionOpenWorldId, Map<string, RegionOpenWorldTileDef>>
+
+const OPEN_WORLD_SPECIAL_TILES_BY_COORD = Object.fromEntries(
+  Object.entries(OPEN_WORLD_LARGE_REGION_PROFILES).map(([regionId, profile]) => [
+    regionId,
+    new Map(profile.specialTiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
+  ])
+) as Record<RegionOpenWorldId, Map<string, RegionOpenWorldTileDef>>
+
+const getOpenWorldLargeRegionProfile = (regionId: RegionOpenWorldId) => OPEN_WORLD_LARGE_REGION_PROFILES[regionId] ?? null
+
+const isOpenWorldCoordInBounds = (x: number, y: number) =>
+  Number.isInteger(x) &&
+  Number.isInteger(y) &&
+  x >= 0 &&
+  y >= 0 &&
+  x < OPEN_WORLD_LARGE_MAP_WIDTH &&
+  y < OPEN_WORLD_LARGE_MAP_HEIGHT
+
+const parseOpenWorldGeneratedTileId = (regionId: RegionOpenWorldId, tileId: string) => {
+  const prefix = `${regionId}:`
+  if (!tileId.startsWith(prefix)) return null
+  const suffix = tileId.slice(prefix.length)
+  const match = /^(empty|resource|animal|chest|event|obstacle)_(\d+)_(\d+)$/.exec(suffix)
+  if (!match) return null
+  return {
+    category: match[1] as OpenWorldGeneratedTileCategory | 'empty',
+    x: Number(match[2]),
+    y: Number(match[3])
   }
-  return tiles
+}
+
+export const getOpenWorldRegionTileCount = (regionId: RegionOpenWorldId) =>
+  getOpenWorldLargeRegionProfile(regionId) ? OPEN_WORLD_LARGE_MAP_WIDTH * OPEN_WORLD_LARGE_MAP_HEIGHT : 0
+
+export const getOpenWorldTileDefAtCoord = (
+  regionId: RegionOpenWorldId,
+  x: number,
+  y: number
+): RegionOpenWorldTileDef | null => {
+  const profile = getOpenWorldLargeRegionProfile(regionId)
+  if (!profile || !isOpenWorldCoordInBounds(x, y)) return null
+  const specialTile = OPEN_WORLD_SPECIAL_TILES_BY_COORD[regionId]?.get(getOpenWorldTileCoordKey(x, y))
+  if (specialTile) return specialTile
+  const terrain = profile.terrainAt(x, y)
+  const rewardRoll = hashOpenWorldCoord(profile.seed, x, y, 'reward') % 100
+  if (rewardRoll < OPEN_WORLD_REWARD_DENSITY_PERCENT) {
+    const category = OPEN_WORLD_GENERATED_TILE_CATEGORIES[
+      Math.floor(hashOpenWorldCoord(profile.seed, x, y, 'category') % OPEN_WORLD_GENERATED_TILE_CATEGORIES.length)
+    ]!
+    return createOpenWorldGeneratedRewardTile(profile, category, x, y, terrain)
+  }
+  const copy = getOpenWorldEmptyTileCopy(regionId, terrain, x, y)
+  return createOpenWorldEmptyTile(regionId, x, y, terrain, copy.label, copy.description)
+}
+
+export const getOpenWorldTileDef = (regionId: RegionOpenWorldId, tileId: string): RegionOpenWorldTileDef | null => {
+  const specialTile = OPEN_WORLD_SPECIAL_TILES_BY_REGION[regionId]?.get(tileId)
+  if (specialTile) return specialTile
+  const parsed = parseOpenWorldGeneratedTileId(regionId, tileId)
+  if (!parsed || !isOpenWorldCoordInBounds(parsed.x, parsed.y)) return null
+  const generatedTile = getOpenWorldTileDefAtCoord(regionId, parsed.x, parsed.y)
+  return generatedTile?.id === tileId ? generatedTile : null
 }
 
 const getRegionRouteIds = (regionId: RegionId) => REGION_ROUTE_DEFS.filter(route => route.regionId === regionId).map(route => route.id)
@@ -1456,12 +1508,21 @@ export const REGION_OPEN_WORLD_DEFS: RegionOpenWorldRegionDef[] = [
 const OPEN_WORLD_REGION_IDS = REGION_OPEN_WORLD_DEFS.map(region => region.id) as RegionOpenWorldId[]
 
 const getOpenWorldRevealTileIds = (def: RegionOpenWorldRegionDef, tileId: string, radius = 1) => {
-  const center = def.tiles.find(tile => tile.id === tileId)
+  const center = getOpenWorldTileDef(def.id, tileId)
   if (!center) return [def.startTileId]
   const safeRadius = Math.max(0, Math.floor(radius))
-  return def.tiles
-    .filter(tile => Math.max(Math.abs(tile.x - center.x), Math.abs(tile.y - center.y)) <= safeRadius)
-    .map(tile => tile.id)
+  const tileIds: string[] = []
+  const minX = Math.max(0, center.x - safeRadius)
+  const maxX = Math.min(def.width - 1, center.x + safeRadius)
+  const minY = Math.max(0, center.y - safeRadius)
+  const maxY = Math.min(def.height - 1, center.y + safeRadius)
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const tile = getOpenWorldTileDefAtCoord(def.id, x, y)
+      if (tile && Math.max(Math.abs(tile.x - center.x), Math.abs(tile.y - center.y)) <= safeRadius) tileIds.push(tile.id)
+    }
+  }
+  return tileIds
 }
 
 const createDefaultOpenWorldTileState = (
@@ -1486,8 +1547,9 @@ const createDefaultOpenWorldRegionState = (def: RegionOpenWorldRegionDef): Regio
     discoveredTileIds,
     repairedOutpostIds: [],
     tileStates: Object.fromEntries(
-      def.tiles
-        .filter(tile => discoveredTileIds.includes(tile.id))
+      discoveredTileIds
+        .map(tileId => getOpenWorldTileDef(def.id, tileId))
+        .filter((tile): tile is RegionOpenWorldTileDef => Boolean(tile))
         .map(tile => [tile.id, createDefaultOpenWorldTileState(tile, true)])
     ),
     lastRefreshDayTag: ''

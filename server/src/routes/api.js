@@ -4050,6 +4050,70 @@ router.get('/admin/taoyuan/audit-logs', userAdminAuth, async (req, res) => {
   }
 });
 
+router.get('/admin/log-center/overview', userAdminAuth, async (req, res) => {
+  try {
+    const [
+      adminAudit,
+      onlineAudit,
+      contentRevision,
+      gameplay,
+      adminAuditRetention,
+    ] = await Promise.all([
+      req.admin?.role === 'super_admin'
+        ? db.listAdminAuditLogs({ page: 1, pageSize: 1 })
+        : Promise.resolve({ total: 0, logs: [] }),
+      taoyuanOnlineAudit.getOnlineAuditOverview(),
+      db.listContentRevisions({ page: 1, pageSize: 1 }),
+      db.getGameplayEventLogOverview(),
+      Promise.resolve(db.getAdminAuditRetentionPolicy()),
+    ]);
+    const contentModeration = taoyuanContentModerationAudit.getContentModerationAuditOverview();
+
+    res.json({
+      ok: true,
+      sources: {
+        admin_audit: {
+          label: '管理审计',
+          total: Number(adminAudit.total) || 0,
+          latest_created_at: Number(adminAudit.logs?.[0]?.created_at) || 0,
+          retention_days: req.admin?.role === 'super_admin' ? Number(adminAuditRetention.retention_days) || 180 : 0,
+          preserves_major_evidence: adminAuditRetention.preserves_major_evidence === true,
+          visible: req.admin?.role === 'super_admin',
+        },
+        online_audit: {
+          label: '在线审计',
+          ...onlineAudit,
+          visible: true,
+        },
+        content_moderation: {
+          label: '内容审核',
+          ...contentModeration,
+          visible: true,
+        },
+        gameplay: {
+          label: '游戏日志',
+          total: Number(gameplay.total) || 0,
+          latest_created_at: Number(gameplay.latest_created_at) || 0,
+          retention_days: Number(gameplay.retention?.retention_days) || 30,
+          max_total: Number(gameplay.retention?.max_total) || 500000,
+          max_per_user_slot: Number(gameplay.retention?.max_per_user_slot) || 12000,
+          visible: true,
+        },
+        content_revision: {
+          label: '内容发布',
+          total: Number(contentRevision.total) || 0,
+          latest_created_at: Number(contentRevision.revisions?.[0]?.created_at) || 0,
+          retention_days: null,
+          retention_label: '长期保留',
+          visible: true,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取日志中心概览失败' });
+  }
+});
+
 router.get('/admin/taoyuan/content-moderation/events', userAdminAuth, (req, res) => {
   try {
     const page = parsePositiveInt(req.query.page, 1);
@@ -4061,6 +4125,8 @@ router.get('/admin/taoyuan/content-moderation/events', userAdminAuth, (req, res)
       scene: req.query.scene,
       action: req.query.action,
       outcome: req.query.outcome,
+      created_from: req.query.created_from || req.query.createdFrom || req.query.from,
+      created_to: req.query.created_to || req.query.createdTo || req.query.to,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -4079,8 +4145,8 @@ router.get('/admin/taoyuan/content-moderation/risk-signals', userAdminAuth, (req
       signal_type: req.query.signal_type,
       scene: req.query.scene,
       status: req.query.status || 'pending',
-      created_from: req.query.created_from,
-      created_to: req.query.created_to,
+      created_from: req.query.created_from || req.query.createdFrom || req.query.from,
+      created_to: req.query.created_to || req.query.createdTo || req.query.to,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -7191,6 +7257,7 @@ router.get('/admin/audit-logs', adminAuth, async (req, res) => {
       action: req.query.action,
       operatorName: req.query.operator_name || req.query.operatorName,
       outcome: req.query.outcome,
+      keyword: req.query.keyword,
       createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
       createdTo: req.query.created_to || req.query.createdTo || req.query.to,
     });
@@ -7380,7 +7447,16 @@ router.get('/admin/content/revisions', userAdminAuth, async (req, res) => {
     const page = parsePositiveInt(req.query.page, 1);
     const pageSize = parsePositiveInt(req.query.page_size, 20);
     const contentKey = String(req.query.content_key || '').trim();
-    const result = await db.listContentRevisions({ contentKey, page, pageSize });
+    const result = await db.listContentRevisions({
+      contentKey,
+      page,
+      pageSize,
+      action: req.query.action,
+      operatorName: req.query.operator_name || req.query.operatorName || req.query.username,
+      keyword: req.query.keyword,
+      createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
+      createdTo: req.query.created_to || req.query.createdTo || req.query.to,
+    });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取内容版本日志失败' });
@@ -7610,9 +7686,22 @@ router.get('/admin/gameplay-logs', userAdminAuth, async (req, res) => {
     const username = normalizeUsername(req.query.username);
     const category = String(req.query.category || '').trim();
     const keyword = String(req.query.keyword || '').trim();
+    const action = String(req.query.action || '').trim();
+    const outcome = String(req.query.outcome || '').trim();
     const saveSlotRaw = parseInt(req.query.save_slot, 10);
     const saveSlot = Number.isInteger(saveSlotRaw) && saveSlotRaw >= 0 && saveSlotRaw <= 2 ? saveSlotRaw : null;
-    const result = await db.listGameplayEventLogs({ page, pageSize, username, category, keyword, saveSlot });
+    const result = await db.listGameplayEventLogs({
+      page,
+      pageSize,
+      username,
+      category,
+      keyword,
+      action,
+      outcome,
+      saveSlot,
+      createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
+      createdTo: req.query.created_to || req.query.createdTo || req.query.to,
+    });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取游戏日志失败' });

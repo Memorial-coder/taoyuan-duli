@@ -140,9 +140,9 @@ export interface PublicProfile {
 export const useSocialStore = defineStore('onlineSocial', () => {
   // ---- NPC功能解锁效果 ----
   const npcLetterWritingUnlocked = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('letter_writing'))
+  const npcLetterWritingInviteCapacityBonus = computed(() => npcLetterWritingUnlocked.value ? 1 : 0)
   const effectiveNeighborCapacityDraft = computed(() => {
-    const extraCapacity = npcLetterWritingUnlocked.value ? 1 : 0
-    return Math.max(2, Math.floor(Number(neighborCapacityDraft.value) || 12) + extraCapacity)
+    return Math.max(2, Math.floor(Number(neighborCapacityDraft.value) || 12) + npcLetterWritingInviteCapacityBonus.value)
   })
 
   const loading = ref(false)
@@ -761,6 +761,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     neighborNoticeDraft,
     neighborCapacityDraft,
     effectiveNeighborCapacityDraft,
+    npcLetterWritingUnlocked,
+    npcLetterWritingInviteCapacityBonus,
     neighborInviteUsernameDraft,
     subscriptionsLoading,
     subscriptionsActionRunning,

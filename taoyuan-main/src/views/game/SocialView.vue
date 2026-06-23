@@ -464,6 +464,13 @@
               <option :value="30">中型邻里（12-30）</option>
               <option :value="60">大型邻里（30+）</option>
             </select>
+            <p
+              v-if="socialStore.npcLetterWritingInviteCapacityBonus > 0"
+              class="text-[0.625rem] leading-4 text-accent"
+              data-testid="social-neighbor-letter-writing-bonus"
+            >
+              丹青「信件代笔」生效：实际容量 {{ socialStore.effectiveNeighborCapacityDraft }} 人。
+            </p>
             <div class="flex justify-end">
               <Button class="online-action-btn online-action-btn--primary" :disabled="socialStore.neighborActionRunning" @click="createNeighbor">
                 创建邻里

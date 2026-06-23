@@ -116,7 +116,10 @@ registerHooks({
 
 const { useFarmStore } = await import(pathToFileURL(path.join(srcRoot, 'stores', 'useFarmStore.ts')).href)
 const { getCropById } = await import(pathToFileURL(path.join(srcRoot, 'data', 'index.ts')).href)
-const { getPlotEffectiveGrowthDays } = await import(pathToFileURL(path.join(srcRoot, 'utils', 'farmGrowth.ts')).href)
+const {
+  getPlotEffectiveGrowthDays,
+  MAX_CROP_GROWTH_SPEEDUP
+} = await import(pathToFileURL(path.join(srcRoot, 'utils', 'farmGrowth.ts')).href)
 
 const createPlot = id => ({
   id,
@@ -196,6 +199,26 @@ withRandomSequence([0.99, 0.99, 0.99, 0.99], () => {
   farmStore.dailyUpdate(false, 0.33)
   assert(farmStore.plots[7].growthDays === 4, 'field fractional crop should keep integer daily progress when equipment growth is a threshold speedup')
   assert(farmStore.plots[7].state === 'harvestable', 'field fractional crop should mature after crossing its fractional threshold')
+})
+
+farmStore = createFarmStore()
+assert(farmStore.tillPlot(8), 'field capped-speed plot should be tillable')
+assert(farmStore.plantCrop(8, 'cabbage'), 'field capped-speed plot should accept a 3-day crop')
+assert(farmStore.applyFertilizer(8, 'speed_gro'), 'field capped-speed plot should accept speed gro')
+const cappedCabbage = getCropById('cabbage')
+assert(MAX_CROP_GROWTH_SPEEDUP === 0.5, 'total crop growth speedup should stay capped at 50%')
+assert(
+  Number(getPlotEffectiveGrowthDays(farmStore.plots[8], cappedCabbage, 1.25).toFixed(2)) === 1.5,
+  'stacked crop growth bonuses should cap effective maturity instead of collapsing every crop to one day'
+)
+withRandomSequence([0.99, 0.99], () => {
+  farmStore.plots[8].watered = true
+  farmStore.dailyUpdate(false, 1)
+  assert(farmStore.plots[8].growthDays === 1, 'capped-speed crop should still gain one progress day')
+  assert(farmStore.plots[8].state === 'growing', 'capped-speed 3-day crop should not mature after one day')
+  farmStore.plots[8].watered = true
+  farmStore.dailyUpdate(false, 1)
+  assert(farmStore.plots[8].state === 'harvestable', 'capped-speed 3-day crop should mature after crossing the capped threshold')
 })
 
 farmStore = createFarmStore()

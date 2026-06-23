@@ -4,6 +4,8 @@ import type {
   MuseumDisplayRatingState,
   MuseumExhibitSlotDef,
   MuseumExhibitSlotState,
+  MuseumExhibitSetDef,
+  MuseumExhibitSetState,
   MuseumHallLevelDef,
   MuseumHallProgress,
   MuseumHallZoneId,
@@ -53,7 +55,7 @@ export const MUSEUM_ITEMS: MuseumItemDef[] = [
   { id: 'mythril_bar', name: '秘银锭', category: 'bar', sourceHint: '熔炉合炼水晶矿与铁锭' },
 
   // ===== 化石 (8) =====
-  { id: 'trilobite_fossil', name: '三叶虫化石', category: 'fossil', sourceHint: '矿洞浅层/冰霜层宝箱' },
+  { id: 'trilobite_fossil', name: '三叶虫化石', category: 'fossil', sourceHint: '矿洞浅层/冰霜层宝箱，或旧采石场古物点' },
   { id: 'amber', name: '琥珀', category: 'fossil', sourceHint: '矿洞暗河层掉落' },
   { id: 'ammonite_fossil', name: '菊石化石', category: 'fossil', sourceHint: '矿洞熔岩/水晶层宝箱' },
   { id: 'fern_fossil', name: '蕨叶化石', category: 'fossil', sourceHint: '竹林稀有采集' },
@@ -63,11 +65,11 @@ export const MUSEUM_ITEMS: MuseumItemDef[] = [
   { id: 'dragon_tooth', name: '龙牙化石', category: 'fossil', sourceHint: '深渊层宝箱或骨龙掉落' },
 
   // ===== 古物 (10) =====
-  { id: 'ancient_pottery', name: '古陶片', category: 'artifact', sourceHint: '竹林稀有采集' },
+  { id: 'ancient_pottery', name: '古陶片', category: 'artifact', sourceHint: '竹林稀有采集，或旧采石场古物点' },
   { id: 'jade_disc', name: '玉璧残片', category: 'artifact', sourceHint: '水晶层宝箱' },
-  { id: 'bronze_mirror', name: '铜镜', category: 'artifact', sourceHint: '熔岩层宝箱' },
+  { id: 'bronze_mirror', name: '铜镜', category: 'artifact', sourceHint: '熔岩层宝箱，或旧采石场古物点' },
   { id: 'ancient_coin', name: '远古铜钱', category: 'artifact', sourceHint: '矿洞暗河层掉落' },
-  { id: 'oracle_bone', name: '甲骨片', category: 'artifact', sourceHint: '暗影层宝箱' },
+  { id: 'oracle_bone', name: '甲骨片', category: 'artifact', sourceHint: '暗影层宝箱，或旧采石场古物点' },
   { id: 'ancient_tablet', name: '古碑拓片', category: 'artifact', sourceHint: '旧采石场古物点' },
   { id: 'jade_pendant', name: '玉佩', category: 'artifact', sourceHint: '水晶层掉落' },
   { id: 'ancient_seed', name: '远古种子', category: 'artifact', sourceHint: '深层宝箱极稀有' },
@@ -214,9 +216,14 @@ export const MUSEUM_SCHOLAR_COMMISSIONS: MuseumScholarCommissionDef[] = [
     ratingTarget: 32,
     trafficTarget: 48,
     durationDays: 10,
+    linkedRouteLabels: ['博物馆', '采石场'],
+    materialRequirements: [
+      { itemId: 'trilobite_fossil', quantity: 1 },
+      { itemId: 'ancient_pottery', quantity: 1 }
+    ],
     reward: { money: 2200, reputation: 2 },
     contentTier: 'P1',
-    summary: '强调连续化石布展和修复故事，预留委托持续经营入口。'
+    summary: '消耗采石场副本化石与陶片，整理连续修复记录，让捐过的遗物仍能进入研究循环。'
   },
   {
     id: 'ancestral_relic_field_report',
@@ -230,9 +237,15 @@ export const MUSEUM_SCHOLAR_COMMISSIONS: MuseumScholarCommissionDef[] = [
     ratingTarget: 48,
     trafficTarget: 70,
     durationDays: 14,
+    linkedRouteLabels: ['博物馆', '采石场'],
+    materialRequirements: [
+      { itemId: 'ancient_tablet', quantity: 1 },
+      { itemId: 'bronze_mirror', quantity: 1 },
+      { itemId: 'oracle_bone', quantity: 1 }
+    ],
     reward: { money: 3600, reputation: 3 },
     contentTier: 'P2',
-    summary: '面向终局展示与祠堂主题共振的高阶学者委托。'
+    summary: '消耗采石场副本古物完成田野报告，面向终局展示与祠堂主题共振。'
   }
 ]
 
@@ -335,6 +348,87 @@ export const WS14_MUSEUM_SCHOLAR_COMMISSIONS: MuseumScholarCommissionDef[] = [
 ]
 
 const ALL_MUSEUM_SCHOLAR_COMMISSIONS = [...MUSEUM_SCHOLAR_COMMISSIONS, ...WS14_MUSEUM_SCHOLAR_COMMISSIONS]
+
+export const MUSEUM_EXHIBIT_SETS: MuseumExhibitSetDef[] = [
+  {
+    id: 'local_flavor_showcase',
+    name: '乡土风味展',
+    hallZoneId: 'entry_gallery',
+    unlockExhibitLevel: 8,
+    summary: '把油、粉、干货、蜂蜜和节会料理做成可回访的乡土饮食展，不消耗首捐藏品。',
+    requirements: [
+      { id: 'oil', itemId: 'mixed_seed_oil', quantity: 2, sourceHint: '油坊榨油或家庭备餐副本' },
+      { id: 'flour', itemId: 'rice_flour', quantity: 2, sourceHint: '石磨加工副本' },
+      { id: 'dried', itemId: 'dried_crop_bundle', quantity: 2, sourceHint: '晒架/干货加工副本' },
+      { id: 'honey', itemId: 'wildflower_honey', quantity: 1, sourceHint: '蜂箱或百花蜜副本' },
+      { id: 'festival_food', itemId: 'food_qing_tuan', quantity: 1, sourceHint: '节会料理副本' }
+    ],
+    rewards: [
+      { kind: 'visitor_flow', label: '游客热度', value: 12, summary: '完成后提高博物馆日常参观热度。' },
+      { kind: 'order_bias', label: '订单偏置', value: 1, summary: '后续订单更容易出现乡土风味与加工品主题。' }
+    ],
+    repeatable: false,
+    contentTier: 'P1'
+  },
+  {
+    id: 'deep_vein_quarry_showcase',
+    name: '深脉采石展',
+    hallZoneId: 'artifact_hall',
+    unlockExhibitLevel: 16,
+    summary: '把采石场副本遗物、深脉矿和矿锭转成长期展陈需求，首件捐赠仍保持一次性。',
+    requirements: [
+      { id: 'tablet', itemId: 'ancient_tablet', quantity: 1, sourceHint: '旧采石场古物点副本', duplicateOnly: true },
+      { id: 'mirror', itemId: 'bronze_mirror', quantity: 1, sourceHint: '旧采石场古物点副本', duplicateOnly: true },
+      { id: 'obsidian', itemId: 'obsidian', quantity: 2, sourceHint: '深脉采石或矿洞副本' },
+      { id: 'dragon_jade', itemId: 'dragon_jade', quantity: 1, sourceHint: '深脉采石或深层矿洞副本' },
+      { id: 'bar', itemId: 'mythril_bar', quantity: 1, sourceHint: '熔炉合炼副本' }
+    ],
+    rewards: [
+      { kind: 'scholar_commission', label: '学者委托', value: 1, summary: '提高采石场遗物相关学者委托优先级。' },
+      { kind: 'display_rating', label: '展示评分', value: 10, summary: '深脉题材提升古物馆展示评分。' }
+    ],
+    repeatable: false,
+    contentTier: 'P1'
+  },
+  {
+    id: 'fishpond_species_showcase',
+    name: '鱼塘物种展',
+    hallZoneId: 'fossil_hall',
+    unlockExhibitLevel: 12,
+    summary: '把稀有鱼样、观赏饲料和鱼塘养护物资组织成长期展示需求，承接鱼塘经营。',
+    requirements: [
+      { id: 'rare_fish', itemId: 'sturgeon', quantity: 1, sourceHint: '鱼塘或钓鱼副本样本' },
+      { id: 'legend_fish', itemId: 'dragonfish', quantity: 1, sourceHint: '稀有水域副本样本' },
+      { id: 'feed', itemId: 'fish_feed', quantity: 3, sourceHint: '磨坊、回收站或商店补给' },
+      { id: 'bait', itemId: 'standard_bait', quantity: 6, sourceHint: '鱼饵机或钓前准备' }
+    ],
+    rewards: [
+      { kind: 'fishpond_order', label: '鱼塘订单', value: 1, summary: '提高鱼塘相关订单和展示提示权重。' },
+      { kind: 'visitor_flow', label: '游客热度', value: 8, summary: '鱼类展示提升家庭游客兴趣。' }
+    ],
+    repeatable: false,
+    contentTier: 'P1'
+  },
+  {
+    id: 'spirit_offering_showcase',
+    name: '灵物供奉展',
+    hallZoneId: 'shrine_courtyard',
+    unlockExhibitLevel: 20,
+    summary: '把仙灵物品、高阶丹药和节会供品组合成祠堂展组，连接灵物供奉和关系事件。',
+    requirements: [
+      { id: 'spirit_bead', itemId: 'fox_bead', quantity: 1, sourceHint: '深层宝箱或狐仙线索副本', duplicateOnly: true },
+      { id: 'dream_silk', itemId: 'dream_silk', quantity: 1, sourceHint: '归女赐福织布副本', duplicateOnly: true },
+      { id: 'elixir', itemId: 'jade_peach_spirit_elixir', quantity: 1, sourceHint: '共同丹炉高阶丹药副本' },
+      { id: 'incense', itemId: 'pine_incense', quantity: 2, sourceHint: '制香坊供奉副本' }
+    ],
+    rewards: [
+      { kind: 'spirit_breath', label: 'spirit_breath', value: 1, summary: '为后续仙灵/关系事件提供灵息凭据。' },
+      { kind: 'display_rating', label: '展示评分', value: 12, summary: '祠堂主题获得高阶展示评分。' }
+    ],
+    repeatable: false,
+    contentTier: 'P2'
+  }
+]
 
 export const MUSEUM_SHRINE_THEMES: MuseumShrineThemeDef[] = [
   {
@@ -524,6 +618,18 @@ const createDefaultShrineThemeState = (): MuseumShrineThemeState => ({
   activationCounts: Object.fromEntries(MUSEUM_SHRINE_THEMES.map(theme => [theme.id, 0]))
 })
 
+const createDefaultExhibitSetState = (setId: string): MuseumExhibitSetState => ({
+  setId,
+  submittedItems: {},
+  completed: false,
+  rewardClaimed: false,
+  lastSubmittedDayTag: '',
+  completedDayTag: ''
+})
+
+const createDefaultExhibitSetStateRecord = (): Record<string, MuseumExhibitSetState> =>
+  Object.fromEntries(MUSEUM_EXHIBIT_SETS.map(set => [set.id, createDefaultExhibitSetState(set.id)]))
+
 const createDefaultVisitorFlowState = (): MuseumVisitorFlowState => {
   const score = MUSEUM_OPERATIONAL_CONFIG.defaultVisitorFlow
   return {
@@ -558,6 +664,7 @@ export const createDefaultMuseumSaveData = (): MuseumSaveData => ({
   exhibitSlotStates: createDefaultExhibitSlotStateRecord(),
   hallProgress: createDefaultHallProgressRecord(),
   scholarCommissionStates: createDefaultScholarCommissionStateRecord(),
+  exhibitSetStates: createDefaultExhibitSetStateRecord(),
   shrineThemeState: createDefaultShrineThemeState(),
   telemetry: createDefaultTelemetryState()
 })
@@ -647,6 +754,34 @@ const normalizeShrineThemeState = (raw: any): MuseumShrineThemeState => {
   }
 }
 
+const normalizeExhibitSetStates = (raw: any): Record<string, MuseumExhibitSetState> => {
+  const source = raw?.exhibitSetStates && typeof raw.exhibitSetStates === 'object' ? raw.exhibitSetStates : {}
+  return Object.fromEntries(MUSEUM_EXHIBIT_SETS.map(set => {
+    const current = source[set.id]
+    const submittedItems = current?.submittedItems && typeof current.submittedItems === 'object'
+      ? Object.fromEntries(set.requirements
+          .map(requirement => {
+            const value = Number(current.submittedItems[requirement.itemId])
+            const quantity = Number.isFinite(value) ? Math.max(0, Math.min(requirement.quantity, Math.floor(value))) : 0
+            return [requirement.itemId, quantity] as const
+          })
+          .filter(([, quantity]) => quantity > 0))
+      : {}
+    const completed = current?.completed === true || set.requirements.every(requirement => (submittedItems[requirement.itemId] ?? 0) >= requirement.quantity)
+    return [
+      set.id,
+      {
+        setId: set.id,
+        submittedItems,
+        completed,
+        rewardClaimed: current?.rewardClaimed === true,
+        lastSubmittedDayTag: typeof current?.lastSubmittedDayTag === 'string' ? current.lastSubmittedDayTag : '',
+        completedDayTag: typeof current?.completedDayTag === 'string' ? current.completedDayTag : ''
+      }
+    ]
+  })) as Record<string, MuseumExhibitSetState>
+}
+
 const normalizeVisitorFlowState = (telemetry: any): MuseumVisitorFlowState => {
   const defaults = createDefaultVisitorFlowState()
   const raw = telemetry?.visitorFlow
@@ -708,6 +843,7 @@ export const normalizeMuseumSaveData = (raw: Partial<MuseumSaveData> | Record<st
     exhibitSlotStates: normalizeExhibitSlotStates(raw, defaults),
     hallProgress: normalizeHallProgress(raw),
     scholarCommissionStates: normalizeScholarCommissionStates(raw),
+    exhibitSetStates: normalizeExhibitSetStates(raw),
     shrineThemeState: normalizeShrineThemeState(raw),
     telemetry: {
       saveVersion: MUSEUM_OPERATIONAL_CONFIG.saveVersion,
@@ -985,6 +1121,9 @@ export const getMuseumItemById = (id: string): MuseumItemDef | undefined => MUSE
 
 /** 根据ID查找学者委托 */
 export const getMuseumScholarCommissionById = (id: string): MuseumScholarCommissionDef | undefined => ALL_MUSEUM_SCHOLAR_COMMISSIONS.find(item => item.id === id)
+
+/** 根据ID查找专题展组 */
+export const getMuseumExhibitSetById = (id: string): MuseumExhibitSetDef | undefined => MUSEUM_EXHIBIT_SETS.find(item => item.id === id)
 
 /** 根据ID查找祠堂主题 */
 export const getMuseumShrineThemeById = (id: string): MuseumShrineThemeDef | undefined => MUSEUM_SHRINE_THEMES.find(item => item.id === id)

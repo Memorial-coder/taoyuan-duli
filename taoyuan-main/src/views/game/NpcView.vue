@@ -172,6 +172,24 @@
               : '当前尚未激活家庭心愿；后续页面会优先围绕婚后分工、知己协作与孩子成长组织新一轮家庭目标。'
           }}
         </p>
+        <div
+          v-if="activeHouseholdRoleEffectRows.length > 0"
+          class="grid gap-1 mt-2"
+          data-testid="npc-household-role-effects"
+        >
+          <div
+            v-for="row in activeHouseholdRoleEffectRows"
+            :key="row.roleId"
+            class="border border-accent/10 rounded-xs px-2 py-1"
+            data-testid="npc-household-role-effect-row"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[0.625rem] text-accent">{{ row.label }}</span>
+              <span class="text-[0.625rem] text-muted">{{ row.valueLabel }}</span>
+            </div>
+            <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ row.summary }}</p>
+          </div>
+        </div>
         <div v-if="activeFamilyWishChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
           <p class="text-[0.625rem] text-muted mb-1">家庭事件链</p>
           <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[0.625rem] mt-1 first:mt-0">
@@ -2664,6 +2682,22 @@
   const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
   const activeFamilyWishDef = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
   const activeFamilyWishChain = computed(() => npcStore.getFamilyWishChainPreview(activeFamilyWishDef.value?.id ?? ''))
+  const householdRoleEffectValueLabels: Record<string, string> = {
+    familyWishProgress: '心愿进度',
+    familyWishItemRelief: '材料减免',
+    animalMoodFloor: '心情托底',
+    processingSpeedPercent: '工坊加速',
+    familyFavorTicket: '情分票券',
+    childTrainingFriendshipBonus: '训练收益'
+  }
+  const activeHouseholdRoleEffectRows = computed(() =>
+    npcStore.getHouseholdRoleEffectSummaries()
+      .filter(row => row.active)
+      .map(row => ({
+        ...row,
+        valueLabel: `${householdRoleEffectValueLabels[row.effectKey] ?? row.effectKey} +${row.value}`
+      }))
+  )
   const activeZhijiProjectChain = computed(() => {
     const project = relationshipDebugSnapshot.value.zhijiCompanionProjects.find(entry => !entry.rewarded) ?? null
     return project ? npcStore.getZhijiProjectChainPreview(project.projectId, project.npcId) : null

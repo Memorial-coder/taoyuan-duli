@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { DECORATIONS } from '@/data/decorations'
+import { DECORATION_CATEGORY_NAMES, DECORATION_DEMAND_BIAS_RULES, DECORATIONS } from '@/data/decorations'
 import type { DecorationDef } from '@/data/decorations'
 import { usePlayerStore } from './usePlayerStore'
 import { useNpcStore } from './useNpcStore'
@@ -11,8 +11,12 @@ export const useDecorationStore = defineStore('decoration', () => {
   // ---- NPC功能解锁效果 ----
   const npcStore = useNpcStore()
   const npcCustomFurnitureUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('custom_furniture'))
-  const npcFarmhousePortraitBonus = computed(() => npcStore.getNpcFunctionEffectValue('farmhouse_portrait'))
-  const npcScenicPaintingsBonus = computed(() => npcStore.getNpcFunctionEffectValue('scenic_paintings'))
+  const npcFarmhousePortraitBeautyBonus = computed(() =>
+    Math.max(0, Math.floor(npcStore.getNpcFunctionEffectValue('farmhouse_portrait')))
+  )
+  const npcScenicPaintingsDailyFriendshipBonus = computed(() =>
+    Math.max(0, Math.floor(npcStore.getNpcFunctionEffectValue('scenic_paintings')))
+  )
 
   const playerStore = usePlayerStore()
 
@@ -37,7 +41,7 @@ export const useDecorationStore = defineStore('decoration', () => {
       const def = getDecorationDef(id)
       if (def) total += def.beautyScore * count
     }
-    return total + npcFarmhousePortraitBonus.value
+    return total + npcFarmhousePortraitBeautyBonus.value
   })
 
   const isUnlockedForDirectPurchase = (id: string) => {
@@ -64,8 +68,86 @@ export const useDecorationStore = defineStore('decoration', () => {
     return 0
   })
 
-  const dailyFriendshipBonus = computed(() => (beautyScore.value >= 50 ? 1 : 0) + npcScenicPaintingsBonus.value)
+  const dailyFriendshipBonus = computed(() => (beautyScore.value >= 50 ? 1 : 0) + npcScenicPaintingsDailyFriendshipBonus.value)
   const shopDiscountBonus = computed(() => (beautyScore.value >= 200 ? 5 : 0))
+
+  const getPlacedDecorationBeautyScore = (id: string) => {
+    const def = getDecorationDef(id)
+    if (!def) return 0
+    return def.beautyScore * getPlacedCount(id)
+  }
+
+  const getPlacedCategoryBeautyScore = (category: DecorationDef['category']) =>
+    Object.entries(placed.value).reduce((sum, [id, count]) => {
+      const def = getDecorationDef(id)
+      if (!def || def.category !== category) return sum
+      return sum + def.beautyScore * Math.max(0, Math.floor(Number(count) || 0))
+    }, 0)
+
+  const decorationDemandBiasOverview = computed(() =>
+    DECORATION_DEMAND_BIAS_RULES.map(rule => {
+      const categoryBeautyScore = rule.categories.reduce((sum, category) => sum + getPlacedCategoryBeautyScore(category), 0)
+      const featuredBeautyScore = rule.featuredDecorationIds.reduce((sum, id) => sum + getPlacedDecorationBeautyScore(id), 0)
+      const themeBeautyScore = categoryBeautyScore + featuredBeautyScore
+      const unlocked = beautyScore.value >= rule.minBeautyScore && themeBeautyScore >= rule.minThemeBeautyScore
+      const extraWeight = unlocked
+        ? Math.floor(Math.max(0, beautyScore.value - rule.minBeautyScore) / Math.max(1, rule.beautyPerExtraWeight))
+        : 0
+      const weight = unlocked ? Math.min(rule.maxWeight, rule.baseWeight + extraWeight) : 0
+      return {
+        ...rule,
+        unlocked,
+        categoryBeautyScore,
+        featuredBeautyScore,
+        themeBeautyScore,
+        weight,
+        progressLabel: `${beautyScore.value}/${rule.minBeautyScore} · 主题 ${themeBeautyScore}/${rule.minThemeBeautyScore}`,
+        categoryLabels: rule.categories.map(category => DECORATION_CATEGORY_NAMES[category] ?? category)
+      }
+    })
+  )
+
+  const activeDecorationDemandBiases = computed(() =>
+    decorationDemandBiasOverview.value.filter(rule => rule.unlocked && rule.weight > 0)
+  )
+
+  const getFamilyWishDecorationBiasWeight = (wishId: string) =>
+    activeDecorationDemandBiases.value
+      .filter(rule => rule.familyWishIds.includes(wishId))
+      .reduce((sum, rule) => sum + rule.weight, 0)
+
+  const getFamilyWishDecorationBiasSummary = (wishId: string) => {
+    const matchedRules = activeDecorationDemandBiases.value.filter(rule => rule.familyWishIds.includes(wishId))
+    if (matchedRules.length <= 0) return ''
+    return matchedRules.map(rule => `${rule.label}+${rule.weight}`).join('、')
+  }
+
+  const npcDecorationEffectSummary = computed(() => [
+    npcFarmhousePortraitBeautyBonus.value > 0
+      ? {
+          id: 'farmhouse_portrait',
+          label: '雪芹画像',
+          value: `美观度 +${npcFarmhousePortraitBeautyBonus.value}`,
+          summary: '计入家园美观度门槛，继续影响好感上限和商店折扣。'
+        }
+      : null,
+    npcScenicPaintingsDailyFriendshipBonus.value > 0
+      ? {
+          id: 'scenic_paintings',
+          label: '雪芹景观点缀',
+          value: `每日 NPC 好感 +${npcScenicPaintingsDailyFriendshipBonus.value}`,
+          summary: '每日重置时结算，仍受各 NPC 好感上限约束。'
+        }
+      : null,
+    npcCustomFurnitureUnlocked.value
+      ? {
+          id: 'custom_furniture',
+          label: '赵木匠定制家具',
+          value: '目录限定家具可直购',
+          summary: '万物铺目录家具仍受价格、库存和单件上限限制。'
+        }
+      : null
+  ].filter((entry): entry is { id: string; label: string; value: string; summary: string } => Boolean(entry)))
 
   const grantDecoration = (id: string, count = 1): { success: boolean; message: string } => {
     const def = getDecorationDef(id)
@@ -178,6 +260,13 @@ export const useDecorationStore = defineStore('decoration', () => {
     beautyLevel,
     dailyFriendshipBonus,
     shopDiscountBonus,
+    npcFarmhousePortraitBeautyBonus,
+    npcScenicPaintingsDailyFriendshipBonus,
+    npcDecorationEffectSummary,
+    decorationDemandBiasOverview,
+    activeDecorationDemandBiases,
+    getFamilyWishDecorationBiasWeight,
+    getFamilyWishDecorationBiasSummary,
     getPlacedCount,
     getOwnedCount,
     isCatalogDecoration,

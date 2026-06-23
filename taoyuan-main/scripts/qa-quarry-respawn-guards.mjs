@@ -116,6 +116,7 @@ const {
   seedInitialQuarryCells,
   spawnQuarryDailyResources
 } = await import(pathToFileURL(path.join(srcRoot, 'data/quarry.ts')).href)
+const { MAX_MINE_FLOOR } = await import(pathToFileURL(path.join(srcRoot, 'data/mine.ts')).href)
 const { getItemById } = await import(pathToFileURL(path.join(srcRoot, 'data/items.ts')).href)
 const { VILLAGE_PROJECT_DEFS } = await import(pathToFileURL(path.join(srcRoot, 'data/villageProjects.ts')).href)
 
@@ -193,6 +194,10 @@ assert(
   '扩建必须从 8x8 到 9x9。'
 )
 assert(QUARRY_EXPANSION_STAGES.at(-1)?.toSize === 32, '扩建最后必须到 32x32。')
+assert(
+  QUARRY_EXPANSION_STAGES.every(stage => stage.requiredMineFloor <= MAX_MINE_FLOOR),
+  '采石场扩建的主矿洞门槛不得超过主矿洞最大层数。'
+)
 assert(
   QUARRY_EXPANSION_STAGES.every(
     stage => stage.moneyCost > 0 && stage.materialCosts.length > 0 && stage.requiredClearedCount >= 0

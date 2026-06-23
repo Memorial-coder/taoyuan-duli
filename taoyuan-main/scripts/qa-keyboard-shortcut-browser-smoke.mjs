@@ -301,10 +301,11 @@ const roundHourToMinute = hour => Math.round(hour * 60)
 
 const seedOpenWorldMovement = async page => {
   await page.evaluate(async () => {
-    const [{ useRegionMapStore }, { usePlayerStore }, { useGameStore }] = await Promise.all([
+    const [{ useRegionMapStore }, { usePlayerStore }, { useGameStore }, { getOpenWorldTileDef, getOpenWorldTileDefAtCoord }] = await Promise.all([
       import('/src/stores/useRegionMapStore.ts'),
       import('/src/stores/usePlayerStore.ts'),
-      import('/src/stores/useGameStore.ts')
+      import('/src/stores/useGameStore.ts'),
+      import('/src/data/regions.ts')
     ])
     const regionMapStore = useRegionMapStore()
     const playerStore = usePlayerStore()
@@ -318,12 +319,12 @@ const seedOpenWorldMovement = async page => {
     const def = regionMapStore.openWorldDefs.find(entry => entry.id === regionId)
     const state = regionMapStore.openWorldState.regionStates[regionId]
     if (!def || !state) throw new Error('Unable to seed open-world region')
-    const start = def.tiles.find(tile => tile.id === def.startTileId)
+    const start = getOpenWorldTileDef(regionId, def.startTileId)
     const rightTiles = start
       ? [
-        def.tiles.find(tile => tile.x === start.x + 1 && tile.y === start.y),
-        def.tiles.find(tile => tile.x === start.x + 2 && tile.y === start.y),
-        def.tiles.find(tile => tile.x === start.x + 3 && tile.y === start.y)
+        getOpenWorldTileDefAtCoord(regionId, start.x + 1, start.y),
+        getOpenWorldTileDefAtCoord(regionId, start.x + 2, start.y),
+        getOpenWorldTileDefAtCoord(regionId, start.x + 3, start.y)
       ].filter(Boolean)
       : []
     if (!start || rightTiles.length < 3) throw new Error('Unable to find open-world movement tiles for hold-repeat test')

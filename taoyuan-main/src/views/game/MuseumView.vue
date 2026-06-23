@@ -56,6 +56,13 @@
                 >
                   {{ getScholarCommissionUnlockHint(commission) }}
                 </p>
+                <p
+                  v-if="getScholarCommissionMaterialSummary(commission.id)"
+                  class="mt-0.5 text-[0.625rem] leading-tight"
+                  :class="museumStore.canSupplyScholarCommissionMaterials(commission.id) ? 'text-success' : 'text-warning'"
+                >
+                  研究材料：{{ getScholarCommissionMaterialSummary(commission.id) }}
+                </p>
               </div>
               <Button
                 v-if="commission.isRewardPending"
@@ -77,6 +84,122 @@
               </span>
             </div>
           </div>
+        </div>
+        <div
+          v-if="featuredExhibitSetOverview.length > 0"
+          class="border border-accent/10 rounded-xs p-2"
+          data-testid="museum-exhibit-set-panel"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-muted">专题展组</p>
+            <span class="text-[0.625rem] text-accent">
+              {{ museumStore.completedExhibitSetCount }}/{{ museumStore.exhibitSetDefs.length }}
+            </span>
+          </div>
+          <div
+            v-for="set in featuredExhibitSetOverview"
+            :key="set.id"
+            class="border border-accent/10 rounded-xs px-2 py-1 mt-1"
+            data-testid="museum-exhibit-set-card"
+          >
+            <div class="flex items-start justify-between gap-2 text-[0.625rem]">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1">
+                  <p class="truncate text-text">{{ set.name }}</p>
+                  <span class="shrink-0 text-muted">{{ getHallLabel(set.hallZoneId) }}</span>
+                </div>
+                <p class="mt-0.5 text-muted leading-tight line-clamp-2">{{ set.summary }}</p>
+              </div>
+              <Button
+                v-if="set.canClaimReward"
+                class="!bg-success !text-bg px-2 py-0.5 shrink-0"
+                data-testid="museum-exhibit-set-claim"
+                @click="handleClaimExhibitSetReward(set.id)"
+              >
+                确认
+              </Button>
+              <span v-else class="shrink-0 whitespace-nowrap" :class="set.completed ? 'text-success' : set.unlocked ? 'text-accent' : 'text-muted'">
+                {{ getExhibitSetStatusLabel(set.id) }}
+              </span>
+            </div>
+            <div class="mt-1 flex items-center gap-2 text-[0.625rem]">
+              <div class="h-1 flex-1 rounded-xs border border-accent/10 bg-bg">
+                <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: set.progressPercent + '%' }" />
+              </div>
+              <span class="shrink-0 text-accent">{{ set.submittedTotal }}/{{ set.requiredTotal }}</span>
+            </div>
+            <div v-if="!set.unlocked" class="mt-1 text-[0.625rem] text-muted">
+              开放条件：展陈等级 {{ museumStore.exhibitLevel }}/{{ set.unlockExhibitLevel }}
+            </div>
+            <div class="mt-1 space-y-1">
+              <div
+                v-for="requirement in set.requirements"
+                :key="requirement.id"
+                class="flex items-center gap-1 text-[0.625rem]"
+                data-testid="museum-exhibit-set-requirement"
+              >
+                <ItemIcon :item="getItemById(requirement.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0 flex-1">
+                  <p class="truncate">
+                    {{ requirement.itemName }}
+                    <span v-if="requirement.duplicateOnly" class="text-muted">副本</span>
+                  </p>
+                  <p class="truncate text-muted">
+                    已交 {{ requirement.submitted }}/{{ requirement.quantity }} · 背包 {{ requirement.owned }} · {{ requirement.sourceHint }}
+                  </p>
+                </div>
+                <Button
+                  v-if="requirement.remaining > 0 && set.unlocked && !set.completed"
+                  class="px-2 py-0.5 shrink-0"
+                  data-testid="museum-exhibit-set-submit"
+                  :disabled="requirement.owned <= 0 || !requirement.duplicateReady"
+                  @click="handleSubmitExhibitSetItem(set.id, requirement.itemId)"
+                >
+                  提交
+                </Button>
+                <CircleCheck v-else-if="requirement.remaining <= 0" :size="12" class="shrink-0 text-success" />
+              </div>
+            </div>
+            <p class="mt-1 text-[0.625rem] text-muted">
+              奖励：{{ getExhibitSetRewardSummary(set.id) }}
+            </p>
+          </div>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2" data-testid="museum-species-note-panel">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-muted">物种笔记</p>
+            <span class="text-[0.625rem] text-accent">
+              {{ museumStore.speciesNoteOverview.completedCount }}/{{ museumStore.speciesNoteOverview.totalCount }}
+            </span>
+          </div>
+          <div class="mt-1 flex items-center gap-2 text-[0.625rem]">
+            <div class="h-1 flex-1 rounded-xs border border-accent/10 bg-bg">
+              <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: museumStore.speciesNoteOverview.progressPercent + '%' }" />
+            </div>
+            <span class="shrink-0 text-muted">订单风向 {{ museumStore.speciesNoteOverview.orderBiasScore }}</span>
+          </div>
+          <div class="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-2">
+            <div
+              v-for="entry in museumStore.speciesNoteOverview.entries"
+              :key="entry.id"
+              class="border border-accent/10 rounded-xs px-2 py-1.5"
+              data-testid="museum-species-note-entry"
+            >
+              <div class="flex items-center justify-between gap-2 text-[0.625rem]">
+                <span class="truncate text-text">{{ entry.title }}</span>
+                <span :class="entry.completed ? 'text-success' : 'text-accent'">{{ entry.progressLabel }}</span>
+              </div>
+              <div class="mt-1 h-1 rounded-xs border border-accent/10 bg-bg">
+                <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: getSpeciesNoteProgressPercent(entry.progress, entry.target) + '%' }" />
+              </div>
+              <p class="mt-1 truncate text-[0.625rem] text-muted">
+                {{ entry.sourceSystems.map(getSpeciesNoteSourceLabel).join(' / ') }} -> {{ entry.rewardKinds.map(getSpeciesNoteRewardLabel).join('、') }}
+              </p>
+            </div>
+          </div>
+          <p v-if="museumStore.speciesNoteOverview.nextEntry" class="mt-1 text-[0.625rem] text-muted">
+            下一册：{{ museumStore.speciesNoteOverview.nextEntry.title }} {{ museumStore.speciesNoteOverview.nextEntry.progressLabel }}
+          </p>
         </div>
         <div v-if="museumStore.crossSystemOverview.recommendedActions.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">经营联动</p>
@@ -312,6 +435,32 @@
   const activeShrineThemeName = computed(() => museumStore.getActiveShrineTheme()?.name ?? '尚未启用')
   const featuredHallOverview = computed(() => museumStore.hallProgressOverview.filter(hall => hall.currentLevelDef).slice(0, 4))
   const featuredCommissionOverview = computed(() => museumStore.featuredScholarCommissionOverview.slice(0, 3))
+  const featuredExhibitSetOverview = computed(() =>
+    [...museumStore.exhibitSetOverview]
+      .sort((left, right) => {
+        const leftWeight = (left.canClaimReward ? 5 : 0) + (left.canSubmit ? 3 : 0) + (left.completed ? 1 : 0) + (left.unlocked ? 1 : 0)
+        const rightWeight = (right.canClaimReward ? 5 : 0) + (right.canSubmit ? 3 : 0) + (right.completed ? 1 : 0) + (right.unlocked ? 1 : 0)
+        return rightWeight - leftWeight
+      })
+      .slice(0, 4)
+  )
+  const speciesNoteSourceLabels = {
+    breeding: '育种',
+    fishPond: '鱼塘',
+    regionMap: '行旅图',
+    quarry: '采石场',
+    museum: '博物馆'
+  } as const
+  const speciesNoteRewardLabels = {
+    order_bias: '订单风向',
+    museum_exhibit: '展组线索',
+    potential_hint: '潜能线索',
+    ticket_hint: '票券线索'
+  } as const
+  const getSpeciesNoteSourceLabel = (source: keyof typeof speciesNoteSourceLabels): string => speciesNoteSourceLabels[source]
+  const getSpeciesNoteRewardLabel = (reward: keyof typeof speciesNoteRewardLabels): string => speciesNoteRewardLabels[reward]
+  const getSpeciesNoteProgressPercent = (progress: number, target: number): number =>
+    Math.floor((progress / Math.max(1, target)) * 100)
 
   const getCategoryCount = (cat: MuseumCategory): number => {
     return MUSEUM_ITEMS.filter(i => i.category === cat && museumStore.isDonated(i.id)).length
@@ -352,6 +501,7 @@
   const canClaimScholarCommissionReward = (commissionId: string): boolean => {
     const commission = museumStore.getScholarCommissionOverview(commissionId)
     if (!commission?.isRewardPending) return false
+    if (!museumStore.canSupplyScholarCommissionMaterials(commissionId)) return false
     const rewardItems = (commission.reward.items ?? []).map(item => ({
       itemId: item.itemId,
       quantity: item.quantity,
@@ -364,8 +514,17 @@
     const commission = museumStore.getScholarCommissionOverview(commissionId)
     if (!commission) return '学者委托不存在。'
     if (!commission.isRewardPending) return '该学者委托尚未达到领奖条件。'
+    const materialBlockedReason = museumStore.getScholarCommissionMaterialBlockedReason(commissionId)
+    if (materialBlockedReason) return materialBlockedReason
     if (!canClaimScholarCommissionReward(commissionId)) return '请先整理背包，当前空间不足以领取学者委托奖励。'
     return ''
+  }
+
+  const getScholarCommissionMaterialSummary = (commissionId: string): string => {
+    return museumStore
+      .getScholarCommissionMaterialStatus(commissionId)
+      .map(item => `${item.itemName} ${item.owned}/${item.quantity}`)
+      .join('、')
   }
 
   const getScholarCommissionUnlockHint = (commission: {
@@ -380,6 +539,20 @@
   }): string => {
     if (commission.isAvailable || commission.isAccepted || commission.isRewardPending) return ''
     return `开放条件：展陈等级 ${museumStore.exhibitLevel}/${commission.unlockExhibitLevel}，捐赠 ${museumStore.donatedCount}/${commission.requiredDonationCount}，${getHallLabel(commission.hallZoneId)} Lv.${commission.hallLevel}/${commission.requiredHallLevel}`
+  }
+
+  const getExhibitSetRewardSummary = (setId: string): string => {
+    const set = museumStore.getExhibitSetOverview(setId)
+    return set?.rewards.map(reward => `${reward.label}+${reward.value}`).join('、') ?? ''
+  }
+
+  const getExhibitSetStatusLabel = (setId: string): string => {
+    const set = museumStore.getExhibitSetOverview(setId)
+    if (!set) return '未知'
+    if (!set.unlocked) return '未开放'
+    if (set.state.rewardClaimed) return '已确认'
+    if (set.completed) return '待确认'
+    return '收集中'
   }
 
   const canClaimMilestoneReward = (count: number): boolean => {
@@ -422,6 +595,16 @@
       return
     }
     const result = museumStore.claimScholarCommissionReward(commissionId)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleSubmitExhibitSetItem = (setId: string, itemId: string) => {
+    const result = museumStore.submitMuseumExhibitSetItem(setId, itemId)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleClaimExhibitSetReward = (setId: string) => {
+    const result = museumStore.claimExhibitSetReward(setId)
     showFloat(result.message, result.success ? 'success' : 'danger')
   }
 

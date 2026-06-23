@@ -324,10 +324,27 @@ export const migrateAdminUserSave = async (
 }
 
 export const fetchAdminAuditLogs = async (
-  params: { page?: number; pageSize?: number },
+  params: {
+    username?: string
+    action?: string
+    operatorName?: string
+    outcome?: string
+    keyword?: string
+    createdFrom?: number
+    createdTo?: number
+    page?: number
+    pageSize?: number
+  },
   tokenOverride?: string,
 ): Promise<AdminAuditLogListResult> => {
   const search = new URLSearchParams()
+  if (params.username) search.set('username', params.username)
+  if (params.action) search.set('action', params.action)
+  if (params.operatorName) search.set('operator_name', params.operatorName)
+  if (params.outcome) search.set('outcome', params.outcome)
+  if (params.keyword) search.set('keyword', params.keyword)
+  if (params.createdFrom) search.set('created_from', String(params.createdFrom))
+  if (params.createdTo) search.set('created_to', String(params.createdTo))
   search.set('page', String(params.page || 1))
   search.set('page_size', String(params.pageSize || 100))
   const data = await adminRequest<AdminAuditLogListResult>(`/api/admin/audit-logs?${search.toString()}`, undefined, tokenOverride)

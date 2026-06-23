@@ -165,6 +165,35 @@
             </div>
           </div>
 
+          <div v-if="fishingStore.isDeepWaterSpotUnlocked && fishPondStore.deepWaterPondHints.length > 0" class="border border-accent/20 rounded-xs px-3 py-2 mt-2 bg-accent/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">李渔深水样本</p>
+              <span class="text-[0.625rem] text-muted">钓鱼 -> 鱼塘</span>
+            </div>
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">
+              深水钓点已产出可养样本，优先挑成熟健康或高评分个体接展示池、周赛和后续订单。
+            </p>
+            <div class="space-y-1 mt-2">
+              <div v-for="entry in fishPondStore.deepWaterPondHints" :key="`deep-water-pond-${entry.fishId}`" class="border border-accent/10 rounded-xs px-2 py-1.5 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-text">{{ entry.fishName }}</span>
+                  <span class="text-[0.625rem] text-accent">最高 {{ entry.bestTotalScore }}</span>
+                </div>
+                <p class="text-[0.625rem] text-muted mt-1">塘中 {{ entry.totalCount }} 条 · 可直接承接 {{ entry.matureHealthyCount }} · 观赏 {{ entry.bestShowValue }}</p>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="fishingStore.isDeepWaterSpotUnlocked" class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">李渔深水样本</p>
+              <span class="text-[0.625rem] text-muted">待捕捞</span>
+            </div>
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">
+              瀑布和沼泽已解锁，虹鳟、沼泽泥鳅、娃娃鱼、黄鳝等深水鱼可转入鱼塘，后续用于繁育、展示池和周赛。
+            </p>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem] mt-2" @click="navigateToPanel('fishing')">去钓鱼</button>
+          </div>
+
           <div class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
             <div class="flex items-center justify-between gap-2">
               <div>
@@ -361,6 +390,31 @@
 
         <!-- 进度 -->
         <p class="text-xs text-muted mb-2">已发现 {{ discoveredCountByGen(compendiumGen) }}/{{ BREED_COUNTS[compendiumGen] }}</p>
+
+        <div class="border border-accent/20 rounded-xs p-2 mb-2" data-testid="fishpond-species-note-panel">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-muted">物种笔记</p>
+            <span class="text-[0.625rem] text-accent">{{ fishPondSpeciesNoteCompletedCount }}/{{ fishPondSpeciesNoteEntries.length }}</span>
+          </div>
+          <div
+            v-for="entry in fishPondSpeciesNoteEntries"
+            :key="entry.id"
+            class="border border-accent/10 rounded-xs px-2 py-1.5 mt-1"
+            data-testid="fishpond-species-note-entry"
+          >
+            <div class="flex items-center justify-between gap-2 text-[0.625rem]">
+              <span class="truncate text-text">{{ entry.title }}</span>
+              <span :class="entry.completed ? 'text-success' : 'text-accent'">{{ entry.progressLabel }}</span>
+            </div>
+            <div class="mt-1 flex items-center gap-2">
+              <div class="h-1 flex-1 rounded-xs border border-accent/10 bg-bg">
+                <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: getSpeciesNoteProgressPercent(entry.progress, entry.target) + '%' }" />
+              </div>
+              <span class="text-[0.625rem] text-muted">{{ entry.completed ? '已成册' : '记录中' }}</span>
+            </div>
+            <p class="mt-1 text-[0.625rem] text-muted leading-4">{{ entry.effectSummary }}</p>
+          </div>
+        </div>
 
         <!-- 提示 -->
         <div v-if="compendiumGen > 1" class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -666,6 +720,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useSkillStore } from '@/stores/useSkillStore'
+  import { useFishingStore } from '@/stores/useFishingStore'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { handleEndDay } from '@/composables/useEndDay'
@@ -682,6 +737,7 @@
   const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
   const skillStore = useSkillStore()
+  const fishingStore = useFishingStore()
   const isCompactMobile = ref(false)
   const fishPondPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
@@ -737,6 +793,13 @@
   }
 
   const currentGenBreeds = computed(() => getBreedsByGeneration(compendiumGen.value))
+  const fishPondSpeciesNoteEntries = computed(() =>
+    fishPondStore.speciesNoteOverview.entries.filter(entry => entry.sourceSystems.includes('fishPond'))
+  )
+  const fishPondSpeciesNoteCompletedCount = computed(() => fishPondSpeciesNoteEntries.value.filter(entry => entry.completed).length)
+  const getSpeciesNoteProgressPercent = (progress: number, target: number): number =>
+    Math.floor((progress / Math.max(1, target)) * 100)
+
   const getBreedParentName = (breedId: string | null): string => {
     if (!breedId) return '初代'
     return getBreedById(breedId)?.name ?? breedId

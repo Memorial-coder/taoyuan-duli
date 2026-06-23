@@ -26,6 +26,7 @@ const tryResolveFile = candidate => {
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === 'file-saver') return { url: 'qa:file-saver', shortCircuit: true }
     if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
     if (specifier === '@/router') return { url: 'qa:router', shortCircuit: true }
     if (specifier === '@/composables/useAudio' || specifier === './useAudio') return { url: 'qa:audio', shortCircuit: true }
@@ -41,6 +42,13 @@ registerHooks({
     return nextResolve(specifier, context)
   },
   load(url, context, nextLoad) {
+    if (url === 'qa:file-saver') {
+      return {
+        format: 'module',
+        source: 'export const saveAs = () => {}',
+        shortCircuit: true
+      }
+    }
     if (url === 'qa:qmsg') {
       return {
         format: 'module',

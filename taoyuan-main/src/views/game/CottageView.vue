@@ -86,6 +86,13 @@
 
       <template v-if="activeFamilyWishDef">
         <p class="text-[0.625rem] text-muted leading-4 mb-2">{{ activeFamilyWishDef.description }}</p>
+        <p
+          v-if="activeFamilyWishDecorationBiasSummary"
+          class="text-[0.625rem] text-accent leading-4 mb-2"
+          data-testid="cottage-family-wish-decoration-bias"
+        >
+          家园装饰风向：{{ activeFamilyWishDecorationBiasSummary }}
+        </p>
         <div class="h-1.5 bg-bg rounded-xs border border-accent/10 mb-2">
           <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: familyWishProgressPercent + '%' }" />
         </div>
@@ -103,9 +110,17 @@
           >
             <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
               <ItemIcon :item="getItemById(row.itemId)" size="xs" :quality="row.minQuality ?? 'normal'" />
-              <span class="truncate">
-                {{ row.itemName }}
-                <span v-if="row.minQuality && row.minQuality !== 'normal'" class="text-[0.625rem]">({{ row.qualityLabel }}及以上)</span>
+              <span class="min-w-0">
+                <span class="block truncate">
+                  {{ row.itemName }}
+                  <span v-if="row.minQuality && row.minQuality !== 'normal'" class="text-[0.625rem]">({{ row.qualityLabel }}及以上)</span>
+                </span>
+                <span v-if="row.sourceHint" class="block truncate text-[0.625rem] text-muted/70">
+                  {{ row.sourceHint }}
+                </span>
+                <span v-if="row.relievedQuantity > 0" class="block truncate text-[0.625rem] text-success">
+                  家务分工：{{ row.originalQuantity }} → {{ row.quantity }}
+                </span>
               </span>
             </span>
             <span class="text-xs shrink-0" :class="row.enough ? 'text-success' : 'text-danger'">
@@ -135,6 +150,12 @@
         <div v-if="nextFamilyWishPreview" class="border border-accent/10 rounded-xs px-3 py-2 mb-2">
           <p class="text-xs text-accent truncate">{{ nextFamilyWishPreview.title }}</p>
           <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ nextFamilyWishPreview.rewardSummary }}</p>
+          <p v-if="nextFamilyWishRequirementSummary" class="text-[0.625rem] text-muted/70 leading-4 mt-1" data-testid="cottage-family-wish-next-requirements">
+            需要：{{ nextFamilyWishRequirementSummary }}
+          </p>
+          <p v-if="nextFamilyWishDecorationBiasSummary" class="text-[0.625rem] text-accent leading-4 mt-1" data-testid="cottage-family-wish-next-decoration-bias">
+            装饰风向：{{ nextFamilyWishDecorationBiasSummary }}
+          </p>
         </div>
         <Button
           class="w-full justify-center py-1"
@@ -144,6 +165,38 @@
           安排心愿
         </Button>
       </template>
+    </section>
+
+    <section
+      v-if="activeHouseholdRoleEffectRows.length > 0"
+      class="border border-accent/20 rounded-xs p-3 mb-4 bg-bg/40"
+      data-testid="cottage-household-role-effects"
+    >
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div class="min-w-0">
+          <p class="text-sm text-accent">
+            <Home :size="14" class="inline" />
+            家务分工影响
+          </p>
+          <p class="text-[0.625rem] text-muted leading-4 mt-1">已接入周结、家庭心愿、牧场与工坊日结。</p>
+        </div>
+        <span class="text-[0.625rem] text-muted shrink-0">{{ activeHouseholdRoleEffectRows.length }} 项</span>
+      </div>
+      <div class="space-y-1">
+        <div
+          v-for="row in activeHouseholdRoleEffectRows"
+          :key="row.roleId"
+          class="border border-accent/10 rounded-xs px-2 py-1.5"
+          data-testid="cottage-household-role-effect-row"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs text-accent">{{ row.label }}</span>
+            <span class="text-[0.625rem] text-muted">{{ row.valueLabel }}</span>
+          </div>
+          <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ row.summary }}</p>
+          <p class="text-[0.625rem] text-muted/70 leading-4 mt-0.5">{{ row.weeklySummary }}</p>
+        </div>
+      </div>
     </section>
 
     <!-- 家人 -->
@@ -290,16 +343,20 @@
                 v-if="child.stage !== 'baby' && !child.interactedToday"
                 class="py-0 px-1"
                 :icon="Heart"
+                :disabled="!!getChildTrainingBlockReason(child.id)"
                 @click="handleInteractChild(child.id)"
               >
-                互动
+                训练
               </Button>
-              <span v-else-if="child.stage !== 'baby'" class="text-xs text-muted">已互动</span>
+              <span v-else-if="child.stage !== 'baby'" class="text-xs text-muted">已训练</span>
               <span v-else class="text-xs text-muted">还太小</span>
               <Button class="py-0 px-1 text-danger" @click="releaseConfirmChildId = child.id">送走</Button>
             </div>
           </div>
-          <p class="text-[0.625rem] text-muted mb-0.5">{{ CHILD_STAGE_NAMES[child.stage] }} · {{ child.daysOld }}天</p>
+          <p class="text-[0.625rem] text-muted mb-0.5">
+            {{ CHILD_STAGE_NAMES[child.stage] }} · {{ child.daysOld }}天
+            <span v-if="child.stage !== 'baby'"> · {{ getChildTrainingCourseLabel(child) }}课 {{ child.trainingState.lessonsThisWeek }}/周</span>
+          </p>
           <div v-if="child.stage !== 'baby'" class="flex items-center space-x-0.5">
             <Heart
               v-for="h in 10"
@@ -309,6 +366,41 @@
               :class="child.friendship >= h * 30 ? 'text-danger' : 'text-muted/30'"
               :fill="child.friendship >= h * 30 ? 'currentColor' : 'none'"
             />
+          </div>
+          <div
+            v-if="child.stage !== 'baby'"
+            class="mt-2 border border-accent/10 rounded-xs p-2 space-y-1"
+            data-testid="cottage-child-training-requirements"
+          >
+            <div
+              v-for="row in getChildTrainingRequirementRows(child.id)"
+              :key="`${child.id}:${row.itemId}:${row.minQuality ?? 'any'}`"
+              class="flex items-center justify-between gap-2"
+              data-testid="cottage-child-training-requirement-row"
+            >
+              <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                <ItemIcon :item="getItemById(row.itemId)" size="xs" :quality="row.minQuality ?? 'normal'" />
+                <span class="min-w-0">
+                  <span class="block truncate">
+                    {{ row.itemName }}
+                    <span v-if="row.minQuality && row.minQuality !== 'normal'" class="text-[0.625rem]">({{ row.qualityLabel }}及以上)</span>
+                  </span>
+                  <span v-if="row.sourceHint" class="block truncate text-[0.625rem] text-muted/70">
+                    {{ row.sourceHint }}
+                  </span>
+                </span>
+              </span>
+              <span class="text-xs shrink-0" :class="row.enough ? 'text-success' : 'text-danger'">
+                {{ row.available }}/{{ row.quantity }}
+              </span>
+            </div>
+            <p
+              v-if="getChildTrainingBlockReason(child.id)"
+              class="text-[0.625rem] text-danger leading-4"
+              data-testid="cottage-child-training-block-reason"
+            >
+              {{ getChildTrainingBlockReason(child.id) }}
+            </p>
           </div>
         </div>
       </div>
@@ -407,10 +499,10 @@
             <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
               <div
                 class="h-full rounded-xs bg-accent transition-all"
-                :style="{ width: Math.min(100, Math.floor((slot.daysAging / CELLAR_AGING_DAYS) * 100)) + '%' }"
+                :style="{ width: Math.min(100, Math.floor((slot.daysAging / cellarAgingDays) * 100)) + '%' }"
               />
             </div>
-            <span class="text-[0.625rem] text-muted">{{ slot.daysAging }}/{{ CELLAR_AGING_DAYS }}天</span>
+            <span class="text-[0.625rem] text-muted">{{ slot.daysAging }}/{{ cellarAgingDays }}天</span>
           </div>
         </div>
       </div>
@@ -820,7 +912,7 @@
       >
         <div class="game-panel max-w-xs w-full text-center">
           <p class="text-sm text-accent mb-3">确定取出{{ getItemName(removeAgingConfirmSlot.itemId) }}吗？</p>
-          <p class="text-xs text-muted mb-4">已陈酿{{ removeAgingConfirmSlot.daysAging }}天，满{{ CELLAR_AGING_DAYS }}天可提升品质。</p>
+          <p class="text-xs text-muted mb-4">已陈酿{{ removeAgingConfirmSlot.daysAging }}天，满{{ cellarAgingDays }}天可提升品质。</p>
           <p v-if="!canRemoveAgingConfirmSlot" class="text-xs text-danger mb-4">背包空间不足，无法取出，请先腾出空间。</p>
           <div class="flex space-x-3 justify-center">
             <Button @click="removeAgingConfirmIdx = null">取消</Button>
@@ -851,9 +943,9 @@
   import { getSeasonEventsForDay, getSeasonalActivitiesForDay } from '@/data/events'
   import { getRareVisitorsForDay, getUpcomingRareVisitors } from '@/data/bookseller'
   import { getUpcomingTravelingMerchantVisits } from '@/data/travelingMerchant'
-  import { CELLAR_AGEABLE_ITEMS, CELLAR_AGING_DAYS, CELLAR_MAX_SLOTS } from '@/data/buildings'
+  import { CELLAR_AGEABLE_ITEMS, CELLAR_MAX_SLOTS } from '@/data/buildings'
   import { ACTION_TIME_COSTS, WEEKDAYS, WEEKDAY_NAMES } from '@/data/timeConstants'
-  import type { Quality, ChildStage, PregnancyStage, Season, FarmHelperTask } from '@/types'
+  import type { Quality, ChildStage, ChildState, PregnancyStage, Season, FarmHelperTask } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { showChildProposal, triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
@@ -870,12 +962,16 @@
   const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()
   const dailyBlessingPreview = computed(() => skillStore.dailyBlessingPreview)
+  const cellarAgingDays = computed(() => homeStore.getEffectiveCellarAgingDays())
   const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
   const activeFamilyWishId = computed(() => familyWishOverview.value.state.activeWishId ?? '')
   const activeFamilyWishChain = computed(() => npcStore.getFamilyWishChainPreview(activeFamilyWishId.value))
   const activeFamilyWishDef = computed(() => activeFamilyWishChain.value?.def ?? null)
   const familyWishRequirementRows = computed(() =>
     activeFamilyWishDef.value ? npcStore.getFamilyWishItemRequirementStatus(activeFamilyWishDef.value.id) : []
+  )
+  const activeFamilyWishDecorationBiasSummary = computed(() =>
+    activeFamilyWishDef.value ? npcStore.getFamilyWishDecorationBias(activeFamilyWishDef.value.id).summary : ''
   )
   const familyWishCompletionBlockReason = computed(() =>
     activeFamilyWishDef.value ? npcStore.getFamilyWishCompletionBlockReason(activeFamilyWishDef.value.id) : ''
@@ -890,6 +986,30 @@
   )
   const nextFamilyWishPreview = computed(() =>
     familyWishOverview.value.defs.find(def => !familyWishOverview.value.state.completedWishIds.includes(def.id)) ?? null
+  )
+  const nextFamilyWishRequirementSummary = computed(() =>
+    (nextFamilyWishPreview.value?.itemRequirements ?? [])
+      .map(requirement => `${getItemById(requirement.itemId)?.name ?? requirement.itemId} x${requirement.quantity}`)
+      .join('、')
+  )
+  const nextFamilyWishDecorationBiasSummary = computed(() =>
+    nextFamilyWishPreview.value ? npcStore.getFamilyWishDecorationBias(nextFamilyWishPreview.value.id).summary : ''
+  )
+  const householdRoleEffectValueLabels: Record<string, string> = {
+    familyWishProgress: '心愿进度',
+    familyWishItemRelief: '材料减免',
+    animalMoodFloor: '心情托底',
+    processingSpeedPercent: '工坊加速',
+    familyFavorTicket: '情分票券',
+    childTrainingFriendshipBonus: '训练收益'
+  }
+  const activeHouseholdRoleEffectRows = computed(() =>
+    npcStore.getHouseholdRoleEffectSummaries()
+      .filter(row => row.active)
+      .map(row => ({
+        ...row,
+        valueLabel: `${householdRoleEffectValueLabels[row.effectKey] ?? row.effectKey} +${row.value}`
+      }))
   )
 
   const goToCohabitationManor = () => {
@@ -907,7 +1027,7 @@
     const completed = npcStore.completeFamilyWish(wishId)
     if (!completed) {
       const reason = npcStore.getFamilyWishCompletionBlockReason(wishId)
-      if (reason) addLog(`家庭心愿暂不能完成：${reason}`)
+      if (reason) addLog(`【家庭心愿】暂不能完成：${reason}`)
     }
   }
 
@@ -1311,6 +1431,15 @@
     return npcStore.children.find(c => c.id === childId)?.name ?? '孩子'
   }
 
+  const getChildTrainingRequirementRows = (childId: number) =>
+    npcStore.getChildTrainingRequirementStatus(childId)
+
+  const getChildTrainingBlockReason = (childId: number) =>
+    npcStore.getChildTrainingBlockReason(childId)
+
+  const getChildTrainingCourseLabel = (child: ChildState): string =>
+    npcStore.getChildTrainingCourseLabel(npcStore.getChildTrainingFocusForChild(child))
+
   // === 操作处理 ===
 
   const handleUpgradeFromModal = () => {
@@ -1328,7 +1457,7 @@
     const result = npcStore.interactWithChild(childId)
     if (result) {
       addLog(result.message)
-      if (result.item) {
+      if (result.success && result.item) {
         inventoryStore.addItem(result.item)
         const itemDef = getItemById(result.item)
         addLog(`获得了${itemDef?.name ?? result.item}！`)

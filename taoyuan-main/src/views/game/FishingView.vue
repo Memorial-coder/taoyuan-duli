@@ -14,18 +14,22 @@
       </p>
       <div class="grid grid-cols-3 gap-1">
         <div
-          v-for="loc in FISHING_LOCATIONS"
+          v-for="loc in fishingStore.fishingLocationOptions"
           :key="loc.id"
           class="text-center border rounded-xs px-2 py-1.5 cursor-pointer"
-          :class="fishingStore.fishingLocation === loc.id ? 'border-accent/60 bg-accent/10' : 'border-accent/20 hover:bg-accent/5'"
+          :class="getFishingLocationClass(loc)"
           @click="handleSetLocation(loc.id)"
         >
           <span class="text-xs" :class="fishingStore.fishingLocation === loc.id ? 'text-accent' : ''">
             {{ loc.name }}
           </span>
+          <p v-if="!loc.unlocked" class="text-[0.625rem] text-muted mt-0.5">{{ loc.lockedReason }}</p>
         </div>
       </div>
       <p class="text-xs text-muted mt-2">{{ currentLocationDesc }}</p>
+      <p v-if="fishingStore.isDeepWaterSpotUnlocked && fishingStore.deepWaterAvailableFish.length > 0" class="text-[0.625rem] text-accent mt-1">
+        李渔深水线索：今日瀑布 / 沼泽共有 {{ fishingStore.deepWaterAvailableFish.length }} 种深水鱼进入候选池。
+      </p>
     </div>
 
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
@@ -644,11 +648,18 @@
 
   const getBaitName = (type: BaitType): string => getBaitById(type)?.name ?? type
   const getTackleName = (type: TackleType): string => getTackleById(type)?.name ?? type
+  const getFishingLocationClass = (loc: { id: FishingLocation; unlocked: boolean }): string => {
+    if (!loc.unlocked) return 'border-accent/10 opacity-50 cursor-not-allowed'
+    return fishingStore.fishingLocation === loc.id ? 'border-accent/60 bg-accent/10' : 'border-accent/20 hover:bg-accent/5'
+  }
 
   // === Location ===
 
   const handleSetLocation = (loc: FishingLocation) => {
-    fishingStore.setLocation(loc)
+    if (!fishingStore.setLocation(loc)) {
+      addLog('这处深水钓点还没摸清，需要先解锁李渔的「深水线索」。')
+      return
+    }
     sfxClick()
   }
 

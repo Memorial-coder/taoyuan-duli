@@ -38,6 +38,19 @@
 
       <!-- 移动端总入口 -->
       <div class="game-side-actions">
+        <button
+          v-if="pendingOnlineRoomInviteCount > 0"
+          class="online-room-invite-prompt"
+          data-testid="mobile-hub-online-invite-prompt"
+          aria-live="polite"
+          type="button"
+          :aria-label="onlineRoomInvitePromptLabel"
+          :title="onlineRoomInvitePromptLabel"
+          @click="openOnlineRoomInvitesFromPrompt"
+        >
+          <span class="online-room-invite-prompt__title">联机邀请待处理</span>
+          <span class="online-room-invite-prompt__meta">{{ pendingOnlineRoomInviteCount }} 个房间等你确认</span>
+        </button>
         <button class="mobile-hub-btn" data-testid="mobile-hub-button" :aria-label="mobileHubTitle" :title="mobileHubTitle" @click="showMobileMap = true">
           <Map :size="20" />
           <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
@@ -611,6 +624,10 @@
   const friendRequestBadgeLabel = computed(() => pendingFriendRequestCount.value > 99 ? '99+' : String(pendingFriendRequestCount.value))
   const onlineRoomInviteBadgeLabel = computed(() => pendingOnlineRoomInviteCount.value > 99 ? '99+' : String(pendingOnlineRoomInviteCount.value))
   const mobileChatUnreadLabel = computed(() => friendChatStore.totalUnreadCount > 99 ? '99+' : String(friendChatStore.totalUnreadCount))
+  const onlineRoomInvitePromptLabel = computed(() => {
+    const domain = festivalRoomStore.invitedRooms.length > 0 ? '节会' : expeditionRoomStore.invitedRooms.length > 0 ? '远征' : '联机'
+    return `处理${domain}房间邀请，共 ${pendingOnlineRoomInviteCount.value} 个待确认`
+  })
   const mobileHubTitle = computed(() => {
     if (pendingOnlineRoomInviteCount.value > 0) return `地图（${pendingOnlineRoomInviteCount.value} 个联机房间邀请待处理）`
     if (pendingFriendRequestCount.value > 0) return `地图（${pendingFriendRequestCount.value} 个好友申请待处理）`
@@ -700,6 +717,11 @@
   const openVoidFromMenu = () => {
     showMobileMap.value = false
     showVoidModal.value = true
+  }
+  const openOnlineRoomInvitesFromPrompt = () => {
+    showMobileMap.value = false
+    const targetTab = festivalRoomStore.invitedRooms.length > 0 ? 'festival-room' : 'expedition-room'
+    void router.push({ name: 'online-festival', query: { tab: targetTab, focus: 'invites' } })
   }
 
   const getActiveFullscreenElement = () => {
@@ -1789,7 +1811,52 @@
     z-index: 40;
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
     gap: 8px;
+  }
+
+  .online-room-invite-prompt {
+    width: max-content;
+    max-width: min(16rem, calc(100vw - 5.5rem));
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    background: rgba(17, 24, 39, 0.92);
+    color: #fbbf24;
+    padding: 6px 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.36);
+    cursor: pointer;
+    text-align: left;
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  .online-room-invite-prompt:hover,
+  .online-room-invite-prompt:focus-visible {
+    border-color: rgba(251, 191, 36, 0.72);
+    background: rgba(30, 41, 59, 0.96);
+    transform: translateY(-1px);
+  }
+
+  .online-room-invite-prompt__title,
+  .online-room-invite-prompt__meta {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .online-room-invite-prompt__title {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+  }
+
+  .online-room-invite-prompt__meta {
+    margin-top: 1px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.625rem;
+    line-height: 0.875rem;
   }
 
   .game-floating-btn,

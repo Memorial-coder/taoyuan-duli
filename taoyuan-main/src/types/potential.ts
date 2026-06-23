@@ -137,6 +137,8 @@ export interface PotentialSourceRule {
   id: PotentialSourceId
   label: string
   summary: string
+  routeName?: string
+  routeLabel?: string
   rewards: PotentialResourceCost[]
   cap: {
     period: PotentialSourcePeriod

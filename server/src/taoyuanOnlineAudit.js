@@ -241,9 +241,22 @@ async function pruneOnlineAudits(options = {}) {
   });
 }
 
+async function getOnlineAuditOverview() {
+  return withOnlineAuditLock(async () => {
+    const store = loadOnlineAuditStore();
+    return {
+      total: store.logs.length,
+      latest_created_at: store.logs.reduce((latest, entry) => Math.max(latest, Number(entry.created_at) || 0), 0),
+      retention_days: getOnlineAuditRetentionDays(),
+      preserves_major_evidence: true,
+    };
+  });
+}
+
 module.exports = {
   recordOnlineAudit,
   listOnlineAudits,
   pruneOnlineAudits,
+  getOnlineAuditOverview,
   getOnlineAuditRetentionDays,
 };

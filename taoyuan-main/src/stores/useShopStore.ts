@@ -2224,8 +2224,9 @@ export const useShopStore = defineStore('shop', () => {
   }
 
   const npcBulkBuyUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('bulk_buy'))
+  const npcRareCommissionCategory = computed(() => getNpcRareCommissionCategory())
   const npcRareCommissionLine = computed(() => {
-    const category = getNpcRareCommissionCategory()
+    const category = npcRareCommissionCategory.value
     if (!category) return ''
     return `何掌柜本周稀有委托：${MARKET_CATEGORY_NAMES[category]}寄售成交价 +${Math.round((NPC_RARE_COMMISSION_MULTIPLIER - 1) * 100)}%。`
   })
@@ -3739,6 +3740,7 @@ export const useShopStore = defineStore('shop', () => {
     npcPriceIntelLines,
     npcWeeklyRareHintLine,
     npcCaravanIntelLines,
+    npcRareCommissionCategory,
     npcRareCommissionLine,
     npcBulkBuyUnlocked,
     wanwupuNpcRareItems,

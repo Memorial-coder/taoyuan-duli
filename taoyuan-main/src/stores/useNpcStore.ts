@@ -13,11 +13,15 @@ import type {
   ChildState,
   ChildTrainingFocus,
   ChildTrainingFamilyEventEntry,
+  ChildTrainingItemRequirement,
   ChildTrainingInfluenceEntry,
   FamilyWishBoardState,
   FamilyWishDef,
   FamilyWishItemRequirement,
   HouseholdRoleId,
+  HouseholdRoleEffectKey,
+  HouseholdRoleEffectSummary,
+  HouseholdRoleAssignmentState,
   HouseholdDivisionState,
   PregnancyState,
   PregnancyStage,
@@ -70,6 +74,7 @@ import type {
 import { FEED_DEFS, HAY_ITEM_ID, NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent, getCropById } from '@/data'
 import { RANDOM_NPC_LONG_STAY_STORY_EVENTS, RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS, RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
 import {
+  CHILD_TRAINING_REQUIREMENTS,
   createDefaultChildTrainingState,
   createDefaultFamilyWishBoardState,
   createDefaultHouseholdDivisionState,
@@ -81,6 +86,7 @@ import {
   WS09_ZHIJI_COMPANION_PROJECT_DEFS,
   WS15_ZHIJI_COMPANION_PROJECT_DEFS
 } from '@/data/npcs'
+import { getFamilyWishDemandEntries, getLinkageDemandAntiRepeatTags } from '@/data/linkageDemandPools'
 import { WEATHER_TIPS, getFortuneTip, getLivingTip, getRecipeTipMessage, NO_RECIPE_TIP, TIP_NPC_IDS } from '@/data/npcTips'
 import {
   getNpcBenefitSummaries,
@@ -109,6 +115,12 @@ import {
   type NpcFunctionUnlockDef,
   type NpcFunctionUnlockStatus
 } from '@/data/npcFunctions'
+import {
+  getNpcFunctionEffectSummaries as resolveNpcFunctionEffectSummaries,
+  getNpcFunctionEffectValue as resolveNpcFunctionEffectValue,
+  isNpcFunctionEffectActive as resolveNpcFunctionEffectActive,
+  type NpcFunctionEffectSummary
+} from '@/data/npcFunctionEffects'
 import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import { getItemById } from '@/data/items'
 import { useWalletStore } from './useWalletStore'
@@ -121,6 +133,7 @@ import { useFarmStore } from './useFarmStore'
 import { useAnimalStore } from './useAnimalStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useDecorationStore } from './useDecorationStore'
+import { useGoalStore } from './useGoalStore'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
 import { addLog } from '@/composables/useGameLog'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
@@ -134,7 +147,51 @@ const FAMILY_WISH_QUALITY_LABELS: Record<Quality, string> = {
   excellent: '精品',
   supreme: '极品'
 }
+const HOUSEHOLD_ROLE_EFFECTS: Record<HouseholdRoleId, {
+  effectKey: HouseholdRoleEffectKey
+  value: number
+  effects: Partial<Record<HouseholdRoleEffectKey, number>>
+  summary: string
+  weeklySummary: string
+}> = {
+  field_support: {
+    effectKey: 'animalMoodFloor',
+    value: 12,
+    effects: { animalMoodFloor: 12 },
+    summary: '牧场日结时动物心情至少保留 12 点，避免未照料日过度下滑。',
+    weeklySummary: '牧场照料稳定动物心情；效果只兜底心情，不提升产物品质。'
+  },
+  home_care: {
+    effectKey: 'familyWishItemRelief',
+    value: 1,
+    effects: { familyWishItemRelief: 1, familyWishProgress: 1, childTrainingFriendshipBonus: 1 },
+    summary: '当前家庭心愿每个材料项需求 -1，最低保留 1 个；每周额外推进 1 点心愿进度。',
+    weeklySummary: '宅院照料为家庭心愿补 1 点进度，并承担每项材料 1 个的低额准备；孩子训练好感额外 +1。'
+  },
+  craft_assist: {
+    effectKey: 'processingSpeedPercent',
+    value: 5,
+    effects: { processingSpeedPercent: 5 },
+    summary: '工坊加工用时减少 5%，低于专业 NPC 的 20% 加工加速。',
+    weeklySummary: '家业协作整理工坊排程；加工速度小幅提升，不替代专业 NPC 功能。'
+  },
+  social_coordination: {
+    effectKey: 'familyFavorTicket',
+    value: 1,
+    effects: { familyFavorTicket: 1 },
+    summary: '每完成 1 个分工周结，获得 1 张家人情分券，用于家庭/关系线消耗。',
+    weeklySummary: '人情往来带回 1 张家人情分券，作为关系线的小额周回报。'
+  }
+}
 type FamilyWishRequirementStatus = FamilyWishItemRequirement & {
+  itemName: string
+  qualityLabel: string
+  available: number
+  enough: boolean
+  originalQuantity: number
+  relievedQuantity: number
+}
+type ChildTrainingRequirementStatus = ChildTrainingItemRequirement & {
   itemName: string
   qualityLabel: string
   available: number
@@ -1596,6 +1653,123 @@ export const useNpcStore = defineStore('npc', () => {
     if (focus === 'social') return '人情'
     if (focus === 'spirit') return '灵性'
     return '农事'
+  }
+
+  const getChildTrainingCourseLabel = (focus: ChildTrainingFocus): string => {
+    if (focus === 'spirit') return '学识'
+    if (focus === 'social') return '体魄/社交'
+    if (focus === 'farm') return '自然'
+    return '手作'
+  }
+
+  const getChildTrainingFocusForChild = (child: ChildState): ChildTrainingFocus =>
+    child.trainingState.focus ?? child.trainingState.familyInfluenceFocus ?? 'spirit'
+
+  const normalizeChildTrainingItemRequirements = (
+    focus: ChildTrainingFocus
+  ): ChildTrainingItemRequirement[] => {
+    const byKey = new Map<string, ChildTrainingItemRequirement>()
+    for (const entry of CHILD_TRAINING_REQUIREMENTS[focus] ?? []) {
+      if (!entry?.itemId) continue
+      const quantity = Math.max(0, Math.floor(Number(entry.quantity) || 0))
+      if (quantity <= 0) continue
+      const minQuality = entry.minQuality && FAMILY_WISH_QUALITY_LABELS[entry.minQuality]
+        ? entry.minQuality
+        : undefined
+      const key = `${entry.itemId}:${minQuality ?? 'any'}`
+      const existing = byKey.get(key)
+      if (existing) {
+        existing.quantity += quantity
+        existing.sourceHint = existing.sourceHint ?? entry.sourceHint
+        existing.sourceGroupId = existing.sourceGroupId ?? entry.sourceGroupId
+      } else {
+        byKey.set(key, {
+          itemId: entry.itemId,
+          quantity,
+          minQuality,
+          sourceHint: entry.sourceHint,
+          sourceGroupId: entry.sourceGroupId
+        })
+      }
+    }
+    return [...byKey.values()]
+  }
+
+  const getChildTrainingRequirementStatus = (childId: number): ChildTrainingRequirementStatus[] => {
+    const child = children.value.find(entry => entry.id === childId)
+    if (!child || child.stage === 'baby') return []
+    const inventoryStore = useInventoryStore()
+    return normalizeChildTrainingItemRequirements(getChildTrainingFocusForChild(child)).map(requirement => {
+      const available = requirement.minQuality
+        ? inventoryStore.getTotalItemCountAtLeast(requirement.itemId, requirement.minQuality)
+        : inventoryStore.getTotalItemCount(requirement.itemId)
+      const minQuality = requirement.minQuality ?? 'normal'
+      return {
+        ...requirement,
+        itemName: getItemById(requirement.itemId)?.name ?? requirement.itemId,
+        qualityLabel: FAMILY_WISH_QUALITY_LABELS[minQuality],
+        available,
+        enough: available >= requirement.quantity
+      }
+    })
+  }
+
+  const formatChildTrainingRequirementStatusText = (status: ChildTrainingRequirementStatus): string => {
+    const qualityPrefix = status.minQuality && status.minQuality !== 'normal'
+      ? `${status.qualityLabel}及以上`
+      : ''
+    return `${qualityPrefix}${status.itemName} x${status.quantity}`
+  }
+
+  const formatChildTrainingMissingRequirementText = (status: ChildTrainingRequirementStatus): string =>
+    `${formatChildTrainingRequirementStatusText(status)}（${status.available}/${status.quantity}）`
+
+  const getChildTrainingBlockReason = (childId: number): string => {
+    const child = children.value.find(entry => entry.id === childId)
+    if (!child) return '找不到这个孩子。'
+    if (child.stage === 'baby') return '婴儿阶段还不能安排训练课。'
+    if (child.interactedToday) return '今天已经完成过陪伴训练。'
+    const missingRequirements = getChildTrainingRequirementStatus(childId).filter(status => !status.enough)
+    if (missingRequirements.length > 0) {
+      return `还缺 ${missingRequirements.map(formatChildTrainingMissingRequirementText).join('、')}。`
+    }
+    return ''
+  }
+
+  const consumeChildTrainingRequirements = (
+    child: ChildState
+  ): { success: boolean; consumedText: string; message?: string } => {
+    const focus = getChildTrainingFocusForChild(child)
+    const requirements = normalizeChildTrainingItemRequirements(focus)
+    if (requirements.length <= 0) return { success: true, consumedText: '' }
+    const requirementStatus = getChildTrainingRequirementStatus(child.id)
+    const missingRequirements = requirementStatus.filter(status => !status.enough)
+    if (missingRequirements.length > 0) {
+      return {
+        success: false,
+        consumedText: '',
+        message: `还缺 ${missingRequirements.map(formatChildTrainingMissingRequirementText).join('、')}。`
+      }
+    }
+    const inventoryStore = useInventoryStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    for (const requirement of requirements) {
+      const removed = requirement.minQuality
+        ? inventoryStore.removeItemAnywhereAtLeast(requirement.itemId, requirement.quantity, requirement.minQuality)
+        : inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)
+      if (!removed) {
+        inventoryStore.deserialize(inventorySnapshot)
+        return {
+          success: false,
+          consumedText: '',
+          message: '扣除训练材料失败，请重新确认背包库存。'
+        }
+      }
+    }
+    return {
+      success: true,
+      consumedText: requirementStatus.map(formatChildTrainingRequirementStatusText).join('、')
+    }
   }
 
   const getRandomNpcChildFamilyEventKey = (residentId: string, focus: ChildTrainingFocus): string =>
@@ -6364,6 +6538,45 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getHouseholdRoleAssignment = (npcId: string) => householdDivision.value.assignments.find(entry => entry.npcId === npcId) ?? null
 
+  const getActiveHouseholdRoleAssignments = () =>
+    householdDivision.value.assignments.filter(entry =>
+      npcStates.value.some(state => state.npcId === entry.npcId && (state.married || state.zhiji))
+    )
+
+  const isHouseholdRoleActive = (roleId: HouseholdRoleId) =>
+    getActiveHouseholdRoleAssignments().some(entry => entry.roleId === roleId)
+
+  const getHouseholdRoleEffectSummary = (roleId: HouseholdRoleId): HouseholdRoleEffectSummary | null => {
+    const roleDef = WS09_HOUSEHOLD_ROLE_DEFS.find(role => role.id === roleId)
+    const effect = HOUSEHOLD_ROLE_EFFECTS[roleId]
+    if (!roleDef || !effect) return null
+    return {
+      roleId,
+      label: roleDef.label,
+      effectKey: effect.effectKey,
+      value: effect.value,
+      summary: effect.summary,
+      weeklySummary: effect.weeklySummary,
+      active: isHouseholdRoleActive(roleId)
+    }
+  }
+
+  const getHouseholdRoleEffectSummaries = () =>
+    WS09_HOUSEHOLD_ROLE_DEFS
+      .map(role => getHouseholdRoleEffectSummary(role.id))
+      .filter((entry): entry is HouseholdRoleEffectSummary => !!entry)
+
+  const getHouseholdRoleEffectValue = (effectKey: HouseholdRoleEffectKey): number =>
+    getActiveHouseholdRoleAssignments().reduce((total, entry) => {
+      const effect = HOUSEHOLD_ROLE_EFFECTS[entry.roleId]
+      return total + Math.max(0, Math.floor(effect?.effects[effectKey] ?? 0))
+    }, 0)
+
+  const getHouseholdRoleAssignmentSummary = (npcId: string): HouseholdRoleEffectSummary | null => {
+    const assignment = getHouseholdRoleAssignment(npcId)
+    return assignment ? getHouseholdRoleEffectSummary(assignment.roleId) : null
+  }
+
   const setNpcCompanionshipTier = (npcId: string, tier: 'P0' | 'P1' | 'P2') => {
     const state = getNpcState(npcId)
     if (!state) return null
@@ -6449,13 +6662,12 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getFamilyWishOverview = () => ({
     defs: relationshipFeatureFlags.familyWishEnabled
-      ? ALL_FAMILY_WISH_DEFS
-          .filter(def => relationshipTierRank[def.unlockTier] <= relationshipTierRank[relationshipContentTier.value])
-          .slice(0, relationshipTuning.display.familyWishPreviewLimit)
+      ? getSortedEligibleFamilyWishDefs().slice(0, relationshipTuning.display.familyWishPreviewLimit)
       : [],
     config: WS09_FAMILY_WISH_BOARD_CONFIG,
     contentTier: relationshipContentTier.value,
-    state: familyWishBoard.value
+    state: familyWishBoard.value,
+    decorationDemandBiases: getDecorationDemandBiasOverview()
   })
 
   const getFamilyWishChainPreview = (wishId = familyWishBoard.value.activeWishId ?? '') => {
@@ -6477,6 +6689,41 @@ export const useNpcStore = defineStore('npc', () => {
               ? 'active'
               : 'pending'
       }))
+    }
+  }
+
+  const getDecorationDemandBiasOverview = () => {
+    const decorationStore = useDecorationStore()
+    return decorationStore.activeDecorationDemandBiases.map(rule => ({
+      id: rule.id,
+      label: rule.label,
+      summary: rule.summary,
+      weight: rule.weight,
+      familyWishIds: [...rule.familyWishIds],
+      demandTags: [...rule.demandTags],
+      progressLabel: rule.progressLabel,
+      guardrail: rule.guardrail
+    }))
+  }
+
+  const getFamilyWishDecorationBias = (wishId: string) => {
+    const decorationStore = useDecorationStore()
+    const matchedBiases = decorationStore.activeDecorationDemandBiases
+      .filter(rule => rule.familyWishIds.includes(wishId))
+      .map(rule => ({
+        id: rule.id,
+        label: rule.label,
+        summary: rule.summary,
+        weight: rule.weight,
+        demandTags: [...rule.demandTags],
+        progressLabel: rule.progressLabel,
+        guardrail: rule.guardrail
+      }))
+    return {
+      wishId,
+      weight: matchedBiases.reduce((sum, rule) => sum + rule.weight, 0),
+      summary: decorationStore.getFamilyWishDecorationBiasSummary(wishId),
+      matchedBiases
     }
   }
 
@@ -6559,6 +6806,8 @@ export const useNpcStore = defineStore('npc', () => {
 
   const normalizeFamilyWishItemRequirements = (wishDef?: FamilyWishDef | null): FamilyWishItemRequirement[] => {
     const byKey = new Map<string, FamilyWishItemRequirement>()
+    const demandEntries = wishDef?.id ? getFamilyWishDemandEntries(wishDef.id) : []
+    const demandByItemId = new Map(demandEntries.map(entry => [entry.itemId, entry]))
     for (const entry of wishDef?.itemRequirements ?? []) {
       if (!entry?.itemId) continue
       const quantity = Math.max(0, Math.floor(Number(entry.quantity) || 0))
@@ -6566,29 +6815,56 @@ export const useNpcStore = defineStore('npc', () => {
       const minQuality = entry.minQuality && FAMILY_WISH_QUALITY_LABELS[entry.minQuality]
         ? entry.minQuality
         : undefined
+      const demandEntry = demandByItemId.get(entry.itemId)
       const key = `${entry.itemId}:${minQuality ?? 'any'}`
       const existing = byKey.get(key)
       if (existing) {
         existing.quantity += quantity
-        existing.sourceHint = existing.sourceHint ?? entry.sourceHint
+        existing.sourceHint = existing.sourceHint ?? entry.sourceHint ?? demandEntry?.sourceHint
+        existing.sourceGroupId = existing.sourceGroupId ?? entry.sourceGroupId ?? demandEntry?.processedGroupId
+        existing.demandId = existing.demandId ?? demandEntry?.id
+        existing.demandTags = [...new Set([...(existing.demandTags ?? []), ...(demandEntry?.tags ?? [])])]
+        existing.antiRepeatTags = [...new Set([...(existing.antiRepeatTags ?? []), ...getLinkageDemandAntiRepeatTags(demandEntry)])]
       } else {
         byKey.set(key, {
           itemId: entry.itemId,
           quantity,
           minQuality,
-          sourceHint: entry.sourceHint
+          sourceHint: entry.sourceHint ?? demandEntry?.sourceHint,
+          sourceGroupId: entry.sourceGroupId ?? demandEntry?.processedGroupId,
+          demandId: demandEntry?.id,
+          demandTags: demandEntry?.tags,
+          antiRepeatTags: getLinkageDemandAntiRepeatTags(demandEntry)
         })
       }
     }
     return [...byKey.values()]
   }
 
+  const applyFamilyWishHouseholdRelief = (requirement: FamilyWishItemRequirement): FamilyWishItemRequirement & {
+    originalQuantity: number
+    relievedQuantity: number
+  } => {
+    const originalQuantity = Math.max(0, Math.floor(Number(requirement.quantity) || 0))
+    const relief = Math.max(0, Math.floor(getHouseholdRoleEffectValue('familyWishItemRelief')))
+    const relievedQuantity = originalQuantity > 1 ? Math.min(relief, originalQuantity - 1) : 0
+    return {
+      ...requirement,
+      originalQuantity,
+      relievedQuantity,
+      quantity: Math.max(1, originalQuantity - relievedQuantity)
+    }
+  }
+
+  const getEffectiveFamilyWishItemRequirements = (wishDef?: FamilyWishDef | null) =>
+    normalizeFamilyWishItemRequirements(wishDef).map(applyFamilyWishHouseholdRelief)
+
   const getFamilyWishItemRequirementStatus = (wishId = familyWishBoard.value.activeWishId ?? ''): FamilyWishRequirementStatus[] => {
     if (!wishId) return []
     const wishDef = ALL_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
     if (!wishDef) return []
     const inventoryStore = useInventoryStore()
-    return normalizeFamilyWishItemRequirements(wishDef).map(requirement => {
+    return getEffectiveFamilyWishItemRequirements(wishDef).map(requirement => {
       const available = requirement.minQuality
         ? inventoryStore.getTotalItemCountAtLeast(requirement.itemId, requirement.minQuality)
         : inventoryStore.getTotalItemCount(requirement.itemId)
@@ -6607,11 +6883,18 @@ export const useNpcStore = defineStore('npc', () => {
     const qualityPrefix = status.minQuality && status.minQuality !== 'normal'
       ? `${status.qualityLabel}及以上`
       : ''
-    return `${qualityPrefix}${status.itemName} x${status.quantity}`
+    const reliefText = status.relievedQuantity > 0 ? `（家务分工-${status.relievedQuantity}）` : ''
+    return `${qualityPrefix}${status.itemName} x${status.quantity}${reliefText}`
   }
 
   const formatFamilyWishMissingRequirementText = (status: FamilyWishRequirementStatus): string =>
     `${formatFamilyWishRequirementStatusText(status)}（${status.available}/${status.quantity}）`
+
+  const getFamilyWishMissingRequirementSummary = (wishId = familyWishBoard.value.activeWishId ?? ''): string => {
+    const missingRequirements = getFamilyWishItemRequirementStatus(wishId).filter(status => !status.enough)
+    if (missingRequirements.length <= 0) return ''
+    return missingRequirements.map(formatFamilyWishMissingRequirementText).join('、')
+  }
 
   const getFamilyWishCompletionBlockReason = (wishId = familyWishBoard.value.activeWishId ?? ''): string => {
     if (!wishId) return '当前没有进行中的家庭心愿。'
@@ -6631,7 +6914,7 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const consumeFamilyWishItemRequirements = (wishDef: FamilyWishDef): { success: boolean; consumedText: string; message?: string } => {
-    const requirements = normalizeFamilyWishItemRequirements(wishDef)
+    const requirements = getEffectiveFamilyWishItemRequirements(wishDef)
     if (requirements.length <= 0) {
       return { success: true, consumedText: '' }
     }
@@ -6724,6 +7007,7 @@ export const useNpcStore = defineStore('npc', () => {
           state.completedFamilyWishIds = [...state.completedFamilyWishIds, wishId]
         }
       }
+      useGoalStore().recordWeeklyActivityCounter('life_linkage_actions', 1)
       const consumedText = consumeResult.consumedText ? `消耗 ${consumeResult.consumedText}，` : ''
       const rewardText = rewardResult.rewardText ? `奖励：${rewardResult.rewardText}。` : '奖励已结算。'
       addLog(`【家庭心愿】${consumedText}已完成「${wishDef.title}」，${rewardText}`, {
@@ -6744,6 +7028,22 @@ export const useNpcStore = defineStore('npc', () => {
     return ALL_FAMILY_WISH_DEFS
       .filter(wish => allowedWishIds.has(wish.id))
       .filter(wish => relationshipTierRank[relationshipContentTier.value] >= relationshipTierRank[wish.unlockTier])
+  }
+
+  const getSortedEligibleFamilyWishDefs = () => {
+    const decorationStore = useDecorationStore()
+    return [...getEligibleFamilyWishDefs()].sort((left, right) => {
+      const leftCompleted = familyWishBoard.value.completedWishIds.includes(left.id) ? -100 : 0
+      const rightCompleted = familyWishBoard.value.completedWishIds.includes(right.id) ? -100 : 0
+      const leftDecorationWeight = decorationStore.getFamilyWishDecorationBiasWeight(left.id)
+      const rightDecorationWeight = decorationStore.getFamilyWishDecorationBiasWeight(right.id)
+      const leftTierRank = relationshipTierRank[left.unlockTier]
+      const rightTierRank = relationshipTierRank[right.unlockTier]
+      return (
+        rightCompleted + rightDecorationWeight * 10 + rightTierRank -
+        (leftCompleted + leftDecorationWeight * 10 + leftTierRank)
+      )
+    })
   }
 
   const getAutoFamilyWishProgressDelta = (wishId: string) => {
@@ -6770,7 +7070,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const autoActivateFamilyWishForWeek = (currentDayTag: string) => {
     if (familyWishBoard.value.activeWishId) return null
-    const candidates = getEligibleFamilyWishDefs().filter(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
+    const candidates = getSortedEligibleFamilyWishDefs().filter(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
     const nextWish = candidates[0] ?? null
     if (!nextWish) return null
     activateFamilyWish(
@@ -6852,7 +7152,7 @@ export const useNpcStore = defineStore('npc', () => {
         message: `当前已有进行中的家庭心愿：${currentWish?.title ?? familyWishBoard.value.activeWishId}。`
       }
     }
-    const nextWish = getEligibleFamilyWishDefs().find(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
+    const nextWish = getSortedEligibleFamilyWishDefs().find(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
     if (!nextWish) {
       return { success: false, message: '当前没有可安排的新家庭心愿。' }
     }
@@ -6966,6 +7266,51 @@ export const useNpcStore = defineStore('npc', () => {
     }
   }
 
+  const applyHouseholdRoleWeeklyEffect = (entry: HouseholdRoleAssignmentState): string[] => {
+    const roleDef = WS09_HOUSEHOLD_ROLE_DEFS.find(role => role.id === entry.roleId)
+    const effectSummary = getHouseholdRoleEffectSummary(entry.roleId)
+    const npcName = getNpcById(entry.npcId)?.name ?? entry.npcId
+    const logs: string[] = []
+    if (!roleDef || !effectSummary) return logs
+
+    if (entry.roleId === 'home_care') {
+      const delta = Math.max(0, Math.floor(HOUSEHOLD_ROLE_EFFECTS.home_care.effects.familyWishProgress ?? 0))
+      if (delta > 0 && familyWishBoard.value.activeWishId) {
+        const before = familyWishBoard.value.progress
+        updateFamilyWishProgress(delta)
+        const applied = Math.max(0, familyWishBoard.value.progress - before)
+        if (applied > 0) {
+          logs.push(`【家庭分工】${npcName}完成「${roleDef.label}」，家庭心愿进度+${applied}。`)
+        }
+      }
+    }
+
+    if (entry.roleId === 'social_coordination') {
+      const ticketAmount = Math.max(0, Math.floor(HOUSEHOLD_ROLE_EFFECTS.social_coordination.effects.familyFavorTicket ?? 0))
+      if (ticketAmount > 0) {
+        const walletStore = useWalletStore()
+        const grantedTickets = walletStore.addRewardTickets({ familyFavor: ticketAmount }, {
+          applyMultiplier: false,
+          source: 'household_role'
+        })
+        const grantedAmount = Math.max(0, Math.floor(Number(grantedTickets.familyFavor) || 0))
+        if (grantedAmount > 0) {
+          logs.push(`【家庭分工】${npcName}完成「${roleDef.label}」，带回${walletStore.getTicketLabel('familyFavor')}×${grantedAmount}。`)
+        }
+      }
+    }
+
+    if (entry.roleId === 'field_support' || entry.roleId === 'craft_assist') {
+      logs.push(`【家庭分工】${npcName}完成「${roleDef.label}」，${effectSummary.weeklySummary}`)
+    }
+
+    if (logs.length === 0) {
+      logs.push(`【家庭分工】${npcName}完成「${roleDef.label}」，${effectSummary.weeklySummary}`)
+    }
+
+    return logs
+  }
+
   const processRelationshipCycleTick = (payload: {
     currentDayTag: string
     currentWeekId: string
@@ -6982,6 +7327,7 @@ export const useNpcStore = defineStore('npc', () => {
         entry.progressDays = 0
         const npcName = getNpcById(entry.npcId)?.name ?? entry.npcId
         logs.push(`【家庭分工】${npcName}的协作分工已完成 1 个周期。`)
+        logs.push(...applyHouseholdRoleWeeklyEffect(entry))
       }
     }
     householdDivision.value.lastSettlementDayTag = payload.currentDayTag
@@ -7003,7 +7349,12 @@ export const useNpcStore = defineStore('npc', () => {
           if (completeFamilyWish(completedWishId)) {
             logs.push(`【家庭心愿】本周家庭心愿「${completedWishId}」已完成。`)
           } else {
-            logs.push(`【家庭心愿】${completedWishId} 已达到完成条件，但材料或奖励结算受阻，已保留至下次重试。`)
+            const missingSummary = getFamilyWishMissingRequirementSummary(completedWishId)
+            logs.push(
+              missingSummary
+                ? `【家庭心愿】${completedWishId} 进度已满，但还缺 ${missingSummary}，已保留至下次补齐材料后重试。`
+                : `【家庭心愿】${completedWishId} 已达到完成条件，但材料或奖励结算受阻，已保留至下次重试。`
+            )
           }
         } else if (
           familyWishBoard.value.expiresDayTag &&
@@ -7515,23 +7866,46 @@ export const useNpcStore = defineStore('npc', () => {
     }
   }
 
-  /** 与子女互动 */
-  const interactWithChild = (childId: number): { message: string; item?: string } | null => {
+  /** 与子女互动 / 训练 */
+  const interactWithChild = (childId: number): { success: boolean; message: string; item?: string; consumedText?: string } | null => {
     const child = children.value.find(c => c.id === childId)
     if (!child) return null
-    if (child.interactedToday) return null
-    if (child.stage === 'baby') return null
+    const blockReason = getChildTrainingBlockReason(childId)
+    if (blockReason) return { success: false, message: blockReason }
 
+    const inventoryStore = useInventoryStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const consumeResult = consumeChildTrainingRequirements(child)
+    if (!consumeResult.success) {
+      inventoryStore.deserialize(inventorySnapshot)
+      return { success: false, message: consumeResult.message ?? '训练材料不足。' }
+    }
+
+    const householdTrainingBonus = Math.max(0, Math.floor(getHouseholdRoleEffectValue('childTrainingFriendshipBonus')))
+    const friendshipGain = 2 + householdTrainingBonus
     child.interactedToday = true
-    child.friendship = Math.min(300, child.friendship + 2)
+    child.friendship = Math.min(300, child.friendship + friendshipGain)
+    const focus = getChildTrainingFocusForChild(child)
+    child.trainingState = {
+      ...child.trainingState,
+      focus,
+      lessonsThisWeek: Math.max(0, child.trainingState.lessonsThisWeek) + 1,
+      milestoneIds: [...new Set([...child.trainingState.milestoneIds, `training:${focus}`])].slice(-8),
+      familyInfluenceHistory: sanitizeChildTrainingInfluenceHistory(child.trainingState.familyInfluenceHistory),
+      familyEventStages: sanitizeChildTrainingFamilyEventStages(child.trainingState.familyEventStages),
+      familyEventLastDayTags: sanitizeChildTrainingFamilyEventLastDayTags(child.trainingState.familyEventLastDayTags),
+      familyEventHistory: sanitizeChildTrainingFamilyEventHistory(child.trainingState.familyEventHistory)
+    }
+    const courseLabel = getChildTrainingCourseLabel(focus)
+    const consumedText = consumeResult.consumedText ? `消耗${consumeResult.consumedText}，` : ''
 
     if (child.stage === 'child' && Math.random() < 0.1) {
       const finds = ['wood', 'herb', 'pine_cone', 'wild_berry']
       const item = finds[Math.floor(Math.random() * finds.length)]!
-      return { message: `${child.name}递给你一个东西。`, item }
+      return { success: true, message: `${consumedText}${child.name}完成了${courseLabel}训练，亲密度+${friendshipGain}，还递给你一个东西。`, item, consumedText: consumeResult.consumedText }
     }
 
-    return { message: `你和${child.name}玩了一会儿。(+2好感)` }
+    return { success: true, message: `${consumedText}你陪${child.name}完成了${courseLabel}训练。(+${friendshipGain}好感)`, consumedText: consumeResult.consumedText }
   }
 
   /** 检查NPC是否有每日提示功能 */
@@ -8236,24 +8610,23 @@ export const useNpcStore = defineStore('npc', () => {
     })
   }
 
-  /** 聚合所有已解锁 NPC 功能的 effectPayload.value 总和 */
+  const getUnlockedNpcFunctionDefs = (): NpcFunctionUnlockDef[] =>
+    npcStates.value.flatMap(state =>
+      getNpcFunctionUnlockDefs(state.npcId).filter(def => isNpcFunctionUnlocked(def.id))
+    )
+
+  /** 通过统一注册表聚合所有已解锁 NPC 功能效果值 */
   const getNpcFunctionEffectValue = (effectType: string): number => {
-    return npcStates.value.reduce((sum, state) => {
-      const defs = getNpcFunctionUnlockDefs(state.npcId)
-      return defs.reduce((s, def) => {
-        if (def.effectType !== effectType || !isNpcFunctionUnlocked(def.id)) return s
-        return s + (typeof def.effectPayload?.value === 'number' ? def.effectPayload.value : 0)
-      }, sum)
-    }, 0)
+    return resolveNpcFunctionEffectValue(effectType, { unlockedFunctionDefs: getUnlockedNpcFunctionDefs() })
   }
 
-  /** 检查是否有任意已解锁 NPC 功能匹配指定 effectType */
+  /** 通过统一注册表检查是否有任意已解锁 NPC 功能匹配指定 effectType */
   const isNpcFunctionEffectUnlocked = (effectType: string): boolean => {
-    return npcStates.value.some(state => {
-      const defs = getNpcFunctionUnlockDefs(state.npcId)
-      return defs.some(def => def.effectType === effectType && isNpcFunctionUnlocked(def.id))
-    })
+    return resolveNpcFunctionEffectActive(effectType, { unlockedFunctionDefs: getUnlockedNpcFunctionDefs() })
   }
+
+  const getUnlockedNpcFunctionEffectSummaries = (): NpcFunctionEffectSummary[] =>
+    resolveNpcFunctionEffectSummaries({ unlockedFunctionDefs: getUnlockedNpcFunctionDefs() })
 
   return {
     npcStates,
@@ -8322,11 +8695,18 @@ export const useNpcStore = defineStore('npc', () => {
     relationshipContentTier,
     getAvailableHouseholdRoles,
     getHouseholdRoleAssignment,
+    getActiveHouseholdRoleAssignments,
+    getHouseholdRoleAssignmentSummary,
+    getHouseholdRoleEffectSummary,
+    getHouseholdRoleEffectSummaries,
+    getHouseholdRoleEffectValue,
     assignHouseholdRole,
     clearHouseholdRole,
     progressHouseholdRole,
     getFamilyWishOverview,
     getFamilyWishChainPreview,
+    getDecorationDemandBiasOverview,
+    getFamilyWishDecorationBias,
     getFamilyWishItemRequirementStatus,
     getFamilyWishCompletionBlockReason,
     activateFamilyWish,
@@ -8340,6 +8720,10 @@ export const useNpcStore = defineStore('npc', () => {
     progressZhijiProject,
     rewardZhijiProject,
     processRelationshipCycleTick,
+    getChildTrainingCourseLabel,
+    getChildTrainingFocusForChild,
+    getChildTrainingRequirementStatus,
+    getChildTrainingBlockReason,
     becomeZhiji,
     dissolveZhiji,
     dailyWeddingUpdate,
@@ -8421,6 +8805,7 @@ export const useNpcStore = defineStore('npc', () => {
     unlockNpcFunction,
     getNpcFunctionEffectValue,
     isNpcFunctionEffectUnlocked,
+    getUnlockedNpcFunctionEffectSummaries,
     serialize,
     deserialize
   }

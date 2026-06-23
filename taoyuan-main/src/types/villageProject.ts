@@ -125,6 +125,12 @@ export interface VillageProjectDonationMilestone {
   label: string
   targetAmount: number
   rewardSummary: string
+  activation?: {
+    type: 'maintenanceWindow'
+    projectId: string
+    durationDays: number
+    summary: string
+  }
   reward?: {
     money?: number
     items?: Array<{ itemId: string; quantity: number }>

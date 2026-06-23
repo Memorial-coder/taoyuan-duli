@@ -579,7 +579,9 @@ export const POTENTIAL_SOURCE_RULES: readonly PotentialSourceRule[] = [
   {
     id: 'quarry_stewardship',
     label: '采石场管护',
-    summary: '旧采石场复开后，每周手动清理足够资源格时获得，作为后期材料基础设施的轻量潜能回流。',
+    summary: '旧采石场复开后，每周手动清理足够资源格时获得。去旧采石场清理 12 格可触发一次，本周最多 2 次。',
+    routeName: 'quarry',
+    routeLabel: '去旧采石场',
     rewards: [
       { resourceId: 'potential_insight', amount: 1 },
       { resourceId: 'mountain_jade', amount: 1 }

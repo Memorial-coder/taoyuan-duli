@@ -21,6 +21,15 @@
       >
         制造
       </Button>
+      <Button
+        class="flex-1 justify-center"
+        :class="{ '!bg-accent !text-bg': activeTab === 'accessory' }"
+        :icon="Sparkles"
+        data-testid="processing-tab-accessory"
+        @click="activeTab = 'accessory'"
+      >
+        配件
+      </Button>
     </div>
 
     <!-- 加工区 -->
@@ -172,7 +181,7 @@
                     @click="openGroupProcessingRecipeDetail(group, option)"
                   >
                     <span class="processing-option-card__body">
-                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
+                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.outputQuality" :silhouette="option.disabled || option.hiddenUndiscovered" />
                       <span class="processing-option-card__copy">
                         <span class="processing-option-card__name">
                           {{ option.displayName }}
@@ -186,6 +195,7 @@
                           >
                             {{ option.qualityLabel }}
                           </span>
+                          <span v-if="option.outputQualityLabel" class="text-accent/80">{{ option.outputQualityLabel }}</span>
                         </span>
                         <span class="processing-option-card__meta">{{ option.count }}/{{ option.recipe.inputQuantity }}</span>
                       </span>
@@ -206,11 +216,12 @@
                     @click="openGroupProcessingRecipeDetail(group, option)"
                   >
                     <span class="processing-option-card__body">
-                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled || option.hiddenUndiscovered" />
+                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.outputQuality" :silhouette="option.disabled || option.hiddenUndiscovered" />
                       <span class="processing-option-card__copy">
                         <span class="processing-option-card__name">
                           {{ option.displayName }}
                           <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
+                          <span v-if="option.outputQualityLabel" class="text-accent/80">{{ option.outputQualityLabel }}</span>
                         </span>
                         <span class="processing-option-card__meta">
                           <span v-if="option.inputItemName">
@@ -357,6 +368,10 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-else-if="activeTab === 'accessory'" class="border border-accent/20 rounded-xs p-3">
+      <EquipmentAccessoryPanel />
     </div>
 
     <!-- 工坊扩建弹窗 -->
@@ -586,6 +601,14 @@
             </p>
           </div>
 
+          <p
+            v-if="enchantingForgeDeepRefineHint"
+            class="mb-2 rounded-xs border border-accent/10 px-2 py-1 text-[0.625rem] text-accent"
+            data-testid="processing-enchanting-forge-deep-refine-hint"
+          >
+            {{ enchantingForgeDeepRefineHint }}
+          </p>
+
           <div v-if="selectedEnchantingForgeMode === 'protected'" class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">保留词条</p>
             <div v-if="enchantingForgePreserveOptions.length > 0" class="flex flex-col space-y-1">
@@ -701,17 +724,33 @@
               v-for="option in repairBenchOptions"
               :key="option.key"
               class="btn w-full text-xs items-start justify-between gap-2"
-              :class="{ '!bg-accent !text-bg': selectedRepairBenchKey === option.key }"
+              :class="{
+                '!bg-accent !text-bg': selectedRepairBenchKey === option.key,
+                'opacity-45 cursor-not-allowed': !option.canRepair
+              }"
               :data-testid="`processing-repair-bench-option-${option.key}`"
               @click="selectedRepairBenchKey = option.key"
             >
               <span class="min-w-0 text-left">
-                <span class="block truncate">{{ option.name }}</span>
+                <span class="block truncate">{{ option.name }} · {{ option.modeLabel }}</span>
                 <span class="block text-[0.625rem] opacity-70">
-                  {{ option.typeLabel }} · 耐久 {{ option.current }}/{{ option.max }}
+                  {{ option.typeLabel }} · 耐久 {{ option.current }}/{{ option.max }} · 坚固 {{ option.sturdinessCurrent }}/{{ option.sturdinessMax }}
+                </span>
+                <span class="block text-[0.625rem] opacity-70">
+                  缺耐久 {{ option.missingDurability }} · 损耗 {{ option.damagePercent }}%
+                  <template v-if="option.sturdinessLoss > 0"> · 坚固 -{{ option.sturdinessLoss }}</template>
+                  <template v-if="option.restoredSturdiness > 0"> · 坚固恢复 {{ option.restoredSturdiness }}</template>
+                </span>
+                <span v-if="!option.canRepair" class="block text-[0.625rem] text-danger">
+                  {{ option.disabledReason }}
                 </span>
               </span>
-              <span class="shrink-0 text-[0.625rem] opacity-80">{{ option.materialName }}×{{ option.materialQuantity }} · {{ option.money }}文</span>
+              <span class="shrink-0 text-right text-[0.625rem] opacity-80">
+                <span class="block">{{ option.processingDays }}天</span>
+                <span v-if="option.mode === 'dismantle'" class="block">返材</span>
+                <span v-else-if="option.freeByNpc" class="block">阿铁本周免费</span>
+                <span v-else class="block">{{ option.materialName }}×{{ option.materialQuantity }} · {{ option.money }}文</span>
+              </span>
             </button>
           </div>
           <p v-else class="text-xs text-muted mb-2">没有需要修理的装备。</p>
@@ -872,6 +911,7 @@
                   >
                     {{ option.qualityLabel }}
                   </span>
+                  <span v-if="option.outputQualityLabel" class="text-accent/80">{{ option.outputQualityLabel }}</span>
                 </span>
                 <span class="text-muted ml-2">{{ option.count }}/{{ option.recipe.inputQuantity }}</span>
               </button>
@@ -891,6 +931,7 @@
                 <span class="truncate text-left">
                   {{ option.displayName }}
                   <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
+                  <span v-if="option.outputQualityLabel" class="text-accent/80">{{ option.outputQualityLabel }}</span>
                   <span v-if="option.alchemyLimitText" class="text-muted">[{{ option.alchemyLimitText }}]</span>
                   <span v-if="option.cropUseText" class="text-muted">{{ option.cropUseText }}</span>
                   <span v-if="option.substitutionText" class="text-accent/80">{{ option.substitutionText }}</span>
@@ -1077,13 +1118,14 @@
             <ItemIcon
               :item="currentRecipeDetailOption.outputItem"
               size="sm"
-              :quality="currentRecipeDetailOption.quality ?? 'normal'"
+              :quality="currentRecipeDetailOption.outputQuality"
               :silhouette="currentRecipeDetailOption.hiddenUndiscovered"
             />
             <div class="min-w-0">
               <p class="text-sm text-accent truncate">
                 {{ currentRecipeDetailOption.displayName }}
                 <span v-if="currentRecipeDetailOption.qualityLabel" class="text-muted">{{ currentRecipeDetailOption.qualityLabel }}</span>
+                <span v-if="currentRecipeDetailOption.outputQualityLabel" class="text-accent/80">{{ currentRecipeDetailOption.outputQualityLabel }}</span>
               </p>
               <p class="text-[0.625rem] text-muted mt-0.5">
                 {{ currentRecipeDetailMachineName }} · {{ currentRecipeDetailOption.effectiveDays }}天
@@ -1149,6 +1191,7 @@
   import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle, FlaskConical, Sparkles, Wrench } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import EquipmentAccessoryPanel from '@/components/game/EquipmentAccessoryPanel.vue'
   import type { ItemDef, MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality, OwnedRing, OwnedHat, OwnedShoe, Tool, ForgeAffixRoll } from '@/types'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { useAnimalStore } from '@/stores/useAnimalStore'
@@ -1156,10 +1199,9 @@
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
-  import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { WORKSHOP_MAX_LEVEL, WORKSHOP_MILESTONES, useProcessingStore } from '@/stores/useProcessingStore'
-  import type { ProcessingMachineRemovalEntry, ProcessingMachineRemovalPreview } from '@/stores/useProcessingStore'
+  import type { ProcessingCollectedOutputEntry, ProcessingMachineRemovalEntry, ProcessingMachineRemovalPreview } from '@/stores/useProcessingStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, getCombinedItemCountSignature, hasCombinedItems, removeCombinedItems } from '@/composables/useCombinedInventory'
@@ -1187,7 +1229,7 @@
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
-  import { calculateRepairCost, type RepairBenchEquipType } from '@/utils/durability'
+  import type { RepairBenchEquipType, RepairBenchMode } from '@/utils/durability'
   import {
     FORGE_AFFIX_MODE_DEFS,
     FORGE_AFFIX_TARGET_LABELS,
@@ -1220,7 +1262,6 @@
   const processingStore = useProcessingStore()
   const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
-  const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const gameStore = useGameStore()
   const farmStore = useFarmStore()
@@ -1228,8 +1269,8 @@
   const skillStore = useSkillStore()
   const warehouseStore = useWarehouseStore()
 
-  const activeTab = ref<'process' | 'craft'>('process')
-  const processingTabs = ['process', 'craft'] as const
+  const activeTab = ref<'process' | 'craft' | 'accessory'>('process')
+  const processingTabs = ['process', 'craft', 'accessory'] as const
   const ONLY_AVAILABLE_STORAGE_KEY = buildScopedSingleKey('taoyuanxiang_processing_only_available_')
 
   migrateLegacySingleValue('taoyuanxiang_processing_only_available', ONLY_AVAILABLE_STORAGE_KEY)
@@ -1282,6 +1323,8 @@
     outputItem: ItemDef | null
     displayName: string
     qualityLabel: string
+    outputQualityLabel: string
+    outputQuality: Quality
     inputItem: ItemDef | null
     inputItemName: string | null
     extraInputs: RecipeInputViewModel[]
@@ -1572,6 +1615,8 @@
     const substitutionText = recipe.alchemy ? formatAlchemyPlanSubstitutionText(alchemyPlan) : ''
     const recommendationText = buildProcessingRecommendationText(recipe, available && !alchemyLimit?.blocked, alchemyMetaText, cropUseText)
     const hiddenUndiscovered = recipe.visibility === 'hidden' && !processingStore.isHiddenProcessingRecipeDiscovered(recipe.id)
+    const outputQuality = recipe.outputQuality ?? quality ?? 'normal'
+    const outputQualityLabel = recipe.outputQuality ? `[产物${QUALITY_NAMES[recipe.outputQuality]}]` : ''
 
     return {
       key: quality ? `${recipe.id}:${quality}` : recipe.id,
@@ -1584,6 +1629,8 @@
       outputItem,
       displayName: hiddenUndiscovered ? recipe.hiddenMeta?.unknownName ?? '未知加工' : recipe.name,
       qualityLabel: quality && quality !== 'normal' ? `[${QUALITY_NAMES[quality]}]` : recipe.minInputQuality ? `[${QUALITY_NAMES[recipe.minInputQuality]}以上]` : '',
+      outputQualityLabel,
+      outputQuality,
       inputItem,
       inputItemName: recipe.inputItemId ? getItemName(recipe.inputItemId) : null,
       extraInputs,
@@ -1599,12 +1646,15 @@
   }
 
   const machineTypeOrder = new Map(PROCESSING_MACHINES.map((machine, index) => [machine.id as MachineType, index]))
+  const SMITHY_SERVICE_MACHINE_TYPES: MachineType[] = ['enchanting_forge', 'repair_bench']
+  const isSmithyServiceMachine = (machineType: MachineType): boolean => SMITHY_SERVICE_MACHINE_TYPES.includes(machineType)
 
   const machineGroupsBaseView = computed((): MachineGroupBaseViewModel[] => {
     const groupMap = new Map<MachineType, MachineGroupBaseViewModel>()
 
     for (let i = 0; i < processingStore.machines.length; i++) {
       const slot = processingStore.machines[i]!
+      if (isSmithyServiceMachine(slot.machineType)) continue
       let group = groupMap.get(slot.machineType)
 
       if (!group) {
@@ -1618,7 +1668,7 @@
           processingCount: 0,
           hasReady: false,
           isSeedMaker: slot.machineType === 'seed_maker',
-           isEnchantingForge: slot.machineType === 'enchanting_forge',
+          isEnchantingForge: slot.machineType === 'enchanting_forge',
           isRepairBench: slot.machineType === 'repair_bench'
         }
         groupMap.set(slot.machineType, group)
@@ -1637,6 +1687,7 @@
     }
 
     const groups = [...groupMap.values()].sort((a, b) => {
+      if (a.isEnchantingForge !== b.isEnchantingForge) return a.isEnchantingForge ? -1 : 1
       const aSpecial = a.isEnchantingForge ? 0 : a.isRepairBench ? 1 : 2
       const bSpecial = b.isEnchantingForge ? 0 : b.isRepairBench ? 1 : 2
       if (aSpecial !== bSpecial) return aSpecial - bSpecial
@@ -1690,6 +1741,7 @@
   const machineCountByType = computed(() => {
     const counts = new Map<MachineType, number>()
     for (const slot of processingStore.machines) {
+      if (isSmithyServiceMachine(slot.machineType)) continue
       counts.set(slot.machineType, (counts.get(slot.machineType) ?? 0) + 1)
     }
     return counts
@@ -1815,14 +1867,24 @@
     clearPendingAsyncRecipeTimer()
   })
 
-  const summarizeOutputNames = (outputs: string[]) => {
-    const counts = new Map<string, number>()
-    for (const outputId of outputs) {
-      const name = getItemName(outputId)
-      counts.set(name, (counts.get(name) ?? 0) + 1)
+  const summarizeOutputNames = (outputs: ProcessingCollectedOutputEntry[]) => {
+    const counts = new Map<string, ProcessingCollectedOutputEntry>()
+    for (const output of outputs) {
+      const key = `${output.itemId}:${output.quality}`
+      const existing = counts.get(key)
+      if (existing) {
+        existing.quantity += output.quantity
+        existing.fixedQuality = existing.fixedQuality || output.fixedQuality
+      } else {
+        counts.set(key, { ...output })
+      }
     }
-    return Array.from(counts.entries())
-      .map(([name, count]) => (count > 1 ? `${name}×${count}` : name))
+    return Array.from(counts.values())
+      .map(output => {
+        const name = getItemName(output.itemId)
+        const qualityText = output.fixedQuality ? QUALITY_NAMES[output.quality] : ''
+        return output.quantity > 1 ? `${qualityText}${name}×${output.quantity}` : `${qualityText}${name}`
+      })
       .join('、')
   }
 
@@ -2000,6 +2062,7 @@
       : option.substitutionText
     return [
       option.qualityLabel ? `品质要求：${option.qualityLabel.replace(/^\[|\]$/g, '')}` : '',
+      option.outputQualityLabel ? `产物品质：${QUALITY_NAMES[option.outputQuality]}` : '',
       option.alchemyLimitText,
       option.alchemyMetaText,
       option.cropUseText,
@@ -2302,10 +2365,12 @@
   )
 
   const enchantingForgeModeOptions = computed(() =>
-    FORGE_AFFIX_MODE_DEFS.map(mode => ({
-      ...mode,
-      unlocked: processingStore.workshopLevel >= mode.minLevel
-    }))
+    FORGE_AFFIX_MODE_DEFS
+      .filter(mode => mode.id !== 'deep_refine' || selectedEnchantingForgeTarget.value === 'pickaxe')
+      .map(mode => ({
+        ...mode,
+        unlocked: processingStore.workshopLevel >= mode.minLevel
+      }))
   )
 
   const selectedEnchantingForgeModeDef = computed(() => getForgeAffixModeById(selectedEnchantingForgeMode.value))
@@ -2338,7 +2403,9 @@
 
   const enchantingForgeRangeLines = computed<EnchantingForgeRangeLine[]>(() => {
     const target = selectedEnchantingForgeTarget.value
-    const directionIds = selectedEnchantingForgeMode.value === 'directed' && selectedEnchantingForgeDirection.value
+    const directionIds = selectedEnchantingForgeMode.value === 'deep_refine'
+      ? ['quarry_resonance', 'deep_vein_grip', 'relic_sense']
+      : selectedEnchantingForgeMode.value === 'directed' && selectedEnchantingForgeDirection.value
       ? selectedEnchantingForgeDirection.value.affixIds
       : []
     const ids = directionIds.length > 0
@@ -2374,6 +2441,12 @@
       : ''
   })
 
+  const enchantingForgeDeepRefineHint = computed(() =>
+    selectedEnchantingForgeMode.value === 'deep_refine'
+      ? '深脉精锻只作用于镐子，消耗旧采石场深脉稀材与守息丹，结果会写入镐子词条并影响采石场收取。'
+      : ''
+  )
+
   const enchantingForgeResultLines = computed(() => enchantingForgeResult.value.map(formatForgeAffixRoll))
 
   const enchantingForgeBlockReason = computed(() => {
@@ -2387,6 +2460,7 @@
     if (target === 'pickaxe' && item.disabledReason === '升级中') return '镐子正在升级，完成后才能铸魔。'
     if (item.disabled) return item.disabledReason ? `${item.name}${item.disabledReason}，无法铸魔。` : `${item.name}无法铸魔。`
     if (processingStore.workshopLevel < mode.minLevel) return `工坊 Lv.${mode.minLevel} 后开放${mode.label}。`
+    if (mode.id === 'deep_refine' && target !== 'pickaxe') return '深脉精锻只能用于镐子。'
     if (mode.id === 'directed' && !selectedEnchantingForgeDirection.value) return '请选择定向方向。'
     if (mode.id === 'protected') {
       if (item.affixes.length <= 0) return '保留重铸需要目标已有词条。'
@@ -2429,6 +2503,12 @@
 
   watch(selectedEnchantingForgeMode, () => {
     enchantingForgeResult.value = []
+  })
+
+  watch(enchantingForgeModeOptions, options => {
+    if (!options.some(option => option.id === selectedEnchantingForgeMode.value)) {
+      selectedEnchantingForgeMode.value = 'random'
+    }
   })
 
   watch(enchantingForgeDirectionOptions, options => {
@@ -2497,7 +2577,9 @@
     if (!item) return
     const mode = selectedEnchantingForgeModeDef.value
     const directionId: ForgeAffixDirectionId | null =
-      selectedEnchantingForgeMode.value === 'directed' && selectedEnchantingForgeDirectionId.value
+      selectedEnchantingForgeMode.value === 'deep_refine'
+        ? 'pickaxe_quarry_deep'
+        : selectedEnchantingForgeMode.value === 'directed' && selectedEnchantingForgeDirectionId.value
         ? selectedEnchantingForgeDirectionId.value
         : null
     const preserveId = selectedEnchantingForgeMode.value === 'protected' ? selectedEnchantingForgePreserveId.value : null
@@ -2549,17 +2631,29 @@
   interface RepairBenchOption {
     key: string
     type: RepairBenchEquipType
+    mode: RepairBenchMode
+    modeLabel: string
     typeLabel: string
     index: number
     defId: string
     name: string
     current: number
     max: number
+    sturdinessCurrent: number
+    sturdinessMax: number
     materialItemId: string
     materialName: string
     materialQuantity: number
     materialCount: number
     money: number
+    missingDurability: number
+    damagePercent: number
+    sturdinessLoss: number
+    restoredSturdiness: number
+    processingDays: number
+    canRepair: boolean
+    disabledReason: string
+    freeByNpc: boolean
   }
 
   const REPAIR_BENCH_TYPE_LABELS: Record<RepairBenchEquipType, string> = {
@@ -2569,12 +2663,28 @@
     shoe: '鞋子'
   }
 
+  const REPAIR_BENCH_MODE_LABELS: Record<RepairBenchMode, string> = {
+    fine: '精修',
+    simple: '简修',
+    refurbish: '翻新',
+    dismantle: '拆解'
+  }
+
+  const formatRepairBenchDisabledReason = (reason: string): string => {
+    const labels: Record<string, string> = {
+      durability_full: '耐久已满',
+      sturdiness_insufficient: '坚固不足',
+      fully_restored: '耐久和坚固已满',
+      sturdiness_remaining: '坚固未耗尽'
+    }
+    return labels[reason] ?? reason
+  }
+
   const showRepairBenchModal = ref(false)
   const selectedRepairBenchSlotIndex = ref<number | null>(null)
   const selectedRepairBenchKey = ref('')
 
   const hasBuiltRepairBench = computed(() => processingStore.machines.some(slot => slot.machineType === 'repair_bench'))
-  const repairBenchNpcUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : [])
 
   const getRepairBenchBaseName = (type: RepairBenchEquipType, defId: string, enchantmentId?: string | null, affixes?: ForgeAffixRoll[] | null): string => {
     if (type === 'weapon') return getWeaponDisplayName(defId, enchantmentId ?? null, affixes ?? [])
@@ -2588,34 +2698,72 @@
     index: number,
     defId: string,
     enchantmentId?: string | null,
-    affixes?: ForgeAffixRoll[] | null
+    affixes?: ForgeAffixRoll[] | null,
+    mode: RepairBenchMode = 'fine'
   ): RepairBenchOption | null => {
     const durability = inventoryStore.getOwnedEquipmentDurability(type, index)
-    if (!durability || durability.current >= durability.max) return null
-    const cost = calculateRepairCost(type, defId, repairBenchNpcUnlocked.value)
+    const sturdiness = inventoryStore.getOwnedEquipmentSturdiness(type, index)
+    if (!durability || !sturdiness) return null
+    const cost = processingStore.getRepairBenchCostPreview(type, defId, durability, sturdiness, mode)
+    if (!cost.canRepair && mode !== 'fine' && mode !== 'simple' && mode !== 'dismantle') return null
     return {
-      key: `${type}-${index}`,
+      key: `${type}-${index}-${mode}`,
       type,
+      mode,
+      modeLabel: REPAIR_BENCH_MODE_LABELS[mode],
       typeLabel: REPAIR_BENCH_TYPE_LABELS[type],
       index,
       defId,
       name: getRepairBenchBaseName(type, defId, enchantmentId, affixes),
       current: durability.current,
       max: durability.max,
+      sturdinessCurrent: sturdiness.current,
+      sturdinessMax: sturdiness.max,
       materialItemId: cost.materialItemId,
       materialName: getItemName(cost.materialItemId),
       materialQuantity: cost.materialQuantity,
       materialCount: getIndexedItemCount(cost.materialItemId),
-      money: cost.money
+      money: cost.money,
+      missingDurability: cost.missingDurability,
+      damagePercent: Math.ceil(cost.damageRatio * 100),
+      sturdinessLoss: cost.sturdinessLoss,
+      restoredSturdiness: cost.restoredSturdiness,
+      processingDays: cost.processingDays,
+      canRepair: cost.canRepair,
+      disabledReason: formatRepairBenchDisabledReason(cost.disabledReason),
+      freeByNpc: cost.freeByNpc
     }
   }
 
+  const buildRepairBenchOptionsForEntry = (
+    type: RepairBenchEquipType,
+    index: number,
+    defId: string,
+    enchantmentId?: string | null,
+    affixes?: ForgeAffixRoll[] | null
+  ): RepairBenchOption[] => {
+    const durability = inventoryStore.getOwnedEquipmentDurability(type, index)
+    const sturdiness = inventoryStore.getOwnedEquipmentSturdiness(type, index)
+    if (!durability || !sturdiness) return []
+    const options = (['fine', 'simple', 'refurbish'] as RepairBenchMode[])
+      .map(mode => buildRepairBenchOption(type, index, defId, enchantmentId, affixes, mode))
+      .filter((option): option is RepairBenchOption => !!option)
+    if (sturdiness.current <= 0) {
+      const dismantle = buildRepairBenchOption(type, index, defId, enchantmentId, affixes, 'dismantle')
+      if (dismantle) options.push(dismantle)
+    }
+    return options.filter(option => option.missingDurability > 0 || option.sturdinessCurrent < option.sturdinessMax || option.mode === 'dismantle')
+  }
+
   const repairBenchOptions = computed<RepairBenchOption[]>(() => [
-    ...inventoryStore.ownedWeapons.flatMap((entry, index) => buildRepairBenchOption('weapon', index, entry.defId, entry.enchantmentId, entry.affixes) ?? []),
-    ...inventoryStore.ownedRings.flatMap((entry, index) => buildRepairBenchOption('ring', index, entry.defId, entry.enchantmentId, entry.affixes) ?? []),
-    ...inventoryStore.ownedHats.flatMap((entry, index) => buildRepairBenchOption('hat', index, entry.defId, entry.enchantmentId, entry.affixes) ?? []),
-    ...inventoryStore.ownedShoes.flatMap((entry, index) => buildRepairBenchOption('shoe', index, entry.defId, entry.enchantmentId, entry.affixes) ?? [])
+    ...inventoryStore.ownedWeapons.flatMap((entry, index) => buildRepairBenchOptionsForEntry('weapon', index, entry.defId, entry.enchantmentId, entry.affixes)),
+    ...inventoryStore.ownedRings.flatMap((entry, index) => buildRepairBenchOptionsForEntry('ring', index, entry.defId, entry.enchantmentId, entry.affixes)),
+    ...inventoryStore.ownedHats.flatMap((entry, index) => buildRepairBenchOptionsForEntry('hat', index, entry.defId, entry.enchantmentId, entry.affixes)),
+    ...inventoryStore.ownedShoes.flatMap((entry, index) => buildRepairBenchOptionsForEntry('shoe', index, entry.defId, entry.enchantmentId, entry.affixes))
   ])
+
+  const getDefaultRepairBenchKey = (options: RepairBenchOption[]): string =>
+    options.find(option => option.canRepair)?.key ?? options[0]?.key ?? ''
 
   const selectedRepairBenchOption = computed(() =>
     repairBenchOptions.value.find(option => option.key === selectedRepairBenchKey.value) ?? null
@@ -2628,7 +2776,8 @@
     if (!slot || slot.machineType !== 'repair_bench' || slot.recipeId !== null) return '这台修理台当前不可用。'
     const option = selectedRepairBenchOption.value
     if (!option) return repairBenchOptions.value.length > 0 ? '请选择要修理的装备。' : '没有需要修理的装备。'
-    if (option.materialCount < option.materialQuantity) return `${option.materialName}不足。`
+    if (!option.canRepair) return option.disabledReason || '当前修理方式不可用。'
+    if (!option.freeByNpc && option.materialCount < option.materialQuantity) return `${option.materialName}不足。`
     if (playerStore.money < option.money) return '铜钱不足。'
     return ''
   })
@@ -2641,7 +2790,7 @@
       return
     }
     if (!options.some(option => option.key === selectedRepairBenchKey.value)) {
-      selectedRepairBenchKey.value = options[0]!.key
+      selectedRepairBenchKey.value = getDefaultRepairBenchKey(options)
     }
   })
 
@@ -2652,7 +2801,7 @@
       return
     }
     selectedRepairBenchSlotIndex.value = slotIndex
-    selectedRepairBenchKey.value = repairBenchOptions.value[0]?.key ?? ''
+    selectedRepairBenchKey.value = getDefaultRepairBenchKey(repairBenchOptions.value)
     showRepairBenchModal.value = true
   }
 
@@ -2667,12 +2816,16 @@
       if (repairBenchBlockReason.value) addLog(repairBenchBlockReason.value)
       return
     }
-    const started = processingStore.startRepairBench(slotIndex, option.type, option.index, option.defId)
+    const started = processingStore.startRepairBench(slotIndex, option.type, option.index, option.defId, option.mode)
     if (!started) {
       addLog('修理开工失败，请检查材料、铜钱或修理台状态。')
       return
     }
-    addLog(`修理台开始修理${option.name}。`)
+    if (option.mode === 'dismantle') {
+      addLog(`修理台拆解了${option.name}。`)
+    } else {
+      addLog(option.freeByNpc ? `阿铁本周帮你免料${option.modeLabel}${option.name}。` : `修理台开始${option.modeLabel}${option.name}。`)
+    }
     closeRepairBenchModal()
   }
 
@@ -2831,7 +2984,7 @@
       {
         id: 'machines',
         label: '加工机器',
-        items: PROCESSING_MACHINES.map(m => ({
+        items: PROCESSING_MACHINES.filter(m => !isSmithyServiceMachine(m.id)).map(m => ({
           id: m.id as string,
           name: m.name,
           description: m.description,
@@ -3393,11 +3546,14 @@
   }
 
   const handleCollect = (slotIndex: number) => {
+    const slot = processingStore.machines[slotIndex]
+    const recipe = slot?.recipeId ? getProcessingRecipeById(slot.recipeId) : null
     const outputId = processingStore.collectProduct(slotIndex)
     if (outputId) {
       sfxClick()
       const name = getItemById(outputId)?.name ?? outputId
-      addLog(`收取了${name}！`)
+      const qualityText = recipe?.outputQuality ? QUALITY_NAMES[recipe.outputQuality] : ''
+      addLog(`收取了${qualityText}${name}！`)
     }
   }
 

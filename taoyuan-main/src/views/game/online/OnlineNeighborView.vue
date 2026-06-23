@@ -350,6 +350,109 @@
               <p class="mt-1 text-accent">{{ socialStore.blockedUsers.length }} 位</p>
             </div>
           </div>
+          <section class="space-y-2" data-testid="online-neighbor-friend-team-board">
+            <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs leading-4 text-accent">好友榜 / 队伍榜</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-neighbor-friend-team-board-summary">
+                  {{ neighborFriendTeamBoardSummary }}
+                </p>
+              </div>
+              <div class="flex shrink-0 flex-wrap gap-1" role="tablist" aria-label="好友榜与主题榜" data-testid="online-neighbor-friend-team-board-tabs">
+                <button
+                  v-for="panel in neighborFriendPanelTabs"
+                  :key="panel.key"
+                  class="min-h-[32px] border px-2 py-1 text-[0.625rem] transition-colors"
+                  :class="activeFriendsPanel === panel.key ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30'"
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeFriendsPanel === panel.key"
+                  @click="setActiveFriendsPanel(panel.key)"
+                >
+                  {{ panel.label }}
+                </button>
+              </div>
+            </div>
+            <div class="grid gap-2 md:grid-cols-3" data-testid="online-neighbor-friend-team-board-entries">
+              <RouterLink
+                v-for="entry in neighborFriendTeamBoardEntries"
+                :key="entry.id"
+                class="flex min-h-[150px] min-w-0 flex-col justify-between border border-accent/10 bg-black/10 p-2 text-left transition-colors hover:border-accent/30"
+                :to="entry.to"
+                :data-testid="`online-neighbor-friend-team-board-entry-${entry.id}`"
+              >
+                <span class="min-w-0">
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block text-[0.625rem] leading-4 text-muted">{{ entry.rankLabel }}</span>
+                      <span class="mt-1 block truncate text-xs leading-4 text-accent">{{ entry.title }}</span>
+                    </span>
+                    <span class="shrink-0 border px-1.5 py-0.5 text-[0.625rem]" :class="entry.highlighted ? 'border-success/30 text-success' : 'border-accent/20 text-accent'">
+                      {{ entry.statusLabel }}
+                    </span>
+                  </span>
+                  <span class="mt-2 line-clamp-2 block text-[0.625rem] leading-4 text-muted">{{ entry.subtitle }}</span>
+                  <span class="mt-2 block text-[0.625rem] leading-4 text-accent" data-testid="online-neighbor-friend-team-board-progress">
+                    {{ entry.progressLabel }}
+                  </span>
+                </span>
+                <span class="mt-2 grid gap-1 text-[0.625rem] leading-4">
+                  <span class="text-muted" data-testid="online-neighbor-friend-team-board-reward">{{ entry.rewardLabel }}</span>
+                  <span class="text-muted" data-testid="online-neighbor-friend-team-board-fairness">{{ entry.fairnessLabel }}</span>
+                  <span class="text-accent" data-testid="online-neighbor-friend-team-board-rematch">{{ entry.actionLabel }}</span>
+                </span>
+              </RouterLink>
+            </div>
+          </section>
+          <section class="space-y-2" data-testid="online-neighbor-async-collaboration-board">
+            <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs leading-4 text-accent">离线轻协作</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-neighbor-async-collaboration-summary">
+                  {{ neighborAsyncCollaborationSummary }}
+                </p>
+              </div>
+              <RouterLink
+                class="online-action-btn online-action-btn--compact min-h-[36px] shrink-0 justify-center"
+                :to="neighborAsyncCollaborationPrimaryAction.to"
+                data-testid="online-neighbor-async-collaboration-primary"
+              >
+                <ExternalLink :size="12" />
+                {{ neighborAsyncCollaborationPrimaryAction.actionLabel }}
+              </RouterLink>
+            </div>
+            <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-4" data-testid="online-neighbor-async-collaboration-steps">
+              <RouterLink
+                v-for="step in neighborAsyncCollaborationSteps"
+                :key="step.id"
+                class="flex min-h-[128px] min-w-0 flex-col justify-between border border-accent/10 bg-black/10 p-2 text-left transition-colors hover:border-accent/30"
+                :to="step.to"
+                :data-testid="`online-neighbor-async-collaboration-step-${step.id}`"
+              >
+                <span class="min-w-0">
+                  <span class="flex min-w-0 items-start justify-between gap-2">
+                    <span class="min-w-0">
+                      <span class="block text-[0.625rem] leading-4 text-muted" data-testid="online-neighbor-async-collaboration-step-order">
+                        第 {{ step.order }} 步
+                      </span>
+                      <span class="mt-1 block truncate text-xs leading-4 text-accent">{{ step.title }}</span>
+                    </span>
+                    <component :is="step.icon" class="shrink-0 text-accent" :size="14" aria-hidden="true" />
+                  </span>
+                  <span class="mt-2 block text-[0.625rem] leading-4 text-muted" data-testid="online-neighbor-async-collaboration-step-status">
+                    {{ step.statusLabel }}
+                  </span>
+                  <span class="mt-1 line-clamp-2 block text-[0.625rem] leading-4 text-muted" data-testid="online-neighbor-async-collaboration-step-summary">
+                    {{ step.summary }}
+                  </span>
+                </span>
+                <span class="mt-2 grid gap-1 text-[0.625rem] leading-4">
+                  <span class="text-muted" data-testid="online-neighbor-async-collaboration-step-reward">{{ step.rewardLabel }}</span>
+                  <span class="text-accent" data-testid="online-neighbor-async-collaboration-step-action">{{ step.actionLabel }}</span>
+                </span>
+              </RouterLink>
+            </div>
+          </section>
         </div>
         <RouterLink
           class="online-action-btn online-action-btn--compact h-fit justify-center"
@@ -924,6 +1027,13 @@
               <option :value="30">中型邻里（12-30）</option>
               <option :value="60">大型邻里（30+）</option>
             </select>
+            <span
+              v-if="socialStore.npcLetterWritingInviteCapacityBonus > 0"
+              class="text-[0.625rem] leading-4 text-accent"
+              data-testid="online-neighbor-letter-writing-bonus"
+            >
+              丹青「信件代笔」生效：创建时实际容量 {{ socialStore.effectiveNeighborCapacityDraft }} 人。
+            </span>
           </label>
         </section>
 
@@ -949,6 +1059,13 @@
           <div class="border border-accent/10 bg-black/10 p-2">
             <p class="text-[0.625rem] text-muted">初始公告</p>
             <p class="mt-1 text-xs leading-5 text-accent">{{ socialStore.neighborNoticeDraft.trim() || '创建后可以再写公告。' }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">实际容量</p>
+            <p class="mt-1 text-xs leading-5 text-accent">
+              {{ socialStore.effectiveNeighborCapacityDraft }} 人
+              <span v-if="socialStore.npcLetterWritingInviteCapacityBonus > 0"> · 丹青「信件代笔」+{{ socialStore.npcLetterWritingInviteCapacityBonus }}</span>
+            </p>
           </div>
         </section>
       </div>
@@ -1092,8 +1209,9 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
-  import { ChevronLeft, ChevronRight, ExternalLink, IdCard, Pencil, RefreshCw, Save, Upload, UserPlus, Users } from 'lucide-vue-next'
+  import { computed, onMounted, ref, watch } from 'vue'
+  import { useRoute } from 'vue-router'
+  import { ChevronLeft, ChevronRight, ExternalLink, Gift, Handshake, Home, IdCard, PackageCheck, Pencil, RefreshCw, Save, Upload, UserPlus, Users } from 'lucide-vue-next'
   import OnlineActionDialog from '@/components/game/online/OnlineActionDialog.vue'
   import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
@@ -1111,12 +1229,39 @@
 
   type NeighborTabKey = 'profile' | 'friends' | 'neighbor' | 'subscriptions'
   type NeighborTabMeta = { key: NeighborTabKey; label: string; summary: string }
+  type NeighborFriendPanelKey = 'challenge-board' | 'theme-leaderboard'
   type NeighborCreateStepKey = 'basic' | 'access' | 'review'
   type NeighborCreateOption = { value: string; label: string }
+  type NeighborFriendTeamBoardEntry = {
+    id: string
+    rankLabel: string
+    title: string
+    subtitle: string
+    statusLabel: string
+    progressLabel: string
+    rewardLabel: string
+    fairnessLabel: string
+    actionLabel: string
+    highlighted: boolean
+    to: { name: string; query?: Record<string, string> }
+  }
+  type NeighborAsyncCollaborationStep = {
+    id: 'leave-commission' | 'send-helper' | 'borrow-facility' | 'claim-async-rewards'
+    order: number
+    title: string
+    statusLabel: string
+    summary: string
+    rewardLabel: string
+    actionLabel: string
+    icon: unknown
+    to: { name: string; query?: Record<string, string> }
+  }
 
   const socialStore = useSocialStore()
   const saveStore = useSaveStore()
+  const route = useRoute()
   const activeTab = ref<NeighborTabKey>('profile')
+  const activeFriendsPanel = ref<NeighborFriendPanelKey>('challenge-board')
   const lastRefreshAttemptAt = ref(0)
   const profileEditorOpen = ref(false)
   const profileSaveError = ref('')
@@ -1137,6 +1282,10 @@
     { key: 'friends', label: '好友', summary: '好友主操作从这里进入好友驿站。' },
     { key: 'neighbor', label: '邻里', summary: '邻里组织、申请和邀请摘要集中在这里。' },
     { key: 'subscriptions', label: '订阅', summary: '关注项和订阅提示单独成区。' },
+  ]
+  const neighborFriendPanelTabs: Array<{ key: NeighborFriendPanelKey; label: string }> = [
+    { key: 'challenge-board', label: '好友挑战' },
+    { key: 'theme-leaderboard', label: '主题榜' },
   ]
   const defaultTab = tabs[0]!
   const neighborCreateSteps: Array<{ key: NeighborCreateStepKey; label: string }> = [
@@ -1160,8 +1309,21 @@
     socialStore.subscriptionsLoading
   )
   const activeTabMeta = computed<NeighborTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
+  const normalizeNeighborTabKey = (value: unknown): NeighborTabKey | null => {
+    if (typeof value !== 'string') return null
+    if (value === 'discover') return 'friends'
+    return tabs.some(tab => tab.key === value) ? value as NeighborTabKey : null
+  }
+  const normalizeNeighborFriendPanelKey = (value: unknown): NeighborFriendPanelKey | null => {
+    if (value === 'challenge-board' || value === 'theme-leaderboard') return value
+    return null
+  }
   const setActiveTab = (tab: string) => {
-    activeTab.value = tab as NeighborTabKey
+    const normalized = normalizeNeighborTabKey(tab)
+    if (normalized) activeTab.value = normalized
+  }
+  const setActiveFriendsPanel = (panel: NeighborFriendPanelKey) => {
+    activeFriendsPanel.value = panel
   }
   const profileVisibilityLabel = computed(() => {
     if (!socialStore.profile) return '未公开'
@@ -1257,6 +1419,173 @@
     })
   )
   const neighborInviteBusy = computed(() => socialStore.neighborActionRunning || neighborInviteBatchRunning.value)
+  const neighborFriendTeamBoardEntries = computed<NeighborFriendTeamBoardEntry[]>(() => {
+    const friendEntries: NeighborFriendTeamBoardEntry[] = socialStore.friends.slice(0, 3).map((entry, index) => {
+      const profile = entry.profile
+      const title = profile.public_title || profile.display_name || profile.player_name || profile.username
+      const interactionAt = entry.last_interaction_at || entry.friends_since || entry.created_at || profile.last_active_at || 0
+      return {
+        id: `friend-${profile.username || index}`,
+        rankLabel: `好友榜 #${index + 1}`,
+        title,
+        subtitle: profile.recent_activity || profile.manor_name || '适合结算后再约一局，补好友默契和周进度。',
+        statusLabel: index === 0 ? '优先约' : '可挑战',
+        progressLabel: interactionAt ? `最近互动：${formatChronicleDate(interactionAt)}` : '等待第一条互动记录',
+        rewardLabel: '奖励：挑战徽章、好友币、本周主题进度',
+        fairnessLabel: '轻差距：奖励偏展示和纪念，不靠排名拉开大数值。',
+        actionLabel: '去好友驿站约人',
+        highlighted: index === 0,
+        to: { name: 'friend-station', query: { player: profile.username, source: 'neighbor-challenge-board' } },
+      }
+    })
+
+    const discoveryEntries: NeighborFriendTeamBoardEntry[] = socialStore.friendDiscoveryPlayers.slice(0, Math.max(0, 3 - friendEntries.length)).map((entry, index) => {
+      const profile = entry.profile
+      const title = profile.public_title || profile.display_name || profile.player_name || profile.username
+      return {
+        id: `discover-${profile.username || index}`,
+        rankLabel: `候选 #${friendEntries.length + index + 1}`,
+        title,
+        subtitle: entry.recommendation_reasons[0] || profile.recent_activity || '近期活跃玩家，可先加好友再开短局。',
+        statusLabel: entry.is_online ? '在线' : entry.is_recently_active ? '近期活跃' : '可认识',
+        progressLabel: entry.level > 0 ? `等级 ${entry.level} · 差距 ${Math.abs(entry.level_gap)}` : '等待互动后进入好友榜',
+        rewardLabel: '奖励：新人协助、好友默契、联机经验',
+        fairnessLabel: '轻差距：带新奖励偏补贴，不压过正常周奖励。',
+        actionLabel: '去发现并邀请',
+        highlighted: entry.is_online,
+        to: { name: 'friend-station', query: { player: profile.username, source: 'neighbor-discovery-board' } },
+      }
+    })
+
+    const groupEntries: NeighborFriendTeamBoardEntry[] = [
+      ...(socialStore.neighborGroup ? [socialStore.neighborGroup] : []),
+      ...socialStore.neighborPublicGroups,
+    ].slice(0, 3).map((group, index) => ({
+      id: `group-${group.id || index}`,
+      rankLabel: `队伍榜 #${index + 1}`,
+      title: group.name || '未命名邻里',
+      subtitle: group.summary || group.notice || '把委托、设施支援和共同建设接到本周主题榜。',
+      statusLabel: index === 0 && socialStore.neighborGroup?.id === group.id ? '我的队伍' : `Lv.${group.level}`,
+      progressLabel: `${group.member_count}/${group.capacity} 人 · ${group.activity_log?.length || 0} 条动态`,
+      rewardLabel: '奖励：队伍曝光、建设称号、每周主题进度',
+      fairnessLabel: '轻差距：队伍榜重协作展示，奖励不做断层。',
+      actionLabel: socialStore.neighborGroup?.id === group.id ? '看队伍协作' : '申请加入队伍',
+      highlighted: Boolean(index === 0 && socialStore.neighborGroup?.id === group.id),
+      to: { name: 'online-neighbor', query: { tab: 'neighbor', source: 'theme-leaderboard', group: group.id } },
+    }))
+
+    const fallbackEntries: NeighborFriendTeamBoardEntry[] = [
+      {
+        id: 'start-friend-board',
+        rankLabel: '起步 #1',
+        title: '先发现好友',
+        subtitle: '没有好友时，先从近期玩家或在线玩家里挑人，之后挑战榜会自动有可约对象。',
+        statusLabel: '待组队',
+        progressLabel: `${socialStore.friendDiscoveryPlayers.length} 位发现候选`,
+        rewardLabel: '奖励：好友币、联机经验、新人协助',
+        fairnessLabel: '轻差距：起步奖励给参与和互助，不要求排名。',
+        actionLabel: '去发现好友',
+        highlighted: false,
+        to: { name: 'friend-station', query: { source: 'neighbor-board-empty' } },
+      },
+      {
+        id: 'start-team-board',
+        rankLabel: '起步 #2',
+        title: '先加入邻里队伍',
+        subtitle: '加入邻里后，委托、设施借用和共同建设都会成为主题榜线索。',
+        statusLabel: '待加入',
+        progressLabel: `${socialStore.neighborPublicGroups.length} 个公开邻里`,
+        rewardLabel: '奖励：队伍曝光、建设称号、周进度',
+        fairnessLabel: '轻差距：队伍榜看协作贡献，不把新人甩开。',
+        actionLabel: '找邻里',
+        highlighted: false,
+        to: { name: 'online-neighbor', query: { tab: 'neighbor', source: 'neighbor-board-empty' } },
+      },
+    ]
+
+    const sourceEntries = activeFriendsPanel.value === 'theme-leaderboard'
+      ? [...groupEntries, ...friendEntries]
+      : [...friendEntries, ...discoveryEntries, ...groupEntries]
+    return (sourceEntries.length > 0 ? sourceEntries : fallbackEntries).slice(0, 3)
+  })
+  const neighborFriendTeamBoardSummary = computed(() => {
+    const friendCount = socialStore.friends.length
+    const teamCount = socialStore.neighborGroup ? 1 : socialStore.neighborPublicGroups.length
+    const label = activeFriendsPanel.value === 'theme-leaderboard' ? '主题榜' : '好友挑战'
+    return `${label}已接入 ${neighborFriendTeamBoardEntries.value.length} 个可复玩落点；${friendCount} 位好友、${teamCount} 条队伍线索可用于再来一局。`
+  })
+  const neighborAsyncCollaborationSteps = computed<NeighborAsyncCollaborationStep[]>(() => {
+    const friendCount = socialStore.friends.length
+    const discoveryCount = socialStore.friendDiscoveryPlayers.length
+    const candidateCount = friendCount + discoveryCount
+    const pendingRequestCount = socialStore.incomingRequests.length + socialStore.outgoingRequests.length
+    const neighborLabel = socialStore.neighborGroup
+      ? `${socialStore.neighborGroup.member_count}/${socialStore.neighborGroup.capacity} 人邻里`
+      : '未加入邻里'
+    return [
+      {
+        id: 'leave-commission',
+        order: 1,
+        title: '留下委托',
+        statusLabel: socialStore.neighborGroup ? '可发给邻里 / 好友' : '可先公开求助',
+        summary: '把缺材料、加工或交付拆成一张互助单，好友上线后能直接接下一段。',
+        rewardLabel: '奖励：好友币、委托分账、本周进度',
+        actionLabel: '发布委托',
+        icon: PackageCheck,
+        to: { name: 'online-orders', query: { tab: 'publish', source: 'neighbor-async-commission' } },
+      },
+      {
+        id: 'send-helper',
+        order: 2,
+        title: '派出帮手',
+        statusLabel: candidateCount > 0 ? `${candidateCount} 位可协作对象` : '先发现好友',
+        summary: '从好友或近期玩家中挑人去照料、轻采、留言或回访，让不同时在线也有协作痕迹。',
+        rewardLabel: '奖励：友情点、好友徽章、协作经验',
+        actionLabel: candidateCount > 0 ? '选好友' : '去发现',
+        icon: Handshake,
+        to: { name: 'friend-station', query: { source: 'neighbor_async_helper' } },
+      },
+      {
+        id: 'borrow-facility',
+        order: 3,
+        title: '借用庄园设施',
+        statusLabel: friendCount > 0 ? `${friendCount} 位好友庄园` : neighborLabel,
+        summary: '进入好友庄园处理照料、轻采、作坊接力或访客订单，把庄园协作接到一日短动作。',
+        rewardLabel: '奖励：材料、好友币、庄园回访记录',
+        actionLabel: '去庄园',
+        icon: Home,
+        to: { name: 'online-manor', query: { tab: 'care', source: 'neighbor-async-facility' } },
+      },
+      {
+        id: 'claim-async-rewards',
+        order: 4,
+        title: '领取异步奖励',
+        statusLabel: pendingRequestCount > 0 ? `${pendingRequestCount} 条关系待处理` : '去邮箱 / 回执收口',
+        summary: '把好友申请、委托回执、庄园留言和补偿邮件集中收口，做完轻协作后知道去哪领奖。',
+        rewardLabel: '奖励：铜钱、材料、好友币、补偿邮件',
+        actionLabel: '看奖励',
+        icon: Gift,
+        to: { name: pendingRequestCount > 0 ? 'online-neighbor' : 'mail', query: pendingRequestCount > 0 ? { tab: 'friends' } : { source: 'neighbor-async-rewards' } },
+      },
+    ]
+  })
+  const neighborAsyncCollaborationReadyCount = computed(() => {
+    const friendReady = socialStore.friends.length > 0 || socialStore.friendDiscoveryPlayers.length > 0
+    return [
+      true,
+      friendReady,
+      friendReady || Boolean(socialStore.neighborGroup),
+      socialStore.incomingRequests.length + socialStore.outgoingRequests.length > 0,
+    ].filter(Boolean).length
+  })
+  const neighborAsyncCollaborationPrimaryAction = computed(() =>
+    neighborAsyncCollaborationSteps.value.find(step => step.id === 'claim-async-rewards' && socialStore.incomingRequests.length + socialStore.outgoingRequests.length > 0)
+      ?? neighborAsyncCollaborationSteps.value.find(step => step.id === 'leave-commission')
+      ?? neighborAsyncCollaborationSteps.value[0]!
+  )
+  const neighborAsyncCollaborationSummary = computed(() =>
+    `${neighborAsyncCollaborationReadyCount.value}/${neighborAsyncCollaborationSteps.value.length} 步有明确落点；下一步：${neighborAsyncCollaborationPrimaryAction.value.title}。`
+  )
   const neighborLeaderboard = computed(() =>
     [...socialStore.neighborPublicGroups]
       .sort((left, right) => right.level - left.level || right.member_count - left.member_count || left.name.localeCompare(right.name, 'zh-CN'))
@@ -1606,7 +1935,23 @@
     lastRefreshAttemptAt.value = Date.now()
   }
 
+  const hydrateNeighborRouteQuery = () => {
+    const queryTab = normalizeNeighborTabKey(route.query.tab)
+    if (queryTab) activeTab.value = queryTab
+    const queryPanel = normalizeNeighborFriendPanelKey(route.query.panel)
+    if (queryPanel) {
+      activeTab.value = 'friends'
+      activeFriendsPanel.value = queryPanel
+    }
+  }
+
   onMounted(() => {
+    hydrateNeighborRouteQuery()
     void refreshNeighborShell()
   })
+
+  watch(
+    () => [route.query.tab, route.query.panel],
+    () => hydrateNeighborRouteQuery()
+  )
 </script>

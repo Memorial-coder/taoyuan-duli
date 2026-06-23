@@ -229,9 +229,17 @@ export const LONG_TERM_GOAL_DEFS: GoalTemplate[] = [
   { id: 'long_collect_2', title: '博物达人', description: '累计发现 60 种物品。', metric: 'discoveredCount', targetValue: 60, reward: { money: 4000, reputation: 65, items: [{ itemId: 'wild_mushroom', quantity: 8 }], unlockHint: '桃源的物产几乎被你摸了个遍。' } },
   { id: 'long_bundle_1', title: '村庄栋梁', description: '累计完成 3 个社区目标。（图鉴→祠堂页签可提交物品完成）', metric: 'completedBundles', targetValue: 3, reward: { money: 3200, reputation: 50, items: [{ itemId: 'bamboo', quantity: 4 }] } },
   { id: 'long_bundle_2', title: '社区中坚', description: '累计完成 6 个社区目标。（图鉴→祠堂页签可提交物品完成）', metric: 'completedBundles', targetValue: 6, reward: { money: 7500, reputation: 100, items: [{ itemId: 'bamboo', quantity: 8 }], unlockHint: '你为桃源的繁荣做出了卓越贡献。' } },
+  { id: 'long_quarry_clear_1', title: '旧场清道', description: '在旧采石场累计清理 80 个资源、怪物或稀有格。', metric: 'quarryLifetimeClears', targetValue: 80, reward: { money: 4200, reputation: 55, items: [{ itemId: 'stone', quantity: 40 }], unlockHint: '旧采石场开始重新成为村里的稳定矿料来源。' } },
+  { id: 'long_quarry_deep_1', title: '深脉入手', description: '在旧采石场累计清理 20 个深脉点。', metric: 'quarryDeepClears', targetValue: 20, reward: { money: 5600, reputation: 70, items: [{ itemId: 'obsidian', quantity: 3 }], unlockHint: '你已经能稳定处理采石场深脉资源。' } },
+  { id: 'long_quarry_weekly_1', title: '采石管护', description: '累计领取 3 次旧采石场周管护潜能奖励。', metric: 'quarryWeeklyClaims', targetValue: 3, reward: { money: 6500, reputation: 80, items: [{ itemId: 'dragon_jade', quantity: 1 }], unlockHint: '采石场管护已经进入可持续循环。' } },
   { id: 'long_crabpot_1', title: '蟹笼渔家', description: '同时拥有 3 个蟹笼。（钓鱼页签可购买或制作蟹笼，放置后计入数量）', metric: 'crabPotCount', targetValue: 3, reward: { money: 2400, reputation: 40, items: [{ itemId: 'herb', quantity: 15 }] } },
   { id: 'long_family_1', title: '家业有人', description: '迎来 1 个孩子。（结婚7天后且配偶好感≥3000，配偶会随机提议要孩子）', metric: 'childCount', targetValue: 1, reward: { money: 2800, reputation: 45, items: [{ itemId: 'food_rice_ball', quantity: 5 }] } },
   { id: 'long_family_2', title: '儿女双全', description: '迎来 2 个孩子。（结婚7天后且配偶好感≥3000，配偶会随机提议要孩子）', metric: 'childCount', targetValue: 2, reward: { money: 5000, reputation: 70, items: [{ itemId: 'food_rice_ball', quantity: 10 }], unlockHint: '家中笑声不断，此乃人生之大幸。' } },
+  { id: 'long_family_wish_1', title: '家中有愿', description: '累计完成 3 次家庭心愿，把家园生活推进成稳定的非战斗长期目标。', metric: 'familyWishCompletions', targetValue: 3, reward: { money: 1800, reputation: 35, ticketRewards: { familyFavor: 1 }, items: [{ itemId: 'food_rice_ball', quantity: 2 }], unlockHint: '家庭心愿已经从偶发事件变成可以持续回应的生活节奏。' } },
+  { id: 'long_processed_order_1', title: '作坊有单', description: '累计提交 5 次加工品订单，让磨坊、油坊、窖藏与订单需求形成稳定闭环。', metric: 'processedOrderSubmissions', targetValue: 5, reward: { money: 2200, reputation: 35, ticketRewards: { caravan: 1 }, items: [{ itemId: 'bamboo', quantity: 3 }], unlockHint: '加工品不再只是卖价更高的产物，也开始承接稳定订单需求。' } },
+  { id: 'long_museum_exhibit_set_1', title: '专题成组', description: '完成 2 组博物馆专题展组，把重复藏品转成可见的长期展陈进度。', metric: 'museumExhibitSetCompletions', targetValue: 2, reward: { money: 1800, reputation: 40, ticketRewards: { exhibit: 1 }, items: [{ itemId: 'jade', quantity: 1 }], unlockHint: '专题展组让博物馆从单件捐赠进入成套展示。' } },
+  { id: 'long_species_note_1', title: '物种成册', description: '完成 4 条物种笔记，串起鱼塘、育种、行旅、采石场和展陈记录。', metric: 'speciesNoteCompletions', targetValue: 4, reward: { money: 1600, reputation: 35, ticketRewards: { research: 1 }, items: [{ itemId: 'fish_feed', quantity: 3 }], unlockHint: '物种笔记开始把散落的发现整理成可追踪的研究成果。' } },
+  { id: 'long_npc_advanced_order_1', title: '托人办成', description: '使用 NPC 功能或服务承接加成完成 1 次特殊订单，让关系系统真正进入订单链路。', metric: 'npcFunctionAdvancedOrderCompletions', targetValue: 1, reward: { money: 1200, reputation: 30, ticketRewards: { familyFavor: 1 }, unlockHint: '村民功能开始参与高级订单，而不是只停留在关系页说明里。' } },
   { id: 'long_sink_mid_service', title: '经营有章', description: '累计赚到 15000 文，为功能型服务与基础经营 sink 做好准备。', metric: 'totalMoneyEarned', targetValue: 15000, reward: { money: 1800, reputation: 28, unlockHint: '你已经能把铜钱花在效率和经营节奏上，而不只是囤起来。' } },
   { id: 'long_sink_late_catalog', title: '豪华席位', description: '累计赚到 60000 文，并准备承接高价目录与商路认购。', metric: 'totalMoneyEarned', targetValue: 60000, reward: { money: 4200, reputation: 55, unlockHint: '你已进入后期高价 sink 区间，豪华目录与商路席位开始值得投入。' } },
   { id: 'long_sink_showcase', title: '终局赞助者', description: '累计赚到 120000 文，为终局展示与瀚海赞助预留预算。', metric: 'totalMoneyEarned', targetValue: 120000, reward: { money: 10000, reputation: 135, unlockHint: '你的财富已足以支撑终局展示型活动，不再只是简单堆钱。' } }
@@ -247,7 +255,14 @@ export const GOAL_BIAS_MAP: Partial<Record<GoalMetricKey, Array<'cashflow' | 'fa
   discoveredCount: ['discovery'],
   regionRouteCompletions: ['discovery'],
   expeditionBossClears: ['mining'],
-  regionalResourceTurnIns: ['cashflow', 'discovery']
+  regionalResourceTurnIns: ['cashflow', 'discovery'],
+  processedOrderSubmissions: ['cashflow', 'cooking'],
+  museumExhibitSetCompletions: ['discovery', 'cashflow'],
+  speciesNoteCompletions: ['fishing', 'discovery'],
+  npcFunctionAdvancedOrderCompletions: ['social', 'cashflow'],
+  quarryLifetimeClears: ['mining', 'discovery'],
+  quarryDeepClears: ['mining', 'discovery'],
+  quarryWeeklyClaims: ['mining', 'cashflow']
 }
 
 export const GOAL_SOURCE_LABELS: Record<GoalSource, string> = {
@@ -276,7 +291,14 @@ export const GOAL_METRIC_LABELS: Record<GoalMetricKey, string> = {
   familyWishCompletions: '家庭心愿完成数',
   regionRouteCompletions: '区域路线完成数',
   expeditionBossClears: '远征首领清关数',
-  regionalResourceTurnIns: '区域资源交付数'
+  regionalResourceTurnIns: '区域资源交付数',
+  processedOrderSubmissions: '加工品订单提交数',
+  museumExhibitSetCompletions: '博物馆专题展组完成数',
+  speciesNoteCompletions: '物种笔记完成数',
+  npcFunctionAdvancedOrderCompletions: 'NPC 功能高级订单完成数',
+  quarryLifetimeClears: '采石场累计清理数',
+  quarryDeepClears: '采石场深脉清理数',
+  quarryWeeklyClaims: '采石场周管护领取数'
 }
 
 export const GOAL_BIAS_RULES: GoalBiasRule[] = [
@@ -347,6 +369,14 @@ export const GOAL_UI_META_BY_ID: Record<string, GoalUiMeta> = {
   season_summer_fish: { shortTitle: '夏日垂钓', categoryTag: '季节目标', progressUnit: '条', panelBadge: '夏渔' },
   season_autumn_income: { shortTitle: '秋账丰盈', categoryTag: '季节目标', progressUnit: '文', panelBadge: '秋收' },
   season_winter_mine: { shortTitle: '冬季探矿', categoryTag: '季节目标', progressUnit: '层', panelBadge: '冬矿' },
+  long_quarry_clear_1: { shortTitle: '旧场清道', categoryTag: '长期目标', progressUnit: '格', panelBadge: '采石场', recommendedReason: '把采石场清理变成长期矿料补给循环。' },
+  long_quarry_deep_1: { shortTitle: '深脉入手', categoryTag: '长期目标', progressUnit: '处', panelBadge: '深脉', recommendedReason: '深脉资源能回流锻造、村庄供材与后期潜能。' },
+  long_quarry_weekly_1: { shortTitle: '采石管护', categoryTag: '长期目标', progressUnit: '次', panelBadge: '管护', recommendedReason: '每周管护会把采石场清理转成潜能材料。' },
+  long_family_wish_1: { shortTitle: '家中有愿', categoryTag: '长期目标', progressUnit: '次', panelBadge: '家庭', recommendedReason: '家庭心愿用真实完成记录串起家园、NPC 与长期目标。' },
+  long_processed_order_1: { shortTitle: '作坊有单', categoryTag: '长期目标', progressUnit: '单', panelBadge: '加工订单', recommendedReason: '加工品订单把作坊产出接进任务消耗口。' },
+  long_museum_exhibit_set_1: { shortTitle: '专题成组', categoryTag: '长期目标', progressUnit: '组', panelBadge: '展组', recommendedReason: '专题展组让重复藏品进入长期展示进度。' },
+  long_species_note_1: { shortTitle: '物种成册', categoryTag: '长期目标', progressUnit: '条', panelBadge: '物种笔记', recommendedReason: '物种笔记把鱼塘、行旅、采石和博物馆记录整理成研究目标。' },
+  long_npc_advanced_order_1: { shortTitle: '托人办成', categoryTag: '长期目标', progressUnit: '单', panelBadge: 'NPC 功能', recommendedReason: 'NPC 功能开始影响高级订单完成，而不是只提供说明。' },
   long_sink_mid_service: { shortTitle: '经营有章', categoryTag: '长期目标', progressUnit: '文', panelBadge: '基础 sink', recommendedReason: '先把铜钱投入功能型服务，建立花钱换效率的节奏。' },
   long_sink_late_catalog: { shortTitle: '豪华席位', categoryTag: '长期目标', progressUnit: '文', panelBadge: '高价 sink', recommendedReason: '开始承接豪华目录、商路席位和高价订单型消费。' },
   long_sink_showcase: { shortTitle: '终局赞助', categoryTag: '长期目标', progressUnit: '文', panelBadge: '终局展示', recommendedReason: '把终局预算转成展示、赞助和跨系统活动，而不是继续裸堆资产。' }
@@ -2361,13 +2391,13 @@ const THEME_WEEK_CROSS_GOAL_METRICS: Record<string, GoalMetricKey> = {
   summer_supply: 'villageProjectLevel',
   summer_fishing: 'hanhaiContractCompletions',
   summer_caravan: 'hanhaiContractCompletions',
-  summer_pond_showcase: 'museumExhibitLevel',
-  autumn_exhibition: 'museumExhibitLevel',
+  summer_pond_showcase: 'speciesNoteCompletions',
+  autumn_exhibition: 'museumExhibitSetCompletions',
   autumn_harvest: 'villageProjectLevel',
-  autumn_processing: 'friendlyNpcCount',
+  autumn_processing: 'processedOrderSubmissions',
   late_sink_rotation: 'familyWishCompletions',
   winter_storage: 'totalRecipesCooked',
-  winter_scholar: 'museumExhibitLevel',
+  winter_scholar: 'museumExhibitSetCompletions',
   winter_pond_maintenance: 'familyWishCompletions',
   winter_mining: 'expeditionBossClears'
 }
@@ -2511,6 +2541,42 @@ const WEEKLY_GOAL_METRIC_PRESETS: Partial<
       { reputation: 14, items: [{ itemId: 'bamboo', quantity: 2 }] },
       { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
     ]
+  },
+  processedOrderSubmissions: {
+    summary: '提交加工品订单，把作坊产出转成任务链的真实消耗与周内经营目标。',
+    targets: [1, 2, 1],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'bamboo', quantity: 2 }] },
+      { reputation: 14, items: [{ itemId: 'food_rice_ball', quantity: 1 }] },
+      { reputation: 8, items: [{ itemId: 'herb', quantity: 2 }] }
+    ]
+  },
+  museumExhibitSetCompletions: {
+    summary: '完成博物馆专题展组，让重复藏品沉淀为展示评分、访客热度和后续订单偏置。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'jade', quantity: 1 }] },
+      { reputation: 14, items: [{ itemId: 'wild_mushroom', quantity: 2 }] },
+      { reputation: 8, items: [{ itemId: 'bamboo', quantity: 2 }] }
+    ]
+  },
+  speciesNoteCompletions: {
+    summary: '推进物种笔记，把鱼塘、育种、行旅、采石场和博物馆发现整理成研究成果。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'fish_feed', quantity: 2 }] },
+      { reputation: 14, items: [{ itemId: 'wild_bait', quantity: 3 }] },
+      { reputation: 8, items: [{ itemId: 'herb', quantity: 2 }] }
+    ]
+  },
+  npcFunctionAdvancedOrderCompletions: {
+    summary: '用 NPC 功能或服务承接加成完成特殊订单，验证关系系统已经接入经营链路。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'food_rice_ball', quantity: 1 }] },
+      { reputation: 14, items: [{ itemId: 'osmanthus', quantity: 2 }] },
+      { reputation: 8, items: [{ itemId: 'bamboo', quantity: 2 }] }
+    ]
   }
 }
 
@@ -2589,7 +2655,8 @@ const WEEKLY_ACTIVITY_THEME_ORDER: WeeklyActivityThemeId[] = [
   'gathering',
   'mining',
   'planting',
-  'region_map'
+  'region_map',
+  'life_linkage'
 ]
 
 export const WEEKLY_ACTIVITY_THEME_DEFS: WeeklyActivityThemeDef[] = [
@@ -2646,6 +2713,15 @@ export const WEEKLY_ACTIVITY_THEME_DEFS: WeeklyActivityThemeDef[] = [
     secondaryTicketType: 'guildLogistics',
     bonusTicketType: 'research',
     preferredRouteId: 'region-map'
+  },
+  {
+    id: 'life_linkage',
+    label: '生活联动周',
+    description: '围绕家庭心愿、加工订单、采石管护、专题展组、物种笔记与 NPC 功能订单推进本周活动。',
+    primaryTicketType: 'familyFavor',
+    secondaryTicketType: 'research',
+    bonusTicketType: 'exhibit',
+    preferredRouteId: 'top_goals'
   }
 ]
 
@@ -3160,6 +3236,99 @@ const buildRegionMapActivityPool = (): WeeklyActivityTaskDef[] => [
   }))
 ]
 
+const buildLifeLinkageActivityPool = (): WeeklyActivityTaskDef[] => [
+  createWeeklyActivityTask('life_linkage', 'family_wish_1', {
+    title: '完成家庭心愿',
+    description: '本周完成 1 次家庭心愿，让家园生活进入目标进度。',
+    kind: 'metric',
+    metricKey: 'familyWishCompletions',
+    targetValue: 1,
+    progressUnit: '次',
+    routeId: 'home'
+  }),
+  createWeeklyActivityTask('life_linkage', 'processed_order_1', {
+    title: '提交加工品订单',
+    description: '本周提交 1 次加工品订单，让作坊产物进入真实消耗。',
+    kind: 'counter',
+    counterKey: 'processed_order_submitted',
+    targetValue: 1,
+    progressUnit: '单',
+    routeId: 'quest'
+  }),
+  createWeeklyActivityTask('life_linkage', 'quarry_weekly_1', {
+    title: '领取采石管护',
+    description: '本周领取 1 次旧采石场周管护奖励。',
+    kind: 'metric',
+    metricKey: 'quarryWeeklyClaims',
+    targetValue: 1,
+    progressUnit: '次',
+    routeId: 'village'
+  }),
+  createWeeklyActivityTask('life_linkage', 'museum_set_1', {
+    title: '完成专题展组',
+    description: '本周完成 1 组博物馆专题展组。',
+    kind: 'metric',
+    metricKey: 'museumExhibitSetCompletions',
+    targetValue: 1,
+    progressUnit: '组',
+    routeId: 'museum'
+  }),
+  createWeeklyActivityTask('life_linkage', 'species_note_1', {
+    title: '整理物种笔记',
+    description: '本周完成 1 条物种笔记。',
+    kind: 'metric',
+    metricKey: 'speciesNoteCompletions',
+    targetValue: 1,
+    progressUnit: '条',
+    routeId: 'fishpond'
+  }),
+  createWeeklyActivityTask('life_linkage', 'npc_advanced_order_1', {
+    title: 'NPC 功能订单',
+    description: '本周使用 NPC 功能或服务承接加成完成 1 次特殊订单。',
+    kind: 'counter',
+    counterKey: 'npc_function_advanced_order_completed',
+    targetValue: 1,
+    progressUnit: '单',
+    routeId: 'npc'
+  }),
+  createWeeklyActivityTask('life_linkage', 'actions_3', {
+    title: '串起生活系统',
+    description: '本周累计完成 3 次家庭、加工、展组、物种、采石或 NPC 功能联动动作。',
+    kind: 'counter',
+    counterKey: 'life_linkage_actions',
+    targetValue: 3,
+    progressUnit: '次',
+    routeId: 'top_goals'
+  }),
+  createWeeklyActivityTask('life_linkage', 'submit_food_rice_ball', {
+    title: `提交${itemLabel('food_rice_ball')}`,
+    description: `提交 ${itemLabel('food_rice_ball')} ×2，用于家庭心愿和 NPC 订单周转。`,
+    kind: 'itemSubmission',
+    targetValue: 2,
+    progressUnit: '份',
+    itemSubmission: { itemId: 'food_rice_ball', quantity: 2 },
+    routeId: 'home'
+  }),
+  createWeeklyActivityTask('life_linkage', 'submit_fish_feed', {
+    title: `提交${itemLabel('fish_feed')}`,
+    description: `提交 ${itemLabel('fish_feed')} ×2，用于鱼塘物种记录和订单备料。`,
+    kind: 'itemSubmission',
+    targetValue: 2,
+    progressUnit: '份',
+    itemSubmission: { itemId: 'fish_feed', quantity: 2 },
+    routeId: 'fishpond'
+  }),
+  createWeeklyActivityTask('life_linkage', 'submit_processed_tea', {
+    title: `提交${itemLabel('processed_osmanthus_tea')}`,
+    description: `提交 ${itemLabel('processed_osmanthus_tea')} ×1，用于加工订单和展陈接待。`,
+    kind: 'itemSubmission',
+    targetValue: 1,
+    progressUnit: '份',
+    itemSubmission: { itemId: 'processed_osmanthus_tea', quantity: 1 },
+    routeId: 'quest'
+  })
+]
+
 const buildWeeklyActivityPool = (
   themeId: WeeklyActivityThemeId,
   rng: () => number,
@@ -3178,6 +3347,8 @@ const buildWeeklyActivityPool = (
       return buildPlantingActivityPool(rng, context)
     case 'region_map':
       return buildRegionMapActivityPool()
+    case 'life_linkage':
+      return buildLifeLinkageActivityPool()
     default:
       return buildPlantingActivityPool(rng, context)
   }

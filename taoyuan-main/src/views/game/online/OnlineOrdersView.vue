@@ -199,43 +199,63 @@
         </div>
 
         <div class="space-y-3">
-          <div class="game-panel-muted p-3" data-testid="online-orders-manor-edge-board">
+          <div
+            class="game-panel-muted p-3"
+            data-testid="online-orders-weak-item-board"
+            data-legacy-testid="online-orders-manor-edge-board"
+          >
             <div class="flex items-center justify-between gap-2">
-              <p class="text-sm text-accent">邻里边角备料单</p>
-              <span class="text-[0.625rem] text-muted">{{ manorEdgeOrderCycleLabel }}</span>
+              <p class="text-sm text-accent">{{ currentWeakItemOrder?.title || '邻里弱用途备料单' }}</p>
+              <span class="text-[0.625rem] text-muted">{{ weakItemOrderCycleLabel }}</span>
             </div>
-            <div class="mt-2 flex min-w-0 items-center gap-2 text-[0.625rem] leading-4 text-muted">
-              <ItemIcon :item="getItemById(MANOR_EDGE_ORDER_ITEM_ID)" size="xs" :show-badge="false" />
+            <div
+              v-if="currentWeakItemOrder"
+              class="mt-2 flex min-w-0 items-center gap-2 text-[0.625rem] leading-4 text-muted"
+              data-testid="online-orders-weak-item-current"
+            >
+              <ItemIcon :item="getItemById(currentWeakItemOrder.itemId)" size="xs" :show-badge="false" />
               <p class="min-w-0">
-                提交{{ getOrderItemLabel(MANOR_EDGE_ORDER_ITEM_ID) }} ×{{ MANOR_EDGE_ORDER_QUANTITY }}，用于公共仓备料。每个游戏周限交一次。
+                提交{{ getOrderItemLabel(currentWeakItemOrder.itemId) }} ×{{ currentWeakItemOrder.quantity }}，{{ currentWeakItemOrder.summary }}每个游戏周限交一次。
               </p>
             </div>
-            <div class="mt-3 grid gap-2 text-xs">
+            <div v-if="currentWeakItemOrder" class="mt-3 grid gap-2 text-xs">
               <div class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-[0.625rem] text-muted">当前库存</p>
                 <p class="mt-1 inline-flex items-center gap-1 text-accent">
-                  <ItemIcon :item="getItemById(MANOR_EDGE_ORDER_ITEM_ID)" size="xs" :show-badge="false" />
-                  <span>{{ manorEdgeBundleCount }} / {{ MANOR_EDGE_ORDER_QUANTITY }}</span>
+                  <ItemIcon :item="getItemById(currentWeakItemOrder.itemId)" size="xs" :show-badge="false" />
+                  <span>{{ currentWeakItemOrderStock }} / {{ currentWeakItemOrder.quantity }}</span>
                 </p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-[0.625rem] text-muted">完成奖励</p>
-                <p class="mt-1 text-accent">商队票券 ×{{ MANOR_EDGE_ORDER_CARAVAN_TICKETS }}</p>
+                <p class="mt-1 text-accent">{{ currentWeakItemOrderRewardSummary }}</p>
               </div>
             </div>
-            <p v-if="manorEdgeOrderCompleted" class="mt-2 text-[0.625rem] leading-4 text-success">
-              本周已提交，下一周会重新开放。
+            <div v-if="currentWeakItemOrder" class="mt-3 space-y-1 text-[0.625rem] leading-4 text-muted">
+              <p data-testid="online-orders-weak-item-rotation-reason">
+                本周轮换：{{ currentWeakItemOrder.rotationReason }}
+              </p>
+              <p v-if="weakItemOrderAntiRepeatHint" data-testid="online-orders-weak-item-anti-repeat">
+                反重复：{{ weakItemOrderAntiRepeatHint }}
+              </p>
+              <p data-testid="online-orders-weak-item-next">
+                下周预告：{{ nextWeakItemOrder ? `${getOrderItemLabel(nextWeakItemOrder.itemId)} ×${nextWeakItemOrder.quantity}` : '暂无轮换候选' }}
+              </p>
+            </div>
+            <p v-if="weakItemOrderCompleted" class="mt-2 text-[0.625rem] leading-4 text-success">
+              本周已提交，下一周会换成另一种公共仓需求。
             </p>
-            <p v-else-if="manorEdgeBundleCount < MANOR_EDGE_ORDER_QUANTITY" class="mt-2 text-[0.625rem] leading-4 text-muted">
-              还差 {{ MANOR_EDGE_ORDER_QUANTITY - manorEdgeBundleCount }} 份边角菜包。
+            <p v-else-if="currentWeakItemOrderMissingQuantity > 0" class="mt-2 text-[0.625rem] leading-4 text-muted">
+              还差 {{ currentWeakItemOrderMissingQuantity }} 份{{ currentWeakItemOrder ? getOrderItemLabel(currentWeakItemOrder.itemId) : '备料' }}。
             </p>
             <div class="mt-3 flex justify-end">
               <button
-                data-testid="online-orders-manor-edge-submit"
+                data-testid="online-orders-weak-item-submit"
+                data-legacy-testid="online-orders-manor-edge-submit"
                 class="online-action-btn online-action-btn--compact"
                 type="button"
-                :disabled="!canSubmitManorEdgeOrder"
-                @click="submitManorEdgeOrder"
+                :disabled="!canSubmitWeakItemOrder"
+                @click="submitWeakItemOrder"
               >
                 <Handshake :size="12" />
                 提交备料
@@ -1056,13 +1076,16 @@
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { getItemById } from '@/data/items'
+  import { getOnlineWeakItemOrderConflictTagsForFamilyWish, getOnlineWeakItemOrderForCalendar, getOnlineWeakItemOrderWeekIndex } from '@/data/onlineOrders'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { addLog } from '@/composables/useGameLog'
+  import type { RewardTicketLedger, RewardTicketType } from '@/types'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import type { OnlineCoopCompensationEntry, OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderStageEntry, OnlineCoopOrderType, OnlineCoopReceiptEntry, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
@@ -1084,6 +1107,7 @@
   const cohabitationStore = useCohabitationStore()
   const gameStore = useGameStore()
   const inventoryStore = useInventoryStore()
+  const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const saveStore = useSaveStore()
   const walletStore = useWalletStore()
@@ -1092,9 +1116,6 @@
   const orderActionConfirm = ref<OrderActionConfirm | null>(null)
   const selectedAvailableOrderId = ref('')
   const orderBoardFilter = ref<'all' | 'single' | 'relay'>('all')
-  const MANOR_EDGE_ORDER_ITEM_ID = 'manor_edge_bundle'
-  const MANOR_EDGE_ORDER_QUANTITY = 3
-  const MANOR_EDGE_ORDER_CARAVAN_TICKETS = 1
   const FAMILY_SHARED_FUND_TYPES = new Set(['oath_manor', 'business_partner'])
   const orderBoardFilterOptions: Array<{ id: 'all' | 'single' | 'relay'; label: string }> = [
     { id: 'all', label: '全部' },
@@ -1217,39 +1238,89 @@
     const saveId = coopOrderStore.targetSaveIdDraft ? `（存档 ID ${coopOrderStore.targetSaveIdDraft}）` : ''
     return `这张求助单会面向 ${target}${saveId}，系统仍会按存档级关系确认。`
   })
-  const manorEdgeOrderWeekIndex = computed(() => Math.ceil(Math.max(1, Number(gameStore.day) || 1) / 7))
-  const manorEdgeOrderDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
-  const manorEdgeOrderLockId = computed(() =>
-    `online_manor_edge_bundle:${gameStore.year}:${gameStore.season}:w${manorEdgeOrderWeekIndex.value}`
+  const weakItemOrderWeekIndex = computed(() => getOnlineWeakItemOrderWeekIndex(gameStore.day))
+  const weakItemOrderDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
+  const activeFamilyWishForOrderAntiRepeat = computed(() => {
+    const overview = npcStore.getFamilyWishOverview()
+    const activeWishId = overview.state.activeWishId ?? ''
+    if (!activeWishId) return null
+    return overview.defs.find(wish => wish.id === activeWishId) ?? null
+  })
+  const weakItemOrderBlockedTags = computed(() =>
+    getOnlineWeakItemOrderConflictTagsForFamilyWish(activeFamilyWishForOrderAntiRepeat.value?.id)
   )
-  const manorEdgeOrderCycleLabel = computed(() => `${gameStore.year}年${gameStore.seasonName}第${manorEdgeOrderWeekIndex.value}周`)
-  const manorEdgeBundleCount = computed(() => inventoryStore.getUnlockedItemCount(MANOR_EDGE_ORDER_ITEM_ID))
-  const manorEdgeOrderCompleted = computed(() =>
-    playerStore.hasLifestyleDiscovery('lifestyleUnlocks', manorEdgeOrderLockId.value)
+  const weakItemOrderAntiRepeatHint = computed(() =>
+    activeFamilyWishForOrderAntiRepeat.value && weakItemOrderBlockedTags.value.length > 0
+      ? `已避开本周家庭心愿「${activeFamilyWishForOrderAntiRepeat.value.title}」正在消耗的同类物资。`
+      : ''
   )
-  const canSubmitManorEdgeOrder = computed(() =>
-    !manorEdgeOrderCompleted.value && manorEdgeBundleCount.value >= MANOR_EDGE_ORDER_QUANTITY
+  const currentWeakItemOrder = computed(() =>
+    getOnlineWeakItemOrderForCalendar(gameStore.year, gameStore.season, gameStore.day, 0, weakItemOrderBlockedTags.value)
   )
-  const submitManorEdgeOrder = () => {
-    if (manorEdgeOrderCompleted.value) {
-      addLog('【线上订单】本周已经提交过邻里边角备料单。')
+  const nextWeakItemOrder = computed(() =>
+    getOnlineWeakItemOrderForCalendar(gameStore.year, gameStore.season, gameStore.day, 1, weakItemOrderBlockedTags.value)
+  )
+  const weakItemOrderLockId = computed(() =>
+    currentWeakItemOrder.value
+      ? `online_weak_item_order:${gameStore.year}:${gameStore.season}:w${weakItemOrderWeekIndex.value}:${currentWeakItemOrder.value.itemId}`
+      : `online_weak_item_order:${gameStore.year}:${gameStore.season}:w${weakItemOrderWeekIndex.value}:none`
+  )
+  const weakItemOrderCycleLabel = computed(() => `${gameStore.year}年${gameStore.seasonName}第${weakItemOrderWeekIndex.value}周`)
+  const currentWeakItemOrderStock = computed(() =>
+    currentWeakItemOrder.value ? inventoryStore.getUnlockedItemCount(currentWeakItemOrder.value.itemId) : 0
+  )
+  const currentWeakItemOrderMissingQuantity = computed(() =>
+    currentWeakItemOrder.value
+      ? Math.max(0, currentWeakItemOrder.value.quantity - currentWeakItemOrderStock.value)
+      : 0
+  )
+  const weakItemOrderCompleted = computed(() =>
+    playerStore.hasLifestyleDiscovery('lifestyleUnlocks', weakItemOrderLockId.value)
+  )
+  const canSubmitWeakItemOrder = computed(() =>
+    Boolean(currentWeakItemOrder.value) &&
+    !weakItemOrderCompleted.value &&
+    currentWeakItemOrderMissingQuantity.value <= 0
+  )
+  const formatTicketRewardSummary = (ledger: RewardTicketLedger | undefined) => {
+    const entries = Object.entries(ledger ?? {})
+      .map(([ticketType, amount]) => ({
+        ticketType: ticketType as RewardTicketType,
+        amount: Math.max(0, Math.floor(Number(amount) || 0))
+      }))
+      .filter(entry => entry.amount > 0)
+    return entries.length > 0
+      ? entries.map(entry => `${walletStore.getTicketLabel(entry.ticketType)} ×${entry.amount}`).join('、')
+      : '公共仓反馈'
+  }
+  const currentWeakItemOrderRewardSummary = computed(() =>
+    formatTicketRewardSummary(currentWeakItemOrder.value?.ticketReward)
+  )
+  const submitWeakItemOrder = () => {
+    const order = currentWeakItemOrder.value
+    if (!order) {
+      addLog('【线上订单】当前没有可提交的弱用途备料单。')
       return
     }
-    if (manorEdgeBundleCount.value < MANOR_EDGE_ORDER_QUANTITY) {
-      addLog(`【线上订单】庄园边角作物包不足，还需要 ${MANOR_EDGE_ORDER_QUANTITY - manorEdgeBundleCount.value} 份。`)
+    if (weakItemOrderCompleted.value) {
+      addLog(`【线上订单】本周已经提交过${order.title}。`)
       return
     }
-    if (!inventoryStore.removeUnlockedItem(MANOR_EDGE_ORDER_ITEM_ID, MANOR_EDGE_ORDER_QUANTITY)) {
-      addLog('【线上订单】扣除庄园边角作物包失败，备料单未提交。')
+    if (currentWeakItemOrderStock.value < order.quantity) {
+      addLog(`【线上订单】${getOrderItemLabel(order.itemId)}不足，还需要 ${order.quantity - currentWeakItemOrderStock.value} 份。`)
+      return
+    }
+    if (!inventoryStore.removeUnlockedItem(order.itemId, order.quantity)) {
+      addLog(`【线上订单】扣除${getOrderItemLabel(order.itemId)}失败，备料单未提交。`)
       return
     }
     const grantedTickets = walletStore.addRewardTickets(
-      { caravan: MANOR_EDGE_ORDER_CARAVAN_TICKETS },
-      { applyMultiplier: false, source: 'online_manor_edge_bundle_order' }
+      order.ticketReward,
+      { applyMultiplier: false, source: 'online_weak_item_order' }
     )
-    playerStore.markLifestyleUnlock(manorEdgeOrderLockId.value, manorEdgeOrderDayTag.value)
-    const ticketCount = grantedTickets.caravan ?? MANOR_EDGE_ORDER_CARAVAN_TICKETS
-    addLog(`【线上订单】提交 庄园边角作物包×${MANOR_EDGE_ORDER_QUANTITY}，公共仓备料进度+1，获得商队票券×${ticketCount}。`)
+    playerStore.markLifestyleUnlock(weakItemOrderLockId.value, weakItemOrderDayTag.value)
+    const rewardSummary = formatTicketRewardSummary(grantedTickets)
+    addLog(`【线上订单】提交 ${getOrderItemLabel(order.itemId)}×${order.quantity}，${order.publicFeedback}，获得${rewardSummary}。`)
   }
 
   const getRouteQueryText = (value: unknown) => {

@@ -49,6 +49,7 @@ import { useWalletStore } from './useWalletStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useGoalStore } from './useGoalStore'
+import { useEquipmentAccessoryStore } from './useEquipmentAccessoryStore'
 import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
 import type { SkullCavernFloorDef } from '@/data/mine'
 import {
@@ -222,6 +223,7 @@ export const useMiningStore = defineStore('mining', () => {
   /** NPC function floor hint unlock */
   const npcFloorHintUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('mine_floor_hint'))
   const inventoryStore = useInventoryStore()
+  const accessoryStore = useEquipmentAccessoryStore()
   const skillStore = useSkillStore()
   const gameStore = useGameStore()
   const environmentWindow = computed(() =>
@@ -410,6 +412,12 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   const getMineMasteryEntryHints = (floor = getActiveFloorData()): string => `${getFloorIntelMessage(floor)}${getNpcMineFloorHint(floor)}${getVeinMarkerMessage()}${getPotentialMineEntryHint(floor)}`
+  const getAccessoryMineEntryHint = (): string =>
+    accessoryStore.getAccessoryEffectValue('accessory_treasure_hint') > 0
+      ? ' 探针轻鸣，附近矿层的宝物气息更容易分辨。'
+      : ''
+  const getAccessoryDurabilityReduction = (): number =>
+    accessoryStore.getAccessoryEffectValue('accessory_durability_consumption_reduction')
 
   const getRootGuardRank = (): number => usePotentialStore().getNodeRank(ROOT_GUARD_NODE_ID)
 
@@ -553,6 +561,8 @@ export const useMiningStore = defineStore('mining', () => {
     if (generousPickChance > 0 && Math.random() < generousPickChance) quantity += 1
     const cookingOreBonusChance = useCookingStore().getActiveMiningOreBonusChance()
     if (cookingOreBonusChance > 0 && Math.random() < cookingOreBonusChance) quantity += 1
+    const accessoryOreBonusChance = accessoryStore.getAccessoryEffectValue('accessory_ore_bonus_chance')
+    if (accessoryOreBonusChance > 0 && Math.random() < accessoryOreBonusChance) quantity += 1
     if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
 
     return quantity
@@ -1158,6 +1168,7 @@ export const useMiningStore = defineStore('mining', () => {
     const walletMiningReduction = walletStore.getMiningStaminaReduction()
     const ringMiningReduction = inventoryStore.getRingEffectValue('mining_stamina')
     const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
+    const accessoryMiningReduction = accessoryStore.getAccessoryEffectValue('accessory_mining_stamina_reduction')
     const blessingMiningReduction = skillStore.getBlessingEffectValue('mining_stamina')
     // 仙缘能力：聚气（shan_weng_1）挖矿体力-15%
     const spiritMiningReduction = useHiddenNpcStore().getAbilityValue('shan_weng_1') / 100
@@ -1171,6 +1182,7 @@ export const useMiningStore = defineStore('mining', () => {
       (1 - walletMiningReduction) *
       (1 - ringMiningReduction) *
       (1 - ringGlobalReduction) *
+      (1 - accessoryMiningReduction) *
       (1 - blessingMiningReduction) *
       (1 - spiritMiningReduction)
     const resolvedStaminaCost = resolveFractionalStaminaCost(rawStaminaCost, miningStaminaDiscountCredit.value)
@@ -1733,8 +1745,8 @@ export const useMiningStore = defineStore('mining', () => {
     return {
       weaponDef,
       runtime: buildPlayerCombatRuntime({
-        weaponAttack: inventoryStore.getWeaponAttack(),
-        weaponCritRate: inventoryStore.getWeaponCritRate(),
+        weaponAttack: inventoryStore.getWeaponAttack() + accessoryStore.getAccessoryEffectValue('accessory_attack_flat'),
+        weaponCritRate: inventoryStore.getWeaponCritRate() + accessoryStore.getAccessoryEffectValue('accessory_crit_rate'),
         weaponType: weaponDef?.type ?? null,
         weaponDamageReduction: inventoryStore.getWeaponAffixEffectValue('weapon_damage_reduction'),
         weaponDefenseIgnore: inventoryStore.getWeaponAffixEffectValue('weapon_defense_ignore'),
@@ -1747,6 +1759,7 @@ export const useMiningStore = defineStore('mining', () => {
         ringLuck: inventoryStore.getRingEffectValue('luck'),
         ringDefenseBonus: inventoryStore.getRingEffectValue('defense_bonus'),
         ringVampiric: inventoryStore.getRingEffectValue('vampiric'),
+        accessoryDamageReduction: accessoryStore.getAccessoryEffectValue('accessory_damage_reduction'),
         guildAttackBonus: guildStore.getGuildAttackBonus(),
         guildBadgeBonusAttack: guildBadgeBonusAttack.value,
         guildDefenseBonus: guildBonusDefense.value,
@@ -1764,7 +1777,12 @@ export const useMiningStore = defineStore('mining', () => {
     combatIsBoss.value ? Math.max(timeCostHours, COMBAT_TIME_NORMAL) : timeCostHours
 
   const getWeaponCombatTimeMultiplier = (): number =>
-    Math.max(0.1, 1 - inventoryStore.getWeaponAffixEffectValue('weapon_combat_time_reduction'))
+    Math.max(
+      0.1,
+      1 -
+        inventoryStore.getWeaponAffixEffectValue('weapon_combat_time_reduction') -
+        accessoryStore.getAccessoryEffectValue('accessory_combat_time_reduction')
+    )
 
   const isSpiritSlayerTarget = (monster: MonsterDef): boolean => {
     const key = `${monster.id} ${monster.name}`.toLowerCase()
@@ -1889,7 +1907,7 @@ export const useMiningStore = defineStore('mining', () => {
     const equippedWeapon = inventoryStore.ownedWeapons[inventoryStore.equippedWeaponIndex]
     if (equippedWeapon) {
       const wAffixes = equippedWeapon.affixes ?? []
-      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked)
+      const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
       const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
       consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
     }
@@ -1899,7 +1917,7 @@ export const useMiningStore = defineStore('mining', () => {
       if (slot >= 0) {
         const ring = inventoryStore.ownedRings[slot]
         if (ring) {
-          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked)
+          const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
           const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
           consumeEquipmentDurability(ring, rMax, 1, rReduction)
         }
@@ -2333,6 +2351,17 @@ export const useMiningStore = defineStore('mining', () => {
     let msg = `前进到${locationName}第${activeFloorNum}层。${newFloor?.isSafePoint ? '（安全点！）' : ''}`
     if (specialLabel) msg += ` [${specialLabel}]`
     msg += getMineMasteryEntryHints(newFloor)
+    msg += getAccessoryMineEntryHint()
+    const accessoryMaterialRewards = accessoryStore.grantMineAccessoryMaterials(activeFloorNum)
+    const accessoryDrop = accessoryStore.rollMineAccessoryDrop(activeFloorNum)
+    if (accessoryMaterialRewards.length > 0) {
+      msg += ` 岩缝里收拢到${accessoryMaterialRewards
+        .map(entry => `${getItemById(entry.itemId)?.name ?? entry.itemId}×${entry.quantity}`)
+        .join('、')}。`
+    }
+    if (accessoryDrop) {
+      msg += ` 还拾得一件${accessoryDrop.tier}阶配件。`
+    }
     return { success: true, message: msg }
   }
 

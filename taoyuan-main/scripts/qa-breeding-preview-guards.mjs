@@ -70,6 +70,7 @@ registerHooks({
 const breedingViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'BreedingView.vue'), 'utf8')
 const breedingStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useBreedingStore.ts'), 'utf8')
 const breedingTypesSource = fs.readFileSync(path.join(srcRoot, 'types', 'breeding.ts'), 'utf8')
+const npcFunctionEffectsSource = fs.readFileSync(path.join(srcRoot, 'data', 'npcFunctionEffects.ts'), 'utf8')
 const breedingData = await import(pathToFileURL(path.join(srcRoot, 'data', 'breeding.ts')).href)
 const cropsData = await import(pathToFileURL(path.join(srcRoot, 'data', 'crops.ts')).href)
 
@@ -175,10 +176,38 @@ assert(
   'Breakthrough-ready crosses must use accumulated progress to satisfy gate thresholds.'
 )
 assert(
+  breedingStoreSource.includes('const FAILURE_BREAKTHROUGH_REQUIRED = 180') &&
+    breedingStoreSource.includes('const FAILURE_PROGRESS_MIN_GAIN = 5') &&
+    breedingStoreSource.includes('const FAILURE_PROGRESS_MAX_GAIN = 24') &&
+    breedingStoreSource.includes('const FAILURE_PROGRESS_CLOSE_GAP_WINDOW = 24') &&
+    breedingStoreSource.includes('const FAILURE_PROGRESS_BASE_GAIN = 5') &&
+    breedingStoreSource.includes('const FAILURE_PROGRESS_MAX_GENERATION_BONUS = 4') &&
+    breedingStoreSource.includes('const FAILURE_PROGRESS_RESEARCH_BONUS = 2'),
+  'Breeding breakthrough pity must stay slower than the original 100-point fast guarantee.'
+)
+assert(
+  breedingStoreSource.includes('FAILURE_BREAKTHROUGH_REQUIRED,') &&
+    breedingStoreSource.includes('Math.round(Number(entry.required) || FAILURE_BREAKTHROUGH_REQUIRED)'),
+  'Old breeding failure progress saves must normalize up to the current breakthrough threshold.'
+)
+assert(
   breedingViewSource.includes('突破进度') &&
     breedingViewSource.includes('本次可用失败积累补足门槛') &&
     breedingViewSource.includes('breedingStore.hybridAvailabilityMap'),
   'Breeding UI must make failure breakthrough progress visible in planning and cross preview.'
+)
+assert(
+  npcFunctionEffectsSource.includes('breeding_boost'),
+  'breeding_boost should be registered in the NPC function effect registry.'
+)
+assert(
+  breedingStoreSource.includes("const npcBreedingBoost = npcStore.getNpcFunctionEffectValue('breeding_boost')") &&
+    breedingStoreSource.includes('Math.max(1, BREEDING_DAYS - highGenReduction - Math.floor(npcBreedingBoost / 15))'),
+  'Breeding start should apply breeding_boost to real station duration while keeping a one-day floor.'
+)
+assert(
+  breedingStoreSource.includes('useGoalStore().recordWeeklyActivityCounter(\'breeding_started\', 1)'),
+  'NPC breeding duration boosts should stay on the normal breeding-start path instead of creating a separate bypass.'
 )
 
 if (errors.length > 0) {

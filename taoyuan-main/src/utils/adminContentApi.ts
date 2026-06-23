@@ -64,6 +64,31 @@ export interface GameplayLogListResult {
   page: number
   pageSize: number
   logs: GameplayLogEntry[]
+  retention?: {
+    retention_days: number
+    max_total: number
+    max_per_user_slot: number
+  }
+}
+
+export interface AdminLogSourceOverview {
+  label: string
+  total: number
+  latest_created_at: number
+  retention_days?: number | null
+  retention_label?: string
+  max_total?: number
+  max_per_user_slot?: number
+  risk_signal_total?: number
+  preserves_major_evidence?: boolean
+  visible?: boolean
+}
+
+export interface AdminLogCenterOverviewResult {
+  sources: Record<
+    'admin_audit' | 'online_audit' | 'content_moderation' | 'gameplay' | 'content_revision',
+    AdminLogSourceOverview
+  >
 }
 
 export interface AdminAndroidReleaseConfigResult {
@@ -170,11 +195,25 @@ export const restoreHomepageAboutRevision = async (revisionId: string, tokenOver
 }
 
 export const fetchContentRevisions = async (
-  params: { contentKey?: string; page?: number; pageSize?: number },
+  params: {
+    contentKey?: string
+    action?: string
+    operatorName?: string
+    keyword?: string
+    createdFrom?: number
+    createdTo?: number
+    page?: number
+    pageSize?: number
+  },
   tokenOverride?: string,
 ): Promise<ContentRevisionListResult> => {
   const search = new URLSearchParams()
   if (params.contentKey) search.set('content_key', params.contentKey)
+  if (params.action) search.set('action', params.action)
+  if (params.operatorName) search.set('operator_name', params.operatorName)
+  if (params.keyword) search.set('keyword', params.keyword)
+  if (params.createdFrom) search.set('created_from', String(params.createdFrom))
+  if (params.createdTo) search.set('created_to', String(params.createdTo))
   search.set('page', String(params.page || 1))
   search.set('page_size', String(params.pageSize || 40))
   const data = await adminRequest<ContentRevisionListResult & { page_size?: number }>(`/api/admin/content/revisions?${search.toString()}`, undefined, tokenOverride)
@@ -208,6 +247,31 @@ export const uploadAdminContentImage = async (file: File, tokenOverride?: string
     },
     tokenOverride,
   )
+}
+
+export const fetchAdminLogCenterOverview = async (tokenOverride?: string): Promise<AdminLogCenterOverviewResult> => {
+  const data = await adminRequest<AdminLogCenterOverviewResult>('/api/admin/log-center/overview', undefined, tokenOverride)
+  const normalizeSource = (source: Partial<AdminLogSourceOverview> | undefined): AdminLogSourceOverview => ({
+    label: String(source?.label || ''),
+    total: Number(source?.total) || 0,
+    latest_created_at: Number(source?.latest_created_at) || 0,
+    retention_days: source?.retention_days === null ? null : Number(source?.retention_days) || 0,
+    retention_label: source?.retention_label ? String(source.retention_label) : '',
+    max_total: Number(source?.max_total) || 0,
+    max_per_user_slot: Number(source?.max_per_user_slot) || 0,
+    risk_signal_total: Number(source?.risk_signal_total) || 0,
+    preserves_major_evidence: source?.preserves_major_evidence === true,
+    visible: source?.visible !== false,
+  })
+  return {
+    sources: {
+      admin_audit: normalizeSource(data.sources?.admin_audit),
+      online_audit: normalizeSource(data.sources?.online_audit),
+      content_moderation: normalizeSource(data.sources?.content_moderation),
+      gameplay: normalizeSource(data.sources?.gameplay),
+      content_revision: normalizeSource(data.sources?.content_revision),
+    },
+  }
 }
 
 export const fetchAdminAnnouncements = async (tokenOverride?: string): Promise<AdminAnnouncementListResult> => {
@@ -318,13 +382,28 @@ export const fetchAdminAnnouncementAuditLogs = async (id: string, tokenOverride?
 }
 
 export const fetchGameplayLogs = async (
-  params: { username?: string; category?: string; keyword?: string; saveSlot?: number | null; page?: number; pageSize?: number },
+  params: {
+    username?: string
+    category?: string
+    keyword?: string
+    action?: string
+    outcome?: string
+    createdFrom?: number
+    createdTo?: number
+    saveSlot?: number | null
+    page?: number
+    pageSize?: number
+  },
   tokenOverride?: string,
 ): Promise<GameplayLogListResult> => {
   const search = new URLSearchParams()
   if (params.username) search.set('username', params.username)
   if (params.category) search.set('category', params.category)
   if (params.keyword) search.set('keyword', params.keyword)
+  if (params.action) search.set('action', params.action)
+  if (params.outcome) search.set('outcome', params.outcome)
+  if (params.createdFrom) search.set('created_from', String(params.createdFrom))
+  if (params.createdTo) search.set('created_to', String(params.createdTo))
   if (params.saveSlot !== null && params.saveSlot !== undefined && Number.isInteger(params.saveSlot) && params.saveSlot >= 0) {
     search.set('save_slot', String(params.saveSlot))
   }
@@ -336,6 +415,7 @@ export const fetchGameplayLogs = async (
     page: Number(data.page) || 1,
     pageSize: Number(data.pageSize || data.page_size) || params.pageSize || 50,
     logs: Array.isArray(data.logs) ? data.logs : [],
+    retention: data.retention,
   }
 }
 

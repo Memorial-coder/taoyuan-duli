@@ -72,6 +72,8 @@ export interface OwnedRing {
   affixes?: ForgeAffixRoll[]
   /** 耐久 */
   durability?: number
+  /** 坚固值：剩余可修理寿命 */
+  sturdiness?: number
   durabilityWearProgress?: number
   /** 锁定后禁止出售 */
   locked?: boolean

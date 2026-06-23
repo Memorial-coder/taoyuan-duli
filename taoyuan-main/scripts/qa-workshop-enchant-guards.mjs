@@ -16,6 +16,7 @@ const [
   processingTypesSource,
   processingStoreSource,
   processingViewSource,
+  toolUpgradeViewSource,
   forgeAffixesSource,
   inventoryStoreSource,
   miningStoreSource,
@@ -28,6 +29,7 @@ const [
   readSource('src/types/processing.ts'),
   readSource('src/stores/useProcessingStore.ts'),
   readSource('src/views/game/ProcessingView.vue'),
+  readSource('src/views/game/ToolUpgradeView.vue'),
   readSource('src/data/forgeAffixes.ts'),
   readSource('src/stores/useInventoryStore.ts'),
   readSource('src/stores/useMiningStore.ts'),
@@ -178,22 +180,20 @@ for (const marker of [
 }
 
 for (const marker of [
-  'processing-enchanting-forge-open',
-  'processing-enchanting-forge-modal',
-  'processing-enchanting-forge-confirm',
-  'processing-enchanting-forge-target-${option.id}',
-  'processing-enchanting-forge-mode-${mode.id}',
-  'processing-enchanting-forge-direction-${direction.id}',
-  'processing-enchanting-forge-preserve-${option.id}',
-  'processing-enchanting-forge-unlock-${option.key}',
-  'showEnchantingForgeModal',
-  'selectedEnchantingForgeTarget',
-  'selectedEnchantingForgeMode',
-  'selectedEnchantingForgeDirectionId',
-  'selectedEnchantingForgePreserveId',
-  'handleUnlockEnchantingForgeTarget',
+  'smithy-forge-section',
+  'smithy-forge-confirm',
+  'smithy-forge-target-${option.id}',
+  'smithy-forge-mode-${mode.id}',
+  'smithy-forge-direction-${direction.id}',
+  'smithy-forge-preserve-${option.id}',
+  'smithy-forge-unlock-${option.key}',
+  'selectedForgeTarget',
+  'selectedForgeMode',
+  'selectedForgeDirectionId',
+  'selectedForgePreserveId',
+  'handleUnlockForgeTarget',
   'inventoryStore.toggleEquipmentLock',
-  'setEnchantingForgeAffixes',
+  'setForgeAffixes',
   'inventoryStore.setWeaponAffixes',
   "inventoryStore.setToolAffixes('pickaxe'",
   'inventoryStore.setRingAffixes',
@@ -202,20 +202,25 @@ for (const marker of [
   'inventoryStore.deserialize(inventorySnapshot)',
   'warehouseStore.deserialize(warehouseSnapshot)'
 ]) {
-  assert(processingViewSource.includes(marker), `processing view should expose enchanting forge marker ${marker}.`)
+  assert(toolUpgradeViewSource.includes(marker), `tool upgrade view should expose smithy forge marker ${marker}.`)
 }
 
 for (const marker of [
-  'group.isEnchantingForge',
-  '!group.isEnchantingForge',
-  'a.isEnchantingForge ? -1 : 1',
-  "slot.machineType === 'enchanting_forge'",
-  '需要先建造铸魔炉',
+  'getEnchantingForgeServiceLockedReason',
+  'canUseEnchantingForgeService',
+  'filter(m => !isSmithyServiceMachine(m.id))',
+  "SMITHY_SERVICE_MACHINE_TYPES: MachineType[] = ['enchanting_forge', 'repair_bench']",
+  '不占工坊机器格',
   '镐子正在升级',
   '这件装备已锁定',
   '这件武器已锁定'
 ]) {
-  assert(processingViewSource.includes(marker), `processing view should special-case enchanting forge marker ${marker}.`)
+  const source = marker.includes('filter(') || marker.includes('SMITHY_SERVICE')
+    ? processingViewSource
+    : marker === 'getEnchantingForgeServiceLockedReason' || marker === 'canUseEnchantingForgeService'
+      ? processingStoreSource
+      : toolUpgradeViewSource
+  assert(source.includes(marker), `smithy forge migration should include marker ${marker}.`)
 }
 
 for (const oldMarker of [

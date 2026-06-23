@@ -1,4 +1,6 @@
 import type {
+  ChildTrainingFocus,
+  ChildTrainingItemRequirement,
   ChildTrainingState,
   CompensationPlan,
   FamilyWishBoardState,
@@ -887,6 +889,10 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 5,
     durationDays: 7,
     rewardSummary: '完成后会返还一笔外出活动经费，并补给鱼饵。',
+    itemRequirements: [
+      { itemId: 'manor_edge_bundle', quantity: 2, sourceHint: '线上庄园边角来源' },
+      { itemId: 'standard_bait', quantity: 2, sourceHint: '鱼饵机或钓前准备', sourceGroupId: 'feed' }
+    ],
     reward: {
       money: 900,
       items: [{ itemId: 'standard_bait', quantity: 3 }]
@@ -904,6 +910,10 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 1,
     durationDays: 14,
     rewardSummary: '完成后可获得一笔传承基金与高阶材料，支撑后续长线培养。',
+    itemRequirements: [
+      { itemId: 'paper', quantity: 3, sourceHint: '回收或文书整理', sourceGroupId: 'refined_material' },
+      { itemId: 'charcoal', quantity: 2, sourceHint: '炭窑烧制', sourceGroupId: 'refined_material' }
+    ],
     reward: {
       money: 1800,
       items: [{ itemId: 'silk', quantity: 2 }]
@@ -991,6 +1001,10 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 2,
     durationDays: 14,
     rewardSummary: '完成后会返还一笔馆藏赞助资金，帮助衔接展陈和终局展示路线。',
+    itemRequirements: [
+      { itemId: 'paper', quantity: 4, sourceHint: '文书档案整理', sourceGroupId: 'refined_material' },
+      { itemId: 'cloth', quantity: 1, sourceHint: '织布机加工', sourceGroupId: 'textile' }
+    ],
     reward: {
       money: 2200,
       items: [{ itemId: 'silk', quantity: 2 }, { itemId: 'bamboo_scroll', quantity: 1 }]
@@ -1013,6 +1027,10 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 4,
     durationDays: 7,
     rewardSummary: '完成后会返还一笔夜游活动经费，并补一轮鱼塘养护物资。',
+    itemRequirements: [
+      { itemId: 'fish_feed', quantity: 1, sourceHint: '磨坊、回收站或商店补给', sourceGroupId: 'fish_processed' },
+      { itemId: 'standard_bait', quantity: 2, sourceHint: '钓前备料', sourceGroupId: 'feed' }
+    ],
     reward: {
       money: 1200,
       items: [{ itemId: 'standard_bait', quantity: 4 }, { itemId: 'fish_feed', quantity: 1 }]
@@ -1035,6 +1053,10 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     targetValue: 2,
     durationDays: 14,
     rewardSummary: '完成后会返还一笔灵缘整理资金，帮助衔接仙灵记忆、展陈和活动预告。',
+    itemRequirements: [
+      { itemId: 'pine_incense', quantity: 2, sourceHint: '制香坊合成', sourceGroupId: 'incense' },
+      { itemId: 'paper', quantity: 2, sourceHint: '文书整理', sourceGroupId: 'refined_material' }
+    ],
     reward: {
       money: 2100,
       items: [{ itemId: 'peacock_feather', quantity: 1 }, { itemId: 'wild_mushroom', quantity: 4 }]
@@ -1172,6 +1194,24 @@ export const WS09_ACCEPTANCE_SUMMARY = {
     '【跨系统联动】关系线已开始反向影响任务板、育种、钓鱼与宅院经营，不再是孤立的社交弹窗。'
   ]
 } as const
+
+export const CHILD_TRAINING_REQUIREMENTS: Record<ChildTrainingFocus, ChildTrainingItemRequirement[]> = {
+  spirit: [
+    { itemId: 'paper', quantity: 2, sourceHint: '回收、文书整理或博物馆复写笔记', sourceGroupId: 'refined_material' }
+  ],
+  social: [
+    { itemId: 'food_rice_ball', quantity: 1, sourceHint: '灶台料理或家庭目标奖励' },
+    { itemId: 'adventurer_ration', quantity: 1, sourceHint: '冒险家公会补给' }
+  ],
+  farm: [
+    { itemId: 'fish_feed', quantity: 1, sourceHint: '磨坊、回收站或商店补给', sourceGroupId: 'fish_processed' },
+    { itemId: 'seed_cabbage', quantity: 2, sourceHint: '商店购买或种子机' }
+  ],
+  craft: [
+    { itemId: 'cloth', quantity: 1, sourceHint: '织布机加工', sourceGroupId: 'textile' },
+    { itemId: 'wood', quantity: 8, sourceHint: '砍树或回收浮木' }
+  ]
+}
 
 export const WS09_QA_CASES: QaCaseDef[] = [
   {

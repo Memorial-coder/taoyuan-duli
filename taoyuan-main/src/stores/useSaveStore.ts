@@ -39,6 +39,7 @@ import { useQuarryStore } from './useQuarryStore'
 import { useRegionMapStore } from './useRegionMapStore'
 import { useFrontierChronicleStore } from './useFrontierChronicleStore'
 import { usePlayerRecordCenterStore } from './usePlayerRecordCenterStore'
+import { useEquipmentAccessoryStore } from './useEquipmentAccessoryStore'
 import {
   BUILT_IN_SAMPLE_SAVES,
   type BuiltInSampleSaveDef,
@@ -1288,6 +1289,7 @@ export const useSaveStore = defineStore('save', () => {
     const regionMapStore = useRegionMapStore()
     const frontierChronicleStore = useFrontierChronicleStore()
     const playerRecordCenterStore = usePlayerRecordCenterStore()
+    const equipmentAccessoryStore = useEquipmentAccessoryStore()
 
     const payload = {
       game: gameStore.serialize(),
@@ -1324,6 +1326,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
+      equipmentAccessory: equipmentAccessoryStore.serialize(),
       onlineMailRewards: cloneOnlineMailRewards(onlineMailRewards.value)
     }
 
@@ -1435,6 +1438,7 @@ export const useSaveStore = defineStore('save', () => {
     const regionMapStore = useRegionMapStore()
     const frontierChronicleStore = useFrontierChronicleStore()
     const playerRecordCenterStore = usePlayerRecordCenterStore()
+    const equipmentAccessoryStore = useEquipmentAccessoryStore()
 
       // 核心块缺失时直接拒绝加载，避免先重置当前会话再因反序列化失败把现场清空
     if (!payload.game || !payload.player || !payload.inventory || !payload.farm) {
@@ -1477,6 +1481,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
+      equipmentAccessory: equipmentAccessoryStore.serialize(),
       onlineMailRewards: cloneOnlineMailRewards(onlineMailRewards.value),
       currentOnlineIdentity: currentOnlineIdentity.value,
       activeBuiltInSampleSave: activeBuiltInSampleSave.value,
@@ -1552,6 +1557,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMapStore.deserialize(emptyState)
       frontierChronicleStore.deserialize(emptyState)
       playerRecordCenterStore.deserialize(emptyState)
+      equipmentAccessoryStore.deserialize(emptyState)
       potentialStore.deserialize(emptyState)
       onlineMailRewards.value = createEmptyOnlineMailRewards()
     }
@@ -1590,6 +1596,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMapStore.deserialize(snapshot.regionMap)
       frontierChronicleStore.deserialize(snapshot.frontierChronicle)
       playerRecordCenterStore.deserialize(snapshot.playerRecordCenter)
+      equipmentAccessoryStore.deserialize(snapshot.equipmentAccessory)
       onlineMailRewards.value = cloneOnlineMailRewards(snapshot.onlineMailRewards)
       currentOnlineIdentity.value = snapshot.currentOnlineIdentity ?? null
       activeBuiltInSampleSave.value = snapshot.activeBuiltInSampleSave ?? null
@@ -1637,6 +1644,7 @@ export const useSaveStore = defineStore('save', () => {
       else frontierChronicleStore.deserialize({})
       if (payload.playerRecordCenter) playerRecordCenterStore.deserialize(payload.playerRecordCenter)
       else playerRecordCenterStore.deserialize({})
+      equipmentAccessoryStore.deserialize(payload.equipmentAccessory ?? {})
       onlineMailRewards.value = normalizeOnlineMailRewards(payload.onlineMailRewards)
       goalStore.deserialize(payload.goal)
       if (payload.game && payload.game.tomorrowWeather == null) {

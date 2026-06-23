@@ -6,6 +6,7 @@
   AlchemyResultRule,
   ProcessingMachineDef,
   ProcessingRecipeDef,
+  Quality,
   SprinklerDef,
   FertilizerDef,
   BaitDef,
@@ -16,6 +17,7 @@ import { CROPS } from './crops'
 import { FISH } from './fish'
 import { FRUIT_TREE_DEFS } from './fruitTrees'
 import { getCropUseProfile, type CropUseProfile } from './cropUseProfiles'
+import { HYBRID_DEFS, getHybridTier } from './breeding'
 
 export const ALCHEMY_MAIN_DAILY_LIMIT = 1
 export const ALCHEMY_SUPPORT_DAILY_LIMIT = 2
@@ -1874,10 +1876,10 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       revealOn: 'collect'
     },
     inputItemId: 'charcoal',
-    inputQuantity: 3,
+    inputQuantity: 1,
     extraInputs: [{ itemId: 'paper', quantity: 1 }],
     outputItemId: 'paper',
-    outputQuantity: 3,
+    outputQuantity: 5,
     processingDays: 1,
     description: '丹青指点的题字用墨，可把普通纸张整理成更适合文书往来的纸张。'
   },
@@ -3022,6 +3024,11 @@ type HiddenOutputTier = HiddenInputEconomy & {
   edible: boolean
 }
 
+type HiddenWineOutputPlan = {
+  itemId: string
+  quality?: Quality
+}
+
 const HIDDEN_EXTRA_INPUT_ECONOMY: Record<string, HiddenInputEconomy> = {
   honey: { value: 100, stamina: 20, health: 10 },
   wood: { value: 5, stamina: 0, health: 0 }
@@ -3182,7 +3189,39 @@ const HIDDEN_SMOKE_TIERS: HiddenOutputTier[] = [
   { itemId: 'smoked_legendary_fish', value: 2600, edible: true, stamina: 180, health: 100 }
 ]
 
+const HIDDEN_OUTPUT_QUALITY_LABELS: Record<Quality, string> = {
+  normal: '普通',
+  fine: '优良',
+  excellent: '精品',
+  supreme: '极品'
+}
+
+const HYBRID_WINE_TIER_OUTPUTS: Record<number, HiddenWineOutputPlan> = {
+  1: { itemId: 'spirit_fruit_brew', quality: 'normal' },
+  2: { itemId: 'spirit_fruit_brew', quality: 'fine' },
+  3: { itemId: 'spirit_fruit_brew', quality: 'excellent' },
+  4: { itemId: 'mystic_fruit_wine', quality: 'normal' },
+  5: { itemId: 'mystic_fruit_wine', quality: 'fine' },
+  6: { itemId: 'mystic_fruit_wine', quality: 'excellent' },
+  7: { itemId: 'celestial_fruit_wine', quality: 'normal' },
+  8: { itemId: 'celestial_fruit_wine', quality: 'fine' },
+  9: { itemId: 'celestial_fruit_wine', quality: 'excellent' },
+  10: { itemId: 'celestial_fruit_wine', quality: 'supreme' }
+}
+
+const HYBRID_TIER_BY_RESULT_CROP_ID = new Map(
+  HYBRID_DEFS.map(hybrid => [hybrid.resultCropId, getHybridTier(hybrid.id)])
+)
+
 const getHiddenOutputLabel = (itemId: string): string => HIDDEN_OUTPUT_LABELS[itemId] ?? itemId
+
+const getHiddenOutputNameWithQuality = (itemId: string, quality?: Quality): string =>
+  quality ? `${HIDDEN_OUTPUT_QUALITY_LABELS[quality]}${getHiddenOutputLabel(itemId)}` : getHiddenOutputLabel(itemId)
+
+const getHiddenBreedingWineOutput = (cropId: string): HiddenWineOutputPlan | null => {
+  const tier = HYBRID_TIER_BY_RESULT_CROP_ID.get(cropId)
+  return tier ? HYBRID_WINE_TIER_OUTPUTS[tier] ?? null : null
+}
 
 const addHiddenEconomy = (base: HiddenInputEconomy, extra: HiddenInputEconomy): HiddenInputEconomy => ({
   value: base.value + extra.value,
@@ -3271,15 +3310,18 @@ const getHiddenWineOutput = (
   profile: CropUseProfile,
   inputEconomy: HiddenInputEconomy,
   processingDays: number
-): string => {
-  if (cropId === 'ancient_fruit') return 'ancient_fruit_wine'
+): HiddenWineOutputPlan => {
+  if (cropId === 'ancient_fruit') return { itemId: 'ancient_fruit_wine' }
+
+  const breedingWineOutput = getHiddenBreedingWineOutput(cropId)
+  if (breedingWineOutput) return breedingWineOutput
 
   const preferredItemId = profile.spirituality === 'mystic' || profile.spirituality === 'spirit'
     ? 'spirit_fruit_brew'
     : profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal'
       ? 'seasonal_fruit_wine'
       : 'mixed_fruit_wine'
-  return getHiddenTieredOutput('wine_workshop', HIDDEN_WINE_TIERS, inputEconomy, processingDays, preferredItemId)
+  return { itemId: getHiddenTieredOutput('wine_workshop', HIDDEN_WINE_TIERS, inputEconomy, processingDays, preferredItemId) }
 }
 
 const getUnknownProcessingName = (machineType: ProcessingRecipeDef['machineType']): string => {
@@ -3355,7 +3397,8 @@ const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
     if (profile.tags.includes('wine')) {
       const wineInputQuantity = inputQuantity
       const wineProcessingDays = profile.rarityUse === 'valuable' ? 4 : 3
-      const outputItemId = getHiddenWineOutput(crop.id, profile, getCropHiddenEconomy(crop, wineInputQuantity), wineProcessingDays)
+      const wineOutput = getHiddenWineOutput(crop.id, profile, getCropHiddenEconomy(crop, wineInputQuantity), wineProcessingDays)
+      const outputItemId = wineOutput.itemId
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: crop.id === 'ancient_fruit' ? 'hidden_wine_ancient_fruit' : `hidden_wine_${crop.id}`,
         machineType: 'wine_workshop',
@@ -3364,10 +3407,11 @@ const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
         inputQuantity: wineInputQuantity,
         outputItemId,
         outputQuantity: 1,
+        outputQuality: wineOutput.quality,
         processingDays: wineProcessingDays,
         description: crop.id === 'ancient_fruit'
           ? '远古水果在酒坊中慢慢沉成幽蓝酒液，首次成功后会记入隐藏酿造配方。'
-          : `将${title}投入酒坊试酿，成功后可固定作为${getHiddenOutputLabel(outputItemId)}配方使用。`,
+          : `将${title}投入酒坊试酿，成功后可固定作为${getHiddenOutputNameWithQuality(outputItemId, wineOutput.quality)}配方使用。`,
         familyId: 'hidden_wine',
         gate: crop.id === 'ancient_fruit' ? { workshopLevel: 2, requiredItemId: 'ancient_fruit' } : undefined,
         sharedEnabled: true

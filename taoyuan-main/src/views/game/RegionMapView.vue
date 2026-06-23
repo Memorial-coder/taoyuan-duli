@@ -79,7 +79,7 @@
         </div>
       </div>
 
-      <section v-show="activeRegionMapTab === 'today'" class="space-y-3">
+      <section v-if="activeRegionMapTab === 'today'" class="space-y-3">
       <div v-if="!isCompactMobile" class="border border-accent/20 rounded-xs p-2 mb-3">
         <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
           <div class="flex items-center justify-between">
@@ -393,7 +393,12 @@
       </div>
       </section>
 
-      <section v-show="activeRegionMapTab === 'map'" class="space-y-3">
+      <section
+        v-if="hasVisitedRegionMapTab"
+        v-show="activeRegionMapTab === 'map'"
+        v-memo="regionMapTabMemoDeps"
+        class="space-y-3"
+      >
       <div
         class="border border-accent/20 rounded-xs p-4 mb-3"
         style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(36, 39, 56, 0.72));"
@@ -507,59 +512,59 @@
       </div>
 
       <div ref="regionListAnchor" class="space-y-2 mb-3">
-        <div v-for="region in visibleRegionSummaries" :key="region.id" class="border border-accent/20 rounded-xs p-3">
+        <div v-for="regionView in visibleRegionMapViews" :key="regionView.region.id" class="region-map-region-card border border-accent/20 rounded-xs p-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-sm text-accent">{{ region.name }}</p>
-              <p class="text-xs text-muted mt-1 leading-5" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ region.description }}</p>
+              <p class="text-sm text-accent">{{ regionView.region.name }}</p>
+              <p class="text-xs text-muted mt-1 leading-5" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ regionView.region.description }}</p>
             </div>
-            <span class="text-[0.625rem] shrink-0" :class="region.unlocked ? 'text-success' : 'text-muted'">
-              {{ region.unlocked ? '已解锁' : '未解锁' }}
+            <span class="text-[0.625rem] shrink-0" :class="regionView.region.unlocked ? 'text-success' : 'text-muted'">
+              {{ regionView.region.unlocked ? '已解锁' : '未解锁' }}
             </span>
           </div>
 
           <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.625rem] mt-3">
             <div class="flex items-center justify-between">
               <span class="text-muted">主题</span>
-              <span>{{ region.themeHint }}</span>
+              <span>{{ regionView.region.themeHint }}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">路线</span>
-              <span class="text-accent">{{ region.completedRouteCount }}/{{ region.routeCount }}</span>
+              <span class="text-accent">{{ regionView.region.completedRouteCount }}/{{ regionView.region.routeCount }}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">接线系统</span>
-              <span>{{ region.linkedSystems.join(' / ') }}</span>
+              <span>{{ regionView.region.linkedSystems.join(' / ') }}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">首领</span>
-              <span>{{ region.boss?.name ?? '待接线' }}</span>
+              <span>{{ regionView.region.boss?.name ?? '待接线' }}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">解锁进度</span>
-              <span>{{ getUnlockSummary(region.id) }}</span>
+              <span>{{ regionView.unlockSummary }}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">周焦点</span>
-              <span :class="region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? 'text-success' : 'text-muted'">
-                {{ region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? '当前焦点' : '普通' }}
+              <span :class="regionView.region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? 'text-success' : 'text-muted'">
+                {{ regionView.region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? '当前焦点' : '普通' }}
               </span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">区域情报</span>
-              <span class="text-accent">{{ getRegionKnowledgeSummary(region.id).intelLabel }}</span>
+              <span class="text-accent">{{ regionView.knowledge.intelLabel }}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-muted">地图摸清</span>
-              <span>{{ getRegionKnowledgeSummary(region.id).surveyLabel }}</span>
+              <span>{{ regionView.knowledge.surveyLabel }}</span>
             </div>
           </div>
 
           <p class="text-[0.625rem] text-muted mt-2 leading-4">
-            看清进度：情报 {{ getRegionKnowledgeSummary(region.id).intel }} / 摸清 {{ getRegionKnowledgeSummary(region.id).survey }} / 走熟 {{ getRegionKnowledgeSummary(region.id).familiarity }}
+            看清进度：情报 {{ regionView.knowledge.intel }} / 摸清 {{ regionView.knowledge.survey }} / 走熟 {{ regionView.knowledge.familiarity }}
           </p>
 
-          <div v-if="region.unlocked && shouldRenderRegionDetail(region.id)" class="mt-3 space-y-2">
+          <div v-if="regionView.region.unlocked && shouldRenderRegionDetail(regionView.region.id)" class="mt-3 space-y-2">
             <div
               class="border border-accent/10 rounded-xs px-3 py-3 overflow-hidden"
               style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(24, 24, 24, 0.04));"
@@ -567,49 +572,57 @@
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-[0.625rem] text-muted">路线总览</p>
-                  <p class="text-xs text-accent mt-1">{{ getRegionMapBoardSummary(region.id).headline }}</p>
+                  <p class="text-xs text-accent mt-1">{{ regionView.boardSummary.headline }}</p>
                   <p v-if="isCompactMobile" class="text-[0.625rem] text-muted mt-2 leading-4">这里先看推进进度，真正出发统一以下方路线卡和首领入口为准。</p>
                 </div>
                 <div class="shrink-0 text-right">
-                  <span class="text-[0.625rem]" :class="getRegionFogMeta(region.id).toneClass">{{ getRegionFogMeta(region.id).label }}</span>
-                  <p class="text-[0.625rem] text-muted mt-1">{{ getRegionMapBoardSummary(region.id).subhead }}</p>
+                  <span class="text-[0.625rem]" :class="regionView.fogMeta.toneClass">{{ regionView.fogMeta.label }}</span>
+                  <p class="text-[0.625rem] text-muted mt-1">{{ regionView.boardSummary.subhead }}</p>
                 </div>
               </div>
 
-              <div class="mt-3 space-y-3" :data-testid="`region-map-rail-${region.id}`">
+              <div class="mt-3 space-y-3" :data-testid="`region-map-rail-${regionView.region.id}`">
                 <RegionExplorationTree
-                  :region-name="region.name"
-                  :summary="getRegionTreeSummary(region.id)"
-                  :nodes="getRegionExplorationTree(region.id).nodes"
-                  :links="getRegionExplorationTree(region.id).links"
-                  :initial-node-key="getRegionTreeInitialNodeKey(region.id)"
+                  v-if="regionView.tree.nodes.length > 0"
+                  :region-name="regionView.region.name"
+                  :summary="regionView.treeSummary"
+                  :nodes="regionView.tree.nodes"
+                  :links="regionView.tree.links"
+                  :initial-node-key="regionView.treeInitialNodeKey"
                   @trigger-action="handleRegionTreeNodeAction"
                   @navigate="handleRegionTreeNavigate"
                 />
+                <div
+                  v-else
+                  class="border border-accent/10 rounded-xs px-3 py-3 text-[0.625rem] text-muted bg-bg/40"
+                  data-testid="region-map-tree-loading"
+                >
+                  路网整理中...
+                </div>
 
                 <button
                   class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[0.625rem] text-accent hover:bg-accent/5"
-                  @click="toggleCompactRegionSection(region.id)"
+                  @click="toggleCompactRegionSection(regionView.region.id)"
                 >
-                  {{ isCompactRegionSectionOpen(region.id) ? '收起旧版细节与旅后材料' : '展开旧版细节与旅后材料' }}
+                  {{ isCompactRegionSectionOpen(regionView.region.id) ? '收起旧版细节与旅后材料' : '展开旧版细节与旅后材料' }}
                 </button>
               </div>
             </div>
 
-            <div v-if="isCompactRegionSectionOpen(region.id)" class="space-y-2">
+            <div v-if="isCompactRegionSectionOpen(regionView.region.id)" class="space-y-2">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div class="border border-accent/10 rounded-xs px-3 py-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-[0.625rem] text-muted">季节变体快照</p>
-                  <span class="text-[0.625rem]" :class="getRegionVariantSnapshot(region.id).activeVariantId ? 'text-warning' : 'text-success'">
-                    {{ getRegionVariantSnapshot(region.id).activeVariantId ? getRegionVariantSnapshot(region.id).activeVariantLabel : '常态版图' }}
+                  <span class="text-[0.625rem]" :class="regionView.variantSnapshot.activeVariantId ? 'text-warning' : 'text-success'">
+                    {{ regionView.variantSnapshot.activeVariantId ? regionView.variantSnapshot.activeVariantLabel : '常态版图' }}
                   </span>
                 </div>
-                <p class="text-xs text-accent mt-1">{{ getRegionVariantSnapshot(region.id).summary }}</p>
+                <p class="text-xs text-accent mt-1">{{ regionView.variantSnapshot.summary }}</p>
                 <div class="space-y-1 mt-2">
                   <p
-                    v-for="line in getRegionVariantSnapshot(region.id).detailLines.slice(0, 3)"
-                    :key="`${region.id}-variant-${line}`"
+                    v-for="line in regionView.variantSnapshot.detailLines.slice(0, 3)"
+                    :key="`${regionView.region.id}-variant-${line}`"
                     class="text-[0.625rem] text-muted leading-4"
                   >
                     路 {{ line }}
@@ -622,17 +635,17 @@
                   <p class="text-[0.625rem] text-muted">本周传闻板</p>
                   <span
                     class="text-[0.625rem]"
-                    :class="getRegionRumorBoard(region.id).some(entry => !entry.fulfilled) ? 'text-warning' : 'text-success'"
+                    :class="regionView.hasOpenRumor ? 'text-warning' : 'text-success'"
                   >
-                    {{ getRegionRumorBoard(region.id).length }} 条
+                    {{ regionView.rumorBoard.length }} 条
                   </span>
                 </div>
-                <p v-if="getRegionRumorBoard(region.id).length === 0" class="text-[0.625rem] text-muted mt-2 leading-4">
+                <p v-if="regionView.rumorBoard.length === 0" class="text-[0.625rem] text-muted mt-2 leading-4">
                   本周暂时没有挂出来的区域传闻，等天气、时间或人手窗口刷新后再来看看。
                 </p>
                 <div v-else class="space-y-2 mt-2">
                   <div
-                    v-for="entry in getRegionRumorBoard(region.id)"
+                    v-for="entry in regionView.rumorBoard"
                     :key="entry.id"
                     class="border border-accent/10 rounded-xs px-2 py-2"
                   >
@@ -659,12 +672,12 @@
                   <p class="text-[0.625rem] text-muted mb-1">首领入口</p>
                   <p class="text-xs text-accent leading-5">请在上方开放行旅地图中点选“首”地标，右侧格子面板会直接发起首领远征。</p>
                 </div>
-                <span class="text-[0.625rem] shrink-0" :class="canChallengeBoss(region.id) ? 'text-success' : 'text-muted'">
-                  {{ canChallengeBoss(region.id) ? '可挑战' : '待战备' }}
+                <span class="text-[0.625rem] shrink-0" :class="regionView.bossCanChallenge ? 'text-success' : 'text-muted'">
+                  {{ regionView.bossCanChallenge ? '可挑战' : '待战备' }}
                 </span>
               </div>
-              <p v-if="getBossDisabledReason(region.id)" class="text-[0.625rem] text-muted leading-4 mt-2">
-                {{ getBossDisabledReason(region.id) }}
+              <p v-if="regionView.bossDisabledReason" class="text-[0.625rem] text-muted leading-4 mt-2">
+                {{ regionView.bossDisabledReason }}
               </p>
               </div>
 
@@ -672,8 +685,8 @@
               <p class="text-[0.625rem] text-muted mb-2">回城去向</p>
               <div class="flex flex-wrap gap-2">
                 <button
-                  v-for="panel in getLinkedPanels(region.linkedSystems)"
-                  :key="`${region.id}-${panel.key}`"
+                  v-for="panel in regionView.linkedPanels"
+                  :key="`${regionView.region.id}-${panel.key}`"
                   class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
                   @click="handleNavigate(panel.key)"
                 >
@@ -684,11 +697,11 @@
 
               <div class="border border-accent/10 rounded-xs px-3 py-2">
               <p class="text-[0.625rem] text-muted mb-2">本区回城重点</p>
-              <p class="text-xs text-accent">{{ getRegionHandoffSummary(region.id).headline }}</p>
-              <div class="mt-2 space-y-1" v-if="getRegionHandoffSummary(region.id).detailLines.length > 0">
+              <p class="text-xs text-accent">{{ regionView.handoffSummary.headline }}</p>
+              <div class="mt-2 space-y-1" v-if="regionView.handoffSummary.detailLines.length > 0">
                 <p
-                  v-for="line in getRegionHandoffSummary(region.id).detailLines"
-                  :key="`${region.id}-${line}`"
+                  v-for="line in regionView.handoffSummary.detailLines"
+                  :key="`${regionView.region.id}-${line}`"
                   class="text-[0.625rem] text-muted leading-4"
                 >
                   · {{ line }}
@@ -700,49 +713,49 @@
                 <div class="border border-accent/10 rounded-xs px-3 py-2">
                 <div class="flex items-center justify-between gap-3">
                   <p class="text-[0.625rem] text-muted">本周区域事件</p>
-                  <span class="text-[0.625rem] text-accent">{{ getActiveRegionEvents(region.id).length }}/{{ getRegionWeeklyEventCapacity(region.id) }}</span>
+                  <span class="text-[0.625rem] text-accent">{{ regionView.eventCards.length }}/{{ regionView.weeklyEventCapacity }}</span>
                 </div>
-                <p v-if="getActiveRegionEvents(region.id).length === 0" class="text-[0.625rem] text-muted mt-2 leading-4">
+                <p v-if="regionView.eventCards.length === 0" class="text-[0.625rem] text-muted mt-2 leading-4">
                   当前没有激活事件，通常会在周切换或同步焦点后刷新。
                 </p>
                 <div v-else class="space-y-2 mt-2">
                   <div
-                    v-for="event in getActiveRegionEvents(region.id)"
-                    :key="event.id"
+                    v-for="eventView in regionView.eventCards"
+                    :key="eventView.event.id"
                     class="border border-accent/10 rounded-xs px-3 py-2"
                   >
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0">
-                        <p class="text-xs text-accent">{{ event.name }}</p>
-                        <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ event.description }}</p>
+                        <p class="text-xs text-accent">{{ eventView.event.name }}</p>
+                        <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ eventView.event.description }}</p>
                         <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[0.625rem] text-muted">
-                          <span>体力 {{ event.staminaCost }}</span>
-                          <span>耗时 {{ event.timeCostHours }}h</span>
-                          <span>资源 +{{ event.rewardAmount }}</span>
+                          <span>体力 {{ eventView.event.staminaCost }}</span>
+                          <span>耗时 {{ eventView.event.timeCostHours }}h</span>
+                          <span>资源 +{{ eventView.event.rewardAmount }}</span>
                         </div>
-                        <p v-if="event.encounterHint" class="text-[0.625rem] text-muted mt-1 leading-4">
-                          - {{ event.encounterHint }}
+                        <p v-if="eventView.event.encounterHint" class="text-[0.625rem] text-muted mt-1 leading-4">
+                          - {{ eventView.event.encounterHint }}
                         </p>
-                        <p v-if="event.handoffHint" class="text-[0.625rem] text-accent/80 mt-1 leading-4">
-                          -> {{ event.handoffHint }}
+                        <p v-if="eventView.event.handoffHint" class="text-[0.625rem] text-accent/80 mt-1 leading-4">
+                          -> {{ eventView.event.handoffHint }}
                         </p>
                       </div>
-                      <span class="text-[0.625rem] shrink-0 text-muted">本周 {{ event.weeklyCompletions }}/{{ event.maxWeeklyCompletions ?? 1 }}</span>
+                      <span class="text-[0.625rem] shrink-0 text-muted">本周 {{ eventView.event.weeklyCompletions }}/{{ eventView.event.maxWeeklyCompletions ?? 1 }}</span>
                     </div>
 
                     <div class="flex flex-wrap gap-2 mt-2">
                       <button
                         class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-                        :class="!canRunEvent(event.id) ? 'opacity-60' : ''"
-                        :aria-disabled="!canRunEvent(event.id)"
-                        :title="getEventDisabledReason(event.id)"
-                        @click="handleRunEvent(event.id)"
+                        :class="!eventView.canRun ? 'opacity-60' : ''"
+                        :aria-disabled="!eventView.canRun"
+                        :title="eventView.disabledReason"
+                        @click="handleRunEvent(eventView.event.id)"
                       >
                         处理事件
                       </button>
                     </div>
-                    <p v-if="getEventDisabledReason(event.id)" class="text-[0.625rem] text-muted mt-2 leading-4">
-                      {{ getEventDisabledReason(event.id) }}
+                    <p v-if="eventView.disabledReason" class="text-[0.625rem] text-muted mt-2 leading-4">
+                      {{ eventView.disabledReason }}
                     </p>
                   </div>
                 </div>
@@ -750,77 +763,77 @@
             </div>
             </div>
 
-            <div class="space-y-2">
+            <div v-if="regionView.routeCards.length > 0" class="space-y-2">
                 <div
-                  v-for="route in getRegionRoutes(region.id)"
-                  :key="route.id"
+                  v-for="routeView in regionView.routeCards"
+                  :key="routeView.route.id"
                   class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40"
-                  :data-testid="`region-route-card-${route.id}`"
+                  :data-testid="`region-route-card-${routeView.route.id}`"
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <div class="flex flex-wrap items-center gap-2">
-                        <p class="text-xs text-accent">{{ getRouteMapPreview(route).title }}</p>
-                        <span class="text-[0.625rem]" :class="getRouteMapPreview(route).stageToneClass">{{ getRouteMapPreview(route).stageLabel }}</span>
-                        <span class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[0.625rem] text-muted">{{ getRouteTypeLabel(route.nodeType) }}</span>
+                        <p class="text-xs text-accent">{{ routeView.preview.title }}</p>
+                        <span class="text-[0.625rem]" :class="routeView.preview.stageToneClass">{{ routeView.preview.stageLabel }}</span>
+                        <span class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[0.625rem] text-muted">{{ getRouteTypeLabel(routeView.route.nodeType) }}</span>
                       </div>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ getRouteMapPreview(route).description }}</p>
+                      <p class="text-[0.625rem] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ routeView.preview.description }}</p>
                       <p
-                        v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered' || getRouteMapPreview(route).stage === 'heard'"
+                        v-if="routeView.showDecisionSummary"
                         class="text-[0.625rem] mt-2 leading-4"
-                        :class="getRouteDecisionSummary(route).focusToneClass"
+                        :class="routeView.decision.focusToneClass"
                       >
-                        {{ getRouteDecisionSummary(route).headline }}
+                        {{ routeView.decision.headline }}
                       </p>
                       <div class="flex flex-wrap gap-2 mt-2 text-[0.625rem] text-muted">
                         <span
-                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          v-if="routeView.showKnownDetails"
                           class="border rounded-xs px-1.5 py-0.5"
-                          :class="getRouteDecisionSummary(route).focusToneClass === 'text-danger' ? 'border-danger/20 text-danger' : getRouteDecisionSummary(route).focusToneClass === 'text-success' ? 'border-success/20 text-success' : getRouteDecisionSummary(route).focusToneClass === 'text-warning' ? 'border-warning/20 text-warning' : 'border-accent/20 text-accent'"
+                          :class="routeView.focusChipClass"
                         >
-                          {{ getRouteDecisionSummary(route).focusLabel }}
+                          {{ routeView.decision.focusLabel }}
                         </span>
                         <span
-                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          v-if="routeView.showKnownDetails"
                           class="border rounded-xs px-1.5 py-0.5"
-                          :class="getRouteDecisionSummary(route).riskToneClass === 'text-danger' ? 'border-danger/20 text-danger' : getRouteDecisionSummary(route).riskToneClass === 'text-success' ? 'border-success/20 text-success' : getRouteDecisionSummary(route).riskToneClass === 'text-warning' ? 'border-warning/20 text-warning' : 'border-accent/20 text-accent'"
+                          :class="routeView.riskChipClass"
                         >
-                          {{ getRouteDecisionSummary(route).riskLabel }}
+                          {{ routeView.decision.riskLabel }}
                         </span>
                         <span
-                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          v-if="routeView.showKnownDetails"
                           class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-accent/80"
                         >
-                          主要带回 {{ getRouteDecisionSummary(route).rewardLabel }}
+                          主要带回 {{ routeView.decision.rewardLabel }}
                         </span>
                         <span
-                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          v-if="routeView.showKnownDetails"
                           class="border rounded-xs px-1.5 py-0.5"
-                          :class="getRouteDecisionSummary(route).modeToneClass === 'text-success' ? 'border-success/20 text-success' : getRouteDecisionSummary(route).modeToneClass === 'text-warning' ? 'border-warning/20 text-warning' : 'border-accent/10 text-muted'"
+                          :class="routeView.modeChipClass"
                         >
-                          {{ getRouteDecisionSummary(route).modeLabel }}
+                          {{ routeView.decision.modeLabel }}
                         </span>
-                        <span v-if="!isCompactMobile && getRouteMapPreview(route).stage !== 'unknown'">认知 {{ getRouteKnowledgeSummary(route.id).intelLabel }}</span>
-                        <span v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')">体力 {{ route.staminaCost }}</span>
-                        <span v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')">耗时 {{ route.timeCostHours }}h</span>
-                        <span v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')">熟悉 {{ getRouteKnowledgeSummary(route.id).familiarityLabel }}</span>
+                        <span v-if="!isCompactMobile && routeView.showKnownDetails">认知 {{ routeView.knowledge.intelLabel }}</span>
+                        <span v-if="!isCompactMobile && routeView.showSurveyedDetails">体力 {{ routeView.route.staminaCost }}</span>
+                        <span v-if="!isCompactMobile && routeView.showSurveyedDetails">耗时 {{ routeView.route.timeCostHours }}h</span>
+                        <span v-if="!isCompactMobile && routeView.showSurveyedDetails">熟悉 {{ routeView.knowledge.familiarityLabel }}</span>
                         <span
-                        v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'mastered' || getRouteMapPreview(route).stage === 'surveyed')"
-                        :class="getRouteShortcutSummary(route.id).toneClass"
+                        v-if="!isCompactMobile && routeView.showSurveyedDetails"
+                        :class="routeView.shortcut.toneClass"
                       >
-                        {{ getRouteShortcutSummary(route.id).label }}
+                        {{ routeView.shortcut.label }}
                       </span>
                       </div>
                       <p
-                        v-if="getRouteDecisionSummary(route).linkedSummary && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')"
+                        v-if="routeView.decision.linkedSummary && routeView.showSurveyedDetails"
                         class="text-[0.625rem] text-accent/80 mt-2 leading-4"
                       >
-                        回城优先：{{ getRouteDecisionSummary(route).linkedSummary }}
+                        回城优先：{{ routeView.decision.linkedSummary }}
                       </p>
-                      <div v-if="!isCompactMobile && getRouteDispatchSignals(route).length > 0" class="flex flex-wrap gap-2 mt-2">
+                      <div v-if="isRouteDetailsOpen(routeView.route.id) && routeView.dispatchSignals.length > 0" class="flex flex-wrap gap-2 mt-2">
                         <span
-                          v-for="signal in getRouteDispatchSignals(route)"
-                        :key="`${route.id}-${signal.label}`"
+                          v-for="signal in routeView.dispatchSignals"
+                        :key="`${routeView.route.id}-${signal.label}`"
                         class="border rounded-xs px-2 py-0.5 text-[0.625rem]"
                         :class="signal.shellClass"
                       >
@@ -828,58 +841,57 @@
                       </span>
                     </div>
                   </div>
-                  <span class="text-[0.625rem] shrink-0 text-muted">{{ getRouteCompletionLabel(route.id) }}</span>
+                  <span class="text-[0.625rem] shrink-0 text-muted">{{ routeView.completionLabel }}</span>
                 </div>
 
                 <div :class="isCompactMobile ? 'flex flex-col gap-2 mt-3' : 'flex flex-wrap gap-2 mt-2'">
                   <button
                     class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
-                    :class="[isCompactMobile ? 'w-full' : '', !canRunRoute(route.id) ? 'opacity-60' : '']"
-                    :aria-disabled="!canRunRoute(route.id)"
-                    :title="getRouteDisabledReason(route.id)"
-                    :data-testid="`region-route-primary-${route.id}`"
-                    :data-expedition-mode="shouldAutoRunRoute(route.id) ? 'auto' : 'manual'"
-                    @click="handleRunRoute(route.id)"
+                    :class="[isCompactMobile ? 'w-full' : '', !routeView.canRun ? 'opacity-60' : '']"
+                    :aria-disabled="!routeView.canRun"
+                    :title="routeView.disabledReason"
+                    :data-testid="`region-route-primary-${routeView.route.id}`"
+                    :data-expedition-mode="routeView.autoRun ? 'auto' : 'manual'"
+                    @click="handleRunRoute(routeView.route.id)"
                   >
-                    {{ getRouteRunActionLabel(route.id) }}
+                    {{ routeView.runActionLabel }}
                   </button>
                 </div>
 
                 <button
-                  v-if="isCompactMobile"
                   class="mt-2 w-full border border-accent/20 rounded-xs px-3 py-2 text-[0.625rem] text-accent hover:bg-accent/5"
-                  @click="toggleCompactRouteDetails(route.id)"
+                  @click="toggleCompactRouteDetails(routeView.route.id)"
                 >
-                  {{ isCompactRouteDetailsOpen(route.id) ? '收起路线细节' : '展开路线细节' }}
+                  {{ isRouteDetailsOpen(routeView.route.id) ? '收起路线细节' : '展开路线细节' }}
                 </button>
 
-                <div v-if="!isCompactMobile || isCompactRouteDetailsOpen(route.id)" class="mt-2 space-y-2">
-                  <p v-if="getRouteMapPreview(route).stage !== 'unknown'" class="text-[0.625rem] text-muted leading-4">
-                    路线勘明 {{ getRouteKnowledgeSummary(route.id).surveyProgress }}/100 · 熟悉 {{ getRouteKnowledgeSummary(route.id).familiarity }}/100
+                <div v-if="isRouteDetailsOpen(routeView.route.id)" class="mt-2 space-y-2">
+                  <p v-if="routeView.showKnownDetails" class="text-[0.625rem] text-muted leading-4">
+                    路线勘明 {{ routeView.knowledge.surveyProgress }}/100 · 熟悉 {{ routeView.knowledge.familiarity }}/100
                   </p>
                   <div
-                    v-if="getRouteBuildAdvice(route) && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')"
+                    v-if="routeView.buildAdvice && routeView.showSurveyedDetails"
                     class="border border-accent/10 rounded-xs px-3 py-2 bg-accent/5"
                   >
                     <div class="flex items-center justify-between gap-3">
                       <p class="text-[0.625rem] text-muted">构筑接入提示</p>
-                      <span class="text-[0.625rem] text-accent">构筑分 {{ getRouteBuildAdvice(route)?.buildScore }}</span>
+                      <span class="text-[0.625rem] text-accent">构筑分 {{ routeView.buildAdvice.buildScore }}</span>
                     </div>
                     <p class="text-[0.625rem] text-accent mt-1 leading-4">
-                      出发体力 {{ route.staminaCost }} -> {{ getRouteBuildAdvice(route)?.adjustedStaminaCost }}，推荐先看 {{ getRouteDecisionSummary(route).rewardLabel }}。
+                      出发体力 {{ routeView.route.staminaCost }} -> {{ routeView.buildAdvice.adjustedStaminaCost }}，推荐先看 {{ routeView.decision.rewardLabel }}。
                     </p>
                     <p
-                      v-for="line in getRouteBuildAdvice(route)?.summaryLines ?? []"
-                      :key="`${route.id}-build-line-${line}`"
+                      v-for="line in routeView.buildAdvice.summaryLines"
+                      :key="`${routeView.route.id}-build-line-${line}`"
                       class="text-[0.625rem] text-muted mt-1 leading-4"
                     >
                       · {{ line }}
                     </p>
-                    <p v-if="getRouteBuildAdvice(route)?.focusLine" class="text-[0.625rem] text-accent/80 mt-1 leading-4">
-                      这条线当前更吃：{{ getRouteBuildAdvice(route)?.focusLine }}
+                    <p v-if="routeView.buildAdvice.focusLine" class="text-[0.625rem] text-accent/80 mt-1 leading-4">
+                      这条线当前更吃：{{ routeView.buildAdvice.focusLine }}
                     </p>
-                    <p v-if="getRouteBuildAdvice(route)?.missingLine" class="text-[0.625rem] text-warning mt-1 leading-4">
-                      当前短板：{{ getRouteBuildAdvice(route)?.missingLine }}
+                    <p v-if="routeView.buildAdvice.missingLine" class="text-[0.625rem] text-warning mt-1 leading-4">
+                      当前短板：{{ routeView.buildAdvice.missingLine }}
                     </p>
                     <div class="flex flex-wrap gap-2 mt-2">
                       <button
@@ -897,38 +909,38 @@
                     </div>
                   </div>
                   <p
-                    v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'"
+                    v-if="routeView.showSurveyedDetails"
                     class="text-[0.625rem] leading-4"
-                    :class="getAutoPatrolStatus(route.id).mode === 'blocked' ? 'text-warning' : getRouteShortcutSummary(route.id).level === 'none' ? 'text-muted' : 'text-accent/80'"
+                    :class="routeView.dispatchSummaryClass"
                   >
-                    {{ getRouteDispatchSummary(route) }}
+                    {{ routeView.dispatchSummary }}
                   </p>
-                  <p v-if="route.encounterHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[0.625rem] text-muted leading-4">
-                    - {{ route.encounterHint }}
+                  <p v-if="routeView.route.encounterHint && routeView.showSurveyedDetails" class="text-[0.625rem] text-muted leading-4">
+                    - {{ routeView.route.encounterHint }}
                   </p>
-                  <p v-if="route.handoffHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[0.625rem] text-accent/80 leading-4">
-                    -> {{ route.handoffHint }}
+                  <p v-if="routeView.route.handoffHint && routeView.showSurveyedDetails" class="text-[0.625rem] text-accent/80 leading-4">
+                    -> {{ routeView.route.handoffHint }}
                   </p>
                   <div
-                    v-if="getActiveCompanionContract(route.id) || getCompanionContractCandidates(route.id).length > 0"
+                    v-if="routeView.activeContract || routeView.contractCandidates.length > 0"
                     class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/50"
                   >
                     <div class="flex items-center justify-between gap-3">
                       <p class="text-[0.625rem] text-muted">同伴远行合同</p>
-                      <span class="text-[0.625rem]" :class="getActiveCompanionContract(route.id) ? 'text-warning' : 'text-muted'">
-                        {{ getActiveCompanionContract(route.id) ? '已挂合同' : '可派合同' }}
+                      <span class="text-[0.625rem]" :class="routeView.activeContract ? 'text-warning' : 'text-muted'">
+                        {{ routeView.activeContract ? '已挂合同' : '可派合同' }}
                       </span>
                     </div>
-                    <template v-if="getActiveCompanionContract(route.id)">
+                    <template v-if="routeView.activeContract">
                       <p class="text-[0.625rem] text-accent mt-2">
-                        {{ getActiveCompanionContract(route.id)?.npcName }} / {{ getActiveCompanionContract(route.id)?.relationshipStageLabel }}
+                        {{ routeView.activeContract.npcName }} / {{ routeView.activeContract.relationshipStageLabel }}
                       </p>
-                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ getActiveCompanionContract(route.id)?.summary }}</p>
+                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ routeView.activeContract.summary }}</p>
                       <div class="flex flex-wrap gap-2 mt-2">
                         <button
                           class="border border-danger/20 rounded-xs px-2 py-1 text-[0.625rem] text-danger hover:bg-danger/5"
                           :class="isCompactMobile ? 'w-full' : ''"
-                          @click="handleClearCompanionContract(route.id)"
+                          @click="handleClearCompanionContract(routeView.route.id)"
                         >
                           撤回合同
                         </button>
@@ -936,35 +948,42 @@
                     </template>
                     <div v-else class="flex flex-col sm:flex-row flex-wrap gap-2 mt-2">
                       <button
-                        v-for="candidate in getCompanionContractCandidates(route.id).slice(0, 3)"
-                        :key="`${route.id}-${candidate.npcId}`"
+                        v-for="candidate in routeView.contractCandidates"
+                        :key="`${routeView.route.id}-${candidate.npcId}`"
                         class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
                         :class="isCompactMobile ? 'w-full' : ''"
-                        @click="handleAssignCompanionContract(route.id, candidate.npcId)"
+                        @click="handleAssignCompanionContract(routeView.route.id, candidate.npcId)"
                       >
                         挂 {{ candidate.npcName }}
                       </button>
                     </div>
                   </div>
                 </div>
-                <p v-if="getRouteDisabledReason(route.id)" class="text-[0.625rem] text-muted mt-2 leading-4">
-                  {{ getRouteDisabledReason(route.id) }}
+                <p v-if="routeView.disabledReason" class="text-[0.625rem] text-muted mt-2 leading-4">
+                  {{ routeView.disabledReason }}
                 </p>
               </div>
             </div>
+            <div
+              v-else
+              class="border border-accent/10 rounded-xs px-3 py-3 text-[0.625rem] text-muted bg-bg/40"
+              data-testid="region-map-routes-loading"
+            >
+              路线整理中...
             </div>
-          <div v-else-if="region.unlocked && isCompactMobile" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
+            </div>
+          <div v-else-if="regionView.region.unlocked && isCompactMobile" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-[0.625rem] text-muted">这一区先不摊开全部细节</p>
-                <p class="text-xs text-accent mt-1">先决定要不要看 {{ region.name }} 的路线、首领准备和回城去向。</p>
+                <p class="text-xs text-accent mt-1">先决定要不要看 {{ regionView.region.name }} 的路线、首领准备和回城去向。</p>
                 <p class="text-[0.625rem] text-muted mt-2 leading-4">移动端先只保留这一层概要，避免把整页路线和台账一次性压出来。</p>
               </div>
               <span class="text-[0.625rem] shrink-0 text-muted">待展开</span>
             </div>
             <button
               class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-[0.625rem] text-accent hover:bg-accent/5"
-              @click="handleSelectRegionFilter(region.id)"
+              @click="handleSelectRegionFilter(regionView.region.id)"
             >
               只看这个区域
             </button>
@@ -978,9 +997,9 @@
               <span class="text-[0.625rem] shrink-0 text-warning">待解锁</span>
             </div>
             <div class="mt-3 space-y-2 text-[0.625rem] leading-4">
-              <p class="text-muted">解锁条件：{{ getUnlockSummary(region.id) }}</p>
-              <p class="text-muted">主题方向：{{ region.themeHint }}</p>
-              <p class="text-accent/80">解锁后承接：{{ region.linkedSystems.join(' / ') }}</p>
+              <p class="text-muted">解锁条件：{{ regionView.unlockSummary }}</p>
+              <p class="text-muted">主题方向：{{ regionView.region.themeHint }}</p>
+              <p class="text-accent/80">解锁后承接：{{ regionView.region.linkedSystems.join(' / ') }}</p>
               <p class="text-muted">先满足解锁条件，下面这些路网、路线和首领入口才会真正开放。</p>
             </div>
           </div>
@@ -1041,7 +1060,7 @@
 
       </section>
 
-      <section v-show="activeRegionMapTab === 'today'" class="space-y-3">
+      <section v-if="activeRegionMapTab === 'today'" class="space-y-3">
       <div v-if="currentSession" ref="stagePanelAnchor">
         <RegionExpeditionStagePanel
           :session="currentSession"
@@ -1076,7 +1095,7 @@
       </div>
       </section>
 
-      <section v-show="activeRegionMapTab === 'aftermath'" ref="latestAftermathAnchor" class="space-y-3">
+      <section v-if="activeRegionMapTab === 'aftermath'" ref="latestAftermathAnchor" class="space-y-3">
         <RegionJourneyAftermathPanel
           :latest-summary="latestJourneyAftermathSummary"
           :pinned-summary="pinnedJourneyAftermathSummary"
@@ -1106,7 +1125,7 @@
         />
       </section>
 
-      <section v-show="activeRegionMapTab === 'resource'" class="space-y-3">
+      <section v-if="activeRegionMapTab === 'resource'" class="space-y-3">
         <div ref="resourceLedgerAnchor">
           <RegionResourcePrepPanel
             :is-compact-mobile="isCompactMobile"
@@ -1329,7 +1348,7 @@
   import { resolveEnvironmentWindow } from '@/data/environmentWindows'
   import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
   import { getItemById } from '@/data/items'
-  import { addLog, showFloat } from '@/composables/useGameLog'
+  import { showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
@@ -1359,10 +1378,13 @@
     RegionExpeditionWeather,
     RegionExplorationTreeLink,
     RegionExplorationTreeNode,
+    RegionAutoPatrolState,
+    RegionCompanionContract,
     RegionId,
     RegionLinkedSystem,
     RegionOpenWorldActionId,
     RegionOpenWorldId,
+    RegionOpenWorldTileView,
     RegionOpenWorldViewportCamera,
     RegionOpenWorldViewportSize,
     RegionRouteDef,
@@ -1450,6 +1472,62 @@
     nodes: RegionExplorationTreeNode[]
     links: RegionExplorationTreeLink[]
   }
+  type RegionKnowledgeSummary = {
+    intel: number
+    survey: number
+    familiarity: number
+    intelLabel: string
+    surveyLabel: string
+    familiarityLabel: string
+  }
+  type RouteKnowledgeSummary = {
+    intel: number
+    surveyProgress: number
+    familiarity: number
+    intelLabel: string
+    familiarityLabel: string
+  }
+  type RouteShortcutSummary = {
+    level: 'none' | 'marked' | 'shortcut' | 'mastered'
+    label: string
+    stepReduction: number
+    visibilityBonus: number
+    dangerReduction: number
+    supplyBonus: {
+      rations: number
+      utility: number
+    }
+    toneClass: string
+    headline: string
+    benefitSummary: string
+  }
+  type RouteMapPreview = {
+    stage: MapVisibilityStage
+    stageLabel: string
+    stageToneClass: string
+    title: string
+    description: string
+    detailLines: string[]
+  }
+  type RouteDecisionSummary = {
+    headline: string
+    focusLabel: string
+    focusToneClass: string
+    riskLabel: string
+    riskToneClass: string
+    modeLabel: string
+    modeToneClass: string
+    rewardLabel: string
+    linkedSummary: string
+  }
+  type RegionFogMeta = {
+    label: string
+    toneClass: string
+  }
+  type RegionMapBoardSummary = {
+    headline: string
+    subhead: string
+  }
   type JourneyHandoffBoard = {
     headline: string
     resourceLines: string[]
@@ -1465,6 +1543,61 @@
     summaryLines: string[]
     missingLine: string
     focusLine: string
+  }
+  type RegionMapTabRegionSummary = (typeof regionMapStore.regionSummaries)[number]
+  type RegionRouteCardView = {
+    route: RegionRouteDef
+    preview: RouteMapPreview
+    decision: RouteDecisionSummary
+    knowledge: RouteKnowledgeSummary
+    shortcut: RouteShortcutSummary
+    buildAdvice: RouteBuildAdvice | null
+    dispatchSignals: RouteDispatchSignal[]
+    dispatchSummary: string
+    autoPatrolStatus: RegionAutoPatrolState
+    activeContract: RegionCompanionContract | null
+    contractCandidates: ReturnType<typeof regionMapStore.getCompanionContractCandidates>
+    canRun: boolean
+    disabledReason: string
+    completionLabel: string
+    runActionLabel: string
+    autoRun: boolean
+    showDecisionSummary: boolean
+    showKnownDetails: boolean
+    showSurveyedDetails: boolean
+    focusChipClass: string
+    riskChipClass: string
+    modeChipClass: string
+    dispatchSummaryClass: string
+  }
+  type RegionRouteDetailView = Pick<
+    RegionRouteCardView,
+    'buildAdvice' | 'dispatchSignals' | 'dispatchSummary' | 'activeContract' | 'contractCandidates' | 'dispatchSummaryClass'
+  >
+  type RegionEventCardView = {
+    event: ReturnType<typeof regionMapStore.getActiveRegionEvents>[number]
+    canRun: boolean
+    disabledReason: string
+  }
+  type RegionMapTabRegionView = {
+    region: RegionMapTabRegionSummary
+    unlockSummary: string
+    knowledge: RegionKnowledgeSummary
+    boardSummary: RegionMapBoardSummary
+    fogMeta: RegionFogMeta
+    tree: RegionExplorationTreeBuild
+    treeSummary: string
+    treeInitialNodeKey: string
+    variantSnapshot: ReturnType<typeof regionMapStore.peekRegionVariantSnapshot>
+    rumorBoard: ReturnType<typeof regionMapStore.peekRumorBoardForRegion>
+    hasOpenRumor: boolean
+    bossCanChallenge: boolean
+    bossDisabledReason: string
+    linkedPanels: LinkedPanel[]
+    handoffSummary: ReturnType<typeof getRegionHandoffSummary>
+    eventCards: RegionEventCardView[]
+    weeklyEventCapacity: number
+    routeCards: RegionRouteCardView[]
   }
   type FrontierMapOverlayKind = 'season' | 'visitor' | 'repair' | 'activity'
   type FrontierWorldSignalCard = {
@@ -1522,6 +1655,9 @@
   const selectedJourneyAftermathPinned = ref(false)
   const journeyTermPrimerDismissed = ref(false)
   const activeRegionMapTab = ref<RegionMapTabId>('today')
+  const hasVisitedRegionMapTab = ref(false)
+  const regionMapRouteCardsReady = ref(false)
+  const regionMapTreeReady = ref(false)
   const openWorldViewportCameras = ref<Partial<Record<RegionOpenWorldId, RegionOpenWorldViewportCamera>>>({})
   const openWorldViewportSizes = ref<Partial<Record<RegionOpenWorldId, RegionOpenWorldViewportSize>>>({})
   const compactRegionSectionState = ref<Record<string, boolean>>({})
@@ -1832,6 +1968,180 @@
     const regionId = currentSelectedRegionId.value
     return regionId ? regionMapStore.regionSummaries.filter(region => region.id === regionId) : regionMapStore.regionSummaries
   })
+  const getToneChipClass = (toneClass: string, fallback = 'border-accent/20 text-accent') =>
+    toneClass === 'text-danger'
+      ? 'border-danger/20 text-danger'
+      : toneClass === 'text-success'
+        ? 'border-success/20 text-success'
+        : toneClass === 'text-warning'
+          ? 'border-warning/20 text-warning'
+          : toneClass === 'text-muted'
+            ? 'border-accent/10 text-muted'
+            : fallback
+  const getModeChipClass = (toneClass: string) =>
+    toneClass === 'text-success'
+      ? 'border-success/20 text-success'
+      : toneClass === 'text-warning'
+        ? 'border-warning/20 text-warning'
+        : 'border-accent/10 text-muted'
+  const getRouteDispatchSummaryClass = (autoPatrolStatus: RegionAutoPatrolState, shortcut: RouteShortcutSummary) =>
+    autoPatrolStatus.mode === 'blocked'
+      ? 'text-warning'
+      : shortcut.level === 'none'
+        ? 'text-muted'
+        : 'text-accent/80'
+  const createCollapsedRouteDetailView = (
+    autoPatrolStatus: RegionAutoPatrolState,
+    shortcut: RouteShortcutSummary
+  ): RegionRouteDetailView => ({
+    buildAdvice: null,
+    dispatchSignals: [],
+    dispatchSummary: '',
+    activeContract: null,
+    contractCandidates: [],
+    dispatchSummaryClass: getRouteDispatchSummaryClass(autoPatrolStatus, shortcut)
+  })
+  const buildExpandedRouteDetailView = (
+    route: RegionRouteDef,
+    autoPatrolStatus: RegionAutoPatrolState,
+    shortcut: RouteShortcutSummary
+  ): RegionRouteDetailView => {
+    const activeContract = getActiveCompanionContract(route.id)
+    const seasonalState = getRegionVariantSnapshot(route.regionId)
+    return {
+      buildAdvice: getRouteBuildAdvice(route),
+      dispatchSignals: getRouteDispatchSignals(route),
+      dispatchSummary: getRouteDispatchSummary(route, autoPatrolStatus, activeContract, seasonalState, shortcut),
+      activeContract,
+      contractCandidates: getCompanionContractCandidates(route.id).slice(0, 3),
+      dispatchSummaryClass: getRouteDispatchSummaryClass(autoPatrolStatus, shortcut)
+    }
+  }
+  const buildRegionRouteCardView = (route: RegionRouteDef): RegionRouteCardView => {
+    const knowledge = getRouteKnowledgeSummary(route.id)
+    const shortcut = getRouteShortcutSummary(route.id)
+    const preview = getRouteMapPreview(route, knowledge, shortcut)
+    const autoPatrolStatus = getAutoPatrolStatus(route.id)
+    const decision = getRouteDecisionSummary(route, preview, shortcut, autoPatrolStatus)
+    const showKnownDetails = preview.stage !== 'unknown'
+    const showSurveyedDetails = preview.stage === 'surveyed' || preview.stage === 'mastered'
+    const detailView = isRouteDetailsOpen(route.id)
+      ? buildExpandedRouteDetailView(route, autoPatrolStatus, shortcut)
+      : createCollapsedRouteDetailView(autoPatrolStatus, shortcut)
+
+    return {
+      route,
+      preview,
+      decision,
+      knowledge,
+      shortcut,
+      buildAdvice: detailView.buildAdvice,
+      dispatchSignals: detailView.dispatchSignals,
+      dispatchSummary: detailView.dispatchSummary,
+      autoPatrolStatus,
+      activeContract: detailView.activeContract,
+      contractCandidates: detailView.contractCandidates,
+      canRun: canRunRoute(route.id),
+      disabledReason: getRouteDisabledReason(route.id),
+      completionLabel: getRouteCompletionLabel(route.id),
+      runActionLabel: getRouteRunActionLabelFromStatus(autoPatrolStatus),
+      autoRun: autoPatrolStatus.mode === 'ready',
+      showDecisionSummary: preview.stage === 'heard' || showSurveyedDetails,
+      showKnownDetails,
+      showSurveyedDetails,
+      focusChipClass: getToneChipClass(decision.focusToneClass),
+      riskChipClass: getToneChipClass(decision.riskToneClass),
+      modeChipClass: getModeChipClass(decision.modeToneClass),
+      dispatchSummaryClass: detailView.dispatchSummaryClass
+    }
+  }
+  const createEmptyRegionExplorationTree = (): RegionExplorationTreeBuild => ({
+    nodes: [],
+    links: []
+  })
+  const createLoadingRegionVariantSnapshot = (regionId: RegionId) => ({
+    ...getRegionVariantSnapshot(regionId),
+    activeVariantId: null,
+    activeVariantLabel: '',
+    summary: '季节变体正在整理中。',
+    detailLines: [],
+    affectedRouteIds: [],
+    manualExplorationRequired: false
+  })
+  const shouldBuildRegionRoutePayload = (region: RegionMapTabRegionSummary) =>
+    activeRegionMapTab.value === 'map' &&
+    regionMapRouteCardsReady.value &&
+    region.unlocked &&
+    shouldRenderRegionDetail(region.id)
+
+  const visibleRegionMapViews = computed<RegionMapTabRegionView[]>(() => {
+    if (!hasVisitedRegionMapTab.value || activeRegionMapTab.value !== 'map') return []
+    return visibleRegionSummaries.value.map(region => {
+      const shouldBuildPayload = shouldBuildRegionRoutePayload(region)
+      const knowledge = getRegionKnowledgeSummary(region.id)
+      const boardSummary = getRegionMapBoardSummary(region.id)
+      const tree = regionMapTreeReady.value ? getRegionExplorationTree(region.id) : createEmptyRegionExplorationTree()
+      const rumorBoard = shouldBuildPayload ? getRegionRumorBoard(region.id) : []
+      const eventCards = shouldBuildPayload
+        ? getActiveRegionEvents(region.id).map(event => ({
+            event,
+            canRun: canRunEvent(event.id),
+            disabledReason: getEventDisabledReason(event.id)
+          }))
+        : []
+
+      return {
+        region,
+        unlockSummary: getUnlockSummary(region.id),
+        knowledge,
+        boardSummary,
+        fogMeta: getRegionFogMeta(region.id),
+        tree,
+        treeSummary: shouldBuildPayload && regionMapTreeReady.value
+          ? getRegionTreeSummary(region.id, tree, boardSummary)
+          : `${boardSummary.headline} 路网正在整理中。`,
+        treeInitialNodeKey: shouldBuildPayload && regionMapTreeReady.value ? getRegionTreeInitialNodeKey(region.id) : '',
+        variantSnapshot: shouldBuildPayload
+          ? getRegionVariantSnapshot(region.id)
+          : createLoadingRegionVariantSnapshot(region.id),
+        rumorBoard,
+        hasOpenRumor: rumorBoard.some(entry => !entry.fulfilled),
+        bossCanChallenge: shouldBuildPayload ? canChallengeBoss(region.id) : false,
+        bossDisabledReason: shouldBuildPayload ? getBossDisabledReason(region.id) : '',
+        linkedPanels: getLinkedPanels(region.linkedSystems),
+        handoffSummary: getRegionHandoffSummary(region.id),
+        eventCards,
+        weeklyEventCapacity: shouldBuildPayload ? getRegionWeeklyEventCapacity(region.id) : 0,
+        routeCards: shouldBuildPayload
+          ? getRegionRoutes(region.id).map(route => buildRegionRouteCardView(route))
+          : []
+      }
+    })
+  })
+  const regionMapTabMemoDeps = computed(() => [
+    activeRegionMapTab.value,
+    isCompactMobile.value,
+    currentSelectedRegionId.value,
+    regionMapStore.currentWeeklyFocus.focusedRegionId,
+    regionMapStore.regionSummaries,
+    regionMapRouteCardsReady.value,
+    regionMapTreeReady.value,
+    visibleRegionMapViews.value,
+    compactRegionSectionState.value,
+    compactRouteDetailState.value,
+    mobilePrepExpanded.value,
+    mobileDigestExpanded.value,
+    selectedApproach.value,
+    selectedRetreatRule.value,
+    selectedExpeditionElixirName.value,
+    currentSession.value?.sessionId ?? '',
+    currentSession.value?.status ?? '',
+    currentSessionNodeHeadline.value,
+    compactSummaryCards.value,
+    regionMapStore.frontierDigest,
+    lastActionSummary.value,
+    actionTone.value
+  ])
   const latestJourneyHistoryEntryId = computed(() => regionMapStore.settlementState.journeyHistory[0]?.id ?? null)
   const journeyHistoryOverflowEntries = computed(() => {
     const latestEntryId = latestJourneyHistoryEntryId.value
@@ -1963,6 +2273,7 @@
     }
   }
   const isCompactRouteDetailsOpen = (routeId: string) => Boolean(compactRouteDetailState.value[routeId])
+  const isRouteDetailsOpen = (routeId: string) => isCompactRouteDetailsOpen(routeId)
   const scrollCompactRegionRailIntoView = async () => {
     if (!isCompactMobile.value || !currentSelectedRegionId.value || typeof document === 'undefined') return
     await nextTick()
@@ -2340,8 +2651,26 @@
         : '暂无库存'
     }
   ])
+  const scheduleRegionMapDeferredMount = () => {
+    if (regionMapRouteCardsReady.value && regionMapTreeReady.value) return
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      regionMapRouteCardsReady.value = true
+      regionMapTreeReady.value = true
+      return
+    }
+    window.requestAnimationFrame(() => {
+      regionMapRouteCardsReady.value = true
+      window.requestAnimationFrame(() => {
+        regionMapTreeReady.value = true
+      })
+    })
+  }
   function setRegionMapTab(tabId: RegionMapTabId) {
     activeRegionMapTab.value = tabId
+    if (tabId === 'map') {
+      hasVisitedRegionMapTab.value = true
+      scheduleRegionMapDeferredMount()
+    }
     if (tabId === 'aftermath') {
       mobileLatestAftermathExpanded.value = hasPendingLatestAftermathAction.value
     }
@@ -2908,18 +3237,21 @@
     return signals.slice(0, 4)
   }
 
-  const getRouteDispatchSummary = (route: RegionRouteDef) => {
-    const autoPatrolStatus = getAutoPatrolStatus(route.id)
+  const getRouteDispatchSummary = (
+    route: RegionRouteDef,
+    autoPatrolStatus: RegionAutoPatrolState = getAutoPatrolStatus(route.id),
+    activeContract: RegionCompanionContract | null = getActiveCompanionContract(route.id),
+    seasonalState = getRegionVariantSnapshot(route.regionId),
+    shortcutSummary: RouteShortcutSummary = getRouteShortcutSummary(route.id)
+  ) => {
     if (autoPatrolStatus.mode === 'blocked' && autoPatrolStatus.blockedReason) {
       return `自动巡行被阻塞：${autoPatrolStatus.blockedReason}`
     }
 
-    const activeContract = getActiveCompanionContract(route.id)
     if (activeContract) {
       return `同行合同：${activeContract.summary}`
     }
 
-    const seasonalState = getRegionVariantSnapshot(route.regionId)
     if (
       seasonalState.activeVariantId &&
       (seasonalState.affectedRouteIds.length === 0 || seasonalState.affectedRouteIds.includes(route.id))
@@ -2929,13 +3261,18 @@
 
     if (route.handoffHint) return route.handoffHint
     if (route.encounterHint) return route.encounterHint
-    return getRouteShortcutSummary(route.id).headline
+    return shortcutSummary.headline
   }
 
-  const getRouteDecisionSummary = (route: RegionRouteDef) => {
-    const preview = getRouteMapPreview(route)
-    const shortcutSummary = getRouteShortcutSummary(route.id)
-    const autoPatrolStatus = getAutoPatrolStatus(route.id)
+  const getRouteDecisionSummary = (
+    route: RegionRouteDef,
+    routePreview: RouteMapPreview = getRouteMapPreview(route),
+    routeShortcutSummary: RouteShortcutSummary = getRouteShortcutSummary(route.id),
+    routeAutoPatrolStatus = getAutoPatrolStatus(route.id)
+  ) => {
+    const preview = routePreview
+    const shortcutSummary = routeShortcutSummary
+    const autoPatrolStatus = routeAutoPatrolStatus
     const resourceLabel = regionMapStore.resourceFamilyDefs.find(family => family.id === route.primaryResourceFamilyId)?.label ?? '区域资源'
     const linkedLabels = getLinkedPanels(route.linkedSystems)
       .slice(0, 2)
@@ -3036,6 +3373,8 @@
 
   const getRouteRunActionLabel = (routeId: string) =>
     shouldAutoRunRoute(routeId) ? '自动巡行' : getAutoPatrolStatus(routeId).mode === 'blocked' ? '手动探索' : '发起远征'
+  const getRouteRunActionLabelFromStatus = (autoPatrolStatus: RegionAutoPatrolState) =>
+    autoPatrolStatus.mode === 'ready' ? '自动巡行' : autoPatrolStatus.mode === 'blocked' ? '手动探索' : '发起远征'
 
   const getRouteDisabledReason = (routeId: string) => {
     const routeStatus = regionMapStore.getRouteExpeditionStatus(routeId)
@@ -3096,10 +3435,12 @@
         ? { label: '支线', toneClass: 'text-success' }
         : { label: '主线', toneClass: 'text-accent' }
 
-  const getRouteMapPreview = (route: RegionRouteDef) => {
+  const getRouteMapPreview = (
+    route: RegionRouteDef,
+    routeKnowledge: RouteKnowledgeSummary = getRouteKnowledgeSummary(route.id),
+    shortcutSummary: RouteShortcutSummary = getRouteShortcutSummary(route.id)
+  ) => {
     const stage = getRouteVisibilityStage(route)
-    const routeKnowledge = getRouteKnowledgeSummary(route.id)
-    const shortcutSummary = getRouteShortcutSummary(route.id)
     const nodeState = regionMapStore.getRouteMapNodeState(route.id)
     const campState = regionMapStore.getCampSiteState(route.regionId, route.id, null)
     const stageMeta = getVisibilityStageMeta(stage)
@@ -3819,12 +4160,15 @@
     return buildTreeNodeConnections(nodes, links)
   }
 
-  const getRegionTreeSummary = (regionId: RegionId) => {
-    const board = getRegionMapBoardSummary(regionId)
+  const getRegionTreeSummary = (
+    regionId: RegionId,
+    tree: RegionExplorationTreeBuild = getRegionExplorationTree(regionId),
+    boardSummary = getRegionMapBoardSummary(regionId)
+  ) => {
     const rumorCount = getRegionRumorBoard(regionId).filter(entry => !entry.fulfilled).length
     const eventCount = getActiveRegionEvents(regionId).filter(event => event.weeklyCompletions <= 0).length
-    const ecologyCount = getRegionExplorationTree(regionId).nodes.filter(node => node.key.startsWith('ecology:')).length
-    return `${board.headline} 当前树上挂出 ${eventCount} 个事件、${rumorCount} 条传闻、${ecologyCount} 个生态拓展，节点详情里处理风险、收益和回城去向。`
+    const ecologyCount = tree.nodes.filter(node => node.key.startsWith('ecology:')).length
+    return `${boardSummary.headline} 当前树上挂出 ${eventCount} 个事件、${rumorCount} 条传闻、${ecologyCount} 个生态拓展，节点详情里处理风险、收益和回城去向。`
   }
 
   const getRegionTreeInitialNodeKey = (regionId: RegionId) => {
@@ -4080,7 +4424,7 @@
   const handleFocusCurrentOpenWorldTile = () => {
     const regionId = regionMapStore.openWorldState.activeRegionId
     const view = activeOpenWorldRegionView.value
-    const playerTile = view.def.tiles.find(tile => tile.id === view.state.playerTileId)
+    const playerTile = view.playerTile
     if (!playerTile) return
     setOpenWorldViewportCamera(regionId, {
       x: clampOpenWorldViewportValue(playerTile.x + 0.5 - view.visibleColumnCount / 2, 0, Math.max(0, view.def.width - view.visibleColumnCount)),
@@ -4091,7 +4435,7 @@
   const keepCurrentOpenWorldTileInViewport = () => {
     const regionId = regionMapStore.openWorldState.activeRegionId
     const view = activeOpenWorldRegionView.value
-    const playerTile = view.def.tiles.find(tile => tile.id === view.state.playerTileId)
+    const playerTile = view.playerTile
     if (!playerTile) return
 
     const paddingColumns = Math.min(2, Math.max(1, Math.floor(view.visibleColumnCount / 4)))
@@ -4274,15 +4618,17 @@
 
   const handlePublicResourceTurnIn = (familyId: RegionalResourceFamilyId) => {
     const familyLabel = regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId
-    const ok = regionMapStore.recordResourceTurnIn(familyId, 1)
-    const successMessage = `已交付 1 份${familyLabel}，当前会计入“区域资源交付数”，用于周目标与承接验证。`
-    const failureMessage = '交付失败：当前资源不足。'
+    const result = regionMapStore.recordResourceTurnIn(familyId, 1)
+    const consumedSummary = result.consumedItems.map(item => `${item.itemName} x${item.quantity}`).join('、')
+    const successMessage = consumedSummary
+      ? `已交付 1 份${familyLabel}，消耗 ${consumedSummary}，当前会计入“区域资源交付数”。`
+      : result.message
+    const failureMessage = `交付失败：${result.message}`
     setActionSummary(
-      ok ? successMessage : failureMessage,
-      ok ? 'success' : 'danger'
+      result.success ? successMessage : failureMessage,
+      result.success ? 'success' : 'danger'
     )
-    showFloat(ok ? `已交付 1 份${familyLabel}` : failureMessage, ok ? 'success' : 'danger')
-    addLog(`【行旅图】${ok ? successMessage : failureMessage}`)
+    showFloat(result.success ? `已交付 1 份${familyLabel}` : failureMessage, result.success ? 'success' : 'danger')
   }
 
   const handleCraftJourneyRecipe = (recipeId: string) => {
@@ -4312,18 +4658,16 @@
   /** 方向键在行旅图开放世界地图上移动玩家 */
   const handleRegionMapCursorMove = (dx: number, dy: number) => {
     const view = activeOpenWorldRegionView.value
-    const allTiles = view.def.tiles
-    const playerTile = allTiles.find(tile => tile.id === view.state.playerTileId)
+    const playerTile = view.playerTile
     if (!playerTile) return
     const px = playerTile.x
     const py = playerTile.y
-    let best: (typeof allTiles)[number] | null = null
+    let best: RegionOpenWorldTileView | null = null
     let bestDist = Infinity
-    for (const tile of allTiles) {
+    for (const tile of view.tiles) {
       const tileDx = tile.x - px
       const tileDy = tile.y - py
-      const tileView = regionMapStore.getOpenWorldTileView(regionMapStore.openWorldState.activeRegionId, tile.id)
-      if (!tileView?.canMove) continue
+      if (!tile.canMove) continue
       const forwardDistance = dx !== 0 ? tileDx * dx : tileDy * dy
       if (forwardDistance <= 0) continue
       const lateralDistance = dx !== 0 ? Math.abs(tileDy) : Math.abs(tileDx)
@@ -4413,5 +4757,10 @@
 
   .region-map-scroll-card {
     scroll-snap-align: start;
+  }
+
+  .region-map-region-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 520px;
   }
 </style>

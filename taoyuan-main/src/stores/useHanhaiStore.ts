@@ -6,6 +6,7 @@ import {
   HANHAI_CARAVAN_CONTRACT_DEFS,
   HANHAI_OPERATION_TUNING_CONFIG,
   HANHAI_RELIC_SET_DEFS,
+  HANHAI_TRAVEL_PREP_DEFS,
   WS14_HANHAI_BOSS_CYCLE_DEFS,
   WS14_HANHAI_CARAVAN_CONTRACT_DEFS,
   WS14_HANHAI_RELIC_SET_DEFS,
@@ -63,6 +64,7 @@ import type {
   HanhaiRelicSiteSummary,
   HanhaiSaveData,
   HanhaiShopItemSummary,
+  HanhaiTravelPrepPreview,
   PokerActionType,
   TexasDealerActionRecord,
   TexasHandSetup,
@@ -89,6 +91,11 @@ type HanhaiQuestType = 'delivery' | 'gathering' | 'mining' | 'fishing'
 type ActiveTexasSession = HanhaiActiveTexasSession
 type ActiveBuckshotSession = HanhaiActiveBuckshotSession
 type HanhaiCasinoSettlementResult = { success: boolean; message: string }
+type HanhaiResolvedTravelPrep = {
+  def: (typeof HANHAI_TRAVEL_PREP_DEFS)[number]
+  costSummary: string
+  effectSummary: string
+}
 
 const hanhaiTuning = HANHAI_OPERATION_TUNING_CONFIG
 const hanhaiFeatureFlags = hanhaiTuning.featureFlags
@@ -873,6 +880,133 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   }))
 
   const isTierUnlocked = (tier: HanhaiProgressTier) => HANHAI_TIER_RANK[cycleState.value.progressTier] >= HANHAI_TIER_RANK[tier]
+  const getTravelPrepDef = (prepId: string | null | undefined) =>
+    prepId ? HANHAI_TRAVEL_PREP_DEFS.find(entry => entry.id === prepId) ?? null : null
+  const formatTravelPrepCosts = (costItems: { itemId: string; quantity: number }[]) =>
+    costItems.map(cost => `${getItemName(cost.itemId)}×${cost.quantity}`).join('、') || '不消耗额外物资'
+  const getTravelPrepMissingCostLabels = (costItems: { itemId: string; quantity: number }[]) => {
+    const inventoryStore = useInventoryStore()
+    return costItems
+      .map(cost => ({
+        ...cost,
+        owned: inventoryStore.getTotalItemCount(cost.itemId)
+      }))
+      .filter(cost => cost.owned < cost.quantity)
+      .map(cost => `${getItemName(cost.itemId)} ${cost.owned}/${cost.quantity}`)
+  }
+  const formatTravelPrepRewardText = (prep: (typeof HANHAI_TRAVEL_PREP_DEFS)[number] | null) => {
+    if (!prep) return '基础收益'
+    const parts: string[] = []
+    if ((prep.rewardItemMultiplier ?? 1) > 1) parts.push(`素材收益×${prep.rewardItemMultiplier}`)
+    if ((prep.moneyMultiplier ?? 1) > 1) parts.push(`铜钱收益×${prep.moneyMultiplier}`)
+    for (const [ticketType, quantity] of Object.entries(prep.extraTicketRewards ?? {})) {
+      const normalizedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+      if (normalizedQuantity > 0) parts.push(`${ticketType}票×${normalizedQuantity}`)
+    }
+    return parts.join('、') || '收益稳定'
+  }
+  const travelPrepPreviews = computed<HanhaiTravelPrepPreview[]>(() => [
+    {
+      prepId: null,
+      label: '不带准备物',
+      canUse: true,
+      locked: false,
+      costSummary: '不消耗额外物资',
+      effectSummary: '按基础费用、基础收获和基础风险推进。',
+      sinkSummary: '低库存时可直接出发，不会被准备物卡死。',
+      successRateText: '成功率 +0%',
+      riskText: '风险 -0%',
+      rewardText: '基础收益',
+      missingCostLabels: []
+    },
+    ...HANHAI_TRAVEL_PREP_DEFS.map(prep => {
+      const locked = !isTierUnlocked(prep.unlockTier)
+      const missingCostLabels = locked ? [] : getTravelPrepMissingCostLabels(prep.costItems)
+      return {
+        prepId: prep.id,
+        label: prep.label,
+        canUse: !locked && missingCostLabels.length === 0,
+        locked,
+        costSummary: formatTravelPrepCosts(prep.costItems),
+        effectSummary: prep.effectSummary,
+        sinkSummary: prep.sinkSummary,
+        successRateText: `成功率 +${prep.successRateBonus}%`,
+        riskText: `风险 -${prep.riskReduction}%`,
+        rewardText: formatTravelPrepRewardText(prep),
+        missingCostLabels
+      }
+    })
+  ])
+  const resolveTravelPrepForUse = (prepId?: string | null): { success: true; prep: HanhaiResolvedTravelPrep | null } | { success: false; message: string } => {
+    const prep = getTravelPrepDef(prepId)
+    if (!prepId || !prep) {
+      return prepId ? { success: false, message: '出行准备物不存在。' } : { success: true, prep: null }
+    }
+    if (!isTierUnlocked(prep.unlockTier)) return { success: false, message: `${prep.label}尚未解锁。` }
+    const missingCostLabels = getTravelPrepMissingCostLabels(prep.costItems)
+    if (missingCostLabels.length > 0) {
+      return { success: false, message: `${prep.label}材料不足：${missingCostLabels.join('、')}。` }
+    }
+    return {
+      success: true,
+      prep: {
+        def: prep,
+        costSummary: formatTravelPrepCosts(prep.costItems),
+        effectSummary: `${prep.successRateBonus}% 成功率补正，风险预备费降低 ${prep.riskReduction}%`
+      }
+    }
+  }
+  const mergeTicketRewards = (
+    left: HanhaiRewardBundle['ticketRewards'] | undefined,
+    right: HanhaiRewardBundle['ticketRewards'] | undefined
+  ): HanhaiRewardBundle['ticketRewards'] | undefined => {
+    const ticketRewards: HanhaiRewardBundle['ticketRewards'] = { ...(left ?? {}) }
+    for (const [ticketType, quantity] of Object.entries(right ?? {})) {
+      const normalizedQuantity = Math.max(0, Math.floor(Number(quantity) || 0))
+      if (normalizedQuantity <= 0) continue
+      ticketRewards[ticketType as RewardTicketType] = (ticketRewards[ticketType as RewardTicketType] ?? 0) + normalizedQuantity
+    }
+    return Object.keys(ticketRewards).length > 0 ? ticketRewards : undefined
+  }
+  const applyTravelPrepToRewards = (
+    bundle: HanhaiRewardBundle,
+    prep: HanhaiResolvedTravelPrep | null
+  ): HanhaiRewardBundle => {
+    if (!prep) return bundle
+    const itemMultiplier = Math.max(1, Number(prep.def.rewardItemMultiplier) || 1)
+    return {
+      ...bundle,
+      items: (bundle.items ?? []).map((item, index) => {
+        const scaledQuantity = Math.floor(item.quantity * itemMultiplier)
+        const quantity = itemMultiplier > 1 && index === 0 && scaledQuantity <= item.quantity
+          ? item.quantity + 1
+          : Math.max(item.quantity, scaledQuantity)
+        return { ...item, quantity }
+      }),
+      ticketRewards: mergeTicketRewards(bundle.ticketRewards, prep.def.extraTicketRewards)
+    }
+  }
+  const getRelicExploreCost = (siteId: string, prepId?: string | null): number => {
+    const site = ALL_HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
+    if (!site) return 0
+    const prep = getTravelPrepDef(prepId)
+    if (!prep || !isTierUnlocked(prep.unlockTier)) return site.unlockCost
+    const riskReductionRate = Math.max(0, Math.min(0.8, prep.riskReduction / 100))
+    return Math.max(0, Math.floor(site.unlockCost * (1 - riskReductionRate)))
+  }
+  const getRelicPreparedRewardBundle = (siteId: string, prepId?: string | null): HanhaiRewardBundle => {
+    const site = ALL_HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
+    if (!site) return {}
+    const prepDef = getTravelPrepDef(prepId)
+    const prep = prepDef && isTierUnlocked(prepDef.unlockTier)
+      ? { def: prepDef, costSummary: formatTravelPrepCosts(prepDef.costItems), effectSummary: prepDef.effectSummary }
+      : null
+    const preparedBundle = applyTravelPrepToRewards(site.rewards, prep)
+    return {
+      ...preparedBundle,
+      money: Math.floor((preparedBundle.money ?? 0) * hanhaiRewardConfig.relicExploreMoneyMultiplier * (prep?.def.moneyMultiplier ?? 1))
+    }
+  }
 
   const resolveFocusLabels = <T extends { id: string }>(
     ids: string[],
@@ -1348,39 +1482,56 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     return Math.max(0, site.weeklyLimit - getRelicRecord(siteId).clears)
   }
 
-  const exploreRelicSite = (siteId: string): { success: boolean; message: string } => {
+  const exploreRelicSite = (siteId: string, prepId?: string | null): { success: boolean; message: string } => {
     const lockId = `explore_relic:${siteId}`
-    if (!beginHanhaiAction(lockId)) return { success: false, message: '该遗迹正在勘探处理中，请勿重复点击。' }
+    const failRelicExplore = (message: string, meta: Record<string, string | number | boolean | null | undefined> = {}) => {
+      addLog(`【瀚海】遗迹勘探失败：${message}`, {
+        category: 'hanhai',
+        tags: ['hanhai_relic_exploration', 'late_game_cycle'],
+        meta: { siteId, prepId: prepId ?? null, ...meta }
+      })
+      return { success: false, message }
+    }
+    if (!beginHanhaiAction(lockId)) return failRelicExplore('该遗迹正在勘探处理中，请勿重复点击。')
 
     const snapshots = createHanhaiActionSnapshots()
     try {
       const site = ALL_HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
-      if (!site) return { success: false, message: '遗迹不存在。' }
+      if (!site) return failRelicExplore('遗迹不存在。')
       if (getRelicRemaining(siteId) <= 0) {
-        return { success: false, message: `${site.name}本周已经探查完毕。` }
+        return failRelicExplore(`${site.name}本周已经探查完毕。`)
       }
+      const prepResult = resolveTravelPrepForUse(prepId)
+      if (!prepResult.success) return failRelicExplore(prepResult.message)
+      const travelPrep = prepResult.prep
+      const exploreCost = getRelicExploreCost(siteId, travelPrep?.def.id ?? null)
 
       const playerStore = usePlayerStore()
-      if (!playerStore.spendMoney(site.unlockCost)) {
-        return { success: false, message: '金钱不足。' }
+      if (!playerStore.spendMoney(exploreCost)) {
+        return failRelicExplore('金钱不足。', { costMoney: exploreCost })
       }
 
       const inventoryStore = useInventoryStore()
-      const rewardItems = (site.rewards.items ?? []).map(item => ({
-        itemId: item.itemId,
-        quantity: item.quantity,
-        quality: 'normal' as const
-      }))
+      const preparedRewards = getRelicPreparedRewardBundle(siteId, travelPrep?.def.id ?? null)
+      const rewardItems = resolveBundleItemEntries(preparedRewards)
 
       if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
         rollbackHanhaiAction(snapshots)
-        return { success: false, message: '背包空间不足，暂时无法探索。' }
+        return failRelicExplore('背包空间不足，暂时无法探索。', { costMoney: exploreCost })
       }
 
-      const rewardSummary = grantRewardBundle({
-        ...site.rewards,
-        money: Math.floor((site.rewards.money ?? 0) * hanhaiRewardConfig.relicExploreMoneyMultiplier)
-      }, { ticketSource: 'hanhai_relic' })
+      for (const cost of travelPrep?.def.costItems ?? []) {
+        if (!inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity)) {
+          rollbackHanhaiAction(snapshots)
+          return failRelicExplore(`${getItemName(cost.itemId)}不足，无法使用${travelPrep?.def.label ?? '出行准备物'}。`, {
+            costMoney: exploreCost,
+            itemId: cost.itemId,
+            quantity: cost.quantity
+          })
+        }
+      }
+
+      const rewardSummary = grantRewardBundle(preparedRewards, { ticketSource: 'hanhai_relic' })
 
       relicRecords.value[siteId] = {
         ...getRelicRecord(siteId),
@@ -1409,16 +1560,27 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       }
       updateCycleState({ setCollections: nextSetCollections })
       refreshProgressTier()
+      const prepConsumptionSummary = travelPrep
+        ? travelPrep.def.costItems.map(cost => `${getItemName(cost.itemId)} x${cost.quantity}`).join('、')
+        : ''
+      const prepSummary = travelPrep
+        ? `，消耗 ${prepConsumptionSummary || travelPrep.def.label}，${travelPrep.effectSummary}`
+        : ''
       const explorationSummary = completedSetLabel
-        ? `你探索了${site.name}，带回了${site.relicTag}与一批异域收获，并完成了套组「${completedSetLabel}」。`
-        : `你探索了${site.name}，带回了${site.relicTag}与一批异域收获。`
+        ? `你探索了${site.name}${prepSummary}，带回了${site.relicTag}与一批异域收获，并完成了套组「${completedSetLabel}」。`
+        : `你探索了${site.name}${prepSummary}，带回了${site.relicTag}与一批异域收获。`
       const ticketRewardMeta = rewardSummary.tickets.map(ticket => `${ticket.ticketType}:${ticket.quantity}`).join(',')
-      addLog(explorationSummary, {
+      addLog(`【瀚海】${explorationSummary}`, {
         category: 'hanhai',
-        tags: ['hanhai_relic_exploration'],
+        tags: travelPrep ? ['hanhai_relic_exploration', 'hanhai_travel_prep_sink'] : ['hanhai_relic_exploration'],
         meta: {
           siteId,
           clears: relicRecords.value[siteId]?.clears ?? 0,
+          costMoney: exploreCost,
+          prepId: travelPrep?.def.id,
+          prepCostSummary: travelPrep?.costSummary,
+          successRateBonus: travelPrep?.def.successRateBonus,
+          riskReduction: travelPrep?.def.riskReduction,
           moneyReward: rewardSummary.money,
           ticketRewards: ticketRewardMeta || undefined,
           completedSetLabel: completedSetLabel || undefined
@@ -1427,7 +1589,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       return { success: true, message: `探索${site.name}成功。` }
     } catch {
       rollbackHanhaiAction(snapshots)
-      return { success: false, message: '遗迹勘探结算失败，已回滚，请稍后再试。' }
+      return failRelicExplore('遗迹勘探结算失败，已回滚，请稍后再试。')
     } finally {
       finishHanhaiAction(lockId)
     }
@@ -2123,6 +2285,9 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     getRelicSiteSummary,
     getShopItemSummary,
     getMarketPressureRelief,
+    travelPrepPreviews,
+    getRelicExploreCost,
+    getRelicPreparedRewardBundle,
     updateCycleState,
     getDebugSnapshot,
     buyShopItem,

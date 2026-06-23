@@ -11,6 +11,7 @@ export type LinkageSystemId =
   | 'onlineOrder'
   | 'festival'
   | 'familyWish'
+  | 'childTraining'
   | 'petFeed'
   | 'museum'
   | 'decoration'
@@ -105,6 +106,9 @@ export interface LinkageDemandEntry {
   }
   rewardHint: 'money' | 'ticket' | 'potential' | 'recipe' | 'friendship' | 'decoration' | 'museum' | 'mixed'
   repeatWindow: 'daily' | 'weekly' | 'seasonal' | 'one_off'
+  familyWishIds?: string[]
+  antiRepeatTags?: string[]
+  sourceHint?: string
   ticketReward?: Partial<Record<RewardTicketType, number>>
   notes?: string[]
 }

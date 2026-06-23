@@ -75,10 +75,13 @@ type RefundMoneyFn = (amount: number) => void
 type RemoveMaterialsFn = (materials: BreedingMaterialRequirement[]) => boolean
 
 const SEED_MAKER_GENETIC_SEED_EXCLUDED_CROP_IDS = new Set(['ancient_fruit'])
-const FAILURE_BREAKTHROUGH_REQUIRED = 100
-const FAILURE_PROGRESS_MIN_GAIN = 8
-const FAILURE_PROGRESS_MAX_GAIN = 38
-const FAILURE_PROGRESS_CLOSE_GAP_WINDOW = 40
+const FAILURE_BREAKTHROUGH_REQUIRED = 180
+const FAILURE_PROGRESS_MIN_GAIN = 5
+const FAILURE_PROGRESS_MAX_GAIN = 24
+const FAILURE_PROGRESS_CLOSE_GAP_WINDOW = 24
+const FAILURE_PROGRESS_BASE_GAIN = 5
+const FAILURE_PROGRESS_MAX_GENERATION_BONUS = 4
+const FAILURE_PROGRESS_RESEARCH_BONUS = 2
 
 export const useBreedingStore = defineStore('breeding', () => {
   const npcStore = useNpcStore()
@@ -488,11 +491,17 @@ export const useBreedingStore = defineStore('breeding', () => {
     const yieldGap = Math.max(0, hybrid.minYield - avgYield)
     const totalGap = sweetGap + yieldGap
     const closenessBonus = Math.max(0, FAILURE_PROGRESS_CLOSE_GAP_WINDOW - Math.ceil(totalGap))
-    const generationBonus = Math.min(8, Math.floor(Math.max(parentA.generation, parentB.generation) / 2))
-    const researchBonus = researchLevel.value * 4
+    const generationBonus = Math.min(
+      FAILURE_PROGRESS_MAX_GENERATION_BONUS,
+      Math.floor(Math.max(parentA.generation, parentB.generation) / 3)
+    )
+    const researchBonus = researchLevel.value * FAILURE_PROGRESS_RESEARCH_BONUS
     const gain = Math.max(
       FAILURE_PROGRESS_MIN_GAIN,
-      Math.min(FAILURE_PROGRESS_MAX_GAIN, 10 + closenessBonus + generationBonus + researchBonus)
+      Math.min(
+        FAILURE_PROGRESS_MAX_GAIN,
+        FAILURE_PROGRESS_BASE_GAIN + closenessBonus + generationBonus + researchBonus
+      )
     )
     const existing = getFailureProgressEntry(hybrid.id)
     const required = getFailureProgressRequired(existing)
@@ -1307,7 +1316,10 @@ export const useBreedingStore = defineStore('breeding', () => {
     for (const [hybridId, rawEntry] of Object.entries(value)) {
       if (!knownHybridIds.has(hybridId) || !rawEntry || typeof rawEntry !== 'object') continue
       const entry = rawEntry as Partial<BreedingFailureProgressEntry>
-      const required = Math.max(1, Math.round(Number(entry.required) || FAILURE_BREAKTHROUGH_REQUIRED))
+      const required = Math.max(
+        FAILURE_BREAKTHROUGH_REQUIRED,
+        Math.round(Number(entry.required) || FAILURE_BREAKTHROUGH_REQUIRED)
+      )
       const progress = Math.max(0, Math.min(required, Math.round(Number(entry.progress) || 0)))
       if (progress <= 0) continue
       result[hybridId] = {

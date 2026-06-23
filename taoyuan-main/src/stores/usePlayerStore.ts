@@ -19,6 +19,7 @@ import { useAchievementStore } from './useAchievementStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useMiningStore } from './useMiningStore'
 import { useGuildStore } from './useGuildStore'
+import { useEquipmentAccessoryStore } from './useEquipmentAccessoryStore'
 import { useWarehouseStore } from './useWarehouseStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
@@ -282,10 +283,11 @@ export const usePlayerStore = defineStore('player', () => {
     const guildHpBonus = useMiningStore().guildBonusMaxHp
     const guildLevelHpBonus = useGuildStore().getGuildHpBonus()
     const potentialHpBonus = usePotentialStore().getPotentialEffectValue('potential_max_hp_flat')
+    const accessoryHpBonus = useEquipmentAccessoryStore().getAccessoryEffectValue('accessory_max_hp_flat')
     const spouseEquipBonus = npcStore.getSpouse() && npcStore.isNpcFunctionEffectUnlocked('spouse_equip_bonus')
       ? npcStore.getNpcFunctionEffectValue('spouse_equip_bonus') / 100
       : 0
-    const baseTotal = baseMaxHp.value + bonus + ringHpBonus + spiritHpBonus + guildHpBonus + guildLevelHpBonus + potentialHpBonus
+    const baseTotal = baseMaxHp.value + bonus + ringHpBonus + spiritHpBonus + guildHpBonus + guildLevelHpBonus + potentialHpBonus + accessoryHpBonus
     return Math.floor(baseTotal * (1 + spouseEquipBonus))
   }
 
@@ -314,6 +316,13 @@ export const usePlayerStore = defineStore('player', () => {
 
   watch(
     () => usePotentialStore().getPotentialEffectValue('potential_max_hp_flat'),
+    () => {
+      hp.value = Math.min(hp.value, getMaxHp())
+    }
+  )
+
+  watch(
+    () => useEquipmentAccessoryStore().getAccessoryEffectValue('accessory_max_hp_flat'),
     () => {
       hp.value = Math.min(hp.value, getMaxHp())
     }

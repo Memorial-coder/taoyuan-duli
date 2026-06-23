@@ -20,6 +20,28 @@
         </p>
       </div>
 
+      <div
+        v-if="mobileFixedActions.length"
+        class="online-sticky-action-bar__fixed-actions"
+        data-testid="online-sticky-fixed-actions"
+        aria-label="房间关键操作"
+      >
+        <button
+          v-for="action in mobileFixedActions"
+          :key="action.id"
+          type="button"
+          class="online-sticky-action-bar__fixed-action"
+          :class="buttonToneClass(action)"
+          :data-testid="`online-sticky-fixed-action-${action.id}`"
+          :disabled="action.disabled || Boolean(disabledReason)"
+          @click="emitFixed(action)"
+        >
+          <component v-if="action.icon" :is="action.icon" :size="13" aria-hidden="true" />
+          <span>{{ action.label }}</span>
+          <small>{{ action.hint || (action.disabled ? '未就绪' : '可操作') }}</small>
+        </button>
+      </div>
+
       <div class="relative flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
         <div v-if="secondaryActions.length" class="flex min-w-0 flex-wrap gap-2">
           <button
@@ -104,6 +126,7 @@
     disabled?: boolean
     tone?: OnlineActionTone
     icon?: Component
+    hint?: string
   }
 
   const props = withDefaults(defineProps<{
@@ -111,12 +134,14 @@
     primaryAction?: OnlineStickyAction | null
     secondaryActions?: OnlineStickyAction[]
     moreActions?: OnlineStickyAction[]
+    mobileFixedActions?: OnlineStickyAction[]
     disabledReason?: string
   }>(), {
     statusLabel: '',
     primaryAction: null,
     secondaryActions: () => [],
     moreActions: () => [],
+    mobileFixedActions: () => [],
     disabledReason: '',
   })
 
@@ -124,6 +149,7 @@
     primary: []
     secondary: [id: string]
     more: [id: string]
+    fixed: [id: string]
   }>()
 
   const moreOpen = ref(false)
@@ -168,6 +194,11 @@
     emit('more', action.id)
   }
 
+  const emitFixed = (action: OnlineStickyAction) => {
+    if (action.disabled || props.disabledReason) return
+    emit('fixed', action.id)
+  }
+
   watch(
     () => [
       props.statusLabel,
@@ -177,6 +208,7 @@
       props.primaryAction?.disabled,
       props.secondaryActions.map(action => `${action.id}:${action.label}:${action.disabled}`).join('|'),
       props.moreActions.map(action => `${action.id}:${action.label}:${action.disabled}`).join('|'),
+      props.mobileFixedActions.map(action => `${action.id}:${action.label}:${action.disabled}:${action.hint}`).join('|'),
     ],
     () => {
       void nextTick(syncStickyActionBarHeight)
@@ -211,9 +243,58 @@
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
 
+  .online-sticky-action-bar__fixed-actions {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+
+  .online-sticky-action-bar__fixed-action {
+    display: flex;
+    min-width: 0;
+    min-height: 52px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 18%, transparent);
+    background: rgb(0 0 0 / 0.12);
+    color: rgb(var(--color-text));
+    padding: 0.35rem 0.25rem;
+    text-align: center;
+  }
+
+  .online-sticky-action-bar__fixed-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  .online-sticky-action-bar__fixed-action span,
+  .online-sticky-action-bar__fixed-action small {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .online-sticky-action-bar__fixed-action span {
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .online-sticky-action-bar__fixed-action small {
+    color: var(--color-muted);
+    font-size: 0.56rem;
+    line-height: 1.1;
+  }
+
   @media (min-width: 768px) {
     .online-sticky-action-bar {
       padding-bottom: 0.75rem;
+    }
+
+    .online-sticky-action-bar__fixed-actions {
+      display: none;
     }
   }
 </style>

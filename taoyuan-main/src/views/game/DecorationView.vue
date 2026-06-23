@@ -21,6 +21,49 @@
         <span :class="decorationStore.beautyScore >= 100 ? 'text-success' : ''">100: 好感上限+250</span>
         <span :class="decorationStore.beautyScore >= 200 ? 'text-success' : ''">200: 商店折扣5%</span>
       </div>
+      <div
+        class="mt-3 grid gap-1.5"
+        data-testid="decoration-demand-bias-panel"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-muted">需求风向</p>
+          <span class="text-[0.625rem] text-accent">{{ decorationStore.activeDecorationDemandBiases.length }}/{{ decorationStore.decorationDemandBiasOverview.length }}</span>
+        </div>
+        <div
+          v-for="bias in decorationStore.decorationDemandBiasOverview"
+          :key="bias.id"
+          class="border border-accent/10 bg-black/10 px-2 py-1.5"
+          data-testid="decoration-demand-bias-row"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[0.625rem]" :class="bias.unlocked ? 'text-accent' : 'text-muted'">{{ bias.label }}</p>
+            <span class="shrink-0 text-[0.625rem]" :class="bias.unlocked ? 'text-success' : 'text-muted'">
+              {{ bias.unlocked ? `权重+${bias.weight}` : bias.progressLabel }}
+            </span>
+          </div>
+          <p class="mt-0.5 text-[0.625rem] leading-4 text-muted">{{ bias.summary }}</p>
+          <p class="mt-0.5 text-[0.625rem] leading-4 text-muted/70">
+            影响：{{ bias.familyWishIds.map(getFamilyWishTitle).join('、') }} · {{ bias.guardrail }}
+          </p>
+        </div>
+      </div>
+      <div
+        v-if="decorationStore.npcDecorationEffectSummary.length > 0"
+        class="mt-3 grid gap-1.5"
+        data-testid="decoration-npc-effect-summary"
+      >
+        <div
+          v-for="effect in decorationStore.npcDecorationEffectSummary"
+          :key="effect.id"
+          class="border border-accent/10 bg-black/10 px-2 py-1.5"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[0.625rem] text-accent">{{ effect.label }}</p>
+            <span class="shrink-0 text-[0.625rem] text-success">{{ effect.value }}</span>
+          </div>
+          <p class="mt-0.5 text-[0.625rem] leading-4 text-muted">{{ effect.summary }}</p>
+        </div>
+      </div>
     </div>
 
     <div class="border border-accent/20 rounded-xs p-3 mb-3">
@@ -97,7 +140,7 @@
               >
                 {{ def.price }}文
               </Button>
-              <span v-else-if="getOwnedCount(def.id) === 0" class="text-[0.625rem] text-muted">需从商店目录购买</span>
+              <span v-else-if="getOwnedCount(def.id) === 0" class="text-[0.625rem] text-muted">需赵木匠「定制家具」或商店目录</span>
               <Button
                 v-if="getOwnedCount(def.id) > decorationStore.getPlacedCount(def.id)"
                 :icon="Plus"
@@ -122,6 +165,7 @@
   import { loadItemIconManifest } from '@/composables/useItemIconManifest'
   import { useDecorationStore } from '@/stores/useDecorationStore'
   import { DECORATIONS, DECORATION_CATEGORY_NAMES } from '@/data/decorations'
+  import { WS09_FAMILY_WISH_DEFS, WS15_FAMILY_WISH_DEFS } from '@/data/npcs'
   import type { DecorationCategory } from '@/data/decorations'
   import { addLog } from '@/composables/useGameLog'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
@@ -131,6 +175,7 @@
   const activeCategory = ref<DecorationCategory | 'all'>('all')
 
   type DecorationEntry = (typeof DECORATIONS)[number]
+  const familyWishTitleMap = new Map([...WS09_FAMILY_WISH_DEFS, ...WS15_FAMILY_WISH_DEFS].map(wish => [wish.id, wish.title]))
 
   const decoItem = (def: DecorationEntry): ItemDef => ({
     id: def.id,
@@ -182,6 +227,8 @@
   const getOwnedCount = (id: string) => decorationStore.getOwnedCount(id)
 
   const hasReachedMaxCount = (id: string) => decorationStore.hasReachedMaxCount(id)
+
+  const getFamilyWishTitle = (wishId: string) => familyWishTitleMap.get(wishId) ?? wishId
 
   const handleBuy = (id: string) => {
     const result = decorationStore.buyDecoration(id)

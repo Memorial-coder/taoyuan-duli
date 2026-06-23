@@ -406,12 +406,17 @@ function listContentModerationEvents(options = {}) {
   const sceneFilter = sanitizeText(options.scene, 80).toLocaleLowerCase('zh-CN');
   const actionFilter = sanitizeText(options.action, 40).toLocaleLowerCase('zh-CN');
   const outcomeFilter = sanitizeText(options.outcome, 40).toLocaleLowerCase('zh-CN');
+  const createdFrom = Math.max(0, parseInt(options.created_from || options.createdFrom, 10) || 0);
+  const createdTo = Math.max(0, parseInt(options.created_to || options.createdTo, 10) || 0);
   const store = loadStore();
   const filtered = pruneEvents(store.events).filter(event => {
+    const createdAt = Number(event.created_at) || 0;
     if (usernameFilter && !String(event.username || '').toLocaleLowerCase('zh-CN').includes(usernameFilter)) return false;
     if (sceneFilter && String(event.scene || '').toLocaleLowerCase('zh-CN') !== sceneFilter) return false;
     if (actionFilter && String(event.action || '').toLocaleLowerCase('zh-CN') !== actionFilter) return false;
     if (outcomeFilter && String(event.outcome || '').toLocaleLowerCase('zh-CN') !== outcomeFilter) return false;
+    if (createdFrom && createdAt < createdFrom) return false;
+    if (createdTo && createdAt > createdTo) return false;
     return true;
   });
   const offset = (page - 1) * pageSize;
@@ -436,6 +441,23 @@ function pruneContentModerationEvents(options = {}) {
       DEFAULT_RETENTION_DAYS,
       normalizePositiveInt(options.retentionDays, getContentModerationRetentionDays()),
     ),
+  };
+}
+
+function getContentModerationAuditOverview() {
+  const store = loadStore();
+  const riskStore = loadRiskStore();
+  const latestEventAt = store.events.reduce((latest, event) => Math.max(latest, Number(event?.created_at) || 0), 0);
+  const latestRiskAt = riskStore.signals.reduce(
+    (latest, signal) => Math.max(latest, Number(signal?.updated_at || signal?.created_at) || 0),
+    0,
+  );
+  return {
+    total: store.events.length,
+    risk_signal_total: riskStore.signals.length,
+    latest_created_at: Math.max(latestEventAt, latestRiskAt),
+    retention_days: getContentModerationRetentionDays(),
+    preserves_major_evidence: true,
   };
 }
 
@@ -526,4 +548,6 @@ module.exports = {
   listContentModerationRiskSignals,
   updateContentModerationRiskSignalStatus,
   pruneContentModerationEvents,
+  getContentModerationAuditOverview,
+  getContentModerationRetentionDays,
 };

@@ -46,6 +46,65 @@ function normalizeQuality(value) {
   return ['normal', 'fine', 'excellent', 'supreme'].includes(String(value)) ? String(value) : 'normal'
 }
 
+function normalizeOptionalQuality(value) {
+  return ['normal', 'fine', 'excellent', 'supreme'].includes(String(value)) ? String(value) : undefined
+}
+
+function normalizeBundleCostEntry(item) {
+  if (item?.type === 'item') {
+    const itemId = String(item.item_id || item.itemId || '').trim()
+    const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+    if (!itemId || quantity <= 0) return null
+    const quality = normalizeOptionalQuality(item.quality)
+    return {
+      type: 'item',
+      item_id: itemId,
+      quantity,
+      ...(quality ? { quality } : {}),
+    }
+  }
+  const amount = Math.max(0, Math.floor(Number(item?.amount) || 0))
+  return amount > 0 ? { type: 'money', amount } : null
+}
+
+function normalizeBundleRewardEntry(item) {
+  if (item?.type === 'money') {
+    const amount = Math.max(0, Math.floor(Number(item.amount) || 0))
+    return amount > 0 ? { type: 'money', amount } : null
+  }
+  if (item?.type === 'ticket') {
+    const ticketType = String(item.ticket_type || '').trim()
+    const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+    return ticketType && quantity > 0 ? { type: 'ticket', ticket_type: ticketType, quantity } : null
+  }
+  const itemId = String(item?.item_id || item?.itemId || '').trim()
+  const quantity = Math.max(0, Math.floor(Number(item?.quantity) || 0))
+  return itemId && quantity > 0 ? {
+    type: 'item',
+    item_id: itemId,
+    quantity,
+    quality: normalizeQuality(item?.quality),
+  } : null
+}
+
+function getBundleMoneyAmount(entries) {
+  return (Array.isArray(entries) ? entries : [])
+    .filter(entry => entry?.type === 'money')
+    .reduce((sum, entry) => sum + clampPositiveInt(entry.amount, 0), 0)
+}
+
+function getOfferMoneyCost(offer) {
+  return getBundleMoneyAmount(offer?.costs)
+}
+
+function getOfferBoothCategory(offer) {
+  return Array.isArray(offer?.categories) ? offer.categories[0] || 'festival' : 'festival'
+}
+
+function isSupplyOffer(offer) {
+  return getOfferBoothCategory(offer) === 'supply'
+}
+
 function createEmptyFestivalStore() {
   return { weeks: {} }
 }
@@ -60,25 +119,8 @@ function normalizeRecord(record) {
     week_key: String(record.week_key || ''),
     save_slot: Number.isInteger(Number(record.save_slot)) ? Number(record.save_slot) : null,
     created_at: Number(record.created_at) || Math.floor(Date.now() / 1000),
-    costs: Array.isArray(record.costs) ? record.costs.map(item => ({
-      type: 'money',
-      amount: Math.max(0, Math.floor(Number(item?.amount) || 0)),
-    })).filter(entry => entry.amount > 0) : [],
-    rewards: Array.isArray(record.rewards) ? record.rewards.map(item => {
-      if (item?.type === 'ticket') {
-        return {
-          type: 'ticket',
-          ticket_type: String(item.ticket_type || ''),
-          quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
-        }
-      }
-      return {
-        type: 'item',
-        item_id: String(item?.item_id || ''),
-        quantity: Math.max(0, Math.floor(Number(item?.quantity) || 0)),
-        quality: normalizeQuality(item?.quality),
-      }
-    }).filter(entry => (entry.type === 'ticket' ? entry.ticket_type && entry.quantity > 0 : entry.item_id && entry.quantity > 0)) : [],
+    costs: Array.isArray(record.costs) ? record.costs.map(normalizeBundleCostEntry).filter(Boolean) : [],
+    rewards: Array.isArray(record.rewards) ? record.rewards.map(normalizeBundleRewardEntry).filter(Boolean) : [],
   }
 }
 
@@ -693,7 +735,12 @@ function validateOfferAgainstSave(saveData, offer) {
   const cloned = JSON.parse(JSON.stringify(saveData))
   ensureInventoryState(cloned)
   if (!applyCostsToSave(cloned, offer.costs)) {
-    return { can_exchange: false, disabled_reason: '物资不足，暂时无法购买节庆摊位商品' }
+    return {
+      can_exchange: false,
+      disabled_reason: isSupplyOffer(offer)
+        ? '备料不足，暂时无法提交节会备料'
+        : '物资不足，暂时无法购买节庆摊位商品',
+    }
   }
   if (!applyRewardsToSave(cloned, offer.rewards)) {
     return { can_exchange: false, disabled_reason: '背包空间不足，请先整理背包' }
@@ -704,7 +751,9 @@ function validateOfferAgainstSave(saveData, offer) {
 function finalizeCatalog(entries) {
   return (entries || []).map(entry => ({
     ...entry,
-    costs: [{ type: 'money', amount: entry.price_money }],
+    costs: Array.isArray(entry.costs)
+      ? entry.costs.map(normalizeBundleCostEntry).filter(Boolean)
+      : [{ type: 'money', amount: clampPositiveInt(entry.price_money, 0) }].filter(cost => cost.amount > 0),
     rewards: Array.isArray(entry.rewards) ? entry.rewards.map(reward => ({ ...reward })) : [],
     categories: Array.isArray(entry.categories) ? [...entry.categories] : [],
     tags: Array.isArray(entry.tags) ? [...entry.tags] : [],
@@ -763,6 +812,32 @@ function getFestivalCatalog(themeId = '') {
         categories: ['tickets'],
         tags: ['节庆摊位', '票券'],
       },
+      {
+        id: 'festival_banquet_flour_supply',
+        name: '秋宴米粉糕点备料',
+        description: '把磨好的米粉交给宴席摊，帮秋宴糕点先备一批稳定粉料。',
+        badge: '备料提交',
+        price_money: 0,
+        weekly_limit_per_user: 1,
+        station_stock: 18,
+        costs: [{ type: 'item', item_id: 'rice_flour', quantity: 3 }],
+        rewards: [{ type: 'ticket', ticket_type: 'caravan', quantity: 1 }],
+        categories: ['supply'],
+        tags: ['节会备料', '加工品消耗池', '粉料'],
+      },
+      {
+        id: 'festival_banquet_pickled_supply',
+        name: '秋宴腌姜凉菜备料',
+        description: '提交腌姜给秋宴凉菜摊，换一份展陈侧的节庆回礼。',
+        badge: '备料提交',
+        price_money: 0,
+        weekly_limit_per_user: 1,
+        station_stock: 14,
+        costs: [{ type: 'item', item_id: 'pickled_ginger', quantity: 2 }],
+        rewards: [{ type: 'ticket', ticket_type: 'exhibit', quantity: 1 }],
+        categories: ['supply'],
+        tags: ['节会备料', '加工品消耗池', '腌制'],
+      },
     ])
   }
 
@@ -816,6 +891,32 @@ function getFestivalCatalog(themeId = '') {
         categories: ['tickets'],
         tags: ['节庆摊位', '票券'],
       },
+      {
+        id: 'festival_hearth_dried_supply',
+        name: '围炉干货备箱',
+        description: '提交田园干货包给围炉摊，给夜间热食和冬储小席补足底料。',
+        badge: '备料提交',
+        price_money: 0,
+        weekly_limit_per_user: 1,
+        station_stock: 16,
+        costs: [{ type: 'item', item_id: 'dried_crop_bundle', quantity: 2 }],
+        rewards: [{ type: 'ticket', ticket_type: 'caravan', quantity: 1 }],
+        categories: ['supply'],
+        tags: ['节会备料', '加工品消耗池', '干货'],
+      },
+      {
+        id: 'festival_hearth_tea_supply',
+        name: '围炉桂茶壶底',
+        description: '提交桂花茶饮给冬集茶棚，帮围炉夜话提前备好热饮壶底。',
+        badge: '备料提交',
+        price_money: 0,
+        weekly_limit_per_user: 1,
+        station_stock: 12,
+        costs: [{ type: 'item', item_id: 'processed_osmanthus_tea', quantity: 2 }],
+        rewards: [{ type: 'ticket', ticket_type: 'research', quantity: 1 }],
+        categories: ['supply'],
+        tags: ['节会备料', '加工品消耗池', '茶饮'],
+      },
     ])
   }
 
@@ -868,6 +969,35 @@ function getFestivalCatalog(themeId = '') {
       categories: ['tickets'],
       tags: ['节庆摊位', '票券'],
     },
+    {
+      id: 'festival_lantern_oil_supply',
+      name: '灯会油料认捐',
+      description: '提交通用杂籽油给灯会摊，帮灯芯、点心锅和夜市小食统一备底油。',
+      badge: '备料提交',
+      price_money: 0,
+      weekly_limit_per_user: 1,
+      station_stock: 18,
+      costs: [{ type: 'item', item_id: 'mixed_seed_oil', quantity: 2 }],
+      rewards: [{ type: 'ticket', ticket_type: 'construction', quantity: 1 }],
+      categories: ['supply'],
+      tags: ['节会备料', '加工品消耗池', '油料'],
+    },
+    {
+      id: 'festival_lantern_tea_supply',
+      name: '灯会桂蜜茶席',
+      description: '提交桂花茶和桂花蜜给夜市茶席，换一份展陈侧的节庆谢礼。',
+      badge: '备料提交',
+      price_money: 0,
+      weekly_limit_per_user: 1,
+      station_stock: 12,
+      costs: [
+        { type: 'item', item_id: 'processed_osmanthus_tea', quantity: 1 },
+        { type: 'item', item_id: 'osmanthus_honey', quantity: 1 },
+      ],
+      rewards: [{ type: 'ticket', ticket_type: 'exhibit', quantity: 1 }],
+      categories: ['supply'],
+      tags: ['节会备料', '加工品消耗池', '茶饮', '甜品材料'],
+    },
   ])
 }
 
@@ -877,30 +1007,34 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
   const remainingGlobal = Math.max(0, clampPositiveInt(offer.station_stock, 0) - claimedGlobal)
   let canExchange = true
   let disabledReason = ''
-  const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
+  const boothCategory = getOfferBoothCategory(offer)
+  const moneyCost = getOfferMoneyCost(offer)
+  const actionLabel = isSupplyOffer(offer) ? '提交' : '购买'
 
   if (!availability.open) {
     canExchange = false
     disabledReason = availability.reason
   } else if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
     canExchange = false
-    disabledReason = '本周该摊位已达到个人购买上限'
+    disabledReason = `本周该摊位已达到个人${actionLabel}上限`
   } else if (offer.station_stock > 0 && remainingGlobal <= 0) {
     canExchange = false
-    disabledReason = '这项节庆商品本周已经售罄'
+    disabledReason = isSupplyOffer(offer) ? '这项节会备料本周已经收满' : '这项节庆商品本周已经售罄'
   } else {
     try {
       marketGovernance.ensureNotSanctioned(username, '节庆摊位')
       marketGovernance.ensureSourceEnabled('festival_stall', { category: boothCategory })
-      marketGovernance.assertPriceWithinBand({
-        source: 'festival_stall',
-        category: boothCategory,
-        priceMoney: clampPositiveInt(offer.price_money, 0),
-      })
+      if (moneyCost > 0) {
+        marketGovernance.assertPriceWithinBand({
+          source: 'festival_stall',
+          category: boothCategory,
+          priceMoney: moneyCost,
+        })
+      }
       marketGovernance.ensureUserRateLimit(username, {
         source: 'festival_stall',
         source_label: '节庆摊位',
-        money_volume: clampPositiveInt(offer.price_money, 0),
+        money_volume: moneyCost,
       })
     } catch (error) {
       canExchange = false
@@ -987,6 +1121,7 @@ function listFestivalStall(username) {
       { id: 'souvenir', label: '纪念品', offer_count: offers.filter(offer => offer.categories.includes('souvenir')).length },
       { id: 'food', label: '节日食物', offer_count: offers.filter(offer => offer.categories.includes('food')).length },
       { id: 'tickets', label: '票券/代币', offer_count: offers.filter(offer => offer.categories.includes('tickets')).length },
+      { id: 'supply', label: '节前备料', offer_count: offers.filter(offer => offer.categories.includes('supply')).length },
     ],
     offers: offers.map(offer => buildOfferSummary(offer, weekState, username, saveData, saveMessage, availability)),
     my_records: myRecords,
@@ -1027,40 +1162,54 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
   const claimedByUser = countUserOfferClaims(weekState, username, offer.id)
   const claimedGlobal = countGlobalOfferClaims(weekState, offer.id)
   if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
-    throw createError('本周该摊位已达到个人购买上限')
+    throw createError(`本周该摊位已达到个人${isSupplyOffer(offer) ? '提交' : '购买'}上限`)
   }
   if (offer.station_stock > 0 && claimedGlobal >= offer.station_stock) {
-    throw createError('这项节庆商品本周已经售罄')
+    throw createError(isSupplyOffer(offer) ? '这项节会备料本周已经收满' : '这项节庆商品本周已经售罄')
   }
 
-  const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
+  const boothCategory = getOfferBoothCategory(offer)
+  const moneyCost = getOfferMoneyCost(offer)
+  const operationLabel = isSupplyOffer(offer) ? '备料提交' : '购买'
   marketGovernance.ensureNotSanctioned(username, '节庆摊位')
   marketGovernance.ensureSourceEnabled('festival_stall', { category: boothCategory })
-  marketGovernance.assertPriceWithinBand({
-    source: 'festival_stall',
-    category: boothCategory,
-    priceMoney: clampPositiveInt(offer.price_money, 0),
-  })
+  if (moneyCost > 0) {
+    marketGovernance.assertPriceWithinBand({
+      source: 'festival_stall',
+      category: boothCategory,
+      priceMoney: moneyCost,
+    })
+  }
   marketGovernance.ensureUserRateLimit(username, {
     source: 'festival_stall',
     source_label: '节庆摊位',
-    money_volume: clampPositiveInt(offer.price_money, 0),
+    money_volume: moneyCost,
   })
 
-  if (Math.max(0, Math.floor(Number(context.data.player.money) || 0)) < offer.price_money) {
-    throw createError('铜钱不足，无法购买节庆摊位商品')
-  }
-  if (!validateOfferAgainstSave(context.data, offer).can_exchange) {
-    throw createError('当前条件下无法购买这项节庆商品')
+  const validation = validateOfferAgainstSave(context.data, offer)
+  if (!validation.can_exchange) {
+    throw createError(validation.disabled_reason || '当前条件下无法使用这项节庆摊位')
   }
 
   const slot = context.slot
   const previousSlotEntry = context.saves.slots[slot] ? { ...context.saves.slots[slot] } : null
-  const previousMainMoney = Math.max(0, Math.floor(Number(context.data.player.money) || 0))
+  const previousGameplayData = JSON.parse(JSON.stringify(context.data))
   beginTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey)
-  context.data.player.money = previousMainMoney - offer.price_money
+
+  if (!applyCostsToSave(context.data, offer.costs)) {
+    context.data = previousGameplayData
+    updateTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey, {
+      status: 'failed_rolled_back',
+      error_message: isSupplyOffer(offer) ? '备料不足，暂时无法提交节会备料' : '物资不足，暂时无法购买节庆摊位商品',
+    })
+    try {
+      saveFestivalStore(store, [weekKey])
+    } catch {}
+    throw createError(isSupplyOffer(offer) ? '备料不足，暂时无法提交节会备料' : '物资不足，暂时无法购买节庆摊位商品')
+  }
 
   if (!applyRewardsToSave(context.data, offer.rewards)) {
+    context.data = previousGameplayData
     updateTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey, {
       status: 'failed_rolled_back',
       error_message: '背包空间不足，请先整理背包',
@@ -1079,7 +1228,7 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     week_key: weekKey,
     save_slot: slot,
     created_at: Math.floor(Date.now() / 1000),
-    costs: [{ type: 'money', amount: offer.price_money }],
+    costs: offer.costs,
     rewards: offer.rewards,
   })
 
@@ -1131,17 +1280,17 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
       updateTransactionReceipt(rollbackStore, weekKey, rollbackWeekState, username, offer.id, idempotencyKey, {
         status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
         error_message: rolledBack
-          ? `节庆摊位购买失败，玩家存档已回退：${error?.message || '未知错误'}`
-          : `节庆摊位购买失败，玩家存档回退待补偿：${error?.message || '未知错误'}`,
+          ? `节庆摊位${operationLabel}失败，玩家存档已回退：${error?.message || '未知错误'}`
+          : `节庆摊位${operationLabel}失败，玩家存档回退待补偿：${error?.message || '未知错误'}`,
       })
       saveFestivalStore(rollbackStore, [weekKey])
     } catch {}
-    throw createError(`节庆摊位购买失败：${error?.message || '未知错误'}`, 500)
+    throw createError(`节庆摊位${operationLabel}失败：${error?.message || '未知错误'}`, 500)
   }
   try {
     marketGovernance.applyGovernanceRecord(username, {
       source: 'festival_stall',
-      money_volume: clampPositiveInt(offer.price_money, 0),
+      money_volume: moneyCost,
     })
   } catch {}
 

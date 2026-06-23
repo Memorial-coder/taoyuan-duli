@@ -1,4 +1,27 @@
 export type DecorationCategory = 'fence' | 'light' | 'plant' | 'stone' | 'water' | 'misc'
+export type DecorationDemandBiasTag =
+  | 'family_breakfast'
+  | 'festival_prep'
+  | 'outing'
+  | 'fishpond'
+  | 'archive'
+  | 'spirit'
+
+export interface DecorationDemandBiasRule {
+  id: string
+  label: string
+  summary: string
+  categories: DecorationCategory[]
+  featuredDecorationIds: string[]
+  familyWishIds: string[]
+  demandTags: DecorationDemandBiasTag[]
+  minBeautyScore: number
+  minThemeBeautyScore: number
+  baseWeight: number
+  maxWeight: number
+  beautyPerExtraWeight: number
+  guardrail: string
+}
 
 export interface DecorationDef {
   id: string
@@ -254,3 +277,51 @@ export const DECORATION_CATEGORY_NAMES: Record<DecorationCategory, string> = {
   water: '水景',
   misc: '杂项'
 }
+
+export const DECORATION_DEMAND_BIAS_RULES: DecorationDemandBiasRule[] = [
+  {
+    id: 'courtyard_guest_table',
+    label: '庭前待客',
+    summary: '灯饰、风铃和待客陈设会让家庭心愿更偏向共食、集市共宴等社交备料。',
+    categories: ['light', 'misc'],
+    featuredDecorationIds: ['paper_lantern', 'wind_chime', 'catalog_festival_lantern', 'catalog_guest_wine_rack'],
+    familyWishIds: ['wish_shared_breakfast', 'wish_market_feast'],
+    demandTags: ['family_breakfast', 'festival_prep'],
+    minBeautyScore: 50,
+    minThemeBeautyScore: 18,
+    baseWeight: 1,
+    maxWeight: 3,
+    beautyPerExtraWeight: 35,
+    guardrail: '只改变每周家庭心愿候选排序，不直接发放铜钱、票券或物品。'
+  },
+  {
+    id: 'waterside_leisure',
+    label: '水畔游赏',
+    summary: '水景和植物装点会把家庭心愿推向湖畔相伴、月下看塘等外出/鱼塘主题。',
+    categories: ['water', 'plant'],
+    featuredDecorationIds: ['stone_basin', 'koi_pond', 'wisteria_arch', 'catalog_lotus_lamp'],
+    familyWishIds: ['wish_lakeside_outing', 'wish_pond_moonwatch'],
+    demandTags: ['outing', 'fishpond'],
+    minBeautyScore: 80,
+    minThemeBeautyScore: 22,
+    baseWeight: 1,
+    maxWeight: 3,
+    beautyPerExtraWeight: 40,
+    guardrail: '受装饰拥有上限、购买价格和每周最多一个家庭心愿限制，不会叠成无限收益。'
+  },
+  {
+    id: 'archive_showcase',
+    label: '书香馆藏',
+    summary: '书卷、屏风、日晷和高价值展示陈设会更容易牵引家业传承、馆藏赞助与灵缘札记。',
+    categories: ['stone', 'misc'],
+    featuredDecorationIds: ['sundial', 'pavilion', 'catalog_scholar_shelf', 'catalog_peach_scroll', 'catalog_moon_set', 'catalog_incense_stand'],
+    familyWishIds: ['wish_legacy_archive', 'wish_archive_patron', 'wish_spirit_archive'],
+    demandTags: ['archive', 'spirit'],
+    minBeautyScore: 120,
+    minThemeBeautyScore: 30,
+    baseWeight: 1,
+    maxWeight: 3,
+    beautyPerExtraWeight: 45,
+    guardrail: '只影响未完成候选的优先级；已完成心愿、未解锁心愿和无伴侣心愿不会被强行生成。'
+  }
+]

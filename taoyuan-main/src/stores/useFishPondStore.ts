@@ -39,6 +39,7 @@ import {
 } from '@/data/fishPond'
 import { POND_CONTEST_DEFS, WS14_POND_CONTEST_DEFS, createDefaultPondContestState, getWeeklyPondContestDef } from '@/data/fishPondContests'
 import { getGen1BreedsForFish, findBreedByParents, getBreedById, getBreedsByGeneration } from '@/data/pondBreeds'
+import { buildSpeciesNoteOverview } from '@/data/speciesNotes'
 import { getItemById } from '@/data/items'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
@@ -422,6 +423,21 @@ export const useFishPondStore = defineStore('fishPond', () => {
     }).sort((a, b) => b.bestTotalScore - a.bestTotalScore)
   })
 
+  const deepWaterPondHints = computed(() => {
+    const deepWaterPondableIds = new Set(['rainbow_trout', 'mud_loach', 'giant_salamander', 'yellow_eel'])
+    return pondEligibilitySnapshots.value
+      .filter(entry => deepWaterPondableIds.has(entry.fishId))
+      .slice(0, 3)
+      .map(entry => ({
+        fishId: entry.fishId,
+        fishName: entry.fishName,
+        totalCount: entry.totalCount,
+        matureHealthyCount: entry.matureHealthyCount,
+        bestTotalScore: entry.bestTotalScore,
+        bestShowValue: entry.bestShowValue
+      }))
+  })
+
   const getEligibilitySnapshotForFishId = (fishId: string) =>
     pondEligibilitySnapshots.value.find(entry => entry.fishId === fishId) ?? null
 
@@ -446,6 +462,12 @@ export const useFishPondStore = defineStore('fishPond', () => {
       contestBonus: maintenanceState.value.ornamentalFeedBuffDays > 0 ? config.ornamentalFeedContestBonus : 0
     }
   })
+
+  const speciesNoteOverview = computed(() =>
+    buildSpeciesNoteOverview({
+      pondBreedIds: [...discoveredBreeds.value]
+    })
+  )
 
   const pruneDisplayEntries = () => {
     displayEntries.value = displayEntries.value.filter(entry => pond.value.fish.some(candidate => candidate.id === entry.pondFishId))
@@ -1151,11 +1173,13 @@ export const useFishPondStore = defineStore('fishPond', () => {
     lastPondContestSettlement,
     displayEntries,
     displayOverview,
+    speciesNoteOverview,
     highTierFishRatings,
     maintenanceState,
     pondFishRatings,
     lastOrderSubmissionSnapshots,
     pondEligibilitySnapshots,
+    deepWaterPondHints,
     buildPond,
     upgradePond,
     addFish,

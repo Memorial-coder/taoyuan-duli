@@ -10,6 +10,9 @@ import {
   createDefaultRegionExpeditionSupplyState,
   createDefaultRegionOpenWorldSaveData,
   createDefaultRegionMapSaveData,
+  getOpenWorldRegionTileCount,
+  getOpenWorldTileDef,
+  getOpenWorldTileDefAtCoord,
   getBossMapNodeKey,
   getCampSiteKey,
   getRegionBossDef,
@@ -19,6 +22,7 @@ import {
 } from '@/data/regions'
 import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from '@/data/journeyHub'
 import { getRegionExpeditionElixirPrepOption, type RegionExpeditionElixirPrepOption } from '@/data/eliteElixirPrep'
+import { getRegionResourceTurnInDemandEntries } from '@/data/linkageDemandPools'
 import { addLog, showFloat } from '@/composables/useGameLog'
 import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
 import { getWeaponById } from '@/data/weapons'
@@ -117,7 +121,7 @@ import { useVillageProjectStore } from './useVillageProjectStore'
 import { useFrontierChronicleStore } from './useFrontierChronicleStore'
 import { useGoalStore } from './useGoalStore'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
-import type { Season, SkillType, Weather } from '@/types'
+import type { LinkageDemandEntry, Season, SkillType, Weather } from '@/types'
 
 const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: number }>> = {
   ancient_road_supply_relay: [{ itemId: 'ancient_waybill', quantity: 1 }],
@@ -150,6 +154,29 @@ const BOSS_ITEM_REWARDS: Record<RegionId, Array<{ itemId: string; quantity: numb
   ancient_road: [{ itemId: 'archive_rubbing', quantity: 2 }],
   mirage_marsh: [{ itemId: 'luminous_algae', quantity: 2 }],
   cloud_highland: [{ itemId: 'wind_etched_core', quantity: 2 }]
+}
+
+const REGION_RESOURCE_TURN_IN_DEMAND_IDS: Record<RegionalResourceFamilyId, string> = {
+  ancient_archive: 'ancient_archive_region_turn_in_waybill',
+  ecology_specimen: 'ecology_specimen_region_turn_in_algae',
+  ley_crystal: 'ley_crystal_region_turn_in_shard'
+}
+
+interface RegionResourceTurnInRequirementPreview {
+  demandId: string
+  itemId: string
+  itemName: string
+  required: number
+  owned: number
+  sourceHint: string
+  notes: string[]
+  canTurnIn: boolean
+}
+
+interface RegionResourceTurnInResult {
+  success: boolean
+  message: string
+  consumedItems: Array<{ itemId: string; itemName: string; quantity: number }>
 }
 
 const OPEN_WORLD_REGION_IDS = REGION_OPEN_WORLD_DEFS.map(region => region.id) as RegionOpenWorldId[]
@@ -218,24 +245,8 @@ const OPEN_WORLD_MOVE_TILES_PER_STAMINA = 5
 
 type OpenWorldViewportCamera = RegionOpenWorldViewportCamera
 
-const getOpenWorldTileCoordKey = (x: number, y: number) => `${x},${y}`
-
-const OPEN_WORLD_TILE_DEFS_BY_REGION = Object.fromEntries(
-  REGION_OPEN_WORLD_DEFS.map(def => [def.id, new Map(def.tiles.map(tile => [tile.id, tile]))])
-) as Record<RegionOpenWorldId, Map<string, RegionOpenWorldTileDef>>
-
-const OPEN_WORLD_TILE_DEFS_BY_COORD = Object.fromEntries(
-  REGION_OPEN_WORLD_DEFS.map(def => [
-    def.id,
-    new Map(def.tiles.map(tile => [getOpenWorldTileCoordKey(tile.x, tile.y), tile]))
-  ])
-) as Record<RegionOpenWorldId, Map<string, RegionOpenWorldTileDef>>
-
-const getOpenWorldTileDef = (regionId: RegionOpenWorldId, tileId: string) =>
-  OPEN_WORLD_TILE_DEFS_BY_REGION[regionId]?.get(tileId) ?? null
-
-const getOpenWorldTileDefAtCoord = (regionId: RegionOpenWorldId, x: number, y: number) =>
-  OPEN_WORLD_TILE_DEFS_BY_COORD[regionId]?.get(getOpenWorldTileCoordKey(x, y)) ?? null
+const isValidOpenWorldTileId = (regionId: RegionOpenWorldId, tileId: unknown): tileId is string =>
+  typeof tileId === 'string' && Boolean(getOpenWorldTileDef(regionId, tileId))
 
 const getOpenWorldTileStateFallback = (tile: RegionOpenWorldTileDef, discovered = false): RegionOpenWorldTileState => ({
   tileId: tile.id,
@@ -662,6 +673,34 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const getFamilyResourceQuantity = (familyId: RegionalResourceFamilyId) =>
     resourceFeatureEnabled.value ? (saveData.value.resourceLedger[familyId] ?? 0) : 0
 
+  const getRegionResourceTurnInDemand = (familyId: RegionalResourceFamilyId): LinkageDemandEntry | null => {
+    const demandId = REGION_RESOURCE_TURN_IN_DEMAND_IDS[familyId]
+    return getRegionResourceTurnInDemandEntries().find(entry => entry.id === demandId) ?? null
+  }
+
+  const buildResourceTurnInRequirementPreview = (
+    familyId: RegionalResourceFamilyId,
+    amount = 1
+  ): RegionResourceTurnInRequirementPreview | null => {
+    const demand = getRegionResourceTurnInDemand(familyId)
+    if (!demand) return null
+    const normalized = Math.max(1, Math.floor(Number(amount) || 1))
+    const required = Math.max(1, Math.floor(Number(demand.minQuantity) || 1)) * normalized
+    const inventoryStore = useInventoryStore()
+    const item = getItemById(demand.itemId)
+    const owned = inventoryStore.getTotalItemCount(demand.itemId)
+    return {
+      demandId: demand.id,
+      itemId: demand.itemId,
+      itemName: item?.name ?? demand.itemId,
+      required,
+      owned,
+      sourceHint: demand.sourceHint ?? '区域探索与远征回流',
+      notes: demand.notes ?? [],
+      canTurnIn: owned >= required && getFamilyResourceQuantity(familyId) >= normalized && resourceFeatureEnabled.value
+    }
+  }
+
   const regionSummaries = computed(() =>
     REGION_DEFS.map(region => {
       const unlockState = saveData.value.unlockStates[region.id]
@@ -689,10 +728,16 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const currentWeeklyFocus = computed(() => saveData.value.weeklyFocusState)
   const currentWeeklyEventState = computed(() => saveData.value.weeklyEventState)
   const resourceLedgerEntries = computed(() =>
-    REGIONAL_RESOURCE_FAMILY_DEFS.map(family => ({
-      ...family,
-      quantity: resourceFeatureEnabled.value ? (saveData.value.resourceLedger[family.id] ?? 0) : 0
-    }))
+    REGIONAL_RESOURCE_FAMILY_DEFS.map(family => {
+      const quantity = resourceFeatureEnabled.value ? (saveData.value.resourceLedger[family.id] ?? 0) : 0
+      const turnInRequirement = buildResourceTurnInRequirementPreview(family.id, 1)
+      return {
+        ...family,
+        quantity,
+        turnInRequirement,
+        turnInAvailable: Boolean(turnInRequirement?.canTurnIn)
+      }
+    })
   )
   const getJourneyProgressionState = () => ({
     journeyAwakenings: { ...saveData.value.journeyAwakenings },
@@ -1283,14 +1328,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     raw: any,
     fallback: RegionOpenWorldRegionState
   ): RegionOpenWorldRegionState => {
-    const validTileIds = new Set(def.tiles.map(tile => tile.id))
     const rawDiscoveredTileIds = Array.isArray(raw?.discoveredTileIds)
-      ? raw.discoveredTileIds.filter((tileId: unknown): tileId is string => typeof tileId === 'string' && validTileIds.has(tileId))
+      ? raw.discoveredTileIds.filter((tileId: unknown): tileId is string => isValidOpenWorldTileId(def.id, tileId))
       : fallback.discoveredTileIds
     const discoveredTileIds = [...new Set([def.startTileId, ...rawDiscoveredTileIds])]
     const discoveredTileIdSet = new Set(discoveredTileIds)
-    const playerTileId = typeof raw?.playerTileId === 'string' && validTileIds.has(raw.playerTileId) ? raw.playerTileId : fallback.playerTileId
-    const selectedTileId = typeof raw?.selectedTileId === 'string' && validTileIds.has(raw.selectedTileId) ? raw.selectedTileId : playerTileId
+    const playerTileId = isValidOpenWorldTileId(def.id, raw?.playerTileId) ? raw.playerTileId : fallback.playerTileId
+    const selectedTileId = isValidOpenWorldTileId(def.id, raw?.selectedTileId) ? raw.selectedTileId : playerTileId
     const tileStates: RegionOpenWorldRegionState['tileStates'] = {}
     const rawTileStates = raw?.tileStates && typeof raw.tileStates === 'object' ? raw.tileStates : {}
     const shouldKeepTileState = (state: RegionOpenWorldTileState) =>
@@ -1307,7 +1351,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
 
     for (const [tileId, rawTileState] of Object.entries(rawTileStates)) {
-      if (typeof tileId !== 'string' || !validTileIds.has(tileId) || discoveredTileIdSet.has(tileId)) continue
+      if (!isValidOpenWorldTileId(def.id, tileId) || discoveredTileIdSet.has(tileId)) continue
       const tile = getOpenWorldTileDef(def.id, tileId)
       if (!tile) continue
       const tileState = normalizeOpenWorldTileState(tile, rawTileState, false)
@@ -1346,10 +1390,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const handbook = {
       discoveredTileIds: Object.fromEntries(
         OPEN_WORLD_REGION_IDS.map(regionId => {
-          const def = getOpenWorldRegionDef(regionId)
-          const validTileIds = new Set(def.tiles.map(tile => tile.id))
           const rawIds = Array.isArray(raw?.handbook?.discoveredTileIds?.[regionId])
-            ? raw.handbook.discoveredTileIds[regionId].filter((tileId: unknown): tileId is string => typeof tileId === 'string' && validTileIds.has(tileId))
+            ? raw.handbook.discoveredTileIds[regionId].filter((tileId: unknown): tileId is string => isValidOpenWorldTileId(regionId, tileId))
             : []
           return [regionId, [...new Set([...(regionStates[regionId]?.discoveredTileIds ?? []), ...rawIds])]]
         })
@@ -1525,7 +1567,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const state = getOpenWorldRegionState(regionId)
     const unlock = getOpenWorldRegionUnlockInfo(regionId)
     const playerTile = getOpenWorldTileDef(regionId, state.playerTileId)
-    const focusTile = playerTile ?? getOpenWorldTileDef(regionId, def.startTileId) ?? def.tiles[0]!
+    const focusTile = playerTile ?? getOpenWorldTileDef(regionId, def.startTileId)
+    if (!focusTile) {
+      throw new Error(`Open world start tile missing: ${regionId}:${def.startTileId}`)
+    }
     const { bounds, camera, visibleColumnCount, visibleRowCount } = getOpenWorldViewportBounds(def, focusTile, viewportCamera, viewportSize)
     const visibleTiles: RegionOpenWorldTileDef[] = []
     for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
@@ -1534,10 +1579,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         if (tile) visibleTiles.push(tile)
       }
     }
-    const validTilesById = OPEN_WORLD_TILE_DEFS_BY_REGION[regionId]
-    const discoveredTileIds = new Set(state.discoveredTileIds.filter(tileId => validTilesById?.has(tileId)))
+    const discoveredTileIds = new Set(state.discoveredTileIds.filter(tileId => isValidOpenWorldTileId(regionId, tileId)))
     for (const tileState of Object.values(state.tileStates)) {
-      if (tileState.discovered && validTilesById?.has(tileState.tileId)) discoveredTileIds.add(tileState.tileId)
+      if (tileState.discovered && isValidOpenWorldTileId(regionId, tileState.tileId)) discoveredTileIds.add(tileState.tileId)
     }
     return {
       def,
@@ -1548,8 +1592,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       camera,
       visibleColumnCount,
       visibleRowCount,
-      totalTileCount: def.tiles.length,
+      totalTileCount: getOpenWorldRegionTileCount(regionId),
       discoveredCount: discoveredTileIds.size,
+      playerTile,
       tiles: visibleTiles.map(tile => getOpenWorldTileView(regionId, tile.id)).filter((tile): tile is RegionOpenWorldTileView => Boolean(tile))
     }
   }
@@ -2961,13 +3006,65 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return true
   }
 
-  const recordResourceTurnIn = (familyId: RegionalResourceFamilyId, amount = 1) => {
-    if (!consumeFamilyResources(familyId, amount)) return false
+  const recordResourceTurnIn = (familyId: RegionalResourceFamilyId, amount = 1): RegionResourceTurnInResult => {
     const normalized = Math.max(0, Math.floor(Number(amount) || 0))
-    if (normalized <= 0) return false
+    const familyLabel = getResourceFamilyLabel(familyId)
+    const failResourceTurnIn = (message: string): RegionResourceTurnInResult => {
+      addLog(`【行旅图】公共资源交付失败：${message}`, {
+        category: 'goal',
+        tags: ['late_game_cycle', 'region_resource_turn_in_sink', 'resource_sink'],
+        meta: { familyId, amount: normalized }
+      })
+      return { success: false, message, consumedItems: [] }
+    }
+    if (normalized <= 0) {
+      return failResourceTurnIn('交付数量无效。')
+    }
+    if (!resourceFeatureEnabled.value) {
+      return failResourceTurnIn('区域资源系统尚未开启。')
+    }
+    if ((saveData.value.resourceLedger[familyId] ?? 0) < normalized) {
+      return failResourceTurnIn(`${familyLabel}不足，无法交付。`)
+    }
+
+    const requirement = buildResourceTurnInRequirementPreview(familyId, normalized)
+    if (!requirement) {
+      return failResourceTurnIn(`${familyLabel}尚未接入交付需求池。`)
+    }
+    if (requirement.owned < requirement.required) {
+      return failResourceTurnIn(`${requirement.itemName}不足，需要 ${requirement.required}，当前 ${requirement.owned}。`)
+    }
+
+    const inventoryStore = useInventoryStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const previousLedger = saveData.value.resourceLedger[familyId] ?? 0
+    if (!consumeFamilyResources(familyId, normalized)) {
+      return failResourceTurnIn(`${familyLabel}不足，无法交付。`)
+    }
+    if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.required)) {
+      saveData.value.resourceLedger[familyId] = previousLedger
+      inventoryStore.deserialize(inventorySnapshot)
+      return failResourceTurnIn(`${requirement.itemName}库存已变化，交付未完成。`)
+    }
+
     saveData.value.telemetry.resourceTurnIns += normalized
     useGoalStore().recordWeeklyActivityCounter('region_map_progress_actions', normalized)
-    return true
+    addLog(`【行旅图】公共资源交付：消耗 ${requirement.itemName} x${requirement.required}，提交 ${familyLabel} x${normalized}。`, {
+      category: 'goal',
+      tags: ['late_game_cycle', 'region_resource_turn_in_sink', 'resource_sink'],
+      meta: {
+        familyId,
+        amount: normalized,
+        demandId: requirement.demandId,
+        itemId: requirement.itemId,
+        quantity: requirement.required
+      }
+    })
+    return {
+      success: true,
+      message: `已交付 ${familyLabel} x${normalized}，消耗 ${requirement.itemName} x${requirement.required}。`,
+      consumedItems: [{ itemId: requirement.itemId, itemName: requirement.itemName, quantity: requirement.required }]
+    }
   }
 
   const isJourneyRecipeUnlocked = (recipeId: string) => Boolean(saveData.value.journeyCraftingUnlocks[recipeId])

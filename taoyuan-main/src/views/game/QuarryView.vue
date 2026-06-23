@@ -161,7 +161,23 @@
               </div>
               <p class="quarry-block-note">
                 已领取 {{ quarryStore.weeklyStewardshipProgress.claimedCount }}/{{ quarryStore.weeklyStewardshipProgress.maxClaims }} 次；
-                每 {{ quarryWeeklyTarget }} 格触发一次潜能材料。
+                {{ quarryWeeklyRewardText }}
+              </p>
+              <p class="quarry-block-note text-success/85">
+                {{ quarryWeeklyNextStepText }}
+              </p>
+            </section>
+
+            <section class="quarry-panel-block quarry-museum-block" data-testid="quarry-museum-linkage">
+              <div class="quarry-block-title">
+                <span>
+                  <Archive :size="12" aria-hidden="true" />
+                  博物馆线索
+                </span>
+                <span>首捐 / 副本研究</span>
+              </div>
+              <p class="quarry-block-note">
+                稀有古物点会产出可捐赠藏品；已捐过的副本遗物可交给学者委托，换取考据材料与声望。
               </p>
             </section>
 
@@ -554,6 +570,14 @@ const quarryCells = computed(() => quarryStore.cells)
 const quarryWeeklyProgressText = computed(() => {
   const progress = quarryStore.weeklyStewardshipProgress
   return `${progress.current}/${progress.target} 格`
+})
+const quarryWeeklyRewardText = computed(() => `每 ${quarryWeeklyTarget} 格触发一次潜能心得 + 山野玉。`)
+const quarryWeeklyNextStepText = computed(() => {
+  const progress = quarryStore.weeklyStewardshipProgress
+  if (progress.claimedCount >= progress.maxClaims) return '本周管护潜能奖励已达上限，继续清理仍会产出矿材和古物。'
+  const remaining = Math.max(0, progress.target - progress.clearedCount)
+  if (remaining <= 0) return '本次管护奖励已就绪，下一次清理结算会发放潜能材料。'
+  return `距离下一次潜能奖励还差 ${remaining} 格。`
 })
 const recentLog = computed(() => exploreLog.value.slice(-8))
 const sceneGridStyle = computed(() => ({
@@ -1068,7 +1092,7 @@ const handleQuarryMineNode = (index: number) => {
     return
   }
   sfxMine()
-  pushExploreLog(result.message)
+  pushExploreLog(result.message, !result.globalLogged)
   if (usedElixirId && inventoryStore.getTotalItemCount(usedElixirId) <= 0) selectedQuarryMineElixirId.value = null
   advanceQuarryTime(ACTION_TIME_COSTS.mineOre * inventoryStore.getToolWorkTimeMultiplier('pickaxe'))
 }
