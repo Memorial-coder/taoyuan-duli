@@ -5,22 +5,49 @@ import { getForgeAffixById, normalizeForgeAffixValue } from '@/data/forgeAffixes
 
 /** quality tier -> base durability */
 export const DURABILITY_BASE: Record<EquipmentQualityTier, number> = {
+  common: 100,
+  fine: 200,
+  excellent: 320,
+  supreme: 480
+}
+
+/** quality tier -> base sturdiness */
+export const STURDINESS_BASE: Record<EquipmentQualityTier, number> = {
+  common: 100,
+  fine: 140,
+  excellent: 190,
+  supreme: 260
+}
+
+export const EQUIPMENT_DURABILITY_BALANCE_VERSION = 2
+export const DURABILITY_RECIPE_WEIGHT_CAP = 100
+export const STURDINESS_RECIPE_WEIGHT_CAP = 50
+
+const LEGACY_DURABILITY_BASE: Record<EquipmentQualityTier, number> = {
   common: 50,
   fine: 100,
   excellent: 150,
   supreme: 200
 }
 
-/** quality tier -> base sturdiness */
-export const STURDINESS_BASE: Record<EquipmentQualityTier, number> = {
+const LEGACY_STURDINESS_BASE: Record<EquipmentQualityTier, number> = {
   common: 80,
   fine: 100,
   excellent: 120,
   supreme: 150
 }
 
-/** recipe cost weight: material kinds x 10 + money/1000, clamped 0~50 */
+/** recipe cost weight: material kinds x 10 + money/1000, clamped 0~100 */
 export function recipeCostWeight(
+  recipe: { itemId: string; quantity: number }[] | null,
+  recipeMoney: number
+): number {
+  const materialWeight = (recipe?.length ?? 0) * 10
+  const moneyWeight = Math.floor(recipeMoney / 1000)
+  return Math.min(DURABILITY_RECIPE_WEIGHT_CAP, Math.max(0, materialWeight + moneyWeight))
+}
+
+function legacyRecipeCostWeight(
   recipe: { itemId: string; quantity: number }[] | null,
   recipeMoney: number
 ): number {
@@ -51,7 +78,32 @@ export function calculateMaxSturdiness(
   bonusRatio: number = 0
 ): number {
   const base = STURDINESS_BASE[qualityTier]
-  const weight = Math.min(30, recipeCostWeight(recipe, recipeMoney))
+  const weight = Math.min(STURDINESS_RECIPE_WEIGHT_CAP, recipeCostWeight(recipe, recipeMoney))
+  return Math.max(1, Math.floor((base + weight) * (1 + bonusRatio)))
+}
+
+/** calculate legacy max durability for balance-version migration */
+export function calculateLegacyMaxDurability(
+  qualityTier: EquipmentQualityTier,
+  recipe: { itemId: string; quantity: number }[] | null,
+  recipeMoney: number,
+  npcDurabilityBonus: number = 0,
+  bonusRatio: number = 0
+): number {
+  const base = LEGACY_DURABILITY_BASE[qualityTier]
+  const raw = base + legacyRecipeCostWeight(recipe, recipeMoney)
+  return Math.max(1, Math.floor(Math.floor(raw * (1 + npcDurabilityBonus)) * (1 + bonusRatio)))
+}
+
+/** calculate legacy max sturdiness for balance-version migration */
+export function calculateLegacyMaxSturdiness(
+  qualityTier: EquipmentQualityTier,
+  recipe: { itemId: string; quantity: number }[] | null,
+  recipeMoney: number,
+  bonusRatio: number = 0
+): number {
+  const base = LEGACY_STURDINESS_BASE[qualityTier]
+  const weight = Math.min(30, legacyRecipeCostWeight(recipe, recipeMoney))
   return Math.max(1, Math.floor((base + weight) * (1 + bonusRatio)))
 }
 
@@ -144,18 +196,22 @@ export interface RepairSturdinessState {
 export type RepairBenchMode = 'fine' | 'simple' | 'refurbish' | 'dismantle'
 
 const REPAIR_BASE_COSTS: Record<RepairBenchEquipType, { itemId: string; quantity: number; money: number }> = {
-  weapon: { itemId: 'iron_bar', quantity: 2, money: 1000 },
-  ring:   { itemId: 'iron_bar', quantity: 1, money: 500 },
-  hat:    { itemId: 'cloth',    quantity: 2, money: 800 },
-  shoe:   { itemId: 'leather',  quantity: 2, money: 800 }
+  weapon: { itemId: 'iron_bar', quantity: 1, money: 600 },
+  ring:   { itemId: 'iron_bar', quantity: 1, money: 300 },
+  hat:    { itemId: 'cloth',    quantity: 1, money: 500 },
+  shoe:   { itemId: 'felt',     quantity: 1, money: 500 }
 }
 
 const REPAIR_TIER_MULTIPLIER: Record<EquipmentQualityTier, number> = {
   common: 1,
-  fine: 1.5,
-  excellent: 2,
-  supreme: 3
+  fine: 1.25,
+  excellent: 1.6,
+  supreme: 2.2
 }
+
+const REPAIR_LIGHT_DAMAGE_FREE_MATERIAL_RATIO = 0.2
+const SIMPLE_REPAIR_MONEY_RATIO = 0.3
+const REFURBISH_FULL_REPAIR_MULTIPLIER = 2
 
 export function getRepairQualityTier(
   equipType: RepairBenchEquipType,
@@ -196,9 +252,12 @@ export function calculateRepairCost(
     ? Math.min(maxDurability, Math.max(0, maxDurability - currentDurability))
     : 0
   const damageRatio = maxDurability > 0 ? missingDurability / maxDurability : 1
+  const materialQuantity = missingDurability > 0 && damageRatio > REPAIR_LIGHT_DAMAGE_FREE_MATERIAL_RATIO
+    ? Math.ceil(fullMaterialQuantity * damageRatio)
+    : 0
   return {
     materialItemId: base.itemId,
-    materialQuantity: missingDurability > 0 ? Math.ceil(fullMaterialQuantity * damageRatio) : 0,
+    materialQuantity,
     money: missingDurability > 0 ? Math.ceil(fullMoney * damageRatio) : 0,
     missingDurability,
     damageRatio
@@ -247,7 +306,7 @@ export function calculateRepairBenchModeCost(
       ...fineCost,
       mode,
       materialQuantity: 0,
-      money: hasDurabilityDamage ? Math.ceil(fineCost.money * 0.45) : 0,
+      money: hasDurabilityDamage ? Math.ceil(fineCost.money * SIMPLE_REPAIR_MONEY_RATIO) : 0,
       sturdinessLoss,
       restoredSturdiness: 0,
       canRepair: hasDurabilityDamage && hasEnoughSturdiness,
@@ -261,8 +320,8 @@ export function calculateRepairBenchModeCost(
     return {
       ...fineCost,
       mode,
-      materialQuantity: Math.ceil(fullRepairCost.materialQuantity * 3),
-      money: Math.ceil(fullRepairCost.money * 3),
+      materialQuantity: Math.ceil(fullRepairCost.materialQuantity * REFURBISH_FULL_REPAIR_MULTIPLIER),
+      money: Math.ceil(fullRepairCost.money * REFURBISH_FULL_REPAIR_MULTIPLIER),
       sturdinessLoss: 0,
       restoredSturdiness,
       canRepair: hasDurabilityDamage || currentSturdiness < maxSturdiness,

@@ -3,6 +3,8 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const net = require('net');
 const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
 const { deleteUserSaveData } = require('./taoyuanSaveRuntime');
@@ -17,13 +19,15 @@ const USER_META_FILE = path.join(DATA_DIR, 'user_admin_meta.json');
 const ADMIN_AUDIT_LOG_FILE = path.join(DATA_DIR, 'admin_audit_logs.json');
 const CONTENT_REVISION_LOG_FILE = path.join(DATA_DIR, 'admin_content_revisions.json');
 const GAMEPLAY_EVENT_LOG_FILE = path.join(DATA_DIR, 'taoyuan_gameplay_event_logs.json');
+const USER_IP_PROFILE_FILE = path.join(DATA_DIR, 'user_ip_profiles.json');
 const EXCHANGE_RATE = parseInt(process.env.EXCHANGE_RATE || '500000', 10);
 const DEFAULT_USER_QUOTA = parseInt(process.env.DEFAULT_USER_QUOTA || '2000000', 10);
 const QA_ONLINE_SMOKE_FORCE_LOCAL = String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() === 'true';
-const GAMEPLAY_EVENT_LOG_MAX_TOTAL = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_TOTAL || '500000', 10) || 500000);
-const GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT || '12000', 10) || 12000);
+const GAMEPLAY_EVENT_LOG_MAX_TOTAL = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_TOTAL || '1000000', 10) || 1000000);
+const GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT || '24000', 10) || 24000);
 const GAMEPLAY_EVENT_LOG_RETENTION_DAYS = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_RETENTION_DAYS || '30', 10) || 30);
 const DEFAULT_ADMIN_AUDIT_RETENTION_DAYS = 180;
+const DEFAULT_USER_IP_PROFILE_RETENTION_DAYS = 180;
 const MAJOR_ADMIN_AUDIT_ACTIONS = new Set([
   'ban_user_for_image',
   'unban_user',
@@ -46,6 +50,16 @@ const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
 let mysqlPool = null;
 let mysqlReadyPromise = null;
 let lastMysqlFallbackLogAt = 0;
+let localUserStoreCache = null;
+const AUTH_SUCCESS_CACHE_TTL_MS = Math.max(
+  0,
+  parseInt(process.env.AUTH_SUCCESS_CACHE_TTL_MS || '300000', 10) || 0
+);
+const AUTH_SUCCESS_CACHE_LIMIT = Math.max(
+  100,
+  parseInt(process.env.AUTH_SUCCESS_CACHE_LIMIT || '1000', 10) || 1000
+);
+const authSuccessCache = new Map();
 
 function logMysqlFallback(scope, error) {
   const now = Date.now();
@@ -91,15 +105,81 @@ function writeJsonFileAtomic(filePath, data) {
   }
 }
 
+function cloneLocalUserStore(store) {
+  return {
+    users: Array.isArray(store?.users) ? store.users.map(user => ({ ...user })) : [],
+  };
+}
+
+function setLocalUserStoreCache(stat, store) {
+  localUserStoreCache = {
+    mtimeMs: Number(stat?.mtimeMs) || 0,
+    size: Number(stat?.size) || 0,
+    store: cloneLocalUserStore(store),
+  };
+}
+
+function buildAuthSuccessCacheKey(usernameKey, passwordHash, password) {
+  return crypto
+    .createHash('sha256')
+    .update([
+      normalizeUsernameKey(usernameKey),
+      String(passwordHash || ''),
+      String(password || ''),
+    ].join('\0'))
+    .digest('hex');
+}
+
+function hasCachedSuccessfulAuth(usernameKey, passwordHash, password) {
+  if (!AUTH_SUCCESS_CACHE_TTL_MS) return false;
+  const key = buildAuthSuccessCacheKey(usernameKey, passwordHash, password);
+  const entry = authSuccessCache.get(key);
+  if (!entry || entry.expires_at <= Date.now()) {
+    if (entry) authSuccessCache.delete(key);
+    return false;
+  }
+  entry.expires_at = Date.now() + AUTH_SUCCESS_CACHE_TTL_MS;
+  return true;
+}
+
+function rememberSuccessfulAuth(usernameKey, passwordHash, password) {
+  if (!AUTH_SUCCESS_CACHE_TTL_MS) return;
+  const key = buildAuthSuccessCacheKey(usernameKey, passwordHash, password);
+  authSuccessCache.set(key, {
+    expires_at: Date.now() + AUTH_SUCCESS_CACHE_TTL_MS,
+  });
+  while (authSuccessCache.size > AUTH_SUCCESS_CACHE_LIMIT) {
+    const firstKey = authSuccessCache.keys().next().value;
+    if (!firstKey) break;
+    authSuccessCache.delete(firstKey);
+  }
+}
+
 function loadStore() {
+  ensureDir();
+  if (!fs.existsSync(USERS_FILE)) return { users: [] };
+  const stat = fs.statSync(USERS_FILE);
+  if (
+    localUserStoreCache &&
+    localUserStoreCache.mtimeMs === Number(stat.mtimeMs) &&
+    localUserStoreCache.size === Number(stat.size)
+  ) {
+    return cloneLocalUserStore(localUserStoreCache.store);
+  }
   const raw = readJsonStoreStrict(USERS_FILE);
   if (raw === null) return { users: [] };
   if (!Array.isArray(raw?.users)) throw createStoreCorruptionError(USERS_FILE);
-  return raw;
+  setLocalUserStoreCache(stat, raw);
+  return cloneLocalUserStore(raw);
 }
 
 function saveStore(store) {
   writeJsonFileAtomic(USERS_FILE, store);
+  try {
+    setLocalUserStoreCache(fs.statSync(USERS_FILE), store);
+  } catch {
+    localUserStoreCache = null;
+  }
 }
 
 function normalizeUsername(username) {
@@ -154,6 +234,253 @@ function getAdminAuditRetentionDays() {
       DEFAULT_ADMIN_AUDIT_RETENTION_DAYS,
     ),
   );
+}
+
+function getUserIpProfileRetentionDays() {
+  return Math.max(
+    DEFAULT_USER_IP_PROFILE_RETENTION_DAYS,
+    normalizePositiveInt(
+      process.env.USER_IP_PROFILE_RETENTION_DAYS || getConfigValue('user_ip_profile_retention_days'),
+      DEFAULT_USER_IP_PROFILE_RETENTION_DAYS,
+    ),
+  );
+}
+
+function normalizeIpAddress(value) {
+  let raw = String(value || '').normalize('NFKC').trim();
+  if (!raw) return '';
+  const bracketMatch = raw.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketMatch) raw = bracketMatch[1].trim();
+  if (!net.isIP(raw) && /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.test(raw)) {
+    raw = raw.replace(/:\d+$/, '');
+  }
+  if (raw.toLowerCase().startsWith('::ffff:')) {
+    const mapped = raw.slice(7);
+    if (net.isIP(mapped) === 4) raw = mapped;
+  }
+  const version = net.isIP(raw);
+  if (!version) return '';
+  return version === 6 ? raw.toLowerCase() : raw;
+}
+
+function expandIpv6Address(ipAddress) {
+  const raw = normalizeIpAddress(ipAddress);
+  if (net.isIP(raw) !== 6) return [];
+  const [leftRaw, rightRaw = ''] = raw.split('::');
+  const left = leftRaw ? leftRaw.split(':').filter(Boolean) : [];
+  const right = rightRaw ? rightRaw.split(':').filter(Boolean) : [];
+  const missing = Math.max(0, 8 - left.length - right.length);
+  return [
+    ...left,
+    ...Array.from({ length: missing }, () => '0'),
+    ...right,
+  ].slice(0, 8).map(part => {
+    const normalized = part.replace(/^0+/, '');
+    return normalized || '0';
+  });
+}
+
+function maskIpAddress(value) {
+  const ipAddress = normalizeIpAddress(value);
+  const version = net.isIP(ipAddress);
+  if (version === 4) {
+    const parts = ipAddress.split('.');
+    return `${parts[0]}.${parts[1]}.${parts[2]}.*`;
+  }
+  if (version === 6) {
+    const groups = expandIpv6Address(ipAddress);
+    return groups.length ? `${groups.slice(0, 4).join(':')}::/64` : '';
+  }
+  return '';
+}
+
+function hashUserIpAddress(value) {
+  const ipAddress = normalizeIpAddress(value);
+  if (!ipAddress) return '';
+  return crypto
+    .createHash('sha256')
+    .update(`${process.env.USER_IP_HASH_SALT || process.env.AUDIT_HASH_SALT || 'taoyuan-user-ip-profile'}:${ipAddress}`)
+    .digest('hex');
+}
+
+function normalizeUserIpSource(value) {
+  const normalized = String(value || 'session_check')
+    .normalize('NFKC')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_.:-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
+  return normalized || 'session_check';
+}
+
+function parseJsonObjectSafe(value) {
+  if (!value) return {};
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeUserIpSourceCounts(value, fallbackSource = '', fallbackCount = 1) {
+  const counts = {};
+  const add = (source, count = 1) => {
+    const normalized = normalizeUserIpSource(source);
+    const amount = Math.max(0, Math.floor(Number(count) || 0));
+    if (!amount) return;
+    counts[normalized] = (counts[normalized] || 0) + amount;
+  };
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item === 'string') add(item, 1);
+      else if (item && typeof item === 'object') add(item.source || item.name, item.count);
+    }
+  } else {
+    const objectValue = parseJsonObjectSafe(value);
+    for (const [source, count] of Object.entries(objectValue)) add(source, count);
+  }
+
+  if (!Object.keys(counts).length) add(fallbackSource, fallbackCount);
+  return counts;
+}
+
+function mapUserIpSourcesForResponse(sourceCounts = {}) {
+  return Object.entries(normalizeUserIpSourceCounts(sourceCounts))
+    .map(([source, count]) => ({ source, count: Math.max(0, Number(count) || 0) }))
+    .filter(item => item.count > 0)
+    .sort((a, b) => (b.count - a.count) || a.source.localeCompare(b.source));
+}
+
+function normalizeUserIpProfileEntry(entry = {}) {
+  const username = normalizeUsername(entry.username || '');
+  const usernameKey = normalizeUsernameKey(entry.username_key || username);
+  const ipAddress = normalizeIpAddress(entry.ip_address || entry.ip || '');
+  const ipHash = String(entry.ip_hash || hashUserIpAddress(ipAddress)).trim();
+  if (!usernameKey || !ipHash || !ipAddress) return null;
+  const source = normalizeUserIpSource(entry.source);
+  const count = Math.max(1, Math.floor(Number(entry.count) || 1));
+  const firstSeenAt = Number(entry.first_seen_at || entry.created_at || entry.last_seen_at) || nowSeconds();
+  const lastSeenAt = Number(entry.last_seen_at || entry.updated_at || entry.first_seen_at) || firstSeenAt;
+  return {
+    username,
+    username_key: usernameKey,
+    display_name: String(entry.display_name || username || '').trim(),
+    ip_address: ipAddress,
+    ip_hash: ipHash,
+    ip_masked: String(entry.ip_masked || entry.ip_display || maskIpAddress(ipAddress)).trim() || maskIpAddress(ipAddress),
+    first_seen_at: Math.min(firstSeenAt, lastSeenAt),
+    last_seen_at: Math.max(firstSeenAt, lastSeenAt),
+    source,
+    count,
+    sources: normalizeUserIpSourceCounts(entry.sources || entry.source_counts || entry.sources_json, source, count),
+  };
+}
+
+function serializeUserIpProfileEntry(entry = {}) {
+  const normalized = normalizeUserIpProfileEntry(entry);
+  if (!normalized) return null;
+  return {
+    username: normalized.username,
+    username_key: normalized.username_key,
+    ip_address: normalized.ip_address,
+    ip_hash: normalized.ip_hash,
+    ip_masked: normalized.ip_masked,
+    first_seen_at: normalized.first_seen_at,
+    last_seen_at: normalized.last_seen_at,
+    source: normalized.source,
+    count: normalized.count,
+    sources: normalized.sources,
+  };
+}
+
+function mapUserIpProfileForResponse(entry = {}, extras = {}) {
+  const normalized = normalizeUserIpProfileEntry(entry);
+  if (!normalized) return null;
+  return {
+    username: normalized.username,
+    display_name: extras.display_name || normalized.display_name || normalized.username,
+    ip_address: normalized.ip_address,
+    ip_hash: normalized.ip_hash,
+    ip_masked: normalized.ip_masked,
+    ip_display: normalized.ip_address,
+    first_seen_at: normalized.first_seen_at,
+    last_seen_at: normalized.last_seen_at,
+    source: normalized.source,
+    sources: mapUserIpSourcesForResponse(normalized.sources),
+    count: normalized.count,
+    same_user_count: Math.max(0, Number(extras.same_user_count) || 0),
+  };
+}
+
+function loadUserIpProfileStore() {
+  const raw = readJsonStoreStrict(USER_IP_PROFILE_FILE);
+  if (raw === null) return { profiles: [] };
+  if (!raw || !Array.isArray(raw.profiles)) throw createStoreCorruptionError(USER_IP_PROFILE_FILE);
+  return raw;
+}
+
+function saveUserIpProfileStore(store) {
+  const profiles = (store?.profiles || [])
+    .map(serializeUserIpProfileEntry)
+    .filter(Boolean)
+    .sort((a, b) => (b.last_seen_at - a.last_seen_at) || a.username.localeCompare(b.username, 'zh-CN'));
+  writeJsonFileAtomic(USER_IP_PROFILE_FILE, { profiles });
+}
+
+function getUserIpProfileCutoff() {
+  return nowSeconds() - getUserIpProfileRetentionDays() * 86400;
+}
+
+function loadActiveUserIpProfiles({ prune = false } = {}) {
+  const cutoff = getUserIpProfileCutoff();
+  const store = loadUserIpProfileStore();
+  const before = store.profiles.length;
+  const profiles = store.profiles
+    .map(normalizeUserIpProfileEntry)
+    .filter(entry => entry && entry.last_seen_at >= cutoff);
+  const nextStore = { profiles };
+  if (prune && profiles.length !== before) saveUserIpProfileStore(nextStore);
+  return nextStore;
+}
+
+function attachLocalUserDisplayNames(profiles = []) {
+  const store = loadStore();
+  const names = new Map();
+  for (const user of store.users || []) {
+    const usernameKey = user.username_key || normalizeUsernameKey(user.username);
+    if (usernameKey) {
+      names.set(usernameKey, {
+        username: user.username,
+        display_name: user.display_name || user.username,
+        deleted_at: user.deleted_at ? Number(user.deleted_at) || null : null,
+      });
+    }
+  }
+  return profiles.map(profile => {
+    const user = names.get(profile.username_key);
+    return {
+      ...profile,
+      username: user?.username || profile.username,
+      display_name: user?.display_name || profile.display_name || profile.username,
+      deleted_at: user?.deleted_at || null,
+    };
+  });
+}
+
+function buildUserIpSameUserCounts(profiles = []) {
+  const buckets = new Map();
+  for (const profile of profiles) {
+    if (!profile.ip_hash || !profile.username_key) continue;
+    if (!buckets.has(profile.ip_hash)) buckets.set(profile.ip_hash, new Set());
+    buckets.get(profile.ip_hash).add(profile.username_key);
+  }
+  const counts = new Map();
+  for (const [ipHash, usernames] of buckets.entries()) counts.set(ipHash, usernames.size);
+  return counts;
 }
 
 function normalizeAdminStatus(status) {
@@ -426,6 +753,26 @@ async function ensureMysqlReady() {
           banned_at BIGINT NULL DEFAULT NULL,
           updated_at BIGINT NOT NULL,
           PRIMARY KEY (username_key)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_ip_profiles (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          username VARCHAR(64) NOT NULL,
+          username_key VARCHAR(191) NOT NULL,
+          ip_address VARCHAR(120) NOT NULL,
+          ip_hash CHAR(64) NOT NULL,
+          ip_masked VARCHAR(120) NOT NULL,
+          first_seen_at BIGINT NOT NULL,
+          last_seen_at BIGINT NOT NULL,
+          source VARCHAR(32) NOT NULL DEFAULT 'session_check',
+          count INT NOT NULL DEFAULT 1,
+          sources_json LONGTEXT NULL,
+          PRIMARY KEY (id),
+          UNIQUE KEY uniq_username_ip_hash (username_key, ip_hash),
+          KEY idx_ip_hash_last_seen (ip_hash, last_seen_at),
+          KEY idx_username_last_seen (username_key, last_seen_at)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
       `);
 
@@ -729,7 +1076,9 @@ async function verifyUser(username, password) {
     const user = await getMysqlAdminUserByKey(username);
     if (!user || user.deleted_at || user.status === 'deleted') return { ok: false, msg: '用户不存在' };
     if (user.status === 'banned') return { ok: false, msg: '用户已被封禁' };
-    const ok = await bcrypt.compare(String(password || ''), String(user.password_hash || ''));
+    const ok = hasCachedSuccessfulAuth(user.username_key || user.username, user.password_hash, password) ||
+      await bcrypt.compare(String(password || ''), String(user.password_hash || ''));
+    if (ok) rememberSuccessfulAuth(user.username_key || user.username, user.password_hash, password);
     if (!ok) return { ok: false, msg: '密码错误' };
     return {
       ok: true,
@@ -745,7 +1094,9 @@ async function verifyUser(username, password) {
   const { user } = getLocalAdminUserRecord(username);
   if (!user || user.deleted_at) return { ok: false, msg: '用户不存在' };
   if (user.status === 'banned') return { ok: false, msg: '用户已被封禁' };
-  const ok = await bcrypt.compare(String(password || ''), String(user.password_hash || ''));
+  const ok = hasCachedSuccessfulAuth(user.username_key || user.username, user.password_hash, password) ||
+    await bcrypt.compare(String(password || ''), String(user.password_hash || ''));
+  if (ok) rememberSuccessfulAuth(user.username_key || user.username, user.password_hash, password);
   if (!ok) return { ok: false, msg: '密码错误' };
   return { ok: true, user: localUserToPublic(user) };
 }
@@ -789,6 +1140,334 @@ async function getUser(username) {
 async function getQuota(username) {
   const user = await getUser(username);
   return user ? user.quota : null;
+}
+
+async function pruneExpiredUserIpProfiles() {
+  const cutoff = getUserIpProfileCutoff();
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const [result] = await buildMysqlPool().execute(
+      'DELETE FROM user_ip_profiles WHERE last_seen_at < ?',
+      [cutoff],
+    );
+    return { removed: Number(result?.affectedRows) || 0, retention_days: getUserIpProfileRetentionDays() };
+  }
+
+  const store = loadUserIpProfileStore();
+  const before = store.profiles.length;
+  const profiles = store.profiles
+    .map(normalizeUserIpProfileEntry)
+    .filter(entry => entry && entry.last_seen_at >= cutoff);
+  saveUserIpProfileStore({ profiles });
+  return { removed: Math.max(0, before - profiles.length), retention_days: getUserIpProfileRetentionDays() };
+}
+
+function recordLocalUserIpProfile(username, ipAddress, source) {
+  const canonicalUsername = normalizeUsername(username);
+  const usernameKey = normalizeUsernameKey(canonicalUsername);
+  const normalizedIp = normalizeIpAddress(ipAddress);
+  const ipHash = hashUserIpAddress(normalizedIp);
+  if (!usernameKey || !normalizedIp || !ipHash) return null;
+
+  const now = nowSeconds();
+  const normalizedSource = normalizeUserIpSource(source);
+  const store = loadActiveUserIpProfiles({ prune: true });
+  const index = store.profiles.findIndex(item => item.username_key === usernameKey && item.ip_hash === ipHash);
+  if (index >= 0) {
+    const current = normalizeUserIpProfileEntry(store.profiles[index]);
+    const sources = { ...(current.sources || {}) };
+    sources[normalizedSource] = (Number(sources[normalizedSource]) || 0) + 1;
+    const next = {
+      ...current,
+      username: canonicalUsername || current.username,
+      ip_address: normalizedIp,
+      ip_masked: maskIpAddress(normalizedIp),
+      last_seen_at: now,
+      source: normalizedSource,
+      count: Math.max(1, Number(current.count) || 1) + 1,
+      sources,
+    };
+    store.profiles[index] = next;
+    saveUserIpProfileStore(store);
+    return mapUserIpProfileForResponse(next);
+  }
+
+  const next = {
+    username: canonicalUsername,
+    username_key: usernameKey,
+    ip_address: normalizedIp,
+    ip_hash: ipHash,
+    ip_masked: maskIpAddress(normalizedIp),
+    first_seen_at: now,
+    last_seen_at: now,
+    source: normalizedSource,
+    count: 1,
+    sources: { [normalizedSource]: 1 },
+  };
+  store.profiles.unshift(next);
+  saveUserIpProfileStore(store);
+  return mapUserIpProfileForResponse(next);
+}
+
+async function recordUserIpProfile(username, ipAddress, source = 'session_check') {
+  const canonicalUsername = normalizeUsername(username);
+  const usernameKey = normalizeUsernameKey(canonicalUsername);
+  const normalizedIp = normalizeIpAddress(ipAddress);
+  const ipHash = hashUserIpAddress(normalizedIp);
+  if (!usernameKey || !normalizedIp || !ipHash) return null;
+
+  const normalizedSource = normalizeUserIpSource(source);
+  const now = nowSeconds();
+
+  if (MYSQL_ENABLED) {
+    try {
+      await ensureMysqlReady();
+      await pruneExpiredUserIpProfiles();
+      const pool = buildMysqlPool();
+      const [rows] = await pool.execute(
+        `SELECT username, username_key, ip_address, ip_hash, ip_masked, first_seen_at, last_seen_at, source, count, sources_json
+         FROM user_ip_profiles
+         WHERE username_key = ? AND ip_hash = ?
+         LIMIT 1`,
+        [usernameKey, ipHash],
+      );
+      const existing = rows[0] ? mapMysqlUserIpProfileRow(rows[0]) : null;
+      if (existing) {
+        const sources = { ...(existing.sources || {}) };
+        sources[normalizedSource] = (Number(sources[normalizedSource]) || 0) + 1;
+        const nextCount = Math.max(1, Number(existing.count) || 1) + 1;
+        await pool.execute(
+          `UPDATE user_ip_profiles
+           SET username = ?, ip_address = ?, ip_masked = ?, last_seen_at = ?, source = ?, count = ?, sources_json = ?
+           WHERE username_key = ? AND ip_hash = ?`,
+          [
+            canonicalUsername || existing.username,
+            normalizedIp,
+            maskIpAddress(normalizedIp),
+            now,
+            normalizedSource,
+            nextCount,
+            JSON.stringify(sources),
+            usernameKey,
+            ipHash,
+          ],
+        );
+        return mapUserIpProfileForResponse({
+          ...existing,
+          username: canonicalUsername || existing.username,
+          ip_address: normalizedIp,
+          ip_masked: maskIpAddress(normalizedIp),
+          last_seen_at: now,
+          source: normalizedSource,
+          count: nextCount,
+          sources,
+        });
+      }
+
+      const sources = { [normalizedSource]: 1 };
+      await pool.execute(
+        `INSERT INTO user_ip_profiles
+         (username, username_key, ip_address, ip_hash, ip_masked, first_seen_at, last_seen_at, source, count, sources_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          canonicalUsername,
+          usernameKey,
+          normalizedIp,
+          ipHash,
+          maskIpAddress(normalizedIp),
+          now,
+          now,
+          normalizedSource,
+          1,
+          JSON.stringify(sources),
+        ],
+      );
+      return mapUserIpProfileForResponse({
+        username: canonicalUsername,
+        username_key: usernameKey,
+        ip_address: normalizedIp,
+        ip_hash: ipHash,
+        ip_masked: maskIpAddress(normalizedIp),
+        first_seen_at: now,
+        last_seen_at: now,
+        source: normalizedSource,
+        count: 1,
+        sources,
+      });
+    } catch (error) {
+      logMysqlFallback('recordUserIpProfile', error);
+    }
+  }
+
+  return recordLocalUserIpProfile(canonicalUsername, normalizedIp, normalizedSource);
+}
+
+function mapMysqlUserIpProfileRow(row = {}) {
+  const entry = normalizeUserIpProfileEntry({
+    username: row.username,
+    username_key: row.username_key,
+    display_name: row.display_name,
+    ip_address: row.ip_address,
+    ip_hash: row.ip_hash,
+    ip_masked: row.ip_masked,
+    first_seen_at: row.first_seen_at,
+    last_seen_at: row.last_seen_at,
+    source: row.source,
+    count: row.count,
+    sources_json: row.sources_json,
+  });
+  if (!entry) return null;
+  entry.display_name = String(row.display_name || entry.display_name || entry.username || '').trim();
+  entry.deleted_at = row.deleted_at ? Number(row.deleted_at) || null : null;
+  return entry;
+}
+
+async function listMysqlUserIpProfiles(whereSql = '', params = []) {
+  await ensureMysqlReady();
+  const [rows] = await buildMysqlPool().execute(
+    `SELECT
+       p.username,
+       p.username_key,
+       COALESCE(u.display_name, p.username) AS display_name,
+       u.deleted_at,
+       p.ip_address,
+       p.ip_hash,
+       p.ip_masked,
+       p.first_seen_at,
+       p.last_seen_at,
+       p.source,
+       p.count,
+       p.sources_json
+     FROM user_ip_profiles p
+     LEFT JOIN users u ON u.username_key = p.username_key
+     ${whereSql}
+     ORDER BY p.last_seen_at DESC, p.username COLLATE utf8mb4_unicode_ci ASC`,
+    params,
+  );
+  return rows.map(mapMysqlUserIpProfileRow).filter(Boolean);
+}
+
+async function getActiveUserIpProfiles() {
+  const cutoff = getUserIpProfileCutoff();
+  if (MYSQL_ENABLED) {
+    try {
+      await pruneExpiredUserIpProfiles();
+      return await listMysqlUserIpProfiles('WHERE p.last_seen_at >= ?', [cutoff]);
+    } catch (error) {
+      logMysqlFallback('getActiveUserIpProfiles', error);
+    }
+  }
+  return attachLocalUserDisplayNames(loadActiveUserIpProfiles({ prune: true }).profiles);
+}
+
+async function getUsersLastIpSummary(usernames = []) {
+  const usernameKeys = [...new Set((usernames || []).map(normalizeUsernameKey).filter(Boolean))];
+  if (!usernameKeys.length) return {};
+  const usernameByKey = new Map();
+  for (const username of usernames || []) {
+    const usernameKey = normalizeUsernameKey(username);
+    if (usernameKey && !usernameByKey.has(usernameKey)) usernameByKey.set(usernameKey, normalizeUsername(username));
+  }
+
+  const allProfiles = await getActiveUserIpProfiles();
+  const profiles = allProfiles
+    .filter(profile => usernameKeys.includes(profile.username_key))
+    .sort((a, b) => (b.last_seen_at - a.last_seen_at) || a.username.localeCompare(b.username, 'zh-CN'));
+  const sameCounts = buildUserIpSameUserCounts(allProfiles);
+  const summaries = {};
+  for (const usernameKey of usernameKeys) {
+    const latest = profiles.find(profile => profile.username_key === usernameKey);
+    const originalUsername = usernameByKey.get(usernameKey);
+    if (!latest || !originalUsername) {
+      summaries[originalUsername || usernameKey] = null;
+      continue;
+    }
+    summaries[originalUsername] = mapUserIpProfileForResponse(latest, {
+      same_user_count: sameCounts.get(latest.ip_hash) || 0,
+      display_name: latest.display_name,
+    });
+  }
+  return summaries;
+}
+
+async function getUserIpProfile(username) {
+  const usernameKey = normalizeUsernameKey(username);
+  if (!usernameKey) return null;
+  const allProfiles = await getActiveUserIpProfiles();
+  const sameCounts = buildUserIpSameUserCounts(allProfiles);
+  const history = allProfiles
+    .filter(profile => profile.username_key === usernameKey)
+    .sort((a, b) => (b.last_seen_at - a.last_seen_at) || a.ip_hash.localeCompare(b.ip_hash))
+    .map(profile => mapUserIpProfileForResponse(profile, {
+      same_user_count: sameCounts.get(profile.ip_hash) || 0,
+      display_name: profile.display_name,
+    }))
+    .filter(Boolean);
+  const ipHashes = new Set(history.map(item => item.ip_hash));
+  const sameIpUsers = allProfiles
+    .filter(profile => ipHashes.has(profile.ip_hash) && profile.username_key !== usernameKey)
+    .sort((a, b) => (b.last_seen_at - a.last_seen_at) || a.username.localeCompare(b.username, 'zh-CN'))
+    .map(profile => mapUserIpProfileForResponse(profile, {
+      same_user_count: sameCounts.get(profile.ip_hash) || 0,
+      display_name: profile.display_name,
+    }))
+    .filter(Boolean);
+  return {
+    username: normalizeUsername(username),
+    latest_ip: history[0] || null,
+    history,
+    same_ip_users: sameIpUsers,
+    retention_days: getUserIpProfileRetentionDays(),
+  };
+}
+
+async function findUsersByIpAddress(ipAddress) {
+  const normalizedIp = normalizeIpAddress(ipAddress);
+  const ipHash = hashUserIpAddress(normalizedIp);
+  if (!normalizedIp || !ipHash) return null;
+  const allProfiles = await getActiveUserIpProfiles();
+  const sameCounts = buildUserIpSameUserCounts(allProfiles);
+  const users = allProfiles
+    .filter(profile => profile.ip_hash === ipHash)
+    .sort((a, b) => (b.last_seen_at - a.last_seen_at) || a.username.localeCompare(b.username, 'zh-CN'))
+    .map(profile => mapUserIpProfileForResponse(profile, {
+      same_user_count: sameCounts.get(profile.ip_hash) || 0,
+      display_name: profile.display_name,
+    }))
+    .filter(Boolean);
+  return {
+    ip_address: normalizedIp,
+    ip_hash: ipHash,
+    ip_masked: maskIpAddress(normalizedIp),
+    ip_display: normalizedIp,
+    users,
+    total: users.length,
+    retention_days: getUserIpProfileRetentionDays(),
+  };
+}
+
+async function deleteUserIpProfiles(username) {
+  const usernameKey = normalizeUsernameKey(username);
+  if (!usernameKey) return 0;
+  if (MYSQL_ENABLED) {
+    try {
+      await ensureMysqlReady();
+      const [result] = await buildMysqlPool().execute(
+        'DELETE FROM user_ip_profiles WHERE username_key = ?',
+        [usernameKey],
+      );
+      return Number(result?.affectedRows) || 0;
+    } catch (error) {
+      logMysqlFallback('deleteUserIpProfiles', error);
+    }
+  }
+  const store = loadUserIpProfileStore();
+  const before = store.profiles.length;
+  store.profiles = store.profiles
+    .map(normalizeUserIpProfileEntry)
+    .filter(entry => entry && entry.username_key !== usernameKey);
+  saveUserIpProfileStore(store);
+  return Math.max(0, before - store.profiles.length);
 }
 
 async function addQuota(username, amount) {
@@ -1109,6 +1788,7 @@ async function deleteUserPermanently(username) {
     const [result] = await pool.execute('DELETE FROM users WHERE username_key = ?', [usernameKey]);
     if (result.affectedRows <= 0) return null;
 
+    await deleteUserIpProfiles(current.username);
     deleteUserSaveData(current.username);
     return current;
   }
@@ -1122,6 +1802,7 @@ async function deleteUserPermanently(username) {
   record.store.users = nextUsers;
   saveStore(record.store);
   clearLocalUserMeta(record.usernameKey);
+  await deleteUserIpProfiles(record.user.username);
   deleteUserSaveData(record.user.username);
   return record.user;
 }
@@ -1896,6 +2577,15 @@ module.exports = {
   listAdminAuditLogs,
   pruneAdminAuditLogs,
   getAdminAuditRetentionPolicy,
+  recordUserIpProfile,
+  getUsersLastIpSummary,
+  getUserIpProfile,
+  findUsersByIpAddress,
+  hashUserIpAddress,
+  normalizeIpAddress,
+  maskIpAddress,
+  pruneExpiredUserIpProfiles,
+  getUserIpProfileRetentionDays,
   recordContentRevision,
   listContentRevisions,
   getContentRevision,

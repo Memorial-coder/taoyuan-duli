@@ -74,6 +74,10 @@ const PUBLIC_AI_ASK_DEFAULT_CONCURRENCY_MAX = 2;
 const PUBLIC_AI_ASK_DEFAULT_BUCKET_LIMIT = 2000;
 const PUBLIC_AI_ASK_DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ONLINE_ACTION_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const USER_IP_PROFILE_ME_THROTTLE_MS = Math.max(
+  60 * 1000,
+  parseInt(process.env.USER_IP_PROFILE_ME_THROTTLE_MS || `${30 * 60 * 1000}`, 10) || (30 * 60 * 1000),
+);
 const publicAiAskBuckets = new Map();
 let publicAiAskLastCleanupAt = 0;
 const onlineActionRateLimitBuckets = new Map();
@@ -1369,10 +1373,29 @@ function emitPendingMailCampaignNotificationCreatedEvents(result = {}) {
   return emitted;
 }
 
+const PENDING_MAIL_CAMPAIGN_PROCESS_THROTTLE_MS = Math.max(
+  1000,
+  Math.floor(Number(process.env.TAOYUAN_PENDING_MAIL_CAMPAIGN_PROCESS_THROTTLE_MS) || 5000)
+);
+let pendingMailCampaignLastCheckAt = 0;
+let pendingMailCampaignInFlight = null;
+
 async function processPendingMailCampaignsAndEmitNotifications() {
-  const result = await taoyuanMailbox.processPendingCampaigns();
-  emitPendingMailCampaignNotificationCreatedEvents(result);
-  return result;
+  const now = Date.now();
+  if (pendingMailCampaignInFlight) return pendingMailCampaignInFlight;
+  if (now - pendingMailCampaignLastCheckAt < PENDING_MAIL_CAMPAIGN_PROCESS_THROTTLE_MS) {
+    return { changed: false, campaigns: [], deliveries: [], throttled: true };
+  }
+  pendingMailCampaignLastCheckAt = now;
+  pendingMailCampaignInFlight = taoyuanMailbox.processPendingCampaigns()
+    .then(result => {
+      emitPendingMailCampaignNotificationCreatedEvents(result);
+      return result;
+    })
+    .finally(() => {
+      pendingMailCampaignInFlight = null;
+    });
+  return pendingMailCampaignInFlight;
 }
 
 function emitHallReplyNotificationCreatedEvent(post = {}, reply = {}, actor = {}) {
@@ -1962,6 +1985,35 @@ async function establishUserSession(req, user) {
   req.session.csrf_token = crypto.randomBytes(24).toString('hex');
 }
 
+async function recordRequestUserIpProfile(req, username, source, options = {}) {
+  const canonicalUsername = normalizeUsername(username);
+  const ipAddress = getRequestIpAddress(req);
+  const ipHash = db.hashUserIpAddress(ipAddress);
+  if (!canonicalUsername || !ipHash) return null;
+
+  const throttleMs = Math.max(0, Number(options.throttleMs) || 0);
+  if (throttleMs > 0 && req.session) {
+    const now = Date.now();
+    const lastRecordedAt = Number(req.session.user_ip_profile_last_recorded_at) || 0;
+    const lastIpHash = String(req.session.user_ip_profile_last_ip_hash || '');
+    if (lastIpHash === ipHash && now - lastRecordedAt < throttleMs) {
+      return null;
+    }
+  }
+
+  try {
+    const result = await db.recordUserIpProfile(canonicalUsername, ipAddress, source);
+    if (result && req.session) {
+      req.session.user_ip_profile_last_recorded_at = Date.now();
+      req.session.user_ip_profile_last_ip_hash = ipHash;
+    }
+    return result;
+  } catch (error) {
+    console.warn('[user-ip-profile] Failed to record user IP profile', error?.message || error);
+    return null;
+  }
+}
+
 function buildAdminPermissions(role) {
   const isSuperAdmin = role === 'super_admin';
   return {
@@ -1977,6 +2029,7 @@ function buildAdminPermissions(role) {
     manage_content: true,
     view_content_logs: true,
     view_gameplay_logs: true,
+    view_user_ips: true,
   };
 }
 
@@ -2602,6 +2655,68 @@ async function appendAdminAuditLog(req, action, targetUsername, detail = {}) {
       ...normalizedDetail,
     },
   });
+}
+
+function redactUserIpRecordForAdmin(record, adminRole) {
+  if (!record) return null;
+  const isSuperAdmin = adminRole === 'super_admin';
+  const ipMasked = String(record.ip_masked || record.ip_display || '').trim();
+  const ipAddress = String(record.ip_address || '').trim();
+  const safe = {
+    username: String(record.username || ''),
+    display_name: String(record.display_name || record.username || ''),
+    ip_hash: String(record.ip_hash || ''),
+    ip_masked: ipMasked,
+    ip_display: isSuperAdmin ? (ipAddress || ipMasked) : ipMasked,
+    first_seen_at: Number(record.first_seen_at) || 0,
+    last_seen_at: Number(record.last_seen_at) || 0,
+    source: String(record.source || ''),
+    sources: Array.isArray(record.sources) ? record.sources : [],
+    count: Math.max(0, Number(record.count) || 0),
+    same_user_count: Math.max(0, Number(record.same_user_count) || 0),
+  };
+  if (isSuperAdmin && ipAddress) safe.ip_address = ipAddress;
+  return safe;
+}
+
+function redactUserIpProfileForAdmin(profile, adminRole) {
+  return {
+    username: String(profile?.username || ''),
+    latest_ip: redactUserIpRecordForAdmin(profile?.latest_ip, adminRole),
+    history: Array.isArray(profile?.history)
+      ? profile.history.map(item => redactUserIpRecordForAdmin(item, adminRole)).filter(Boolean)
+      : [],
+    same_ip_users: Array.isArray(profile?.same_ip_users)
+      ? profile.same_ip_users.map(item => redactUserIpRecordForAdmin(item, adminRole)).filter(Boolean)
+      : [],
+    retention_days: Math.max(0, Number(profile?.retention_days) || 0),
+  };
+}
+
+function redactUserIpLookupForAdmin(lookup, adminRole) {
+  const isSuperAdmin = adminRole === 'super_admin';
+  const ipMasked = String(lookup?.ip_masked || lookup?.ip_display || '').trim();
+  const ipAddress = String(lookup?.ip_address || '').trim();
+  const safe = {
+    ip_hash: String(lookup?.ip_hash || ''),
+    ip_masked: ipMasked,
+    ip_display: isSuperAdmin ? (ipAddress || ipMasked) : ipMasked,
+    total: Math.max(0, Number(lookup?.total) || 0),
+    retention_days: Math.max(0, Number(lookup?.retention_days) || 0),
+    users: Array.isArray(lookup?.users)
+      ? lookup.users.map(item => redactUserIpRecordForAdmin(item, adminRole)).filter(Boolean)
+      : [],
+  };
+  if (isSuperAdmin && ipAddress) safe.ip_address = ipAddress;
+  return safe;
+}
+
+async function attachLastIpSummariesForAdmin(users = [], adminRole = '') {
+  const summaries = await db.getUsersLastIpSummary(users.map(user => user.username));
+  return users.map(user => ({
+    ...user,
+    last_ip: redactUserIpRecordForAdmin(summaries[user.username], adminRole),
+  }));
 }
 
 function findAdminHallPost(postId) {
@@ -3817,6 +3932,7 @@ router.post('/register', async (req, res, next) => {
     if (!result.ok) return res.status(400).json(result);
 
     await establishUserSession(req, result.user);
+    await recordRequestUserIpProfile(req, result.user.username, 'register');
     res.json({ ok: true, msg: '注册成功', user: result.user, csrf_token: req.session.csrf_token });
   } catch (error) {
     next(error);
@@ -3829,6 +3945,7 @@ router.post('/login', async (req, res, next) => {
     if (!result.ok) return res.status(400).json(result);
 
     await establishUserSession(req, result.user);
+    await recordRequestUserIpProfile(req, result.user.username, 'login');
     res.json({ ok: true, msg: '登录成功', user: result.user, csrf_token: req.session.csrf_token });
   } catch (error) {
     next(error);
@@ -3844,6 +3961,9 @@ router.get('/me', loginRequired, async (req, res) => {
   const quota = await db.getQuota(req.session.username);
   const er = cfg.get('exchange_rate') || db.EXCHANGE_RATE;
   if (!req.session.csrf_token) req.session.csrf_token = crypto.randomBytes(24).toString('hex');
+  await recordRequestUserIpProfile(req, req.session.username, 'session_check', {
+    throttleMs: USER_IP_PROFILE_ME_THROTTLE_MS,
+  });
   res.json({
     ok: true,
     csrf_token: req.session.csrf_token,
@@ -4057,6 +4177,7 @@ router.get('/admin/log-center/overview', userAdminAuth, async (req, res) => {
       onlineAudit,
       contentRevision,
       gameplay,
+      privateChat,
       adminAuditRetention,
     ] = await Promise.all([
       req.admin?.role === 'super_admin'
@@ -4065,6 +4186,7 @@ router.get('/admin/log-center/overview', userAdminAuth, async (req, res) => {
       taoyuanOnlineAudit.getOnlineAuditOverview(),
       db.listContentRevisions({ page: 1, pageSize: 1 }),
       db.getGameplayEventLogOverview(),
+      Promise.resolve(taoyuanChatRuntime.getAdminPrivateChatOverview()),
       Promise.resolve(db.getAdminAuditRetentionPolicy()),
     ]);
     const contentModeration = taoyuanContentModerationAudit.getContentModerationAuditOverview();
@@ -4095,8 +4217,16 @@ router.get('/admin/log-center/overview', userAdminAuth, async (req, res) => {
           total: Number(gameplay.total) || 0,
           latest_created_at: Number(gameplay.latest_created_at) || 0,
           retention_days: Number(gameplay.retention?.retention_days) || 30,
-          max_total: Number(gameplay.retention?.max_total) || 500000,
-          max_per_user_slot: Number(gameplay.retention?.max_per_user_slot) || 12000,
+          max_total: Number(gameplay.retention?.max_total) || 1000000,
+          max_per_user_slot: Number(gameplay.retention?.max_per_user_slot) || 24000,
+          visible: true,
+        },
+        private_chat: {
+          label: '私聊记录',
+          total: Number(privateChat.total) || 0,
+          latest_created_at: Number(privateChat.latest_created_at) || 0,
+          retention_days: null,
+          retention_label: privateChat.retention_label || '每会话最近 500 条',
           visible: true,
         },
         content_revision: {
@@ -6934,6 +7064,25 @@ router.post('/admin/official-control/instances/:id/reset-license', userAdminAuth
   }
 });
 
+router.get('/admin/user-ips', userAdminAuth, async (req, res) => {
+  try {
+    const ip = String(req.query.ip || '').trim();
+    const lookup = await db.findUsersByIpAddress(ip);
+    if (!lookup) return res.status(400).json({ ok: false, msg: 'IP 地址格式无效' });
+
+    await appendAdminAuditLog(req, 'reverse_lookup_user_ip', `ip:${lookup.ip_hash.slice(0, 12)}`, {
+      target_type: 'user_ip',
+      target_id: lookup.ip_hash,
+      target_ip_hash: lookup.ip_hash,
+      matched_user_count: lookup.users.length,
+    });
+
+    res.json({ ok: true, lookup: redactUserIpLookupForAdmin(lookup, req.admin?.role) });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'IP 反查用户失败' });
+  }
+});
+
 router.get('/admin/users', userAdminAuth, async (req, res) => {
   try {
     const page = parsePositiveInt(req.query.page, 1);
@@ -6945,14 +7094,38 @@ router.get('/admin/users', userAdminAuth, async (req, res) => {
       pageSize,
     });
 
-    const users = result.users.map(user => ({
+    const usersWithSave = result.users.map(user => ({
       ...user,
       save_file: getSaveFileSummary(user.username),
     }));
+    const users = await attachLastIpSummariesForAdmin(usersWithSave, req.admin?.role);
 
     res.json({ ok: true, ...result, users });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取用户列表失败' });
+  }
+});
+
+router.get('/admin/users/:username/ip-profile', userAdminAuth, async (req, res) => {
+  try {
+    const username = decodeRouteUsername(req.params.username);
+    const user = await db.getUserAdmin(username);
+    if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
+
+    const profile = await db.getUserIpProfile(user.username);
+    const safeProfile = redactUserIpProfileForAdmin(profile || { username: user.username }, req.admin?.role);
+    await appendAdminAuditLog(req, 'view_user_ip_profile', user.username, {
+      target_type: 'user_ip_profile',
+      target_id: user.username,
+      queried_username: user.username,
+      target_ip_hashes: safeProfile.history.map(item => item.ip_hash).slice(0, 50),
+      ip_count: safeProfile.history.length,
+      same_ip_user_count: safeProfile.same_ip_users.length,
+    });
+
+    res.json({ ok: true, profile: safeProfile });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取用户 IP 来源失败' });
   }
 });
 
@@ -6966,12 +7139,14 @@ router.get('/admin/users/:username', userAdminAuth, async (req, res) => {
       pageSize: 20,
       targetUsername: user.username,
     });
+    const lastIpSummaries = await db.getUsersLastIpSummary([user.username]);
 
     res.json({
       ok: true,
       user: {
         ...user,
         save_file: getSaveFileSummary(user.username),
+        last_ip: redactUserIpRecordForAdmin(lastIpSummaries[user.username], req.admin?.role),
         recent_governance_logs: recentAuditLogs.logs,
       },
     });
@@ -7658,6 +7833,34 @@ router.post('/taoyuan/announcements/:id/claim-reward', loginRequired, signRequir
   }
 });
 
+router.post('/taoyuan/announcements/events/batch', async (req, res) => {
+  try {
+    if (!Array.isArray(req.body?.events)) {
+      return res.status(400).json({ ok: false, msg: 'Invalid announcement event batch' });
+    }
+    const username = req.session?.username || '';
+    const events = req.body.events.slice(0, 200).map(event => ({
+      announcement_id: event?.announcement_id || event?.announcementId || event?.id || '',
+      username,
+      event_type: event?.event_type || event?.eventType || '',
+      client_version: event?.client_version || event?.clientVersion || '',
+      client_channel: event?.client_channel || event?.clientChannel || '',
+      detail: event?.detail && typeof event.detail === 'object' && !Array.isArray(event.detail)
+        ? event.detail
+        : {},
+    }));
+    const result = await taoyuanAnnouncementRuntime.recordAnnouncementEventsBatch(events);
+    res.json({
+      ok: true,
+      recorded: result.recorded === true,
+      recorded_count: result.recorded_count,
+      skipped_count: result.skipped_count,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'Failed to record announcement event batch' });
+  }
+});
+
 router.post('/taoyuan/announcements/:id/events', async (req, res) => {
   try {
     const eventType = String(req.body?.event_type || req.body?.eventType || '').trim();
@@ -7705,6 +7908,27 @@ router.get('/admin/gameplay-logs', userAdminAuth, async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取游戏日志失败' });
+  }
+});
+
+router.get('/admin/private-chat/messages', userAdminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 50);
+    const result = taoyuanChatRuntime.listAdminPrivateChatMessages({
+      page,
+      pageSize,
+      username: req.query.username,
+      sender_username: req.query.sender_username || req.query.senderUsername || req.query.sender,
+      recipient_username: req.query.recipient_username || req.query.recipientUsername || req.query.recipient,
+      keyword: req.query.keyword,
+      type: req.query.type,
+      createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
+      createdTo: req.query.created_to || req.query.createdTo || req.query.to,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取私聊记录失败' });
   }
 });
 

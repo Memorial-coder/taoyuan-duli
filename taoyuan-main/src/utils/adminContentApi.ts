@@ -71,6 +71,31 @@ export interface GameplayLogListResult {
   }
 }
 
+export interface AdminPrivateChatMessageEntry {
+  id: string
+  conversation_id: string
+  sender_username: string
+  sender_display_name: string
+  recipient_username: string
+  recipient_display_name: string
+  type: 'text' | 'photo' | 'gift' | string
+  content: string
+  photo_url: string
+  photo_alt: string
+  gift_delivery_id: string
+  gift_reward_count: number
+  gift_claimed_at: number | null
+  deleted_at: number | null
+  created_at: number
+}
+
+export interface AdminPrivateChatMessageListResult {
+  total: number
+  page: number
+  pageSize: number
+  messages: AdminPrivateChatMessageEntry[]
+}
+
 export interface AdminLogSourceOverview {
   label: string
   total: number
@@ -86,7 +111,7 @@ export interface AdminLogSourceOverview {
 
 export interface AdminLogCenterOverviewResult {
   sources: Record<
-    'admin_audit' | 'online_audit' | 'content_moderation' | 'gameplay' | 'content_revision',
+    'admin_audit' | 'online_audit' | 'content_moderation' | 'gameplay' | 'private_chat' | 'content_revision',
     AdminLogSourceOverview
   >
 }
@@ -269,6 +294,7 @@ export const fetchAdminLogCenterOverview = async (tokenOverride?: string): Promi
       online_audit: normalizeSource(data.sources?.online_audit),
       content_moderation: normalizeSource(data.sources?.content_moderation),
       gameplay: normalizeSource(data.sources?.gameplay),
+      private_chat: normalizeSource(data.sources?.private_chat),
       content_revision: normalizeSource(data.sources?.content_revision),
     },
   }
@@ -416,6 +442,39 @@ export const fetchGameplayLogs = async (
     pageSize: Number(data.pageSize || data.page_size) || params.pageSize || 50,
     logs: Array.isArray(data.logs) ? data.logs : [],
     retention: data.retention,
+  }
+}
+
+export const fetchAdminPrivateChatMessages = async (
+  params: {
+    username?: string
+    senderUsername?: string
+    recipientUsername?: string
+    keyword?: string
+    type?: string
+    createdFrom?: number
+    createdTo?: number
+    page?: number
+    pageSize?: number
+  },
+  tokenOverride?: string,
+): Promise<AdminPrivateChatMessageListResult> => {
+  const search = new URLSearchParams()
+  if (params.username) search.set('username', params.username)
+  if (params.senderUsername) search.set('sender_username', params.senderUsername)
+  if (params.recipientUsername) search.set('recipient_username', params.recipientUsername)
+  if (params.keyword) search.set('keyword', params.keyword)
+  if (params.type) search.set('type', params.type)
+  if (params.createdFrom) search.set('created_from', String(params.createdFrom))
+  if (params.createdTo) search.set('created_to', String(params.createdTo))
+  search.set('page', String(params.page || 1))
+  search.set('page_size', String(params.pageSize || 50))
+  const data = await adminRequest<AdminPrivateChatMessageListResult & { page_size?: number }>(`/api/admin/private-chat/messages?${search.toString()}`, undefined, tokenOverride)
+  return {
+    total: Number(data.total) || 0,
+    page: Number(data.page) || 1,
+    pageSize: Number(data.pageSize || data.page_size) || params.pageSize || 50,
+    messages: Array.isArray(data.messages) ? data.messages : [],
   }
 }
 

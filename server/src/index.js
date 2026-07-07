@@ -27,6 +27,8 @@ if (String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() =
 
 const fs = require('fs');
 const http = require('http');
+const zlib = require('zlib');
+const { promisify } = require('util');
 const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
@@ -78,6 +80,8 @@ const apiRoutes = require('./routes/api');
 
 const app = express();
 const server = http.createServer(app);
+const gzipAsync = promisify(zlib.gzip);
+const brotliCompressAsync = promisify(zlib.brotliCompress);
 const PORT = parseInt(process.env.PORT || '4013', 10);
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').trim().toLowerCase() === 'true';
 const COOKIE_SAME_SITE = String(process.env.COOKIE_SAME_SITE || '').trim().toLowerCase();
@@ -211,7 +215,17 @@ function loadSessionStoreSnapshot(filePath) {
 }
 
 function saveSessionStoreSnapshot(filePath, snapshot) {
-  fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(snapshot, null, 2), 'utf8');
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+    throw error;
+  }
 }
 
 function getSessionExpiresAt(sessionData) {
@@ -225,25 +239,46 @@ class FileSessionStore extends session.Store {
   constructor(filePath) {
     super();
     this.filePath = filePath;
+    this.snapshot = loadSessionStoreSnapshot(filePath);
+    this.saveTimer = null;
+    this.lastPruneAt = 0;
+    this.lastTouchFlushBySid = new Map();
+    this.pruneExpired(true);
   }
 
-  pruneExpired(snapshot) {
+  pruneExpired(force = false) {
     const now = Date.now();
+    if (!force && now - this.lastPruneAt < 60_000) return this.snapshot;
+    this.lastPruneAt = now;
     let changed = false;
-    for (const [sid, sessionData] of Object.entries(snapshot)) {
+    for (const [sid, sessionData] of Object.entries(this.snapshot)) {
       const expiresAt = getSessionExpiresAt(sessionData);
       if (expiresAt && expiresAt <= now) {
-        delete snapshot[sid];
+        delete this.snapshot[sid];
+        this.lastTouchFlushBySid.delete(sid);
         changed = true;
       }
     }
-    if (changed) saveSessionStoreSnapshot(this.filePath, snapshot);
-    return snapshot;
+    if (changed) this.scheduleSave(250);
+    return this.snapshot;
+  }
+
+  scheduleSave(delayMs = 1000) {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      try {
+        saveSessionStoreSnapshot(this.filePath, this.snapshot);
+      } catch (error) {
+        console.error('[session-store] failed to persist sessions:', error);
+      }
+    }, delayMs);
+    this.saveTimer.unref?.();
   }
 
   get(sid, callback) {
     try {
-      const snapshot = this.pruneExpired(loadSessionStoreSnapshot(this.filePath));
+      const snapshot = this.pruneExpired();
       callback(null, snapshot[sid] || null);
     } catch (error) {
       callback(error);
@@ -252,9 +287,9 @@ class FileSessionStore extends session.Store {
 
   set(sid, sessionData, callback) {
     try {
-      const snapshot = this.pruneExpired(loadSessionStoreSnapshot(this.filePath));
-      snapshot[sid] = sessionData;
-      saveSessionStoreSnapshot(this.filePath, snapshot);
+      this.pruneExpired();
+      this.snapshot[sid] = sessionData;
+      this.scheduleSave(250);
       callback?.();
     } catch (error) {
       callback?.(error);
@@ -263,9 +298,9 @@ class FileSessionStore extends session.Store {
 
   destroy(sid, callback) {
     try {
-      const snapshot = loadSessionStoreSnapshot(this.filePath);
-      delete snapshot[sid];
-      saveSessionStoreSnapshot(this.filePath, snapshot);
+      delete this.snapshot[sid];
+      this.lastTouchFlushBySid.delete(sid);
+      this.scheduleSave(250);
       callback?.();
     } catch (error) {
       callback?.(error);
@@ -273,15 +308,264 @@ class FileSessionStore extends session.Store {
   }
 
   touch(sid, sessionData, callback) {
-    this.set(sid, sessionData, callback);
+    try {
+      const current = this.snapshot[sid] || sessionData;
+      if (current) {
+        current.cookie = sessionData.cookie;
+        this.snapshot[sid] = current;
+      }
+      const now = Date.now();
+      const lastFlush = this.lastTouchFlushBySid.get(sid) || 0;
+      if (now - lastFlush >= 30_000) {
+        this.lastTouchFlushBySid.set(sid, now);
+        this.scheduleSave(1000);
+      }
+      callback?.();
+    } catch (error) {
+      callback?.(error);
+    }
   }
 }
 
 const allowedOrigins = new Set(parseAllowedOrigins());
 const sessionStore = new FileSessionStore(SESSION_STORE_FILE);
+const STATIC_GZIP_CACHE_MAX_ENTRIES = Math.max(
+  32,
+  Math.floor(Number(process.env.TAOYUAN_STATIC_GZIP_CACHE_MAX_ENTRIES) || 512)
+);
+const STATIC_GZIP_MIN_BYTES = 1024;
+const STATIC_MANIFEST_MAX_AGE_SECONDS = Math.max(
+  60,
+  Math.floor(Number(process.env.TAOYUAN_STATIC_MANIFEST_MAX_AGE_SECONDS) || 86400)
+);
+const STATIC_MANIFEST_STALE_SECONDS = Math.max(
+  STATIC_MANIFEST_MAX_AGE_SECONDS,
+  Math.floor(Number(process.env.TAOYUAN_STATIC_MANIFEST_STALE_SECONDS) || 604800)
+);
+const staticGzipCache = new Map();
 const resolvedCookieSameSite = ['lax', 'strict', 'none'].includes(COOKIE_SAME_SITE)
   ? COOKIE_SAME_SITE
   : (COOKIE_SECURE ? 'none' : 'lax');
+const STATIC_COMPRESSIBLE_TYPES = new Map([
+  ['.css', 'text/css; charset=utf-8'],
+  ['.html', 'text/html; charset=utf-8'],
+  ['.js', 'application/javascript; charset=utf-8'],
+  ['.json', 'application/json; charset=utf-8'],
+  ['.mjs', 'application/javascript; charset=utf-8'],
+  ['.svg', 'image/svg+xml; charset=utf-8'],
+  ['.txt', 'text/plain; charset=utf-8'],
+  ['.xml', 'application/xml; charset=utf-8'],
+]);
+const STATIC_COMPRESSION_PREFIXES = [
+  '/assets/',
+  '/asset_fish_boss/',
+  '/crop/',
+  '/icons/',
+  '/item/',
+  '/npc/',
+];
+
+function isManifestJson(filePath) {
+  return path.basename(filePath).endsWith('-manifest.json');
+}
+
+function getAssetCacheControl(filePath) {
+  const basename = path.basename(filePath);
+  if (isManifestJson(filePath)) {
+    return `public, max-age=${STATIC_MANIFEST_MAX_AGE_SECONDS}, stale-while-revalidate=${STATIC_MANIFEST_STALE_SECONDS}`;
+  }
+  if (basename.endsWith('-qa-report.json')) {
+    return 'public, max-age=300, stale-while-revalidate=3600';
+  }
+  return 'public, max-age=31536000, immutable';
+}
+
+function setAssetStaticHeaders(res, filePath) {
+  res.setHeader('Cache-Control', getAssetCacheControl(filePath));
+  if (path.extname(filePath).toLowerCase() === '.json') {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  }
+}
+
+function resolveMountedStaticFile(rootDir, requestPath) {
+  const root = path.resolve(rootDir);
+  const resolved = path.resolve(root, `.${String(requestPath || '/')}`);
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
+  return resolved;
+}
+
+function trimStaticGzipCache() {
+  while (staticGzipCache.size > STATIC_GZIP_CACHE_MAX_ENTRIES) {
+    const firstKey = staticGzipCache.keys().next().value;
+    if (!firstKey) break;
+    staticGzipCache.delete(firstKey);
+  }
+}
+
+function getStaticEtag(stat) {
+  return `W/"${Number(stat.size || 0).toString(16)}-${Number(stat.mtimeMs || 0).toFixed(0)}"`;
+}
+
+function requestMatchesStaticCache(req, stat) {
+  const etag = getStaticEtag(stat);
+  const ifNoneMatch = String(req.headers['if-none-match'] || '');
+  if (ifNoneMatch && ifNoneMatch.split(',').map(item => item.trim()).includes(etag)) {
+    return true;
+  }
+  const ifModifiedSince = String(req.headers['if-modified-since'] || '');
+  if (ifModifiedSince) {
+    const modifiedSince = Date.parse(ifModifiedSince);
+    if (Number.isFinite(modifiedSince) && stat.mtime.getTime() <= modifiedSince + 999) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function getCompressedStaticFile(filePath, stat, encoding) {
+  const cacheKey = `${encoding}:${filePath}:${stat.size}:${Number(stat.mtimeMs).toFixed(0)}`;
+  const cached = staticGzipCache.get(cacheKey);
+  if (cached?.key === cacheKey && cached.buffer) return cached.buffer;
+  if (cached?.key === cacheKey && cached.promise) return cached.promise;
+
+  const compress = encoding === 'br'
+    ? buffer => brotliCompressAsync(buffer, {
+        params: {
+          [zlib.constants.BROTLI_PARAM_QUALITY]: 4,
+        },
+      })
+    : buffer => gzipAsync(buffer, { level: zlib.constants.Z_BEST_SPEED });
+
+  const promise = fs.promises.readFile(filePath)
+    .then(buffer => compress(buffer))
+    .then(buffer => {
+      staticGzipCache.set(cacheKey, { key: cacheKey, buffer });
+      trimStaticGzipCache();
+      return buffer;
+    })
+    .catch(error => {
+      if (staticGzipCache.get(cacheKey)?.key === cacheKey) staticGzipCache.delete(cacheKey);
+      throw error;
+    });
+
+  staticGzipCache.set(cacheKey, { key: cacheKey, promise });
+  trimStaticGzipCache();
+  return promise;
+}
+
+function pickStaticCompressionEncoding(req) {
+  const accepted = String(req.headers['accept-encoding'] || '');
+  if (/\bbr\b/.test(accepted) && typeof zlib.brotliCompress === 'function') return 'br';
+  if (/\bgzip\b/.test(accepted)) return 'gzip';
+  return '';
+}
+
+function getStaticContentType(filePath) {
+  return STATIC_COMPRESSIBLE_TYPES.get(path.extname(filePath).toLowerCase()) || '';
+}
+
+function isCompressibleStaticFile(filePath) {
+  return STATIC_COMPRESSIBLE_TYPES.has(path.extname(filePath).toLowerCase());
+}
+
+function findPrecompressedStaticFile(filePath, encoding) {
+  const extension = encoding === 'br' ? '.br' : encoding === 'gzip' ? '.gz' : '';
+  if (!extension) return null;
+  const encodedPath = `${filePath}${extension}`;
+  try {
+    const stat = fs.statSync(encodedPath);
+    return stat.isFile() ? { path: encodedPath, stat } : null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldSkipGlobalCompression(req, res) {
+  const requestPath = String(req.path || req.url || '');
+  if (STATIC_COMPRESSION_PREFIXES.some(prefix => requestPath.startsWith(prefix))) {
+    return false;
+  }
+  return compression.filter(req, res);
+}
+
+function createCompressedStaticMiddleware(rootDir) {
+  return async (req, res, next) => {
+    try {
+      if (!['GET', 'HEAD'].includes(req.method)) {
+        next();
+        return;
+      }
+      const encoding = pickStaticCompressionEncoding(req);
+      if (!encoding) {
+        next();
+        return;
+      }
+      if (req.headers.range) {
+        next();
+        return;
+      }
+
+      const filePath = resolveMountedStaticFile(rootDir, req.path);
+      if (!filePath || !isCompressibleStaticFile(filePath)) {
+        next();
+        return;
+      }
+
+      const stat = await fs.promises.stat(filePath).catch(() => null);
+      if (!stat?.isFile() || stat.size < STATIC_GZIP_MIN_BYTES) {
+        next();
+        return;
+      }
+
+      setAssetStaticHeaders(res, filePath);
+      res.setHeader('ETag', getStaticEtag(stat));
+      res.setHeader('Last-Modified', stat.mtime.toUTCString());
+      res.setHeader('Vary', 'Accept-Encoding');
+      if (requestMatchesStaticCache(req, stat)) {
+        res.statusCode = 304;
+        res.end();
+        return;
+      }
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', getStaticContentType(filePath));
+      res.setHeader('Content-Encoding', encoding);
+      const precompressed = findPrecompressedStaticFile(filePath, encoding);
+      if (precompressed) {
+        res.setHeader('Content-Length', String(precompressed.stat.size));
+        if (req.method === 'HEAD') {
+          res.end();
+          return;
+        }
+        fs.createReadStream(precompressed.path)
+          .on('error', next)
+          .pipe(res);
+        return;
+      }
+
+      const buffer = await getCompressedStaticFile(filePath, stat, encoding);
+      res.setHeader('Content-Length', String(buffer.length));
+      if (req.method === 'HEAD') {
+        res.end();
+        return;
+      }
+      res.end(buffer);
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+function mountAssetStatic(route, dir, label) {
+  app.use(route, createCompressedStaticMiddleware(dir));
+  app.use(route, express.static(dir, {
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+    setHeaders: setAssetStaticHeaders,
+  }));
+  console.log(`${label} mounted at ${route}: ${dir}`);
+}
 
 function createHallUploadVisibilityGuard() {
   return (req, res, next) => {
@@ -307,7 +591,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('combined'));
-app.use(compression({ threshold: 1024 }));
+app.use(compression({ threshold: 1024, filter: shouldSkipGlobalCompression }));
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true, limit: '12mb' }));
 app.use('/taoyuan/hall/uploads', createHallUploadVisibilityGuard(), express.static(taoyuanHall.HALL_UPLOADS_DIR, {
@@ -323,67 +607,19 @@ app.use('/taoyuan/hall/uploads', createHallUploadVisibilityGuard(), express.stat
 }));
 const itemIconDir = fs.existsSync(CONFIGURED_ITEM_ICON_DIR) ? CONFIGURED_ITEM_ICON_DIR : LOCAL_ITEM_ICON_DIR;
 if (fs.existsSync(itemIconDir)) {
-  app.use('/item', express.static(itemIconDir, {
-    index: false,
-    maxAge: '365d',
-    immutable: true,
-    setHeaders(res, filePath) {
-      if (path.basename(filePath) === 'item-icon-manifest.json') {
-        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-      } else {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-    },
-  }));
-  console.log(`Item icons mounted at /item: ${itemIconDir}`);
+  mountAssetStatic('/item', itemIconDir, 'Item icons');
 }
 const npcPortraitDir = fs.existsSync(CONFIGURED_NPC_PORTRAIT_DIR) ? CONFIGURED_NPC_PORTRAIT_DIR : LOCAL_NPC_PORTRAIT_DIR;
 if (fs.existsSync(npcPortraitDir)) {
-  app.use('/npc', express.static(npcPortraitDir, {
-    index: false,
-    maxAge: '365d',
-    immutable: true,
-    setHeaders(res, filePath) {
-      if (path.basename(filePath) === 'npc-portrait-manifest.json') {
-        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-      } else {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-    },
-  }));
-  console.log(`NPC portraits mounted at /npc: ${npcPortraitDir}`);
+  mountAssetStatic('/npc', npcPortraitDir, 'NPC portraits');
 }
 const cropAssetDir = fs.existsSync(CONFIGURED_CROP_ASSET_DIR) ? CONFIGURED_CROP_ASSET_DIR : LOCAL_CROP_ASSET_DIR;
 if (fs.existsSync(cropAssetDir)) {
-  app.use('/crop', express.static(cropAssetDir, {
-    index: false,
-    maxAge: '365d',
-    immutable: true,
-    setHeaders(res, filePath) {
-      if (path.basename(filePath) === 'crop-asset-manifest.json' || path.basename(filePath) === 'crop-asset-qa-report.json') {
-        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-      } else {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-    },
-  }));
-  console.log(`Crop assets mounted at /crop: ${cropAssetDir}`);
+  mountAssetStatic('/crop', cropAssetDir, 'Crop assets');
 }
 const fishBossAssetDir = fs.existsSync(CONFIGURED_FISH_BOSS_ASSET_DIR) ? CONFIGURED_FISH_BOSS_ASSET_DIR : LOCAL_FISH_BOSS_ASSET_DIR;
 if (fs.existsSync(fishBossAssetDir)) {
-  app.use('/asset_fish_boss', express.static(fishBossAssetDir, {
-    index: false,
-    maxAge: '365d',
-    immutable: true,
-    setHeaders(res, filePath) {
-      if (path.basename(filePath) === 'fish-boss-asset-manifest.json' || path.basename(filePath) === 'fish-boss-asset-qa-report.json') {
-        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-      } else {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-    },
-  }));
-  console.log(`Fish boss assets mounted at /asset_fish_boss: ${fishBossAssetDir}`);
+  mountAssetStatic('/asset_fish_boss', fishBossAssetDir, 'Fish boss assets');
 }
 app.use(session({
   name: 'taoyuan.sid',
@@ -408,6 +644,8 @@ app.use('/api', (req, res) => {
 const distPath = path.join(__dirname, '../../taoyuan-main/docs');
 if (fs.existsSync(distPath)) {
   const indexHtmlPath = path.join(distPath, 'index.html');
+  const distAssetsPath = path.join(distPath, 'assets');
+  app.use('/assets', createCompressedStaticMiddleware(distAssetsPath));
   app.use('/assets', express.static(path.join(distPath, 'assets'), {
     maxAge: '365d',
     immutable: true,
@@ -415,6 +653,7 @@ if (fs.existsSync(distPath)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
   }));
+  app.use(createCompressedStaticMiddleware(distPath));
   app.use(express.static(distPath, {
     index: false,
     maxAge: 0,

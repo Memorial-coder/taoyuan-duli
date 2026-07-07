@@ -2735,7 +2735,7 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: null,
     outputQuantity: 0,
     processingDays: 1,
-    description: '消耗皮革修理鞋子，恢复全部耐久。'
+    description: '消耗毛毡修理鞋子，恢复全部耐久。'
   }
 ]
 
@@ -3957,6 +3957,84 @@ export const SUPPLEMENTAL_ALCHEMY_USE_RECIPES: ProcessingRecipeDef[] = [
         dialogueAffinityBonus: 2,
         festivalRewardMultiplier: 1.05,
         journeyStaminaReduction: 0.04
+      }
+    }
+  },
+  {
+    id: 'shared_use_snow_lotus_calm_elixir',
+    machineType: 'alchemy_furnace',
+    name: '雪莲清心丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'snow_lotus_calm_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的雪莲清心丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'support',
+      nature: 'clear',
+      mainMaterialId: 'snow_lotus_pearl',
+      supportMaterialIds: ['herbal_paste', 'lotus_heart_powder'],
+      primerItemId: 'snow_lotus_pearl',
+      heat: 'gentle',
+      shortEffect: '夜巡、远行和高阶安抚前的清心准备',
+      effect: {
+        description: '立即恢复35体力，今日远征体力消耗-5%，宠物安抚好感+3',
+        staminaRestore: 35,
+        journeyStaminaReduction: 0.05,
+        petCalmFriendshipBonus: 3
+      }
+    }
+  },
+  {
+    id: 'shared_use_dew_bloom_focus_elixir',
+    machineType: 'alchemy_furnace',
+    name: '露花凝神丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'dew_bloom_focus_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的露花凝神丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'main',
+      nature: 'fragrant',
+      mainMaterialId: 'dew_bloom',
+      supportMaterialIds: ['osmanthus_honey', 'green_tea_drink'],
+      primerItemId: 'dew_bloom',
+      heat: 'gentle',
+      shortEffect: '协作、拜访和节会筹备前的凝神准备',
+      effect: {
+        description: '今日行动耗时-8%，NPC 对话好感+3，送礼好感×1.05',
+        actionSpeedBonus: 0.08,
+        dialogueAffinityBonus: 3,
+        giftBonusMultiplier: 1.05
+      }
+    }
+  },
+  {
+    id: 'shared_use_star_lotus_calm_elixir',
+    machineType: 'alchemy_furnace',
+    name: '星莲安神丹',
+    inputItemId: null,
+    inputQuantity: 0,
+    outputItemId: 'star_lotus_calm_elixir',
+    outputQuantity: 1,
+    processingDays: 0,
+    description: '共同丹炉产出的星莲安神丹药，已回流到单人背包使用。',
+    alchemy: {
+      role: 'support',
+      nature: 'clear',
+      mainMaterialId: 'star_lotus',
+      supportMaterialIds: ['herbal_paste', 'green_tea_drink'],
+      primerItemId: 'star_lotus',
+      heat: 'gentle',
+      shortEffect: '长线探索、社交和夜间经营前的安神准备',
+      effect: {
+        description: '立即恢复30体力，今日远征体力消耗-5%，NPC 对话好感+2',
+        staminaRestore: 30,
+        journeyStaminaReduction: 0.05,
+        dialogueAffinityBonus: 2
       }
     }
   }

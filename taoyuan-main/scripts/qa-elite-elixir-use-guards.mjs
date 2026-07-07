@@ -21,6 +21,30 @@ const read = relativePath => fs.readFileSync(path.join(projectRoot, relativePath
 
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+const unique = values => Array.from(new Set(values.filter(Boolean)))
+
+const parseSharedWorkshopAlchemyRecipes = source => {
+  const recipes = []
+
+  for (const line of source.split(/\r?\n/)) {
+    if (!line.includes("station: 'alchemy_furnace'") || !line.includes("process_kind: 'alchemy_elixir'")) continue
+
+    const idMatch = line.match(/id: '([^']+)'/)
+    const outputMatch = line.match(/output_item_id: '([^']+)'/)
+    const resultKindMatch = line.match(/alchemy_result_kind: '([^']+)'/)
+    const inputItemIds = [...line.matchAll(/item_id: '([^']+)'/g)].map(inputMatch => inputMatch[1])
+
+    recipes.push({
+      id: idMatch?.[1] ?? '',
+      inputItemIds,
+      outputItemId: outputMatch?.[1] ?? '',
+      resultKind: resultKindMatch?.[1] ?? ''
+    })
+  }
+
+  return recipes
+}
+
 const tryResolveFile = candidate => {
   const variants = [
     candidate,
@@ -74,6 +98,9 @@ registerHooks({
 })
 
 const data = await import(pathToFileURL(path.join(srcRoot, 'data', 'index.ts')).href)
+const encyclopedia = await import(pathToFileURL(path.join(srcRoot, 'data', 'itemEncyclopedia.ts')).href)
+
+const { getItemExtraDetails } = encyclopedia
 
 const {
   ITEMS,
@@ -83,6 +110,7 @@ const {
   QUARRY_MINE_ELIXIR_PREP_OPTIONS,
   REGION_EXPEDITION_ELIXIR_PREP_OPTIONS,
   getAlchemyRecipeByOutputItemId,
+  getItemById,
   getItemLinkageUseLabels,
   getItemLinkageUseTags
 } = data
@@ -100,6 +128,43 @@ const eliteElixirRecipes = [
 const eliteElixirIds = eliteElixirRecipes.map(entry => entry.itemId)
 
 const cohabitationSource = read('src/views/game/online/OnlineCohabitationView.vue')
+const sharedAlchemyRecipes = parseSharedWorkshopAlchemyRecipes(cohabitationSource)
+const sharedAlchemySuccessOutputIds = unique(sharedAlchemyRecipes
+  .filter(recipe => recipe.resultKind === 'success')
+  .map(recipe => recipe.outputItemId))
+
+for (const recipe of sharedAlchemyRecipes) {
+  for (const itemId of unique([...recipe.inputItemIds, recipe.outputItemId])) {
+    assert(getItemById(itemId), `shared alchemy recipe references undefined item: ${recipe.id} -> ${itemId}`)
+  }
+}
+
+for (const itemId of sharedAlchemySuccessOutputIds) {
+  assert(
+    getAlchemyRecipeByOutputItemId(itemId),
+    `shared alchemy success output is missing data alchemy metadata: ${itemId}`
+  )
+  const item = getItemById(itemId)
+  if (item?.category === 'elixir') {
+    assert(
+      getItemExtraDetails(item).some(detail => detail.value.includes(getAlchemyRecipeByOutputItemId(itemId)?.alchemy?.effect.description ?? '__missing__')),
+      `shared alchemy elixir encyclopedia is missing effect details: ${itemId}`
+    )
+  }
+}
+
+for (const recipe of SUPPLEMENTAL_ALCHEMY_USE_RECIPES) {
+  const alchemyItemIds = unique([
+    recipe.outputItemId,
+    recipe.alchemy?.mainMaterialId,
+    ...(recipe.alchemy?.supportMaterialIds ?? []),
+    recipe.alchemy?.primerItemId
+  ])
+
+  for (const itemId of alchemyItemIds) {
+    assert(getItemById(itemId), `supplemental alchemy metadata references undefined item: ${recipe.id} -> ${itemId}`)
+  }
+}
 assert(cohabitationSource.includes('data-testid="online-cohabitation-shared-elixir-return-panel"'), '共同庄园页缺少高阶丹药单人回流面板')
 assert(cohabitationSource.includes('data-testid="online-cohabitation-shared-elixir-return-current"'), '共同庄园页缺少当前回流丹药读回')
 assert(cohabitationSource.includes('data-testid="online-cohabitation-shared-elixir-return-route"'), '共同庄园页缺少单人用途路径说明')
@@ -124,6 +189,14 @@ for (const { itemId, requiredEffects } of eliteElixirRecipes) {
   assert(!!recipe?.alchemy, `高阶丹药未接入 getAlchemyRecipeByOutputItemId：${itemId}`)
   assert(SUPPLEMENTAL_ALCHEMY_USE_RECIPES.some(entry => entry.outputItemId === itemId), `补充炼丹使用表缺少：${itemId}`)
   assert(!PROCESSING_RECIPES.some(entry => entry.outputItemId === itemId), `高阶共同丹炉丹药不应误塞进普通单人工坊配方：${itemId}`)
+  const alchemyItemIds = [
+    recipe?.alchemy?.mainMaterialId,
+    ...(recipe?.alchemy?.supportMaterialIds ?? []),
+    recipe?.alchemy?.primerItemId
+  ].filter(Boolean)
+  for (const alchemyItemId of alchemyItemIds) {
+    assert(getItemById(alchemyItemId), `高阶丹药元数据引用了未定义物品：${itemId} -> ${alchemyItemId}`)
+  }
   for (const effectKey of requiredEffects) {
     assert(recipe?.alchemy?.effect?.[effectKey] !== undefined, `高阶丹药缺少效果 ${effectKey}：${itemId}`)
   }
@@ -200,4 +273,4 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log(`qa-elite-elixir-use-guards passed (${eliteElixirIds.length} shared elixirs).`)
+console.log(`qa-elite-elixir-use-guards passed (${eliteElixirIds.length} linked elixirs, ${sharedAlchemySuccessOutputIds.length} shared alchemy success outputs, ${sharedAlchemyRecipes.length} shared alchemy variants).`)

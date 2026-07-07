@@ -16,6 +16,11 @@ const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
 
 const ANNOUNCEMENT_STATUS = new Set(['draft', 'published', 'offline']);
 const ANNOUNCEMENT_EVENT_TYPES = new Set(['impression', 'close', 'suppress', 'cta_click', 'reward_claim']);
+const PUBLIC_CACHE_TTL_MS = Math.max(
+  1000,
+  Math.floor(Number(process.env.TAOYUAN_ANNOUNCEMENT_PUBLIC_CACHE_TTL_MS) || 10000)
+);
+const publicCache = new Map();
 const DEFAULT_BUTTON_TEXTS = Object.freeze({
   close: '知道了',
   suppress: '本条不再提示',
@@ -68,6 +73,35 @@ function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function clearPublicCache() {
+  publicCache.clear();
+}
+
+function getPublicCache(key) {
+  const entry = publicCache.get(key);
+  if (!entry || entry.expires_at <= Date.now()) {
+    if (entry) publicCache.delete(key);
+    return null;
+  }
+  return cloneJson(entry.value);
+}
+
+function setPublicCache(key, value) {
+  publicCache.set(key, {
+    expires_at: Date.now() + PUBLIC_CACHE_TTL_MS,
+    value: cloneJson(value),
+  });
+  while (publicCache.size > 100) {
+    const firstKey = publicCache.keys().next().value;
+    if (!firstKey) break;
+    publicCache.delete(firstKey);
+  }
+}
+
 function ensureDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -102,11 +136,12 @@ function loadLocalStore() {
   }
 }
 
-function saveLocalStore(store) {
+function saveLocalStore(store, options = {}) {
   writeJsonFileAtomic(ANNOUNCEMENT_STORE_FILE, {
     announcements: Array.isArray(store?.announcements) ? store.announcements : [],
     events: Array.isArray(store?.events) ? store.events : [],
   });
+  if (options.clearPublicCache !== false) clearPublicCache();
 }
 
 function buildMysqlPool() {
@@ -434,6 +469,26 @@ function mapEvent(item = {}) {
   };
 }
 
+function normalizeAnnouncementEventInput(announcementId, input = {}) {
+  const normalizedAnnouncementId = normalizeText(
+    announcementId || input.announcement_id || input.announcementId || input.id,
+    64,
+  );
+  const username = normalizeText(input.username, 64);
+  const eventType = String(input.event_type || input.eventType || '').trim();
+  if (!normalizedAnnouncementId || !username || !ANNOUNCEMENT_EVENT_TYPES.has(eventType)) return null;
+  return mapEvent({
+    id: createId('annevt'),
+    announcement_id: normalizedAnnouncementId,
+    username,
+    event_type: eventType,
+    client_version: input.client_version || input.clientVersion,
+    client_channel: input.client_channel || input.clientChannel,
+    detail: input.detail || {},
+    created_at: nowSeconds(),
+  });
+}
+
 function toMysqlParams(announcement) {
   return [
     announcement.id,
@@ -462,6 +517,27 @@ function toMysqlParams(announcement) {
     announcement.operator_name,
     announcement.operator_role,
   ];
+}
+
+async function insertAnnouncementEventsMysql(events = []) {
+  if (!events.length) return;
+  const placeholders = events.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+  const params = events.flatMap(event => [
+    event.id,
+    event.announcement_id,
+    event.username,
+    event.event_type,
+    event.client_version,
+    event.client_channel,
+    JSON.stringify(event.detail || {}),
+    event.created_at,
+  ]);
+  await buildMysqlPool().execute(
+    `INSERT INTO taoyuan_announcement_events
+       (id, announcement_id, username, event_type, client_version, client_channel, detail_json, created_at)
+       VALUES ${placeholders}`,
+    params,
+  );
 }
 
 async function upsertAnnouncement(input = {}, actor = {}) {
@@ -508,6 +584,7 @@ async function upsertAnnouncement(input = {}, actor = {}) {
         [announcement.id],
       );
     }
+    clearPublicCache();
     return announcement;
   }
 
@@ -603,6 +680,7 @@ async function deleteAnnouncement(id) {
       'DELETE FROM taoyuan_announcements WHERE id = ?',
       [current.id],
     );
+    clearPublicCache();
     return {
       announcement: current,
       deleted_event_count: Number(eventResult?.affectedRows) || 0,
@@ -657,30 +735,41 @@ async function getSuppressedAnnouncementIds(username) {
 
 async function listActiveAnnouncements(options = {}) {
   const now = nowSeconds();
-  const suppressed = await getSuppressedAnnouncementIds(options.username);
-  const announcements = await listAdminAnnouncements();
-  return announcements
+  const username = normalizeText(options.username, 64);
+  const baseCacheKey = `active-base:${normalizeText(options.version, 80)}:${normalizeText(options.channel, 40)}`;
+  const cachedBase = getPublicCache(baseCacheKey);
+  const base = cachedBase || (await listAdminAnnouncements())
     .filter(item => isAnnouncementActive(item, now))
     .filter(item => targetMatches(item.target_versions, options.version))
     .filter(item => targetMatches(item.target_channels, options.channel))
-    .map(item => ({
-      ...item,
-      is_read: suppressed.has(item.id),
-    }))
-    .filter(item => !item.is_read || item.is_pinned === true)
     .sort((left, right) => (
       Number(right.is_pinned === true) - Number(left.is_pinned === true)
       || (right.priority || 0) - (left.priority || 0)
       || (right.published_at || 0) - (left.published_at || 0)
       || (right.created_at || 0) - (left.created_at || 0)
     ));
+  if (!cachedBase) setPublicCache(baseCacheKey, base);
+  if (!username) return base;
+
+  const suppressed = await getSuppressedAnnouncementIds(username);
+  const result = base
+    .map(item => ({
+      ...item,
+      is_read: suppressed.has(item.id),
+    }))
+    .filter(item => !item.is_read || item.is_pinned === true);
+  return result;
 }
 
 async function listPublicHistory(options = {}) {
   const now = nowSeconds();
   const limit = Math.max(1, Math.min(100, parseInt(options.limit || '50', 10) || 50));
+  const cacheKey = `history:${normalizeText(options.version, 80)}:${normalizeText(options.channel, 40)}:${limit}`;
+  const cached = getPublicCache(cacheKey);
+  if (cached) return cached;
+
   const announcements = await listAdminAnnouncements();
-  return announcements
+  const result = announcements
     .filter(item => item.status === 'published')
     .filter(item => isAnnouncementStarted(item, now))
     .filter(item => targetMatches(item.target_versions, options.version))
@@ -692,18 +781,20 @@ async function listPublicHistory(options = {}) {
       || (right.created_at || 0) - (left.created_at || 0)
     ))
     .slice(0, limit);
+  setPublicCache(cacheKey, result);
+  return result;
 }
 
 async function recordAnnouncementEvent(announcementId, input = {}) {
+  const username = normalizeText(input.username, 64);
+  if (!username) {
+    return { recorded: false, event: null };
+  }
   const current = await getAnnouncement(announcementId);
   if (!current) {
     const error = new Error('公告不存在');
     error.status = 404;
     throw error;
-  }
-  const username = normalizeText(input.username, 64);
-  if (!username) {
-    return { recorded: false, event: null };
   }
   const event = mapEvent({
     id: createId('annevt'),
@@ -738,8 +829,58 @@ async function recordAnnouncementEvent(announcementId, input = {}) {
 
   const store = loadLocalStore();
   store.events.unshift(event);
-  saveLocalStore(store);
+  saveLocalStore(store, { clearPublicCache: false });
   return { recorded: true, event };
+}
+
+async function recordAnnouncementEventsBatch(inputs = []) {
+  const rawInputs = Array.isArray(inputs) ? inputs.slice(0, 200) : [];
+  const candidateEvents = rawInputs
+    .map(input => normalizeAnnouncementEventInput(input?.announcement_id || input?.announcementId, input))
+    .filter(Boolean);
+  if (!candidateEvents.length) {
+    return {
+      recorded: false,
+      recorded_count: 0,
+      skipped_count: rawInputs.length,
+      events: [],
+    };
+  }
+
+  const announcementIds = [...new Set(candidateEvents.map(event => event.announcement_id).filter(Boolean))];
+  let existingIds = new Set();
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const placeholders = announcementIds.map(() => '?').join(', ');
+    const [rows] = await buildMysqlPool().execute(
+      `SELECT id FROM taoyuan_announcements WHERE id IN (${placeholders})`,
+      announcementIds,
+    );
+    existingIds = new Set(rows.map(row => normalizeText(row.id, 64)).filter(Boolean));
+    const events = candidateEvents.filter(event => existingIds.has(event.announcement_id));
+    await insertAnnouncementEventsMysql(events);
+    return {
+      recorded: events.length > 0,
+      recorded_count: events.length,
+      skipped_count: rawInputs.length - events.length,
+      events,
+    };
+  }
+
+  const store = loadLocalStore();
+  existingIds = new Set(store.announcements.map(item => normalizeText(item.id, 64)).filter(Boolean));
+  const events = candidateEvents.filter(event => existingIds.has(event.announcement_id));
+  if (events.length) {
+    store.events.unshift(...events);
+    saveLocalStore(store, { clearPublicCache: false });
+  }
+  return {
+    recorded: events.length > 0,
+    recorded_count: events.length,
+    skipped_count: rawInputs.length - events.length,
+    events,
+  };
 }
 
 async function listEventsForAnnouncement(announcementId) {
@@ -887,6 +1028,7 @@ module.exports = {
   listActiveAnnouncements,
   listPublicHistory,
   recordAnnouncementEvent,
+  recordAnnouncementEventsBatch,
   getAnnouncementStats,
   claimAnnouncementReward,
   toPublicAnnouncement,

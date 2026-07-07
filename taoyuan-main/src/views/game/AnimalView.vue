@@ -1,11 +1,17 @@
 <template>
   <div data-testid="animal-view">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
       <h3 class="text-accent text-sm">
         <Home :size="14" class="inline" />
         牧场
       </h3>
-      <Button v-if="unpettedCount > 0" :icon="Hand" @click="handlePetAll">一键抚摸（{{ unpettedCount }}只）</Button>
+      <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+        <Button :icon="Sprout" :disabled="!canGraze" :title="grazeDisabledReason || '放牧全部动物'" @click="handleGraze">
+          放牧全部动物
+        </Button>
+        <span v-if="grazeDisabledReason" class="text-[0.625rem] text-muted">{{ grazeDisabledReason }}</span>
+        <Button v-if="unpettedCount > 0" :icon="Hand" @click="handlePetAll">一键抚摸（{{ unpettedCount }}只）</Button>
+      </div>
     </div>
 
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
@@ -15,11 +21,31 @@
       class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/30"
       data-testid="npc-animal-tracker-panel"
     >
-      <div class="flex items-center justify-between mb-2">
-        <p class="text-xs text-accent">阿福的牧场追踪</p>
-        <span class="text-[0.625rem] text-muted">{{ animalStore.npcAnimalTrackerSummary.length }}只</span>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-3 text-left"
+        data-testid="npc-animal-tracker-toggle"
+        :aria-expanded="isNpcAnimalTrackerExpanded"
+        aria-controls="npc-animal-tracker-list"
+        @click="isNpcAnimalTrackerExpanded = !isNpcAnimalTrackerExpanded"
+      >
+        <span class="min-w-0 text-xs text-accent">阿福的牧场追踪</span>
+        <span class="flex shrink-0 items-center gap-2">
+          <span class="text-[0.625rem] text-muted">{{ animalStore.npcAnimalTrackerSummary.length }}只</span>
+          <component
+            :is="isNpcAnimalTrackerExpanded ? ChevronDown : ChevronRight"
+            :size="14"
+            class="text-accent"
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+      <div
+        v-if="isNpcAnimalTrackerExpanded"
+        id="npc-animal-tracker-list"
+        class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2"
+        data-testid="npc-animal-tracker-list"
+      >
         <div
           v-for="entry in animalStore.npcAnimalTrackerSummary"
           :key="entry.id"
@@ -556,19 +582,6 @@
         </div>
       </div>
 
-      <!-- 放牧 -->
-      <div>
-        <p class="text-xs text-muted mb-1">放牧</p>
-        <div
-          class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5"
-          :class="canGraze ? 'cursor-pointer hover:bg-accent/5' : 'opacity-50'"
-          @click="canGraze && handleGraze()"
-        >
-          <span class="text-xs">放牧全部动物</span>
-          <span v-if="grazeDisabledReason" class="text-xs text-muted">{{ grazeDisabledReason }}</span>
-        </div>
-      </div>
-
       <!-- 治疗 -->
       <div v-if="sickCount > 0" class="mt-3">
         <div class="flex items-center justify-between mb-1">
@@ -789,7 +802,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Hammer, ShoppingCart, Hand, Apple, Home, ArrowUp, Egg, X, Coins, Syringe, Pencil, Beef } from 'lucide-vue-next'
+  import { Hammer, ShoppingCart, Hand, Apple, Home, ArrowUp, Egg, X, Coins, Syringe, Pencil, Beef, ChevronDown, ChevronRight, Sprout } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useAnimalStore } from '@/stores/useAnimalStore'
@@ -827,6 +840,7 @@
   const gameStore = useGameStore()
   const tutorialStore = useTutorialStore()
   const skillStore = useSkillStore()
+  const isNpcAnimalTrackerExpanded = ref(false)
   const petAdoptionDefaultNames: Record<PetType, string> = {
     cat: '狸奴',
     dog: '田犬',

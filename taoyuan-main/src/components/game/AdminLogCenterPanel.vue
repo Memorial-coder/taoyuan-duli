@@ -46,20 +46,20 @@
 
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6" data-testid="admin-log-filters">
         <label class="admin-label">
-          <span>用户名</span>
-          <input v-model="filters.username" type="text" class="admin-input" placeholder="目标或玩家账号" @keydown.enter.prevent="refreshActive" />
+          <span>{{ usernameFilterLabel }}</span>
+          <input v-model="filters.username" type="text" class="admin-input" :placeholder="usernameFilterPlaceholder" @keydown.enter.prevent="refreshActive" />
         </label>
         <label class="admin-label">
-          <span>动作</span>
-          <input v-model="filters.action" type="text" class="admin-input" placeholder="action / route" @keydown.enter.prevent="refreshActive" />
+          <span>{{ actionFilterLabel }}</span>
+          <input v-model="filters.action" type="text" class="admin-input" :placeholder="actionFilterPlaceholder" @keydown.enter.prevent="refreshActive" />
         </label>
         <label class="admin-label">
           <span>结果</span>
           <input v-model="filters.outcome" type="text" class="admin-input" placeholder="completed / rejected" @keydown.enter.prevent="refreshActive" />
         </label>
         <label class="admin-label">
-          <span>分类/场景</span>
-          <input v-model="filters.category" type="text" class="admin-input" placeholder="system / hall / scene" @keydown.enter.prevent="refreshActive" />
+          <span>{{ categoryFilterLabel }}</span>
+          <input v-model="filters.category" type="text" class="admin-input" :placeholder="categoryFilterPlaceholder" @keydown.enter.prevent="refreshActive" />
         </label>
         <label class="admin-label">
           <span>开始时间</span>
@@ -74,7 +74,7 @@
       <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <label class="admin-label">
           <span>关键词</span>
-          <input v-model="filters.keyword" type="text" class="admin-input" placeholder="游戏日志消息、元数据或内容标题" @keydown.enter.prevent="refreshActive" />
+          <input v-model="filters.keyword" type="text" class="admin-input" :placeholder="keywordFilterPlaceholder" @keydown.enter.prevent="refreshActive" />
         </label>
         <div class="flex items-end gap-2">
           <button class="btn !px-3 !py-2" @click="refreshActive" :disabled="loadingAny">应用筛选</button>
@@ -123,8 +123,10 @@
   import { computed, reactive, ref, watch } from 'vue'
   import {
     fetchAdminLogCenterOverview,
+    fetchAdminPrivateChatMessages,
     fetchContentRevisions,
     fetchGameplayLogs,
+    type AdminPrivateChatMessageEntry,
     type AdminLogCenterOverviewResult,
     type ContentRevisionEntry,
     type GameplayLogEntry,
@@ -138,7 +140,7 @@
   import { fetchAdminAuditLogs, type AdminAuditLogEntry } from '@/utils/userAdminApi'
   import { showFloat } from '@/composables/useGameLog'
 
-  type LogTabKey = 'all' | 'admin_audit' | 'online_audit' | 'content_moderation' | 'gameplay' | 'content_revision'
+  type LogTabKey = 'all' | 'admin_audit' | 'online_audit' | 'content_moderation' | 'gameplay' | 'private_chat' | 'content_revision'
 
   interface NormalizedLogRow {
     id: string
@@ -170,6 +172,7 @@
     { key: 'online_audit', label: '在线审计' },
     { key: 'content_moderation', label: '内容审核' },
     { key: 'gameplay', label: '游戏日志' },
+    { key: 'private_chat', label: '私聊记录' },
     { key: 'content_revision', label: '内容发布' },
   ]
 
@@ -182,6 +185,7 @@
     online_audit: 1,
     content_moderation: 1,
     gameplay: 1,
+    private_chat: 1,
     content_revision: 1,
   })
   const totals = reactive<Record<LogTabKey, number>>({
@@ -190,6 +194,7 @@
     online_audit: 0,
     content_moderation: 0,
     gameplay: 0,
+    private_chat: 0,
     content_revision: 0,
   })
   const rows = reactive<Record<LogTabKey, NormalizedLogRow[]>>({
@@ -198,6 +203,7 @@
     online_audit: [],
     content_moderation: [],
     gameplay: [],
+    private_chat: [],
     content_revision: [],
   })
   const loading = reactive<Record<LogTabKey | 'overview', boolean>>({
@@ -206,6 +212,7 @@
     online_audit: false,
     content_moderation: false,
     gameplay: false,
+    private_chat: false,
     content_revision: false,
     overview: false,
   })
@@ -227,6 +234,14 @@
   const activeTotal = computed(() => totals[activeTab.value])
   const activeLoading = computed(() => loading[activeTab.value])
   const activePageCount = computed(() => Math.max(1, Math.ceil(activeTotal.value / pageSize)))
+  const isPrivateChatTab = computed(() => activeTab.value === 'private_chat')
+  const usernameFilterLabel = computed(() => isPrivateChatTab.value ? '参与人' : '用户名')
+  const usernameFilterPlaceholder = computed(() => isPrivateChatTab.value ? '发送者或接收者账号' : '目标或玩家账号')
+  const actionFilterLabel = computed(() => isPrivateChatTab.value ? '发送者' : '动作')
+  const actionFilterPlaceholder = computed(() => isPrivateChatTab.value ? '发送者账号' : 'action / route')
+  const categoryFilterLabel = computed(() => isPrivateChatTab.value ? '接收者' : '分类/场景')
+  const categoryFilterPlaceholder = computed(() => isPrivateChatTab.value ? '接收者账号' : 'system / hall / scene')
+  const keywordFilterPlaceholder = computed(() => isPrivateChatTab.value ? '私聊内容、图片说明、发送者或接收者' : '游戏日志消息、元数据或内容标题')
 
   const toTimestamp = (value: string) => {
     if (!value) return undefined
@@ -260,7 +275,7 @@
 
   const sourceTotal = (key: LogTabKey) => {
     if (key !== 'all') return sourceOverview(key)?.total || 0
-    return ['admin_audit', 'online_audit', 'content_moderation', 'gameplay', 'content_revision']
+    return ['admin_audit', 'online_audit', 'content_moderation', 'gameplay', 'private_chat', 'content_revision']
       .reduce((sum, item) => sum + (overview.value?.[item as Exclude<LogTabKey, 'all'>]?.total || 0), 0)
   }
 
@@ -271,6 +286,7 @@
     const source = sourceOverview(key)
     if (!source) return '等待刷新'
     if (key === 'gameplay') return `30 天 · 上限 ${formatCount(source.max_total)}`
+    if (key === 'private_chat') return source.retention_label || '长期保留'
     if (source.retention_label) return source.retention_label
     if (source.retention_days) return `${source.retention_days} 天留存${source.preserves_major_evidence ? ' · 重大保留' : ''}`
     return source.latest_created_at ? `最近 ${formatTime(source.latest_created_at)}` : '暂无记录'
@@ -278,7 +294,7 @@
 
   const sourceLatestLine = (key: LogTabKey) => {
     if (key === 'all') {
-      const latest = ['admin_audit', 'online_audit', 'content_moderation', 'gameplay', 'content_revision']
+      const latest = ['admin_audit', 'online_audit', 'content_moderation', 'gameplay', 'private_chat', 'content_revision']
         .reduce((max, item) => Math.max(max, overview.value?.[item as Exclude<LogTabKey, 'all'>]?.latest_created_at || 0), 0)
       return latest ? `最近写入 ${formatTime(latest)}` : '最近写入 -'
     }
@@ -289,7 +305,8 @@
   const activePolicyText = computed(() => {
     if (activeTab.value === 'all') return '聚合展示各日志源第一页结果，按时间倒序合并。'
     const source = sourceOverview(activeTab.value)
-    if (activeTab.value === 'gameplay') return `默认留存 30 天，最多 ${formatCount(source?.max_total || 500000)} 条，单用户单存档最多 ${formatCount(source?.max_per_user_slot || 12000)} 条。`
+    if (activeTab.value === 'gameplay') return `默认留存 30 天，最多 ${formatCount(source?.max_total || 1000000)} 条，单用户单存档最多 ${formatCount(source?.max_per_user_slot || 24000)} 条。`
+    if (activeTab.value === 'private_chat') return `${source?.retention_label || '每会话最近 500 条'}，展示发送者、接收者、内容和发送时间。`
     if (source?.retention_label) return `${source.retention_label}，当前总数 ${formatCount(source.total)} 条。`
     if (source?.retention_days) return `至少留存 ${source.retention_days} 天${source.preserves_major_evidence ? '，重大证据类日志不过期清理' : ''}。`
     return '显示真实总数、分页和当前筛选条件。'
@@ -299,10 +316,10 @@
     const items = [
       filters.createdFrom ? `开始 ${filters.createdFrom}` : '',
       filters.createdTo ? `结束 ${filters.createdTo}` : '',
-      filters.username.trim() ? `用户 ${filters.username.trim()}` : '',
-      filters.action.trim() ? `动作 ${filters.action.trim()}` : '',
+      filters.username.trim() ? `${isPrivateChatTab.value ? '参与人' : '用户'} ${filters.username.trim()}` : '',
+      filters.action.trim() ? `${isPrivateChatTab.value ? '发送者' : '动作'} ${filters.action.trim()}` : '',
       filters.outcome.trim() ? `结果 ${filters.outcome.trim()}` : '',
-      filters.category.trim() ? `分类/场景 ${filters.category.trim()}` : '',
+      filters.category.trim() ? `${isPrivateChatTab.value ? '接收者' : '分类/场景'} ${filters.category.trim()}` : '',
       filters.keyword.trim() ? `关键词 ${filters.keyword.trim()}` : '',
     ].filter(Boolean)
     return items.length ? `当前筛选：${items.join(' · ')}` : '当前筛选：全部'
@@ -372,6 +389,31 @@
       formatDetail(log.meta || {}),
     ].filter(Boolean).join('；'),
     created_at: Number(log.created_at) || 0,
+  })
+
+  const privateChatTypeLabel = (type: string) => {
+    if (type === 'photo') return '图片'
+    if (type === 'gift') return '礼物'
+    return '文字'
+  }
+
+  const normalizePrivateChat = (message: AdminPrivateChatMessageEntry): NormalizedLogRow => ({
+    id: `private_chat_${message.id}`,
+    source: 'private_chat',
+    sourceLabel: '私聊记录',
+    title: message.content || message.photo_alt || (message.type === 'gift' ? '礼物私聊' : '私聊消息'),
+    subtitle: `发送者 ${message.sender_display_name || message.sender_username || '-'}（${message.sender_username || '-'}） · 接收者 ${message.recipient_display_name || message.recipient_username || '-'}（${message.recipient_username || '-'}）`,
+    badge: privateChatTypeLabel(message.type),
+    detail: formatDetail({
+      发送者: message.sender_username,
+      接收者: message.recipient_username,
+      内容: message.content,
+      图片: message.photo_url,
+      图片说明: message.photo_alt,
+      礼物数量: message.gift_reward_count,
+      领取时间: message.gift_claimed_at ? formatTime(message.gift_claimed_at) : '',
+    }),
+    created_at: Number(message.created_at) || 0,
   })
 
   const normalizeContentRevision = (revision: ContentRevisionEntry): NormalizedLogRow => ({
@@ -534,6 +576,31 @@
     }
   }
 
+  const refreshPrivateChat = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
+    if (!props.canLoad) return { total: 0, rows: [] as NormalizedLogRow[] }
+    loading.private_chat = true
+    try {
+      const result = await fetchAdminPrivateChatMessages({
+        username: filters.username.trim(),
+        senderUsername: filters.action.trim(),
+        recipientUsername: filters.category.trim(),
+        keyword: filters.keyword.trim(),
+        createdFrom: toTimestamp(filters.createdFrom),
+        createdTo: toTimestamp(filters.createdTo),
+        page: options.page || pages.private_chat,
+        pageSize: options.pageSize || pageSize,
+      })
+      const nextRows = result.messages.map(normalizePrivateChat)
+      if (options.assign !== false) {
+        totals.private_chat = result.total
+        rows.private_chat = nextRows
+      }
+      return { total: result.total, rows: nextRows }
+    } finally {
+      loading.private_chat = false
+    }
+  }
+
   const refreshContentRevisions = async (options: { page?: number; pageSize?: number; assign?: boolean } = {}) => {
     if (!props.canLoad) return { total: 0, rows: [] as NormalizedLogRow[] }
     loading.content_revision = true
@@ -591,11 +658,12 @@
     loading.all = true
     try {
       const candidatePageSize = Math.min(100, Math.max(pageSize, pages.all * pageSize))
-      const [adminAudit, onlineAudit, contentModeration, gameplay, contentRevision] = await Promise.all([
+      const [adminAudit, onlineAudit, contentModeration, gameplay, privateChat, contentRevision] = await Promise.all([
         refreshAdminAudit({ page: 1, pageSize: candidatePageSize, assign: false }),
         refreshOnlineAudit({ page: 1, pageSize: candidatePageSize, assign: false }),
         refreshContentModeration({ page: 1, pageSize: candidatePageSize, assign: false }),
         refreshGameplay({ page: 1, pageSize: candidatePageSize, assign: false }),
+        refreshPrivateChat({ page: 1, pageSize: candidatePageSize, assign: false }),
         refreshContentRevisions({ page: 1, pageSize: candidatePageSize, assign: false }),
       ])
       const merged = [
@@ -603,14 +671,16 @@
         ...onlineAudit.rows,
         ...contentModeration.rows,
         ...gameplay.rows,
+        ...privateChat.rows,
         ...contentRevision.rows,
       ].sort((left, right) => right.created_at - left.created_at)
       totals.admin_audit = adminAudit.total
       totals.online_audit = onlineAudit.total
       totals.content_moderation = contentModeration.total
       totals.gameplay = gameplay.total
+      totals.private_chat = privateChat.total
       totals.content_revision = contentRevision.total
-      totals.all = onlineAudit.total + contentModeration.total + gameplay.total + contentRevision.total + (props.canViewAudit ? adminAudit.total : 0)
+      totals.all = onlineAudit.total + contentModeration.total + gameplay.total + privateChat.total + contentRevision.total + (props.canViewAudit ? adminAudit.total : 0)
       rows.all = merged.slice((pages.all - 1) * pageSize, pages.all * pageSize)
     } finally {
       loading.all = false
@@ -630,6 +700,8 @@
         await refreshContentModeration()
       } else if (activeTab.value === 'gameplay') {
         await refreshGameplay()
+      } else if (activeTab.value === 'private_chat') {
+        await refreshPrivateChat()
       } else {
         await refreshContentRevisions()
       }

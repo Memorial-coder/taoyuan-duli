@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { warmBrowserAssetCache } from '@/utils/assetWarmCache'
 
 export type FishBossAssetKind = 'asset' | 'fish' | 'mineBoss' | 'regionBoss'
 export type FishBossAssetVariant = '01' | '02'
@@ -32,6 +33,19 @@ export interface FishBossAssetManifest {
   byFishId?: Record<string, FishBossAssetManifestEntry>
   byMineBossId?: Record<string, FishBossAssetManifestEntry>
   byRegionBossId?: Record<string, FishBossAssetManifestEntry>
+}
+
+type FishBossAssetManifestAliasIndex = Record<string, FishBossAssetManifestEntry | string>
+type RawFishBossAssetManifest = Omit<
+  FishBossAssetManifest,
+  'byAssetBase' | 'byName' | 'byDisplayName' | 'byFishId' | 'byMineBossId' | 'byRegionBossId'
+> & {
+  byAssetBase?: FishBossAssetManifestAliasIndex
+  byName?: FishBossAssetManifestAliasIndex
+  byDisplayName?: FishBossAssetManifestAliasIndex
+  byFishId?: FishBossAssetManifestAliasIndex
+  byMineBossId?: FishBossAssetManifestAliasIndex
+  byRegionBossId?: FishBossAssetManifestAliasIndex
 }
 
 export interface FishBossAssetLookup {
@@ -80,6 +94,37 @@ const appendVersion = (url: string, version: string): string => {
   return `${url}${joiner}v=${encodeURIComponent(version)}`
 }
 
+const isFishBossAssetManifestEntry = (value: unknown): value is FishBossAssetManifestEntry =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && 'variants' in value
+
+const hydrateFishBossAssetAliasIndex = (
+  index: FishBossAssetManifestAliasIndex | undefined,
+  primary: Record<string, FishBossAssetManifestEntry>,
+): Record<string, FishBossAssetManifestEntry> | undefined => {
+  if (!index) return undefined
+  const hydrated: Record<string, FishBossAssetManifestEntry> = {}
+  for (const [key, value] of Object.entries(index)) {
+    const entry = typeof value === 'string' ? primary[value] : value
+    if (isFishBossAssetManifestEntry(entry)) hydrated[key] = entry
+  }
+  return hydrated
+}
+
+const normalizeLoadedFishBossAssetManifest = (data: unknown): FishBossAssetManifest | null => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const raw = data as RawFishBossAssetManifest
+  const byAssetBase = hydrateFishBossAssetAliasIndex(raw.byAssetBase, {}) || {}
+  return {
+    ...raw,
+    byAssetBase,
+    byName: hydrateFishBossAssetAliasIndex(raw.byName, byAssetBase),
+    byDisplayName: hydrateFishBossAssetAliasIndex(raw.byDisplayName, byAssetBase),
+    byFishId: hydrateFishBossAssetAliasIndex(raw.byFishId, byAssetBase),
+    byMineBossId: hydrateFishBossAssetAliasIndex(raw.byMineBossId, byAssetBase),
+    byRegionBossId: hydrateFishBossAssetAliasIndex(raw.byRegionBossId, byAssetBase),
+  }
+}
+
 export const loadFishBossAssetManifest = async (): Promise<FishBossAssetManifest | null> => {
   if (manifestLoaded.value) return manifest.value
   if (loadPromise) return loadPromise
@@ -91,8 +136,8 @@ export const loadFishBossAssetManifest = async (): Promise<FishBossAssetManifest
       const url = `${resolveStaticBase(FALLBACK_BASE_PATH)}/fish-boss-asset-manifest.json`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`manifest ${res.status}`)
-      const data = (await res.json()) as FishBossAssetManifest
-      manifest.value = data && typeof data === 'object' ? data : null
+      const data = await res.json()
+      manifest.value = normalizeLoadedFishBossAssetManifest(data)
       manifestLoaded.value = true
       return manifest.value
     } catch (error) {
@@ -173,18 +218,7 @@ export const getFishBossAssetUrl = (
 }
 
 export const warmFishBossAssetCache = (url: string) => {
-  if (!url || typeof caches === 'undefined') return
-  void (async () => {
-    try {
-      const cache = await caches.open(ASSET_CACHE_NAME)
-      const cached = await cache.match(url)
-      if (cached) return
-      const res = await fetch(url, { cache: 'force-cache' })
-      if (res.ok) await cache.put(url, res.clone())
-    } catch {
-      /* best-effort browser cache */
-    }
-  })()
+  warmBrowserAssetCache(url, { cacheName: ASSET_CACHE_NAME })
 }
 
 export const useFishBossAssetManifest = () => ({

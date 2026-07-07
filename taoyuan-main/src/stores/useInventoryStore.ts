@@ -70,7 +70,15 @@ import {
 } from '@/data/forgeAffixes'
 import { TRINKETS, getTrinketById, type TrinketDef } from '@/data/trinkets'
 import { EQUIPMENT_SETS } from '@/data/equipmentSets'
-import { calculateRepairBenchModeCost, getRepairBaseMaterial, getRepairQualityTier } from '@/utils/durability'
+import {
+  EQUIPMENT_DURABILITY_BALANCE_VERSION,
+  calculateLegacyMaxDurability,
+  calculateLegacyMaxSturdiness,
+  calculateRepairBenchModeCost,
+  getAffixDurabilityBonus,
+  getRepairBaseMaterial,
+  getRepairQualityTier
+} from '@/utils/durability'
 import { usePlayerStore } from './usePlayerStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useSkillStore } from './useSkillStore'
@@ -353,6 +361,21 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
   const clampEquipmentValue = (value: number | undefined, max: number): number =>
     Math.max(0, Math.min(value ?? max, max))
+  const shouldMigrateDurabilityBalance = (version: unknown): boolean =>
+    Math.floor(Number(version) || 0) < EQUIPMENT_DURABILITY_BALANCE_VERSION
+  const migrateEquipmentValueToNewMax = (
+    value: number | undefined,
+    oldMax: number,
+    newMax: number,
+    shouldMigrate: boolean
+  ): number => {
+    if (value == null) return newMax
+    if (!shouldMigrate) return clampEquipmentValue(value, newMax)
+    const safeOldMax = Math.max(1, Math.floor(oldMax))
+    const safeNewMax = Math.max(1, Math.floor(newMax))
+    const ratio = Math.max(0, Math.min(1, value / safeOldMax))
+    return Math.max(0, Math.min(safeNewMax, Math.ceil(safeNewMax * ratio)))
+  }
   const normalizeEquipmentEnchantmentId = (slot: EquipmentEnchantSlot, rawEnchantmentId: unknown, label: string): string | null => {
     if (typeof rawEnchantmentId !== 'string' || rawEnchantmentId.length <= 0) return null
     const enchantment = getEquipmentEnchantmentById(rawEnchantmentId)
@@ -806,15 +829,19 @@ export const useInventoryStore = defineStore('inventory', () => {
     return { success: true, message: `拆解完成，返还${materialName}×${quantity}。`, itemId: baseMaterial.itemId, quantity }
   }
 
-  const repairLowestDurabilityEquipment = (allowedTypes: string[] = ['weapon', 'ring', 'hat', 'shoe']): string | null => {
+  const repairLowestDurabilityEquipment = (
+    allowedTypes: string[] = ['weapon', 'ring', 'hat', 'shoe'],
+    isRepairBlocked?: (type: RepairBenchEquipType, index: number) => boolean
+  ): string | null => {
     const candidates: { type: RepairBenchEquipType; index: number; current: number; max: number; name: string }[] = []
     const pushCandidate = (type: string, index: number, defId: string) => {
       if (!allowedTypes.includes(type) || !['weapon', 'ring', 'hat', 'shoe'].includes(type)) return
+      const repairType = type as RepairBenchEquipType
+      if (isRepairBlocked?.(repairType, index)) return
       const durability = getOwnedEquipmentDurability(type, index)
       const sturdiness = getOwnedEquipmentSturdiness(type, index)
       if (!durability || durability.current >= durability.max) return
       if (!sturdiness) return
-      const repairType = type as RepairBenchEquipType
       const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
       const preview = calculateRepairBenchModeCost(repairType, defId, npcUnlocked, durability, sturdiness, 'fine')
       if (!preview.canRepair) return
@@ -826,6 +853,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     ownedShoes.value.forEach((entry, index) => pushCandidate('shoe', index, entry.defId))
     candidates.sort((a, b) => (a.current / Math.max(1, a.max)) - (b.current / Math.max(1, b.max)))
     const target = candidates[0]
+    if (target && isRepairBlocked?.(target.type, target.index)) return null
     if (!target || !repairOwnedEquipment(target.type, target.index)) return null
     return target.name
   }
@@ -2331,6 +2359,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const serialize = () => {
     return {
+      equipmentDurabilityBalanceVersion: EQUIPMENT_DURABILITY_BALANCE_VERSION,
       items: cloneInventorySlots(items.value),
       capacity: capacity.value,
       tempItems: cloneInventorySlots(tempItems.value),
@@ -2353,6 +2382,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
     equipmentMigrationLogs.value = []
+    const migrateDurabilityBalance = shouldMigrateDurabilityBalance((data as { equipmentDurabilityBalanceVersion?: unknown }).equipmentDurabilityBalanceVersion)
 
     const migrateRecipeId = (id: string) => {
       if (id === 'mill_fish_feed' || id === 'recycle_fish_feed') return 'fish_feed'
@@ -2401,6 +2431,9 @@ export const useInventoryStore = defineStore('inventory', () => {
           const recipeMoney = def.shopPrice ?? 0
           const maxDurability = calculateEffectiveMaxDurability(def.qualityTier, recipe, recipeMoney, normalizedAffixes, null, [])
           const maxSturdiness = calculateEffectiveMaxSturdiness(def.qualityTier, recipe, recipeMoney, normalizedAffixes, null)
+          const durabilityBonus = getAffixDurabilityBonus(normalizedAffixes)
+          const oldMaxDurability = calculateLegacyMaxDurability(def.qualityTier, recipe, recipeMoney, 0, durabilityBonus)
+          const oldMaxSturdiness = calculateLegacyMaxSturdiness(def.qualityTier, recipe, recipeMoney, durabilityBonus)
           const weaponDurability = readNumericField(rawWeapon.durability)
           const weaponSturdiness = readNumericField(rawWeapon.sturdiness)
           const wearProgress = readDurabilityWearProgress(rawWeapon)
@@ -2409,8 +2442,8 @@ export const useInventoryStore = defineStore('inventory', () => {
             enchantmentId: null,
             affixes: normalizedAffixes,
             locked: readLockedFlag(rawWeapon),
-            durability: clampEquipmentValue(weaponDurability, maxDurability),
-            sturdiness: clampEquipmentValue(weaponSturdiness, maxSturdiness),
+            durability: migrateEquipmentValueToNewMax(weaponDurability, oldMaxDurability, maxDurability, migrateDurabilityBalance),
+            sturdiness: migrateEquipmentValueToNewMax(weaponSturdiness, oldMaxSturdiness, maxSturdiness, migrateDurabilityBalance),
             ...(wearProgress != null ? { durabilityWearProgress: wearProgress } : {}),
             rawIndex
           })
@@ -2451,6 +2484,9 @@ export const useInventoryStore = defineStore('inventory', () => {
           const def = getRingById(defId)!
           const maxDurability = calculateEffectiveMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, normalizedAffixes, null, [])
           const maxSturdiness = calculateEffectiveMaxSturdiness(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, normalizedAffixes, null)
+          const durabilityBonus = getAffixDurabilityBonus(normalizedAffixes)
+          const oldMaxDurability = calculateLegacyMaxDurability(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, 0, durabilityBonus)
+          const oldMaxSturdiness = calculateLegacyMaxSturdiness(def.qualityTier, def.recipe ?? null, def.recipeMoney ?? 0, durabilityBonus)
           const rawDurability = (entry as { durability?: unknown }).durability
           const ringDurability = readNumericField(rawDurability)
           const ringSturdiness = readNumericField((entry as { sturdiness?: unknown }).sturdiness)
@@ -2460,8 +2496,8 @@ export const useInventoryStore = defineStore('inventory', () => {
             enchantmentId: null,
             affixes: normalizedAffixes,
             locked: readLockedFlag(entry as { locked?: unknown }),
-            durability: clampEquipmentValue(ringDurability, maxDurability),
-            sturdiness: clampEquipmentValue(ringSturdiness, maxSturdiness),
+            durability: migrateEquipmentValueToNewMax(ringDurability, oldMaxDurability, maxDurability, migrateDurabilityBalance),
+            sturdiness: migrateEquipmentValueToNewMax(ringSturdiness, oldMaxSturdiness, maxSturdiness, migrateDurabilityBalance),
             ...(wearProgress != null ? { durabilityWearProgress: wearProgress } : {}),
             rawIndex
           })
@@ -2516,6 +2552,13 @@ export const useInventoryStore = defineStore('inventory', () => {
           const maxSturdiness = equipmentDef
             ? calculateEffectiveMaxSturdiness(equipmentDef.qualityTier, equipmentDef.recipe ?? null, equipmentDef.recipeMoney ?? 0, normalizedAffixes, null)
             : 1
+          const durabilityBonus = getAffixDurabilityBonus(normalizedAffixes)
+          const oldMaxDurability = equipmentDef
+            ? calculateLegacyMaxDurability(equipmentDef.qualityTier, equipmentDef.recipe ?? null, equipmentDef.recipeMoney ?? 0, 0, durabilityBonus)
+            : 1
+          const oldMaxSturdiness = equipmentDef
+            ? calculateLegacyMaxSturdiness(equipmentDef.qualityTier, equipmentDef.recipe ?? null, equipmentDef.recipeMoney ?? 0, durabilityBonus)
+            : 1
           const rawDurability = (entry as { durability?: unknown }).durability
           const equipDurability = readNumericField(rawDurability)
           const equipSturdiness = readNumericField((entry as { sturdiness?: unknown }).sturdiness)
@@ -2525,8 +2568,8 @@ export const useInventoryStore = defineStore('inventory', () => {
             enchantmentId: null,
             affixes: normalizedAffixes,
             locked: readLockedFlag(entry as { locked?: unknown }),
-            durability: clampEquipmentValue(equipDurability, maxDurability),
-            sturdiness: clampEquipmentValue(equipSturdiness, maxSturdiness),
+            durability: migrateEquipmentValueToNewMax(equipDurability, oldMaxDurability, maxDurability, migrateDurabilityBalance),
+            sturdiness: migrateEquipmentValueToNewMax(equipSturdiness, oldMaxSturdiness, maxSturdiness, migrateDurabilityBalance),
             ...(wearProgress != null ? { durabilityWearProgress: wearProgress } : {}),
             rawIndex
           })

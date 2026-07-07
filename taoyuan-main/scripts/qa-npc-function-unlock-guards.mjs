@@ -147,7 +147,9 @@ assertIncludes(npcStoreSource, 'const getNpcFunctionUnlockStatus =', 'Store shou
 assertIncludes(npcStoreSource, 'const canUnlockNpcFunction =', 'Store should export canUnlockNpcFunction.')
 assertIncludes(npcStoreSource, 'const unlockNpcFunction =', 'Store should export unlockNpcFunction.')
 assertIncludes(npcStoreSource, "spendMoney(def.costMoney, 'npc_function_unlock')", 'unlockNpcFunction should charge money.')
-assertIncludes(npcStoreSource, 'removeItemsWithRollback(def.materialCost)', 'unlockNpcFunction should remove materials.')
+assertIncludes(npcStoreSource, "from '@/composables/useCombinedInventory'", 'NPC function unlocks should use combined inventory helpers.')
+assertIncludes(npcStoreSource, 'getCombinedItemCount(material.itemId)', 'NPC function material status should count backpack, temp inventory, and warehouse/void chests.')
+assertIncludes(npcStoreSource, 'removeCombinedItems(def.materialCost)', 'unlockNpcFunction should remove materials from combined inventory.')
 assertIncludes(npcStoreSource, "state.unlockedFunctionIds = [...", 'unlockNpcFunction should push to unlockedFunctionIds.')
 assertIncludes(npcStoreSource, "from '@/data/npcFunctionEffects'", 'Store should read NPC effect helpers from the centralized registry.')
 assertIncludes(npcStoreSource, 'const getUnlockedNpcFunctionDefs = (): NpcFunctionUnlockDef[]', 'Store should collect unlocked function defs before resolving effects.')
@@ -170,6 +172,7 @@ assertIncludes(npcViewSource, ':data-testid="`npc-function-unlock-card-${', 'Fun
 assertIncludes(npcViewSource, ':data-testid="`npc-function-unlock-${', 'Function unlock buttons should have stable test ids.')
 assertIncludes(npcViewSource, 'selectedNpcFunctionUnlockStatuses', 'NpcView should compute function unlock statuses.')
 assertIncludes(npcViewSource, 'handleUnlockNpcFunction', 'NpcView should have unlock handler.')
+assertIncludes(npcViewSource, 'getCombinedItemCount(mat.itemId)', 'NpcView material rows should show combined inventory counts.')
 assertIncludes(npcViewSource, 'isNpcActiveServiceVisible', 'NpcView should gate active services with visibility helper.')
 assertIncludes(npcViewSource, 'random-npc-growth-unlock-hint', 'NpcView should show random NPC growth unlock hint.')
 

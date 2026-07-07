@@ -17,7 +17,8 @@ import {
   ALCHEMY_NATURE_LABELS,
   ALCHEMY_PILL_ROLE_LABELS,
   ALCHEMY_RESULT_KIND_LABELS,
-  ALCHEMY_SUPPORT_DAILY_LIMIT
+  ALCHEMY_SUPPORT_DAILY_LIMIT,
+  getAlchemyRecipeByOutputItemId
 } from './processing'
 import { RECIPES, getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from './recipes'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
@@ -388,7 +389,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
     }
   } else if (item.category === 'elixir') {
     pushDetail(details, '丹药定位', '丹炉炼制的短效经营准备品')
-    const alchemyRecipe = PUBLIC_PROCESSING_RECIPES.find(recipe => recipe.outputItemId === item.id && recipe.alchemy)
+    const alchemyRecipe = getAlchemyRecipeByOutputItemId(item.id)
     if (alchemyRecipe?.alchemy) {
       const meta = alchemyRecipe.alchemy
       const limit = meta.role === 'main' ? ALCHEMY_MAIN_DAILY_LIMIT : ALCHEMY_SUPPORT_DAILY_LIMIT

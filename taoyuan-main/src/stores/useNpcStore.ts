@@ -134,6 +134,7 @@ import { useAnimalStore } from './useAnimalStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useDecorationStore } from './useDecorationStore'
 import { useGoalStore } from './useGoalStore'
+import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
 import { addLog } from '@/composables/useGameLog'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
@@ -5567,7 +5568,6 @@ export const useNpcStore = defineStore('npc', () => {
       }
     }
 
-    const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
     const unlocked = isNpcFunctionUnlocked(functionId)
     const relationshipReady = isRelationshipStageAtLeast(getRelationshipStage(def.npcId), def.requiredStage)
@@ -5578,7 +5578,7 @@ export const useNpcStore = defineStore('npc', () => {
     const missingMaterials = def.materialCost
       .map(material => ({
         ...material,
-        owned: inventoryStore.getItemCount(material.itemId)
+        owned: getCombinedItemCount(material.itemId)
       }))
       .filter(material => material.owned < material.quantity)
     const materialsReady = missingMaterials.length <= 0
@@ -5633,15 +5633,13 @@ export const useNpcStore = defineStore('npc', () => {
     const state = getNpcState(def.npcId)
     if (!state) return { success: false, message: 'NPC不存在。' }
 
-    const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
-    const inventorySnapshot = inventoryStore.serialize()
-    if (!inventoryStore.removeItemsWithRollback(def.materialCost)) {
-      return { success: false, message: '材料不足，无法完成解锁。' }
-    }
     if (!playerStore.spendMoney(def.costMoney, 'npc_function_unlock')) {
-      inventoryStore.deserialize(inventorySnapshot)
       return { success: false, message: `铜钱不足（需要${def.costMoney}文）。` }
+    }
+    if (!removeCombinedItems(def.materialCost)) {
+      playerStore.earnMoney(def.costMoney, { countAsEarned: false })
+      return { success: false, message: '材料不足，无法完成解锁。' }
     }
 
     state.unlockedFunctionIds = [...new Set([...(state.unlockedFunctionIds ?? []), def.id])]

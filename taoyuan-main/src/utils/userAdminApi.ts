@@ -16,6 +16,7 @@ export interface AdminPermissions {
   manage_content: boolean
   view_content_logs: boolean
   view_gameplay_logs: boolean
+  view_user_ips: boolean
 }
 
 export interface AdminSessionInfo {
@@ -37,6 +38,7 @@ const emptyAdminPermissions = (): AdminPermissions => ({
   manage_content: false,
   view_content_logs: false,
   view_gameplay_logs: false,
+  view_user_ips: false,
 })
 
 export interface UserSaveSlotSummary {
@@ -55,6 +57,44 @@ export interface UserSaveFileSummary {
   slots: UserSaveSlotSummary[]
 }
 
+export interface UserIpSourceCount {
+  source: string
+  count: number
+}
+
+export interface UserIpRecord {
+  username?: string
+  display_name?: string
+  ip_hash: string
+  ip_masked: string
+  ip_display: string
+  ip_address?: string
+  first_seen_at: number
+  last_seen_at: number
+  source: string
+  sources: UserIpSourceCount[]
+  count: number
+  same_user_count: number
+}
+
+export interface UserIpProfile {
+  username: string
+  latest_ip: UserIpRecord | null
+  history: UserIpRecord[]
+  same_ip_users: UserIpRecord[]
+  retention_days: number
+}
+
+export interface UserIpLookup {
+  ip_hash: string
+  ip_masked: string
+  ip_display: string
+  ip_address?: string
+  total: number
+  retention_days: number
+  users: UserIpRecord[]
+}
+
 export interface UserAdminSummary {
   username: string
   display_name: string
@@ -64,6 +104,7 @@ export interface UserAdminSummary {
   banned_at: number | null
   deleted_at: number | null
   save_file: UserSaveFileSummary
+  last_ip?: UserIpRecord | null
 }
 
 export interface UserAdminDetail {
@@ -75,6 +116,7 @@ export interface UserAdminDetail {
   banned_at: number | null
   deleted_at: number | null
   save_file: UserSaveFileSummary
+  last_ip?: UserIpRecord | null
 }
 
 export interface UserAdminListResult {
@@ -197,6 +239,68 @@ export const fetchAdminUserDetail = async (username: string, tokenOverride?: str
   const data = await adminRequest<{ user: UserAdminDetail }>(`/api/admin/users/${encodeURIComponent(username)}`, undefined, tokenOverride)
   if (!data.user) throw new Error('用户详情不存在')
   return data.user
+}
+
+const normalizeUserIpRecord = (record?: Partial<UserIpRecord> | null): UserIpRecord | null => {
+  if (!record) return null
+  return {
+    username: String(record.username || ''),
+    display_name: String(record.display_name || record.username || ''),
+    ip_hash: String(record.ip_hash || ''),
+    ip_masked: String(record.ip_masked || ''),
+    ip_display: String(record.ip_display || record.ip_masked || ''),
+    ...(record.ip_address ? { ip_address: String(record.ip_address) } : {}),
+    first_seen_at: Number(record.first_seen_at) || 0,
+    last_seen_at: Number(record.last_seen_at) || 0,
+    source: String(record.source || ''),
+    sources: Array.isArray(record.sources)
+      ? record.sources.map(item => ({
+          source: String(item?.source || ''),
+          count: Number(item?.count) || 0,
+        })).filter(item => item.source && item.count > 0)
+      : [],
+    count: Number(record.count) || 0,
+    same_user_count: Number(record.same_user_count) || 0,
+  }
+}
+
+const normalizeUserIpProfile = (profile?: Partial<UserIpProfile> | null): UserIpProfile => ({
+  username: String(profile?.username || ''),
+  latest_ip: normalizeUserIpRecord(profile?.latest_ip),
+  history: Array.isArray(profile?.history)
+    ? profile.history.map(item => normalizeUserIpRecord(item)).filter((item): item is UserIpRecord => !!item)
+    : [],
+  same_ip_users: Array.isArray(profile?.same_ip_users)
+    ? profile.same_ip_users.map(item => normalizeUserIpRecord(item)).filter((item): item is UserIpRecord => !!item)
+    : [],
+  retention_days: Number(profile?.retention_days) || 0,
+})
+
+export const fetchAdminUserIpProfile = async (username: string, tokenOverride?: string): Promise<UserIpProfile> => {
+  const data = await adminRequest<{ profile?: UserIpProfile }>(
+    `/api/admin/users/${encodeURIComponent(username)}/ip-profile`,
+    undefined,
+    tokenOverride,
+  )
+  return normalizeUserIpProfile(data.profile)
+}
+
+export const lookupAdminUsersByIp = async (ip: string, tokenOverride?: string): Promise<UserIpLookup> => {
+  const search = new URLSearchParams()
+  search.set('ip', ip)
+  const data = await adminRequest<{ lookup?: UserIpLookup }>(`/api/admin/user-ips?${search.toString()}`, undefined, tokenOverride)
+  const lookup = (data.lookup || {}) as Partial<UserIpLookup>
+  return {
+    ip_hash: String(lookup.ip_hash || ''),
+    ip_masked: String(lookup.ip_masked || ''),
+    ip_display: String(lookup.ip_display || lookup.ip_masked || ''),
+    ...(lookup.ip_address ? { ip_address: String(lookup.ip_address) } : {}),
+    total: Number(lookup.total) || 0,
+    retention_days: Number(lookup.retention_days) || 0,
+    users: Array.isArray(lookup.users)
+      ? lookup.users.map(item => normalizeUserIpRecord(item)).filter((item): item is UserIpRecord => !!item)
+      : [],
+  }
 }
 
 export const updateAdminUserQuota = async (username: string, quota: number, tokenOverride?: string): Promise<UserAdminDetail> => {

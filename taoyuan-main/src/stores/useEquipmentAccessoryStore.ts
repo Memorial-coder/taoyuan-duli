@@ -147,6 +147,10 @@ export const useEquipmentAccessoryStore = defineStore('equipmentAccessory', () =
     dailyPurchaseState.value = { dayTag: currentDayTag.value, purchased: {} }
   }
 
+  const refreshDailyPurchaseState = () => {
+    ensureDailyPurchaseDay()
+  }
+
   const nextInstanceId = () => {
     const id = `acc-${Date.now().toString(36)}-${nextInstanceSeq.value.toString(36)}`
     nextInstanceSeq.value += 1
@@ -678,6 +682,7 @@ export const useEquipmentAccessoryStore = defineStore('equipmentAccessory', () =
     rollMineAccessoryDrop,
     grantMineAccessoryMaterials,
     unlockBlueprintTier,
+    refreshDailyPurchaseState,
     buyDailyAccessoryMaterial,
     canFuseAccessories,
     previewAccessoryFusion,

@@ -304,10 +304,39 @@ export const useProcessingStore = defineStore('processing', () => {
   const buildSmithyRepairJobId = (equipType: RepairBenchEquipType, equipIndex: number, mode: RepairBenchMode): string =>
     `smithy_repair_${equipType}_${equipIndex}_${mode}_${gameStore.year}_${gameStore.season}_${gameStore.day}_${smithyRepairJobs.value.length + 1}`
 
+  const getOwnedRepairDefIds = (equipType: RepairBenchEquipType): string[] => {
+    if (equipType === 'weapon') return inventoryStore.ownedWeapons.map(entry => entry.defId)
+    if (equipType === 'ring') return inventoryStore.ownedRings.map(entry => entry.defId)
+    if (equipType === 'hat') return inventoryStore.ownedHats.map(entry => entry.defId)
+    return inventoryStore.ownedShoes.map(entry => entry.defId)
+  }
+
+  const findUniqueOwnedRepairIndexByDefId = (equipType: RepairBenchEquipType, defId: string): number | null => {
+    const matches = getOwnedRepairDefIds(equipType)
+      .map((candidateDefId, index) => ({ candidateDefId, index }))
+      .filter(candidate => candidate.candidateDefId === defId)
+    return matches.length === 1 ? matches[0]!.index : null
+  }
+
+  const resolveSmithyRepairJobEquipIndex = (job: SmithyRepairJob): number | null => {
+    const currentDefId = getOwnedRepairDefId(job.equipType, job.equipIndex)
+    if (currentDefId === job.defId) return job.equipIndex
+    return findUniqueOwnedRepairIndexByDefId(job.equipType, job.defId)
+  }
+
   const isSmithyRepairTargetBusy = (equipType: RepairBenchEquipType, equipIndex: number): boolean =>
-    smithyRepairJobs.value.some(job => job.equipType === equipType && job.equipIndex === equipIndex)
+    smithyRepairJobs.value.some(job => job.equipType === equipType && resolveSmithyRepairJobEquipIndex(job) === equipIndex)
 
   const getSmithyRepairJobName = (job: SmithyRepairJob): string => getRepairEquipName(job.equipType, job.defId)
+
+  const isSmithyRepairJobAlreadyRestored = (job: SmithyRepairJob, equipIndex: number): boolean => {
+    const durability = inventoryStore.getOwnedEquipmentDurability(job.equipType, equipIndex)
+    const sturdiness = inventoryStore.getOwnedEquipmentSturdiness(job.equipType, equipIndex)
+    if (!durability || !sturdiness) return false
+    const durabilityRestored = durability.current >= durability.max
+    if (job.mode !== 'refurbish') return durabilityRestored
+    return durabilityRestored && sturdiness.current >= sturdiness.max
+  }
 
   const canUseEnchantingForgeService = (): boolean =>
     workshopLevel.value >= 7 && npcStore.isNpcFunctionEffectUnlocked('premium_forge')
@@ -1203,10 +1232,16 @@ export const useProcessingStore = defineStore('processing', () => {
     const index = smithyRepairJobs.value.findIndex(job => job.id === jobId)
     const job = smithyRepairJobs.value[index]
     if (!job || !job.ready) return false
-    const currentDefId = getOwnedRepairDefId(job.equipType, job.equipIndex)
-    if (!currentDefId || currentDefId !== job.defId) return false
-    if (!inventoryStore.repairOwnedEquipment(job.equipType, job.equipIndex, job.mode)) return false
+    const equipIndex = resolveSmithyRepairJobEquipIndex(job)
+    if (equipIndex == null) return false
+    job.equipIndex = equipIndex
     const displayName = getSmithyRepairJobName(job)
+    if (!inventoryStore.repairOwnedEquipment(job.equipType, equipIndex, job.mode)) {
+      if (!isSmithyRepairJobAlreadyRestored(job, equipIndex)) return false
+      addLog(`铁匠铺修理完成：${displayName} 已在别处恢复，领取记录已整理。`)
+      smithyRepairJobs.value.splice(index, 1)
+      return true
+    }
     addLog(
       job.mode === 'refurbish'
         ? `铁匠铺翻新完成：${displayName} 恢复全部耐久并补回部分坚固。`

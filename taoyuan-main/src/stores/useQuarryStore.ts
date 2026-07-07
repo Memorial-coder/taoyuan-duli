@@ -817,7 +817,7 @@ export const useQuarryStore = defineStore('quarry', () => {
       const wAffixes = equippedWeapon.affixes ?? []
       const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
       const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
-      consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
+      consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction, 'weapon')
     }
     const ringSlots = [inventoryStore.equippedRingSlot1, inventoryStore.equippedRingSlot2]
     for (const slot of ringSlots) {
@@ -826,7 +826,7 @@ export const useQuarryStore = defineStore('quarry', () => {
         if (ring) {
           const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
           const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
-          consumeEquipmentDurability(ring, rMax, 1, rReduction)
+          consumeEquipmentDurability(ring, rMax, 1, rReduction, 'ring')
         }
       }
     }

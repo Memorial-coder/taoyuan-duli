@@ -15,6 +15,25 @@ import type {
 
 const pkg = _pkg as typeof _pkg & { version?: string }
 const SAVE_UPDATE_BUTTON_TEMPLATE_TYPES = new Set(['version_update', 'hotfix'])
+const ANNOUNCEMENT_EVENT_BATCH_DELAY_MS = 750
+const ANNOUNCEMENT_EVENT_MAX_BATCH_SIZE = 50
+const ANNOUNCEMENT_EVENT_DEDUPE_MS = 5000
+const DEDUPED_ANNOUNCEMENT_EVENT_TYPES = new Set<AnnouncementEventType>(['impression', 'close', 'suppress'])
+
+type QueuedAnnouncementEvent = {
+  announcement_id: string
+  event_type: AnnouncementEventType
+  client_version: string
+  client_channel: string
+  detail: Record<string, unknown>
+  resolve: (value: boolean) => void
+  reject: (reason?: unknown) => void
+}
+
+const announcementEventQueue: QueuedAnnouncementEvent[] = []
+const announcementEventDedupe = new Map<string, number>()
+let announcementEventFlushTimer: ReturnType<typeof setTimeout> | null = null
+let announcementEventInFlight: Promise<void> | null = null
 
 export const getAnnouncementClientVersion = (): string => String(pkg.version || '3.0.0').trim() || '3.0.0'
 
@@ -46,6 +65,68 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok) throw new Error(data?.msg || '公告请求失败')
   return data as T
+}
+
+const cleanupAnnouncementEventDedupe = (now = Date.now()) => {
+  if (announcementEventDedupe.size <= 200) return
+  for (const [key, timestamp] of announcementEventDedupe.entries()) {
+    if (now - timestamp > ANNOUNCEMENT_EVENT_DEDUPE_MS) announcementEventDedupe.delete(key)
+  }
+}
+
+export const flushAnnouncementEvents = async (): Promise<void> => {
+  if (announcementEventFlushTimer !== null) {
+    clearTimeout(announcementEventFlushTimer)
+    announcementEventFlushTimer = null
+  }
+  if (announcementEventInFlight) {
+    await announcementEventInFlight
+    return
+  }
+  if (!announcementEventQueue.length) return
+
+  const batch = announcementEventQueue.splice(0, ANNOUNCEMENT_EVENT_MAX_BATCH_SIZE)
+  const sendBatch = async () => {
+    try {
+      const data = await requestJson<{ recorded?: boolean; recorded_count?: number }>(
+        '/api/taoyuan/announcements/events/batch',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            events: batch.map(event => ({
+              announcement_id: event.announcement_id,
+              event_type: event.event_type,
+              client_version: event.client_version,
+              client_channel: event.client_channel,
+              detail: event.detail,
+            })),
+          }),
+        },
+      )
+      const recorded = data.recorded === true || Math.max(0, Number(data.recorded_count) || 0) > 0
+      for (const event of batch) event.resolve(recorded)
+    } catch (error) {
+      for (const event of batch) event.reject(error)
+    } finally {
+      announcementEventInFlight = null
+      if (announcementEventQueue.length) scheduleAnnouncementEventFlush()
+    }
+  }
+
+  announcementEventInFlight = sendBatch()
+  await announcementEventInFlight
+}
+
+const scheduleAnnouncementEventFlush = () => {
+  if (announcementEventQueue.length >= ANNOUNCEMENT_EVENT_MAX_BATCH_SIZE) {
+    void flushAnnouncementEvents()
+    return
+  }
+  if (announcementEventFlushTimer !== null) return
+  announcementEventFlushTimer = setTimeout(() => {
+    announcementEventFlushTimer = null
+    void flushAnnouncementEvents()
+  }, ANNOUNCEMENT_EVENT_BATCH_DELAY_MS)
 }
 
 const normalizeAnnouncementReward = (raw: Partial<AnnouncementReward> = {}): AnnouncementReward | null => {
@@ -179,19 +260,30 @@ export const recordAnnouncementEvent = async (
   eventType: AnnouncementEventType,
   detail: Record<string, unknown> = {},
 ) => {
-  const data = await requestJson<{ recorded: boolean }>(
-    `/api/taoyuan/announcements/${encodeURIComponent(announcementId)}/events`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        event_type: eventType,
-        client_version: getAnnouncementClientVersion(),
-        client_channel: getAnnouncementClientChannel(),
-        detail,
-      }),
-    },
-  )
-  return Boolean(data.recorded)
+  const id = String(announcementId || '').trim()
+  if (!id) return false
+
+  const now = Date.now()
+  cleanupAnnouncementEventDedupe(now)
+  if (DEDUPED_ANNOUNCEMENT_EVENT_TYPES.has(eventType)) {
+    const key = `${id}:${eventType}`
+    const lastRecordedAt = announcementEventDedupe.get(key) || 0
+    if (now - lastRecordedAt < ANNOUNCEMENT_EVENT_DEDUPE_MS) return true
+    announcementEventDedupe.set(key, now)
+  }
+
+  return new Promise<boolean>((resolve, reject) => {
+    announcementEventQueue.push({
+      announcement_id: id,
+      event_type: eventType,
+      client_version: getAnnouncementClientVersion(),
+      client_channel: getAnnouncementClientChannel(),
+      detail: detail && typeof detail === 'object' && !Array.isArray(detail) ? detail : {},
+      resolve,
+      reject,
+    })
+    scheduleAnnouncementEventFlush()
+  })
 }
 
 export const claimAnnouncementReward = async (announcementId: string) => {

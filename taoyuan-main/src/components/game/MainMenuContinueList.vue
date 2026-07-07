@@ -10,9 +10,15 @@
       </div>
     </slot>
 
-    <div v-if="loading" class="main-menu-empty-state game-panel-muted px-3 py-5 text-center">
-      <p class="text-xs text-muted">正在读取存档...</p>
-      <p class="text-[0.625rem] text-muted mt-1">首屏会先挂载，存档信息会在后台补齐。</p>
+    <div v-if="loading" class="space-y-2">
+      <div
+        v-for="index in 3"
+        :key="`slot-skeleton-${index}`"
+        class="main-menu-continue-slot-skeleton game-panel-muted"
+      >
+        <div class="h-3 w-32 rounded-xs bg-accent/10" />
+        <div class="h-2.5 w-24 rounded-xs bg-accent/10" />
+      </div>
     </div>
 
     <div v-else-if="slotReadBlocked" class="main-menu-empty-state rounded-xs border border-danger/30 bg-danger/10 px-3 py-5 text-center">
@@ -27,14 +33,21 @@
 
     <div v-for="info in existingSlots" :key="info.slot" class="w-full">
       <div class="flex w-full space-x-1">
-        <button class="btn main-menu-continue-slot flex-1 !justify-between" @click="$emit('load-slot', info.slot)">
+        <button
+          class="btn main-menu-continue-slot flex-1 !justify-between"
+          :disabled="actionDisabled"
+          @click="$emit('load-slot', info.slot)"
+        >
           <span class="inline-flex min-w-0 items-center space-x-2">
             <FolderOpen :size="14" class="shrink-0" />
-            <span class="truncate">存档 {{ info.slot + 1 }} · {{ info.playerName ?? '未命名' }}</span>
+            <span class="truncate">
+              {{ loadingSlot === info.slot ? `正在读取存档 ${info.slot + 1}` : `存档 ${info.slot + 1} · ${info.playerName ?? '未命名'}` }}
+            </span>
             <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
           </span>
           <span class="shrink-0 text-right text-[0.6875rem] text-muted md:text-xs">
-            第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{ info.day }}天
+            <template v-if="loadingSlot === info.slot">请稍候</template>
+            <template v-else>第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{ info.day }}天</template>
           </span>
         </button>
         <div class="relative">
@@ -42,6 +55,7 @@
             class="h-full px-2"
             :icon="Settings"
             :icon-size="12"
+            :disabled="actionDisabled"
             @click.stop="$emit('toggle-slot-menu', info.slot)"
           />
           <div
@@ -69,7 +83,7 @@
       </div>
     </div>
 
-    <Button class="text-center justify-center" :icon="Upload" @click="$emit('import-slot')">
+    <Button class="text-center justify-center" :icon="Upload" :disabled="actionDisabled" @click="$emit('import-slot')">
       导入存档
     </Button>
   </div>
@@ -86,6 +100,8 @@
     slotMenuOpen: number | null
     isNativePlatform: boolean
     loading?: boolean
+    loadingSlot?: number | null
+    actionDisabled?: boolean
     slotReadBlocked?: boolean
   }>()
 
@@ -104,6 +120,16 @@
     gap: 10px;
   }
 
+  .main-menu-continue-slot-skeleton {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-radius: 2px;
+    padding: 12px 14px;
+  }
+
   @media (min-width: 1280px) {
     .main-menu-empty-state {
       min-height: 112px;
@@ -115,6 +141,10 @@
     .main-menu-continue-slot {
       min-height: 54px;
       padding-inline: 14px;
+    }
+
+    .main-menu-continue-slot-skeleton {
+      min-height: 54px;
     }
   }
 </style>

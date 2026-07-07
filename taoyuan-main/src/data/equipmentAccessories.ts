@@ -102,7 +102,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '嵌入兵刃核心的锋芒部件，提升攻击。',
     icon: 'accessory_blade_core',
     frame: 'weaponry',
-    effects: [{ key: 'accessory_attack_flat', basePerLevel: 0.15, maxValue: 8, label: '攻击', unit: 'flat' }]
+    effects: [{ key: 'accessory_attack_flat', basePerLevel: 1.2, maxValue: 64, label: '攻击', unit: 'flat' }]
   },
   {
     id: 'weaponry_guard',
@@ -113,7 +113,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '稳住出招的护手部件，提升暴击。',
     icon: 'accessory_guard',
     frame: 'weaponry',
-    effects: [{ key: 'accessory_crit_rate', basePerLevel: 0.0008, maxValue: 0.04, label: '暴击率', unit: 'percent' }]
+    effects: [{ key: 'accessory_crit_rate', basePerLevel: 0.004, maxValue: 0.2, label: '暴击率', unit: 'percent' }]
   },
   {
     id: 'weaponry_inscription',
@@ -124,7 +124,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '刻写战法的铭印部件，略微缩短战斗耗时。',
     icon: 'accessory_inscription',
     frame: 'weaponry',
-    effects: [{ key: 'accessory_combat_time_reduction', basePerLevel: 0.001, maxValue: 0.05, label: '战斗耗时降低', unit: 'percent' }]
+    effects: [{ key: 'accessory_combat_time_reduction', basePerLevel: 0.005, maxValue: 0.25, label: '战斗耗时降低', unit: 'percent' }]
   },
   {
     id: 'armor_lining',
@@ -135,7 +135,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '贴身护具内衬，提升生命上限。',
     icon: 'accessory_lining',
     frame: 'armor',
-    effects: [{ key: 'accessory_max_hp_flat', basePerLevel: 0.45, maxValue: 25, label: '生命上限', unit: 'flat' }]
+    effects: [{ key: 'accessory_max_hp_flat', basePerLevel: 3.6, maxValue: 200, label: '生命上限', unit: 'flat' }]
   },
   {
     id: 'armor_talisman',
@@ -146,7 +146,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '随身护符，降低受到伤害。',
     icon: 'accessory_talisman',
     frame: 'armor',
-    effects: [{ key: 'accessory_damage_reduction', basePerLevel: 0.001, maxValue: 0.05, label: '受到伤害降低', unit: 'percent' }]
+    effects: [{ key: 'accessory_damage_reduction', basePerLevel: 0.005, maxValue: 0.25, label: '受到伤害降低', unit: 'percent' }]
   },
   {
     id: 'armor_tread',
@@ -157,7 +157,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '分散冲击的履带部件，降低装备耐久消耗。',
     icon: 'accessory_tread',
     frame: 'armor',
-    effects: [{ key: 'accessory_durability_consumption_reduction', basePerLevel: 0.0016, maxValue: 0.08, label: '耐久消耗降低', unit: 'percent' }]
+    effects: [{ key: 'accessory_durability_consumption_reduction', basePerLevel: 0.0096, maxValue: 0.48, label: '耐久消耗降低', unit: 'percent' }]
   },
   {
     id: 'gathering_pick_head',
@@ -168,7 +168,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '用于采矿的锋利镐头，降低挖矿体力消耗。',
     icon: 'accessory_pick_head',
     frame: 'gathering',
-    effects: [{ key: 'accessory_mining_stamina_reduction', basePerLevel: 0.0012, maxValue: 0.06, label: '挖矿体力降低', unit: 'percent' }]
+    effects: [{ key: 'accessory_mining_stamina_reduction', basePerLevel: 0.006, maxValue: 0.3, label: '挖矿体力降低', unit: 'percent' }]
   },
   {
     id: 'gathering_grip',
@@ -179,7 +179,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     description: '让采具更顺手的握柄，提高额外矿石概率。',
     icon: 'accessory_grip',
     frame: 'gathering',
-    effects: [{ key: 'accessory_ore_bonus_chance', basePerLevel: 0.0012, maxValue: 0.06, label: '额外矿石概率', unit: 'percent' }]
+    effects: [{ key: 'accessory_ore_bonus_chance', basePerLevel: 0.006, maxValue: 0.3, label: '额外矿石概率', unit: 'percent' }]
   },
   {
     id: 'gathering_probe',
@@ -191,7 +191,7 @@ export const EQUIPMENT_ACCESSORY_DEFS: EquipmentAccessoryDef[] = [
     icon: 'accessory_probe',
     frame: 'gathering',
     effects: [
-      { key: 'accessory_quarry_double_chance', basePerLevel: 0.001, maxValue: 0.06, label: '采石场额外产物', unit: 'percent' },
+      { key: 'accessory_quarry_double_chance', basePerLevel: 0.005, maxValue: 0.3, label: '采石场额外产物', unit: 'percent' },
       { key: 'accessory_treasure_hint', basePerLevel: 0.02, maxValue: 1, label: '宝物提示', unit: 'hint' }
     ]
   }
@@ -289,8 +289,8 @@ export const EQUIPMENT_ACCESSORY_SET_BONUSES: EquipmentAccessorySetBonusDef[] = 
     label: '兵刃三件',
     description: '三件兵刃配件齐备时提升战斗节奏。',
     effects: [
-      { key: 'accessory_attack_flat', basePerLevel: 0.04, maxValue: 3, label: '套装攻击', unit: 'flat' },
-      { key: 'accessory_combat_time_reduction', basePerLevel: 0.00045, maxValue: 0.02, label: '套装战斗耗时降低', unit: 'percent' }
+      { key: 'accessory_attack_flat', basePerLevel: 0.24, maxValue: 18, label: '套装攻击', unit: 'flat' },
+      { key: 'accessory_combat_time_reduction', basePerLevel: 0.00225, maxValue: 0.1, label: '套装战斗耗时降低', unit: 'percent' }
     ]
   },
   {
@@ -298,8 +298,8 @@ export const EQUIPMENT_ACCESSORY_SET_BONUSES: EquipmentAccessorySetBonusDef[] = 
     label: '护具三件',
     description: '三件护具配件齐备时提升生存和损失控制。',
     effects: [
-      { key: 'accessory_max_hp_flat', basePerLevel: 0.16, maxValue: 8, label: '套装生命', unit: 'flat' },
-      { key: 'accessory_passout_loss_reduction', basePerLevel: 0.001, maxValue: 0.08, label: '昏倒损失降低', unit: 'percent' }
+      { key: 'accessory_max_hp_flat', basePerLevel: 0.96, maxValue: 48, label: '套装生命', unit: 'flat' },
+      { key: 'accessory_passout_loss_reduction', basePerLevel: 0.005, maxValue: 0.4, label: '昏倒损失降低', unit: 'percent' }
     ]
   },
   {
@@ -307,8 +307,8 @@ export const EQUIPMENT_ACCESSORY_SET_BONUSES: EquipmentAccessorySetBonusDef[] = 
     label: '采具三件',
     description: '三件采具配件齐备时提升矿洞和采石场收益。',
     effects: [
-      { key: 'accessory_mining_stamina_reduction', basePerLevel: 0.00045, maxValue: 0.025, label: '套装挖矿体力降低', unit: 'percent' },
-      { key: 'accessory_ore_bonus_chance', basePerLevel: 0.00045, maxValue: 0.025, label: '套装额外矿石概率', unit: 'percent' }
+      { key: 'accessory_mining_stamina_reduction', basePerLevel: 0.00225, maxValue: 0.125, label: '套装挖矿体力降低', unit: 'percent' },
+      { key: 'accessory_ore_bonus_chance', basePerLevel: 0.00225, maxValue: 0.125, label: '套装额外矿石概率', unit: 'percent' }
     ]
   }
 ]

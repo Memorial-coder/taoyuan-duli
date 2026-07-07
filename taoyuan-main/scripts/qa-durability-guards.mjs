@@ -19,11 +19,22 @@ const guard = (condition, message) => {
   }
 }
 
-const simulateWear = (uses, reduction) => {
+const LIGHT_DAMAGE_FREE_MATERIAL_RATIO = 0.2
+const SIMPLE_REPAIR_MONEY_RATIO = 0.3
+const REFURBISH_FULL_REPAIR_MULTIPLIER = 2
+const WEAR_MULTIPLIERS = {
+  weapon: 0.5,
+  ring: 0.5,
+  hat: 0.75,
+  shoe: 0.75
+}
+
+const simulateWear = (uses, reduction, wearType = null) => {
   let durability = 10
   let wearProgress = 0
   for (let i = 0; i < uses; i++) {
-    const effectiveAmount = Math.max(0, 1 * Math.max(0.1, 1 - reduction))
+    const typeMultiplier = wearType ? WEAR_MULTIPLIERS[wearType] : 1
+    const effectiveAmount = Math.max(0, 1 * typeMultiplier * Math.max(0.1, 1 - reduction))
     const nextWearProgress = wearProgress + effectiveAmount
     const consumeAmount = Math.floor(nextWearProgress + 1e-9)
     wearProgress = nextWearProgress - consumeAmount
@@ -36,7 +47,9 @@ const simulateRepairCost = (fullMaterialQuantity, fullMoney, current, max) => {
   const missingDurability = Math.max(0, Math.min(max, max - current))
   const damageRatio = max > 0 ? missingDurability / max : 0
   return {
-    materialQuantity: missingDurability > 0 ? Math.ceil(fullMaterialQuantity * damageRatio) : 0,
+    materialQuantity: missingDurability > 0 && damageRatio > LIGHT_DAMAGE_FREE_MATERIAL_RATIO
+      ? Math.ceil(fullMaterialQuantity * damageRatio)
+      : 0,
     money: missingDurability > 0 ? Math.ceil(fullMoney * damageRatio) : 0,
     missingDurability,
     damageRatio
@@ -70,7 +83,7 @@ const simulateRepairBenchModeCost = ({
       ...fineCost,
       mode: 'simple',
       materialQuantity: 0,
-      money: hasDurabilityDamage ? Math.ceil(fineCost.money * 0.45) : 0,
+      money: hasDurabilityDamage ? Math.ceil(fineCost.money * SIMPLE_REPAIR_MONEY_RATIO) : 0,
       sturdinessLoss: calcSturdinessLoss(0.25),
       restoredSturdiness: 0,
       canRepair: hasDurabilityDamage && currentSturdiness >= calcSturdinessLoss(0.25),
@@ -79,8 +92,8 @@ const simulateRepairBenchModeCost = ({
     refurbish: {
       ...fineCost,
       mode: 'refurbish',
-      materialQuantity: Math.ceil(fullRepairCost.materialQuantity * 3),
-      money: Math.ceil(fullRepairCost.money * 3),
+      materialQuantity: Math.ceil(fullRepairCost.materialQuantity * REFURBISH_FULL_REPAIR_MULTIPLIER),
+      money: Math.ceil(fullRepairCost.money * REFURBISH_FULL_REPAIR_MULTIPLIER),
       sturdinessLoss: 0,
       restoredSturdiness: Math.max(1, Math.ceil(maxSturdiness * 0.3)),
       canRepair: hasDurabilityDamage || currentSturdiness < maxSturdiness,
@@ -138,9 +151,16 @@ guard(enchantments.includes("type: 'durability_consumption_reduction'"), 'Enchan
 // 7. Durability utility exists with key functions
 const durabilityUtils = await src('src/utils/durability.ts')
 guard(durabilityUtils.includes('DURABILITY_BASE'), 'DURABILITY_BASE constant exists')
+guard(durabilityUtils.includes('common: 100') && durabilityUtils.includes('fine: 200') && durabilityUtils.includes('excellent: 320') && durabilityUtils.includes('supreme: 480'), 'Durability bases are raised across all quality tiers')
 guard(durabilityUtils.includes('calculateMaxDurability'), 'calculateMaxDurability function exists')
 guard(durabilityUtils.includes('STURDINESS_BASE'), 'STURDINESS_BASE constant exists')
+guard(durabilityUtils.includes('common: 100') && durabilityUtils.includes('fine: 140') && durabilityUtils.includes('excellent: 190') && durabilityUtils.includes('supreme: 260'), 'Sturdiness bases are raised across all quality tiers')
 guard(durabilityUtils.includes('calculateMaxSturdiness'), 'calculateMaxSturdiness function exists')
+guard(durabilityUtils.includes('EQUIPMENT_DURABILITY_BALANCE_VERSION = 2'), 'Durability balance version is persisted for migration')
+guard(durabilityUtils.includes('DURABILITY_RECIPE_WEIGHT_CAP = 100'), 'Durability recipe weight cap is raised to 100')
+guard(durabilityUtils.includes('STURDINESS_RECIPE_WEIGHT_CAP = 50'), 'Sturdiness recipe weight cap is raised to 50')
+guard(durabilityUtils.includes('calculateLegacyMaxDurability'), 'Legacy max durability calculator exists for old save migration')
+guard(durabilityUtils.includes('calculateLegacyMaxSturdiness'), 'Legacy max sturdiness calculator exists for old save migration')
 guard(durabilityUtils.includes('getNpcDurabilityBonus'), 'getNpcDurabilityBonus function exists')
 guard(durabilityUtils.includes('getNpcRepairDiscount'), 'getNpcRepairDiscount function exists')
 guard(durabilityUtils.includes('getNpcSturdinessRepairReduction'), 'getNpcSturdinessRepairReduction function exists')
@@ -153,50 +173,79 @@ guard(durabilityUtils.includes('sturdiness: RepairSturdinessState'), 'calculateR
 guard(durabilityUtils.includes('missingDurability') && durabilityUtils.includes('damageRatio'), 'Repair cost exposes missing durability and damage ratio')
 guard(durabilityUtils.includes('Math.ceil(fullMaterialQuantity * damageRatio)'), 'Repair material cost scales by damage ratio')
 guard(durabilityUtils.includes('Math.ceil(fullMoney * damageRatio)'), 'Repair money cost scales by damage ratio')
+guard(durabilityUtils.includes('REPAIR_LIGHT_DAMAGE_FREE_MATERIAL_RATIO = 0.2'), 'Light repair damage under 20% does not consume materials')
+guard(durabilityUtils.includes('SIMPLE_REPAIR_MONEY_RATIO = 0.3'), 'Simple repair costs 30% of fine-repair money')
+guard(durabilityUtils.includes('REFURBISH_FULL_REPAIR_MULTIPLIER = 2'), 'Refurbish costs 2x full fine repair')
 guard(durabilityUtils.includes("equip_durability') ? 0.2") || durabilityUtils.includes("equip_durability\") ? 0.2"), 'NPC equip_durability reduces sturdiness loss by 20%')
 
-const fullWeaponRepair = simulateRepairCost(2, 1000, 0, 100)
-const lightWeaponRepair = simulateRepairCost(2, 1000, 90, 100)
-guard(fullWeaponRepair.materialQuantity === 2 && fullWeaponRepair.money === 1000, '0/100 weapon repair keeps full repair cost')
-guard(lightWeaponRepair.materialQuantity === 1 && lightWeaponRepair.money === 100, '90/100 weapon repair scales down to 1 material and 100 money')
+const itemsData = await src('src/data/items.ts')
+const extractRepairBaseItemId = (equipType) => {
+  const match = durabilityUtils.match(new RegExp(`${equipType}:\\s*\\{\\s*itemId:\\s*'([^']+)'`))
+  return match?.[1] ?? ''
+}
+for (const equipType of ['weapon', 'ring', 'hat', 'shoe']) {
+  const itemId = extractRepairBaseItemId(equipType)
+  guard(!!itemId, `${equipType} repair base item is configured`)
+  guard(itemsData.includes(`id: '${itemId}'`), `${equipType} repair base item ${itemId} exists in item data`)
+}
+guard(extractRepairBaseItemId('shoe') === 'felt', 'Shoe repair uses existing felt material instead of missing leather')
+
+const fullWeaponRepair = simulateRepairCost(1, 600, 0, 100)
+const lightWeaponRepair = simulateRepairCost(1, 600, 90, 100)
+const mediumWeaponRepair = simulateRepairCost(1, 600, 70, 100)
+guard(fullWeaponRepair.materialQuantity === 1 && fullWeaponRepair.money === 600, '0/100 common weapon repair uses reduced full repair cost')
+guard(lightWeaponRepair.materialQuantity === 0 && lightWeaponRepair.money === 60, '90/100 weapon repair only costs money after light-damage material relief')
+guard(mediumWeaponRepair.materialQuantity === 1 && mediumWeaponRepair.money === 180, '70/100 weapon repair resumes material cost after the light-damage threshold')
 guard(lightWeaponRepair.money < fullWeaponRepair.money && lightWeaponRepair.materialQuantity < fullWeaponRepair.materialQuantity, '90/100 repair is cheaper than 0/100 repair')
 
+const supremeWeaponRepair = simulateRepairCost(Math.ceil(1 * 2.2), Math.ceil(600 * 2.2), 0, 100)
+guard(supremeWeaponRepair.materialQuantity === 3 && supremeWeaponRepair.money === 1320, '0/100 supreme weapon repair is reduced from the old 6 materials + 3000 money')
+
+const lightHatRepair = simulateRepairCost(1, 500, 90, 100)
+guard(lightHatRepair.materialQuantity === 0 && lightHatRepair.money === 50, '90/100 hat repair only costs money after light-damage material relief')
+
 const repairBenchModeCheck = simulateRepairBenchModeCost({
-  fullMaterialQuantity: 2,
-  fullMoney: 1000,
+  fullMaterialQuantity: 1,
+  fullMoney: 600,
   currentDurability: 90,
   maxDurability: 100,
   currentSturdiness: 100,
   maxSturdiness: 100
 })
-guard(repairBenchModeCheck.fine.money > repairBenchModeCheck.simple.money, '精修比简修更贵')
-guard(repairBenchModeCheck.fine.sturdinessLoss < repairBenchModeCheck.simple.sturdinessLoss, '精修比简修坚固损耗更低')
-guard(repairBenchModeCheck.refurbish.money === 3000, '翻新铜钱是满修的 3 倍')
-guard(repairBenchModeCheck.refurbish.restoredSturdiness === 30, '翻新恢复 30% 最大坚固')
-guard(repairBenchModeCheck.dismantle.canRepair === false, '未失固时不能拆解')
+guard(repairBenchModeCheck.fine.money > repairBenchModeCheck.simple.money, 'fine repair costs more money than simple repair')
+guard(repairBenchModeCheck.fine.sturdinessLoss < repairBenchModeCheck.simple.sturdinessLoss, 'fine repair consumes less sturdiness than simple repair')
+guard(repairBenchModeCheck.simple.money === 18, 'simple repair costs 30% of fine-repair money')
+guard(repairBenchModeCheck.refurbish.money === 1200, 'refurbish money is 2x full fine repair')
+guard(repairBenchModeCheck.refurbish.materialQuantity === 2, 'refurbish material is 2x full fine repair')
+guard(repairBenchModeCheck.refurbish.restoredSturdiness === 30, 'refurbish restores 30% max sturdiness')
+guard(repairBenchModeCheck.dismantle.canRepair === false, 'cannot dismantle before sturdiness is depleted')
 
 const brokenBenchCheck = simulateRepairBenchModeCost({
-  fullMaterialQuantity: 2,
-  fullMoney: 1000,
+  fullMaterialQuantity: 1,
+  fullMoney: 600,
   currentDurability: 0,
   maxDurability: 100,
   currentSturdiness: 0,
   maxSturdiness: 100
 })
-guard(brokenBenchCheck.dismantle.canRepair === true, '失固时允许拆解')
-guard(brokenBenchCheck.fine.sturdinessLoss > 0, '破损装备会产生坚固损耗')
+guard(brokenBenchCheck.dismantle.canRepair === true, 'can dismantle after sturdiness is depleted')
+guard(brokenBenchCheck.fine.sturdinessLoss > 0, 'broken equipment still produces sturdiness loss')
 guard(repairBenchModeCheck.fine.sturdinessLoss < simulateRepairBenchModeCost({
-  fullMaterialQuantity: 2,
-  fullMoney: 1000,
+  fullMaterialQuantity: 1,
+  fullMoney: 600,
   currentDurability: 0,
   maxDurability: 100,
   currentSturdiness: 100,
   maxSturdiness: 100
-}).fine.sturdinessLoss, '0/100 的坚固损耗高于 90/100')
+}).fine.sturdinessLoss, '0/100 sturdiness loss is higher than 90/100')
 
 // 8. Composable useDurability exists
 const useDurability = await src('src/composables/useDurability.ts')
 guard(useDurability.includes('consumeEquipmentDurability'), 'consumeEquipmentDurability exported')
+guard(useDurability.includes('EquipmentDurabilityWearType'), 'Durability consumption accepts equipment wear type')
+guard(useDurability.includes('EQUIPMENT_DURABILITY_WEAR_MULTIPLIER'), 'Durability wear type multipliers are centralized')
+guard(useDurability.includes('weapon: 0.5') && useDurability.includes('ring: 0.5'), 'Combat equipment wear is halved')
+guard(useDurability.includes('hat: 0.75') && useDurability.includes('shoe: 0.75'), 'Daily equipment wear is reduced')
 guard(useDurability.includes('repairEquipment'), 'repairEquipment exported')
 guard(useDurability.includes('getCurrentDurability'), 'getCurrentDurability exported')
 guard(useDurability.includes('getCurrentSturdiness'), 'getCurrentSturdiness exported')
@@ -209,9 +258,30 @@ guard(!useDurability.includes('Math.max(1, Math.floor(amount'), 'Durability redu
 const noReduction = simulateWear(10, 0)
 const thirtyPercentReduction = simulateWear(10, 0.3)
 const fragilePenalty = simulateWear(4, -0.5)
+const weaponWear = simulateWear(10, 0, 'weapon')
+const hatWear = simulateWear(8, 0, 'hat')
 guard(noReduction.durability === 0, 'Baseline one-point actions consume 10 durability over 10 uses')
 guard(thirtyPercentReduction.durability === 3, '30% durability reduction preserves about 3 durability over 10 one-point uses')
 guard(fragilePenalty.durability === 4, 'Negative durability reduction increases one-point wear over repeated uses')
+guard(weaponWear.durability === 5, 'Weapon wear multiplier consumes 5 durability over 10 attacks')
+guard(hatWear.durability === 4, 'Hat/shoe wear multiplier consumes 6 durability over 8 daily batches')
+
+const inventoryStoreSource = await src('src/stores/useInventoryStore.ts')
+guard(inventoryStoreSource.includes('equipmentDurabilityBalanceVersion: EQUIPMENT_DURABILITY_BALANCE_VERSION'), 'Inventory save writes durability balance version')
+guard(inventoryStoreSource.includes('shouldMigrateDurabilityBalance'), 'Inventory load checks durability balance version')
+guard(inventoryStoreSource.includes('migrateEquipmentValueToNewMax'), 'Inventory load migrates old durability values by ratio')
+guard(inventoryStoreSource.includes('calculateLegacyMaxDurability'), 'Inventory migration reads legacy max durability')
+guard(inventoryStoreSource.includes('calculateLegacyMaxSturdiness'), 'Inventory migration reads legacy max sturdiness')
+guard(inventoryStoreSource.includes('Math.ceil(safeNewMax * ratio)'), 'Durability migration scales current values to new max')
+
+const miningStoreWear = await src('src/stores/useMiningStore.ts')
+const quarryStoreWear = await src('src/stores/useQuarryStore.ts')
+const regionMapStoreWear = await src('src/stores/useRegionMapStore.ts')
+const farmActionsWear = await src('src/composables/useFarmActions.ts')
+guard(miningStoreWear.includes("'weapon'") && miningStoreWear.includes("'ring'"), 'Mining durability calls pass combat wear types')
+guard(quarryStoreWear.includes("'weapon'") && quarryStoreWear.includes("'ring'"), 'Quarry durability calls pass combat wear types')
+guard(regionMapStoreWear.includes("'weapon'") && regionMapStoreWear.includes("'ring'"), 'Region combat durability calls pass combat wear types')
+guard(farmActionsWear.includes("'hat'") && farmActionsWear.includes("'shoe'"), 'Farm durability calls pass daily wear types')
 
 // 9. All weapon defs have qualityTier
 const weaponsData = await src('src/data/weapons.ts')
@@ -258,18 +328,17 @@ guard(!farmActions.includes('calculateConsumptionReduction(hat.affixes ?? [], ha
 guard(!farmActions.includes('calculateConsumptionReduction(shoe.affixes ?? [], shoe.enchantmentId, [])'), 'Farm shoe durability does not ignore NPC reduction')
 
 // 16. Inventory store handles locked equipment and repair
-const inventoryStore = await src('src/stores/useInventoryStore.ts')
-guard(inventoryStore.includes('repairOwnedEquipment'), 'Inventory store has repairOwnedEquipment')
-guard(inventoryStore.includes('.locked'), 'Inventory store checks locked flag')
-guard(inventoryStore.includes('isEquipmentUsableForPreset'), 'Inventory store skips locked or unusable equipment in presets')
-guard(inventoryStore.includes('readDurabilityWearProgress'), 'Inventory store preserves fractional durability wear in saves')
-guard(inventoryStore.includes('clampEquipmentValue'), 'Inventory store clamps and fills missing equipment durability/sturdiness on load')
-guard(inventoryStore.includes('durability: clampEquipmentValue') && inventoryStore.includes('sturdiness: clampEquipmentValue'), 'Inventory store writes migrated durability/sturdiness fields into old equipment saves')
-guard(inventoryStore.includes('calculateEffectiveMaxSturdiness'), 'Inventory store computes max sturdiness for save compatibility')
-guard(inventoryStore.includes('getOwnedEquipmentSturdiness'), 'Inventory store exposes owned equipment sturdiness helper')
-guard(inventoryStore.includes('dismantleOwnedEquipment'), 'Inventory store exposes dismantleOwnedEquipment')
-guard(inventoryStore.includes('canAddItem(baseMaterial.itemId, quantity)'), 'Inventory store checks inventory space before dismantling')
-guard(!inventoryStore.includes('slot === 0 ? equippedRingSlot1.value : equippedRingSlot2.value'), 'Ring max durability uses owned ring index directly')
+guard(inventoryStoreSource.includes('repairOwnedEquipment'), 'Inventory store has repairOwnedEquipment')
+guard(inventoryStoreSource.includes('.locked'), 'Inventory store checks locked flag')
+guard(inventoryStoreSource.includes('isEquipmentUsableForPreset'), 'Inventory store skips locked or unusable equipment in presets')
+guard(inventoryStoreSource.includes('readDurabilityWearProgress'), 'Inventory store preserves fractional durability wear in saves')
+guard(inventoryStoreSource.includes('clampEquipmentValue'), 'Inventory store clamps current-version equipment durability/sturdiness on load')
+guard(inventoryStoreSource.includes('durability: migrateEquipmentValueToNewMax') && inventoryStoreSource.includes('sturdiness: migrateEquipmentValueToNewMax'), 'Inventory store writes migrated durability/sturdiness fields into old equipment saves')
+guard(inventoryStoreSource.includes('calculateEffectiveMaxSturdiness'), 'Inventory store computes max sturdiness for save compatibility')
+guard(inventoryStoreSource.includes('getOwnedEquipmentSturdiness'), 'Inventory store exposes owned equipment sturdiness helper')
+guard(inventoryStoreSource.includes('dismantleOwnedEquipment'), 'Inventory store exposes dismantleOwnedEquipment')
+guard(inventoryStoreSource.includes('canAddItem(baseMaterial.itemId, quantity)'), 'Inventory store checks inventory space before dismantling')
+guard(!inventoryStoreSource.includes('slot === 0 ? equippedRingSlot1.value : equippedRingSlot2.value'), 'Ring max durability uses owned ring index directly')
 
 // 17. Fishing store has tackle_maintain NPC integration
 const fishingStore = await src('src/stores/useFishingStore.ts')
@@ -315,9 +384,15 @@ guard(processingStore.includes('getRepairBenchCostPreview(equipType, defId, dura
 guard(processingStore.includes('smithyRepairJobs'), 'Processing store persists smithy repair jobs outside workshop machine slots')
 guard(processingStore.includes('startSmithyRepair'), 'Processing store starts smithy repair without repair_bench slot')
 guard(processingStore.includes('collectSmithyRepairJob'), 'Processing store collects smithy repair jobs')
+guard(processingStore.includes('resolveSmithyRepairJobEquipIndex'), 'Smithy repair collection can recover from equipment index drift')
+guard(processingStore.includes('isSmithyRepairJobAlreadyRestored'), 'Smithy repair collection clears jobs already restored by compatibility paths')
+guard(processingStore.includes('领取记录已整理'), 'Already-restored smithy jobs should give a clear completion log instead of staying stuck')
 guard(processingStore.includes('migrateLegacyRepairSlotToSmithyJob'), 'Processing store migrates legacy repair bench slots into smithy jobs')
 guard(processingStore.includes('isSmithyServiceMachine(machineType)') && processingStore.includes('machineCount = computed'), 'Processing store excludes smithy services from workshop machine count')
 guard(processingStore.includes('job.mode === \'refurbish\'') && processingStore.includes('恢复全部耐久并补回部分坚固'), 'Refurbish completion log mentions sturdiness')
+const endDay = await src('src/composables/useEndDay.ts')
+guard(endDay.includes('repairLowestDurabilityEquipment(undefined, processingStore.isSmithyRepairTargetBusy)'), 'Weekly free tool repair skips smithy repair jobs')
+guard(endDay.includes("repairLowestDurabilityEquipment(['hat', 'shoe', 'ring'], processingStore.isSmithyRepairTargetBusy)"), 'Weekly free cloth repair skips smithy repair jobs')
 
 // 21. EquipmentQualityTier values are correct
 const validTiers = ['common', 'fine', 'excellent', 'supreme']
@@ -325,15 +400,16 @@ for (const tier of validTiers) {
   guard(weaponsData.includes(`'${tier}'`) || weaponsData.includes(`"${tier}"`), `qualityTier '${tier}' used in weapons`)
 }
 
-// 22. Durability base values are reasonable
-guard(durabilityUtils.includes('common: 50'), 'common base durability = 50')
-guard(durabilityUtils.includes('fine: 100'), 'fine base durability = 100')
-guard(durabilityUtils.includes('excellent: 150'), 'excellent base durability = 150')
-guard(durabilityUtils.includes('supreme: 200'), 'supreme base durability = 200')
-guard(durabilityUtils.includes('common: 80'), 'common base sturdiness = 80')
-guard(durabilityUtils.includes('fine: 100'), 'fine base sturdiness = 100')
-guard(durabilityUtils.includes('excellent: 120'), 'excellent base sturdiness = 120')
-guard(durabilityUtils.includes('supreme: 150'), 'supreme base sturdiness = 150')
+// 22. Durability base values are tuned upward while legacy values remain migration-only
+guard(durabilityUtils.includes('export const DURABILITY_BASE') && durabilityUtils.includes('common: 100'), 'common base durability = 100')
+guard(durabilityUtils.includes('export const DURABILITY_BASE') && durabilityUtils.includes('fine: 200'), 'fine base durability = 200')
+guard(durabilityUtils.includes('export const DURABILITY_BASE') && durabilityUtils.includes('excellent: 320'), 'excellent base durability = 320')
+guard(durabilityUtils.includes('export const DURABILITY_BASE') && durabilityUtils.includes('supreme: 480'), 'supreme base durability = 480')
+guard(durabilityUtils.includes('export const STURDINESS_BASE') && durabilityUtils.includes('common: 100'), 'common base sturdiness = 100')
+guard(durabilityUtils.includes('export const STURDINESS_BASE') && durabilityUtils.includes('fine: 140'), 'fine base sturdiness = 140')
+guard(durabilityUtils.includes('export const STURDINESS_BASE') && durabilityUtils.includes('excellent: 190'), 'excellent base sturdiness = 190')
+guard(durabilityUtils.includes('export const STURDINESS_BASE') && durabilityUtils.includes('supreme: 260'), 'supreme base sturdiness = 260')
+guard(durabilityUtils.includes('LEGACY_DURABILITY_BASE') && durabilityUtils.includes('LEGACY_STURDINESS_BASE'), 'Old durability bases are retained only for migration')
 
 console.log('')
 if (failures > 0) {

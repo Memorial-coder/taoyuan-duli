@@ -72,7 +72,7 @@
 
         <!-- 空格子 -->
         <div
-          v-for="i in isFilterActive ? 0 : Math.max(0, inventoryStore.capacity - filteredItems.length)"
+          v-for="i in emptyInventorySlotCount"
           :key="'empty-' + i"
           class="border border-accent/10 rounded-xs p-1.5 text-center text-xs text-muted/30"
         >
@@ -1450,6 +1450,7 @@
   const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
   const getCropUseFilterHint = (tag: CropUseTag): string => `${CROP_USE_TAG_LABELS[tag]}：${CROP_USE_TAG_FILTER_HINTS[tag]}`
   const CROP_USE_RECOMMENDATION_PRIORITY: CropUseTag[] = ['food', 'alchemy', 'pet_feed', 'animal_feed', 'order', 'gift', 'festival', 'online_cost', 'oil', 'flour', 'wine', 'pickle', 'medicine']
+  const MAX_RENDERED_EMPTY_INVENTORY_SLOTS = 45
 
   interface CropUseInventoryRecommendation {
     itemId: string
@@ -1467,10 +1468,11 @@
 
   const visibleInventoryItems = computed(() => inventoryStore.visibleItems)
 
-  const isItemAllowedByFilters = (item: InventoryItem): boolean => {
-    if (settingsStore.inventoryFilter.length === 0 && settingsStore.inventoryCropUseFilter.length === 0) return true
-    const allowedCategories = new Set(settingsStore.inventoryFilter)
-    const allowedCropUseTags = new Set(settingsStore.inventoryCropUseFilter)
+  const isItemAllowedByFilters = (
+    item: InventoryItem,
+    allowedCategories: Set<ItemCategory>,
+    allowedCropUseTags: Set<CropUseTag>,
+  ): boolean => {
     const def = getItemById(item.itemId)
     if (!def) return false
     const categoryMatched = allowedCategories.size === 0 || allowedCategories.has(def.category)
@@ -1482,7 +1484,15 @@
   }
 
   const filteredItems = computed(() => {
-    return mergeVisibleInventoryItems(inventoryStore.items.filter(isItemAllowedByFilters))
+    if (!isFilterActive.value) return visibleInventoryItems.value
+    const allowedCategories = new Set(settingsStore.inventoryFilter)
+    const allowedCropUseTags = new Set(settingsStore.inventoryCropUseFilter)
+    return mergeVisibleInventoryItems(inventoryStore.items.filter(item => isItemAllowedByFilters(item, allowedCategories, allowedCropUseTags)))
+  })
+
+  const emptyInventorySlotCount = computed(() => {
+    if (isFilterActive.value) return 0
+    return Math.min(MAX_RENDERED_EMPTY_INVENTORY_SLOTS, Math.max(0, inventoryStore.capacity - filteredItems.value.length))
   })
 
   const buildCropUseRecommendationText = (tags: CropUseTag[]): string => {

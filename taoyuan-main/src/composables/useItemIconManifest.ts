@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { ItemDef } from '@/types'
+import { warmBrowserAssetCache } from '@/utils/assetWarmCache'
 
 export type ItemIconVariant = '01' | '02' | '03'
 export type ItemIconSize = 128 | 256
@@ -24,6 +25,12 @@ export interface ItemIconManifest {
   byId?: Record<string, ItemIconManifestEntry>
   byName?: Record<string, ItemIconManifestEntry>
   byDisplayName?: Record<string, ItemIconManifestEntry>
+}
+
+type ItemIconManifestAliasIndex = Record<string, ItemIconManifestEntry | string>
+type RawItemIconManifest = Omit<ItemIconManifest, 'byName' | 'byDisplayName'> & {
+  byName?: ItemIconManifestAliasIndex
+  byDisplayName?: ItemIconManifestAliasIndex
 }
 
 const ITEM_ICON_ORIGIN = String(import.meta.env.VITE_ITEM_ICON_ORIGIN || '').replace(/\/+$/, '')
@@ -65,6 +72,34 @@ const appendVersion = (url: string, version: string): string => {
   return `${url}${joiner}v=${encodeURIComponent(version)}`
 }
 
+const isItemIconManifestEntry = (value: unknown): value is ItemIconManifestEntry =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && 'variants' in value
+
+const hydrateItemIconAliasIndex = (
+  index: ItemIconManifestAliasIndex | undefined,
+  primary: Record<string, ItemIconManifestEntry>,
+): Record<string, ItemIconManifestEntry> | undefined => {
+  if (!index) return undefined
+  const hydrated: Record<string, ItemIconManifestEntry> = {}
+  for (const [key, value] of Object.entries(index)) {
+    const entry = typeof value === 'string' ? primary[value] : value
+    if (isItemIconManifestEntry(entry)) hydrated[key] = entry
+  }
+  return hydrated
+}
+
+const normalizeLoadedItemIconManifest = (data: unknown): ItemIconManifest | null => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const raw = data as RawItemIconManifest
+  const byId = raw.byId || {}
+  return {
+    ...raw,
+    byId,
+    byName: hydrateItemIconAliasIndex(raw.byName, byId),
+    byDisplayName: hydrateItemIconAliasIndex(raw.byDisplayName, byId),
+  }
+}
+
 export const loadItemIconManifest = async (): Promise<ItemIconManifest | null> => {
   if (manifestLoaded.value) return manifest.value
   if (loadPromise) return loadPromise
@@ -76,8 +111,8 @@ export const loadItemIconManifest = async (): Promise<ItemIconManifest | null> =
       const url = `${resolveStaticBase(FALLBACK_BASE_PATH)}/item-icon-manifest.json`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`manifest ${res.status}`)
-      const data = (await res.json()) as ItemIconManifest
-      manifest.value = data && typeof data === 'object' ? data : null
+      const data = await res.json()
+      manifest.value = normalizeLoadedItemIconManifest(data)
       manifestLoaded.value = true
       return manifest.value
     } catch (error) {
@@ -141,18 +176,7 @@ export const getItemIconUrl = (
 }
 
 export const warmItemIconCache = (url: string) => {
-  if (!url || typeof caches === 'undefined') return
-  void (async () => {
-    try {
-      const cache = await caches.open(ICON_CACHE_NAME)
-      const cached = await cache.match(url)
-      if (cached) return
-      const res = await fetch(url, { cache: 'force-cache' })
-      if (res.ok) await cache.put(url, res.clone())
-    } catch {
-      /* best-effort browser cache */
-    }
-  })()
+  warmBrowserAssetCache(url, { cacheName: ICON_CACHE_NAME })
 }
 
 export const useItemIconManifest = () => ({

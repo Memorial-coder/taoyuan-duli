@@ -164,6 +164,63 @@ assert(
   'Exhibit set submission must not mutate donatedItems or bypass one-time donation rules.'
 )
 assert(
+  submitFunctionSource.includes('const museumSnapshot = cloneMuseumSaveData(serialize())') &&
+    submitFunctionSource.includes('const exhibitSetSnapshot = museumSnapshot.exhibitSetStates') &&
+    submitFunctionSource.includes('const telemetrySnapshot = museumSnapshot.telemetry') &&
+    submitFunctionSource.includes('const goalSnapshot = goalStore.serialize()'),
+  'Exhibit set submission must snapshot exhibit set state, telemetry, and goal counters before consuming materials.'
+)
+assert(
+  submitFunctionSource.indexOf('const museumSnapshot = cloneMuseumSaveData(serialize())') < submitFunctionSource.indexOf('inventoryStore.removeItemAnywhere(itemId, submitQuantity)'),
+  'Exhibit set submission snapshots must be created before removeItemAnywhere consumes materials.'
+)
+assert(
+  submitFunctionSource.includes('telemetry.value = telemetrySnapshot') && submitFunctionSource.includes('goalStore.deserialize(goalSnapshot)'),
+  'Exhibit set submission failure must roll back telemetry and goal activity counters as well as materials.'
+)
+const refreshTelemetryStart = museumStoreSource.indexOf('const refreshOperationalTelemetry')
+const refreshTelemetryEnd = museumStoreSource.indexOf('const rotateShrineTheme')
+const refreshTelemetrySource = refreshTelemetryStart >= 0 && refreshTelemetryEnd > refreshTelemetryStart
+  ? museumStoreSource.slice(refreshTelemetryStart, refreshTelemetryEnd)
+  : ''
+assert(refreshTelemetrySource.length > 0, 'refreshOperationalTelemetry source segment must be detectable.')
+assert(
+  !refreshTelemetrySource.replace('const refreshOperationalTelemetry = () =>', '').includes('refreshOperationalTelemetry()'),
+  'refreshOperationalTelemetry must update telemetry directly instead of recursively calling itself.'
+)
+assert(
+  refreshTelemetrySource.includes('telemetry.value = {') &&
+    refreshTelemetrySource.includes('visitorFlow: visitorTelemetry') &&
+    refreshTelemetrySource.includes('displayRating: displayTelemetry'),
+  'refreshOperationalTelemetry must persist rebuilt display rating and visitor flow telemetry.'
+)
+const claimFunctionStart = museumStoreSource.indexOf('const claimExhibitSetReward')
+const claimFunctionEnd = museumStoreSource.indexOf('const claimMilestone')
+const claimFunctionSource = claimFunctionStart >= 0 && claimFunctionEnd > claimFunctionStart
+  ? museumStoreSource.slice(claimFunctionStart, claimFunctionEnd)
+  : ''
+assert(claimFunctionSource.length > 0, 'claimExhibitSetReward source segment must be detectable.')
+assert(
+  claimFunctionSource.includes('const failExhibitSetRewardClaim = (message: string)') &&
+    claimFunctionSource.includes('addLog(') &&
+    claimFunctionSource.includes("tags: ['museum_exhibit_set', 'late_game_cycle', 'resource_sink']"),
+  'Exhibit set reward claim failures must be logged instead of silently returning false.'
+)
+assert(
+  claimFunctionSource.includes('const museumSnapshot = cloneMuseumSaveData(serialize())') &&
+    claimFunctionSource.includes('const exhibitSetSnapshot = museumSnapshot.exhibitSetStates') &&
+    claimFunctionSource.includes('const telemetrySnapshot = museumSnapshot.telemetry'),
+  'Exhibit set reward claim must snapshot exhibit set state and telemetry before marking rewards claimed.'
+)
+assert(
+  claimFunctionSource.indexOf('const museumSnapshot = cloneMuseumSaveData(serialize())') < claimFunctionSource.indexOf('setExhibitSetState(setId, { rewardClaimed: true })'),
+  'Exhibit set reward claim snapshot must be created before rewardClaimed is mutated.'
+)
+assert(
+  claimFunctionSource.includes('telemetry.value = telemetrySnapshot'),
+  'Exhibit set reward claim failure must roll back telemetry after refresh failures.'
+)
+assert(
   museumStoreSource.includes('const donateItem = (itemId: string): boolean') &&
     museumStoreSource.includes('donatedItems.value.push(itemId)'),
   'One-time donation path must remain in donateItem.'

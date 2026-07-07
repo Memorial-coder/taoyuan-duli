@@ -29,10 +29,10 @@ assert.deepEqual(
   db.getGameplayEventLogRetentionPolicy(),
   {
     retention_days: 30,
-    max_total: 500000,
-    max_per_user_slot: 12000,
+    max_total: 1000000,
+    max_per_user_slot: 24000,
   },
-  'gameplay log default retention policy should stay at 30 days, 500000 total rows, and 12000 rows per user-slot',
+  'gameplay log default retention policy should stay at 30 days, 1000000 total rows, and 24000 rows per user-slot',
 );
 
 await db.recordGameplayEventLogsBatch([
@@ -59,8 +59,8 @@ await db.recordGameplayEventLogsBatch([
 ]);
 const gameplayOverview = await db.getGameplayEventLogOverview();
 assert.equal(gameplayOverview.retention.retention_days, 30, 'gameplay overview should expose the 30-day window');
-assert.equal(gameplayOverview.retention.max_total, 500000, 'gameplay overview should expose the 500000 total cap');
-assert.equal(gameplayOverview.retention.max_per_user_slot, 12000, 'gameplay overview should expose the 12000 per user-slot cap');
+assert.equal(gameplayOverview.retention.max_total, 1000000, 'gameplay overview should expose the 1000000 total cap');
+assert.equal(gameplayOverview.retention.max_per_user_slot, 24000, 'gameplay overview should expose the 24000 per user-slot cap');
 const gameplayLogs = await db.listGameplayEventLogs({
   username: 'qa_gameplay_user',
   category: 'economy',
@@ -73,7 +73,8 @@ const gameplayLogs = await db.listGameplayEventLogs({
 assert.equal(gameplayLogs.total, 1, 'gameplay logs should be queryable by username and category');
 assert.equal(gameplayLogs.logs[0]?.meta?.action, 'settlement', 'gameplay log filters should match meta.action');
 assert.equal(gameplayLogs.logs[0]?.meta?.outcome, 'completed', 'gameplay log filters should match meta.outcome');
-assert.equal(gameplayLogs.retention.max_total, 500000, 'gameplay list response should expose the 500000 total cap');
+assert.equal(gameplayLogs.retention.max_total, 1000000, 'gameplay list response should expose the 1000000 total cap');
+assert.equal(gameplayLogs.retention.max_per_user_slot, 24000, 'gameplay list response should expose the 24000 per user-slot cap');
 
 for (let index = 0; index < 5010; index += 1) {
   await onlineAudit.recordOnlineAudit({

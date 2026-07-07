@@ -29,7 +29,10 @@
             <div class="space-y-1">
               <p class="text-xs text-accent">账号状态</p>
               <div class="text-xs text-muted leading-6">
-                <template v-if="currentUser">
+                <template v-if="authChecking">
+                  正在恢复登录状态...
+                </template>
+                <template v-else-if="currentUser">
                   当前账号：<span class="text-accent">{{ currentUser.display_name || currentUser.username }}</span>
                   <span class="text-muted">（{{ currentUser.username }}）</span>
                 </template>
@@ -38,10 +41,18 @@
                 </template>
               </div>
             </div>
-            <Button v-if="currentUser" class="text-center justify-center !text-xs shrink-0" :icon="LogOut" @click="handleLogout">退出</Button>
+            <Button v-if="currentUser && !authChecking" class="text-center justify-center !text-xs shrink-0" :icon="LogOut" @click="handleLogout">退出</Button>
           </div>
 
-          <div v-if="!currentUser" class="space-y-3 border border-accent/15 rounded-xs p-3 bg-bg/15">
+          <div v-if="authChecking" class="space-y-2 border border-accent/15 rounded-xs p-3 bg-bg/15">
+            <div class="flex items-center gap-2 text-[0.6875rem] text-accent">
+              <LoaderCircle :size="14" class="main-menu-loading-spin" />
+              <span>正在确认会话与云存档状态</span>
+            </div>
+            <p class="text-[0.6875rem] text-muted leading-5">如果上次已经登录，确认完成后会直接显示账号和存档。</p>
+          </div>
+
+          <div v-else-if="!currentUser" class="space-y-3 border border-accent/15 rounded-xs p-3 bg-bg/15">
             <p class="text-[0.6875rem] text-muted leading-5">登录与注册已拆分为独立页面，支持中文用户名与唯一校验。</p>
             <p class="text-[0.6875rem] leading-5 text-danger/90">未登录直接开始旅程时，存档无法保存，建议先注册账号后再游玩。</p>
             <div class="main-menu-auth-actions grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -100,6 +111,9 @@
                 :existing-slots="existingSlots"
                 :slot-menu-open="slotMenuOpen"
                 :is-native-platform="isNativePlatform"
+                :loading="slotsLoading"
+                :loading-slot="loadingSlot"
+                :action-disabled="isEntryLoading"
                 :slot-read-blocked="slotReadBlocked"
                 @load-slot="handleLoadGame"
                 @toggle-slot-menu="toggleSlotMenu"
@@ -292,6 +306,9 @@
             :existing-slots="existingSlots"
             :slot-menu-open="slotMenuOpen"
             :is-native-platform="isNativePlatform"
+            :loading="slotsLoading"
+            :loading-slot="loadingSlot"
+            :action-disabled="isEntryLoading"
             :slot-read-blocked="slotReadBlocked"
             @load-slot="handleLoadGame"
             @toggle-slot-menu="toggleSlotMenu"
@@ -314,6 +331,24 @@
     </div>
 
     <input ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
+
+    <Transition name="panel-fade">
+      <div
+        v-if="isEntryLoading"
+        class="fixed inset-0 z-[70] flex items-center justify-center bg-bg/82 px-4"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="game-panel w-full max-w-sm text-center">
+          <LoaderCircle :size="28" class="main-menu-loading-spin mx-auto text-accent" />
+          <p class="mt-3 text-sm text-accent">{{ entryLoadingTitle }}</p>
+          <p class="mt-2 text-xs leading-6 text-muted">{{ entryLoadingDetail }}</p>
+          <p v-if="entryLoadingHint" class="mt-3 rounded-xs border border-accent/15 bg-bg/20 px-3 py-2 text-[0.6875rem] leading-5 text-muted">
+            {{ entryLoadingHint }}
+          </p>
+        </div>
+      </div>
+    </Transition>
 
     <!-- 角色创建弹窗 -->
     <Transition name="panel-fade">
@@ -592,7 +627,7 @@
 </template>
 
 <script setup lang="ts">
-  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload, Megaphone, AlertTriangle } from 'lucide-vue-next'
+  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload, Megaphone, AlertTriangle, LoaderCircle } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
@@ -641,6 +676,7 @@
   const announcementStore = useAnnouncementStore()
 
   const slots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
+  type EntryLoadingStage = 'idle' | 'reading' | 'hydrating' | 'entering'
   type ImportNotice = {
     tone: 'success' | 'danger' | 'accent'
     message: string
@@ -649,6 +685,11 @@
   const showCharCreate = ref(false)
   const showFarmSelect = ref(false)
   const showIdentitySetup = ref(false)
+  const authChecking = ref(true)
+  const slotsLoading = ref(true)
+  const loadingSlot = ref<number | null>(null)
+  const entryLoadingStage = ref<EntryLoadingStage>('idle')
+  const entryLoadingHint = ref('')
   const adminLogoClickCount = ref(0)
   const adminEntryUnlocked = ref(false)
   const slotMenuOpen = ref<number | null>(null)
@@ -726,10 +767,25 @@
   }
   const currentUser = ref<null | { username: string; display_name?: string }>(null)
   let desktopMenuMediaQuery: MediaQueryList | null = null
+  let entryLoadingSlowTimer: ReturnType<typeof setTimeout> | null = null
+  let entryLoadingVerySlowTimer: ReturnType<typeof setTimeout> | null = null
 
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
   const pendingRedirectRoute = computed(() => resolveSafeGameRedirectRoute(route.query.redirect))
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
+  const isEntryLoading = computed(() => entryLoadingStage.value !== 'idle')
+  const entryLoadingTitle = computed(() => {
+    if (entryLoadingStage.value === 'reading') return loadingSlot.value !== null ? `正在读取存档 ${loadingSlot.value + 1}` : '正在读取存档'
+    if (entryLoadingStage.value === 'hydrating') return '正在初始化游戏数据'
+    if (entryLoadingStage.value === 'entering') return '即将进入桃源'
+    return ''
+  })
+  const entryLoadingDetail = computed(() => {
+    if (entryLoadingStage.value === 'reading') return saveStore.storageMode === 'server' ? '正在从云端取回存档内容。' : '正在读取本地存档内容。'
+    if (entryLoadingStage.value === 'hydrating') return '正在恢复背包、农田、任务和角色状态。'
+    if (entryLoadingStage.value === 'entering') return '正在切换到游戏页面并加载对应资源。'
+    return ''
+  })
   const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
   const serverSaveFieldAnomaly = computed(() => saveStore.serverSaveFieldAnomaly)
   const visibleFieldAnomalies = computed(() => serverSaveFieldAnomaly.value?.details.anomalies.slice(0, 5) ?? [])

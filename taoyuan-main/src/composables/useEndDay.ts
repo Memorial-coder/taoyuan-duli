@@ -138,6 +138,7 @@ const grantNpcDailyFunctionRewards = () => {
 const grantNpcWeeklyFunctionRewards = () => {
   const npcStore = useNpcStore()
   const inventoryStore = useInventoryStore()
+  const processingStore = useProcessingStore()
   for (const reward of NPC_WEEKLY_FUNCTION_REWARDS) {
     if (!npcStore.isNpcFunctionEffectUnlocked(reward.effectType)) continue
     const itemId = reward.itemIds[Math.floor(Math.random() * reward.itemIds.length)]!
@@ -147,11 +148,11 @@ const grantNpcWeeklyFunctionRewards = () => {
     grantNpcFunctionRewardItem('ginseng_tea', 1, '春兰与你共备了一盏同饮茶')
   }
   if (npcStore.isNpcFunctionEffectUnlocked('free_tool_repair')) {
-    const repaired = inventoryStore.repairLowestDurabilityEquipment()
+    const repaired = inventoryStore.repairLowestDurabilityEquipment(undefined, processingStore.isSmithyRepairTargetBusy)
     if (repaired) addLog(`阿铁帮你免费修好了${repaired}。`)
   }
   if (npcStore.isNpcFunctionEffectUnlocked('free_cloth_repair')) {
-    const repaired = inventoryStore.repairLowestDurabilityEquipment(['hat', 'shoe', 'ring'])
+    const repaired = inventoryStore.repairLowestDurabilityEquipment(['hat', 'shoe', 'ring'], processingStore.isSmithyRepairTargetBusy)
     if (repaired) addLog(`张婆婆帮你免费修补了${repaired}。`)
   }
   if (npcStore.isNpcFunctionEffectUnlocked('discovery_clues')) {
@@ -638,6 +639,7 @@ export const handleEndDay = () => {
   const museumStore = useMuseumStore()
   const guildStore = useGuildStore()
   const hanhaiStore = useHanhaiStore()
+  const equipmentAccessoryStore = useEquipmentAccessoryStore()
 
   goalStore.ensureInitialized()
 
@@ -961,6 +963,7 @@ export const handleEndDay = () => {
   const currentWeekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
   const weekBoundaryEvent = getWeekBoundaryEvent(previousWeekInfo, currentWeekInfo)
   const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  equipmentAccessoryStore.refreshDailyPurchaseState()
   quarryStore.dailyUpdate(currentDayTag)
   for (const log of npcStore.processPendingNpcActiveServices(currentDayTag)) {
     addLog(log)
@@ -1497,7 +1500,7 @@ export const handleEndDay = () => {
   const { moneyLost, recoveryPct } = playerStore.dailyReset(recoveryMode, bedHour)
   let finalMoneyLost = moneyLost
   if (recoveryMode === 'passout' && moneyLost > 0) {
-    const accessoryPassoutReduction = useEquipmentAccessoryStore().getAccessoryEffectValue('accessory_passout_loss_reduction')
+    const accessoryPassoutReduction = equipmentAccessoryStore.getAccessoryEffectValue('accessory_passout_loss_reduction')
     const refund = Math.min(moneyLost, Math.floor(moneyLost * Math.max(0, accessoryPassoutReduction)))
     if (refund > 0) {
       playerStore.earnMoney(refund, { countAsEarned: false })

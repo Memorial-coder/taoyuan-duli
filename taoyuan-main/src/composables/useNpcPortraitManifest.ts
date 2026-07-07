@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { warmBrowserAssetCache } from '@/utils/assetWarmCache'
 
 export type NpcPortraitVariant = '01' | '02' | '03' | '04' | '05'
 export type NpcPortraitSize = 128 | 256
@@ -28,6 +29,18 @@ export interface NpcPortraitManifest {
   byAssetBase?: Record<string, NpcPortraitManifestEntry>
   byName?: Record<string, NpcPortraitManifestEntry>
   byDisplayName?: Record<string, NpcPortraitManifestEntry>
+}
+
+type NpcPortraitManifestAliasIndex = Record<string, NpcPortraitManifestEntry | string>
+type RawNpcPortraitManifest = Omit<
+  NpcPortraitManifest,
+  'byId' | 'byTemplateId' | 'byAssetBase' | 'byName' | 'byDisplayName'
+> & {
+  byId?: NpcPortraitManifestAliasIndex
+  byTemplateId?: NpcPortraitManifestAliasIndex
+  byAssetBase?: NpcPortraitManifestAliasIndex
+  byName?: NpcPortraitManifestAliasIndex
+  byDisplayName?: NpcPortraitManifestAliasIndex
 }
 
 export interface NpcPortraitLookup {
@@ -77,6 +90,36 @@ const appendVersion = (url: string, version: string): string => {
   return `${url}${joiner}v=${encodeURIComponent(version)}`
 }
 
+const isNpcPortraitManifestEntry = (value: unknown): value is NpcPortraitManifestEntry =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && 'variants' in value
+
+const hydrateNpcPortraitAliasIndex = (
+  index: NpcPortraitManifestAliasIndex | undefined,
+  primary: Record<string, NpcPortraitManifestEntry>,
+): Record<string, NpcPortraitManifestEntry> | undefined => {
+  if (!index) return undefined
+  const hydrated: Record<string, NpcPortraitManifestEntry> = {}
+  for (const [key, value] of Object.entries(index)) {
+    const entry = typeof value === 'string' ? primary[value] : value
+    if (isNpcPortraitManifestEntry(entry)) hydrated[key] = entry
+  }
+  return hydrated
+}
+
+const normalizeLoadedNpcPortraitManifest = (data: unknown): NpcPortraitManifest | null => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const raw = data as RawNpcPortraitManifest
+  const byAssetBase = hydrateNpcPortraitAliasIndex(raw.byAssetBase, {}) || {}
+  return {
+    ...raw,
+    byAssetBase,
+    byId: hydrateNpcPortraitAliasIndex(raw.byId, byAssetBase),
+    byTemplateId: hydrateNpcPortraitAliasIndex(raw.byTemplateId, byAssetBase),
+    byName: hydrateNpcPortraitAliasIndex(raw.byName, byAssetBase),
+    byDisplayName: hydrateNpcPortraitAliasIndex(raw.byDisplayName, byAssetBase),
+  }
+}
+
 export const loadNpcPortraitManifest = async (): Promise<NpcPortraitManifest | null> => {
   if (manifestLoaded.value) return manifest.value
   if (loadPromise) return loadPromise
@@ -88,8 +131,8 @@ export const loadNpcPortraitManifest = async (): Promise<NpcPortraitManifest | n
       const url = `${resolveStaticBase(FALLBACK_BASE_PATH)}/npc-portrait-manifest.json`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`manifest ${res.status}`)
-      const data = (await res.json()) as NpcPortraitManifest
-      manifest.value = data && typeof data === 'object' ? data : null
+      const data = await res.json()
+      manifest.value = normalizeLoadedNpcPortraitManifest(data)
       manifestLoaded.value = true
       return manifest.value
     } catch (error) {
@@ -161,18 +204,7 @@ export const getNpcPortraitUrl = (
 }
 
 export const warmNpcPortraitCache = (url: string) => {
-  if (!url || typeof caches === 'undefined') return
-  void (async () => {
-    try {
-      const cache = await caches.open(PORTRAIT_CACHE_NAME)
-      const cached = await cache.match(url)
-      if (cached) return
-      const res = await fetch(url, { cache: 'force-cache' })
-      if (res.ok) await cache.put(url, res.clone())
-    } catch {
-      /* best-effort browser cache */
-    }
-  })()
+  warmBrowserAssetCache(url, { cacheName: PORTRAIT_CACHE_NAME })
 }
 
 export const useNpcPortraitManifest = () => ({

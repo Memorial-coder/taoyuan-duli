@@ -44,6 +44,19 @@ function normalizeReadTimestamp(value) {
   return Number.isFinite(timestamp) && timestamp > 0 ? Math.floor(timestamp) : 0;
 }
 
+function normalizeQueryTimestamp(value) {
+  if (value === undefined || value === null || value === '') return 0;
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 0;
+  return Math.floor(timestamp > 100000000000 ? timestamp / 1000 : timestamp);
+}
+
+function parsePositiveInt(value, fallback = 1, max = 100) {
+  const parsed = parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -314,6 +327,81 @@ function buildMessageForUser(message, viewerUsername) {
   };
 }
 
+function buildAdminPrivateChatMessage(message) {
+  return {
+    id: message.id,
+    conversation_id: message.conversation_id,
+    sender_username: message.sender_username,
+    sender_display_name: message.sender_display_name,
+    recipient_username: message.recipient_username,
+    recipient_display_name: message.recipient_display_name,
+    type: message.type,
+    content: message.content,
+    photo_url: message.photo_url,
+    photo_alt: message.photo_alt,
+    gift_delivery_id: message.gift_delivery_id,
+    gift_reward_count: message.gift_reward_count,
+    gift_claimed_at: message.gift_claimed_at,
+    deleted_at: message.deleted_at,
+    created_at: message.created_at,
+  };
+}
+
+function matchesAdminPrivateChatKeyword(message, keyword) {
+  if (!keyword) return true;
+  const haystack = [
+    message.content,
+    message.photo_alt,
+    message.photo_url,
+    message.sender_username,
+    message.sender_display_name,
+    message.recipient_username,
+    message.recipient_display_name,
+    message.type,
+  ].join(' ').toLocaleLowerCase('zh-CN');
+  return haystack.includes(keyword.toLocaleLowerCase('zh-CN'));
+}
+
+function listAdminPrivateChatMessages(options = {}) {
+  const data = loadChatData();
+  const page = parsePositiveInt(options.page, 1, 1000000);
+  const pageSize = parsePositiveInt(options.pageSize || options.page_size, 50, 100);
+  const senderUsername = normalizeUsername(options.senderUsername || options.sender_username || options.sender);
+  const recipientUsername = normalizeUsername(options.recipientUsername || options.recipient_username || options.recipient);
+  const participantUsername = normalizeUsername(options.username || options.participantUsername || options.participant_username);
+  const keyword = sanitizeText(options.keyword, 200);
+  const type = sanitizeText(options.type, 20);
+  const createdFrom = normalizeQueryTimestamp(options.createdFrom || options.created_from || options.from);
+  const createdTo = normalizeQueryTimestamp(options.createdTo || options.created_to || options.to);
+  const filtered = data.messages
+    .filter(message => !senderUsername || message.sender_username === senderUsername)
+    .filter(message => !recipientUsername || message.recipient_username === recipientUsername)
+    .filter(message => !participantUsername || message.sender_username === participantUsername || message.recipient_username === participantUsername)
+    .filter(message => !type || message.type === type)
+    .filter(message => !createdFrom || Number(message.created_at) >= createdFrom)
+    .filter(message => !createdTo || Number(message.created_at) <= createdTo)
+    .filter(message => matchesAdminPrivateChatKeyword(message, keyword))
+    .sort((left, right) => (Number(right.created_at) || 0) - (Number(left.created_at) || 0) || String(right.id).localeCompare(String(left.id), 'zh-CN'));
+  const offset = (page - 1) * pageSize;
+  return {
+    total: filtered.length,
+    page,
+    pageSize,
+    messages: filtered.slice(offset, offset + pageSize).map(buildAdminPrivateChatMessage),
+  };
+}
+
+function getAdminPrivateChatOverview() {
+  const data = loadChatData();
+  const latestCreatedAt = data.messages.reduce((max, message) => Math.max(max, Number(message.created_at) || 0), 0);
+  return {
+    total: data.messages.length,
+    latest_created_at: latestCreatedAt,
+    retention_days: null,
+    retention_label: `每会话最近 ${MAX_MESSAGES_PER_CONVERSATION} 条`,
+  };
+}
+
 async function listConversations(username) {
   const viewer = normalizeUsername(username);
   const data = loadChatData();
@@ -503,4 +591,6 @@ module.exports = {
   sendGift,
   markConversationRead,
   claimGiftMessage,
+  listAdminPrivateChatMessages,
+  getAdminPrivateChatOverview,
 };

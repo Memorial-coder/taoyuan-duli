@@ -16,6 +16,12 @@ const assert = (condition, message) => {
   if (!condition) errors.push(message)
 }
 
+const assertApprox = (actual, expected, message, epsilon = 0.00001) => {
+  if (Math.abs(actual - expected) > epsilon) {
+    errors.push(`${message}（实际 ${actual}，期望 ${expected}）`)
+  }
+}
+
 const tryResolveFile = candidate => {
   const variants = [
     candidate,
@@ -172,8 +178,10 @@ installBrowserShims()
 
 const { createPinia, setActivePinia } = await import('pinia')
 const dataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/equipmentAccessories.ts')).href)
+const glossaryModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/glossary.ts')).href)
 const itemModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
 const accessoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useEquipmentAccessoryStore.ts')).href)
+const gameStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useGameStore.ts')).href)
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
 await import(pathToFileURL(path.join(projectRoot, 'src/stores/useSaveStore.ts')).href)
@@ -182,6 +190,7 @@ const freshStores = () => {
   setActivePinia(createPinia())
   return {
     accessoryStore: accessoryStoreModule.useEquipmentAccessoryStore(),
+    gameStore: gameStoreModule.useGameStore(),
     inventoryStore: inventoryStoreModule.useInventoryStore(),
     playerStore: playerStoreModule.usePlayerStore(),
     saveStore: null
@@ -190,6 +199,7 @@ const freshStores = () => {
 
 const itemIds = new Set(itemModule.ITEMS.map(item => item.id))
 const accessoryIds = new Set(dataModule.EQUIPMENT_ACCESSORY_DEFS.map(def => def.id))
+const glossaryById = new Map(glossaryModule.GLOSSARY.map(entry => [entry.id, entry]))
 
 assert(dataModule.EQUIPMENT_ACCESSORY_FAMILIES.length === 3, '应有 3 条配件线。')
 assert(dataModule.EQUIPMENT_ACCESSORY_DEFS.length === 9, '应有 9 种配件定义。')
@@ -201,6 +211,25 @@ assert(dataModule.EQUIPMENT_ACCESSORY_DEFS.every(def => dataModule.EQUIPMENT_ACC
 assert(dataModule.EQUIPMENT_ACCESSORY_FAMILIES.every(family => family.slotIds.length === 3), '每条配件线都应有 3 个槽位。')
 assert(dataModule.EQUIPMENT_ACCESSORY_UPGRADE_COSTS.length === 19, '1-20 级升级成本应有 19 档。')
 
+for (const def of dataModule.EQUIPMENT_ACCESSORY_DEFS) {
+  const entry = glossaryById.get(`equipment_accessory_${def.id}`)
+  assert(entry, `配件百科词条缺失：${def.id}`)
+  if (!entry) continue
+  assert(entry.category === 'system' && entry.categoryLabel === '配件', `配件百科分类异常：${def.id}`)
+  assert(!entry.itemId, `配件本体不应伪装成普通背包物品：${def.id}`)
+  assert(entry.relatedPanels.some(panel => panel.panel === 'upgrade'), `配件百科必须能跳到铁匠铺：${def.id}`)
+  for (const relatedId of [
+    `item_${dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID}`,
+    `item_${dataModule.EQUIPMENT_ACCESSORY_TUNING_STONE_ITEM_ID}`,
+    `item_${dataModule.EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID}`
+  ]) {
+    assert(entry.relatedEntryIds.includes(relatedId), `配件百科缺少材料关联：${def.id} -> ${relatedId}`)
+  }
+  for (const keyword of [def.name, def.id, '配件', '合成', '稳固石', '一阶', '极品', '套装效果']) {
+    assert(entry.searchText.includes(keyword.toLowerCase()), `配件百科搜索缺少关键词：${def.id} -> ${keyword}`)
+  }
+}
+
 const totalInvestment = dataModule.getEquipmentAccessoryTotalUpgradeInvestment(20)
 const totalMoney = dataModule.getEquipmentAccessoryTotalUpgradeMoney(20)
 assert(totalInvestment.accessoryMaterial === 2678, '1->20 配件材料总成本应为 2678。')
@@ -208,6 +237,21 @@ assert(totalInvestment.tuningStone === 58, '1->20 调校石总成本应为 58。
 assert(totalMoney === 306000, '1->20 铜钱总成本应为 306000。')
 assert(dataModule.EQUIPMENT_ACCESSORY_UPGRADE_COSTS[0].accessoryMaterial < dataModule.EQUIPMENT_ACCESSORY_UPGRADE_COSTS.at(-1).accessoryMaterial, '升级成本应明显递增。')
 assert(dataModule.getEquipmentAccessoryAnnualPace().dailyAccessoryMaterialEquivalent > 23, '年度节奏应接近每天 24 份配件材料。')
+
+assert(dataModule.getEquipmentAccessoryEffectValue({ defId: 'weaponry_blade_core', tier: 4, quality: 'supreme', level: 20 }, 'accessory_attack_flat') === 64, '四阶极品 Lv20 刃芯攻击应锁定为 64。')
+assert(dataModule.getEquipmentAccessoryEffectValue({ defId: 'armor_lining', tier: 4, quality: 'supreme', level: 20 }, 'accessory_max_hp_flat') === 200, '四阶极品 Lv20 内衬生命应锁定为 200。')
+assert(dataModule.getEquipmentAccessoryEffectValue({ defId: 'weaponry_guard', tier: 4, quality: 'supreme', level: 20 }, 'accessory_crit_rate') === 0.2, '四阶极品 Lv20 护手暴击率应锁定为 20%。')
+assert(dataModule.getEquipmentAccessoryEffectValue({ defId: 'gathering_pick_head', tier: 4, quality: 'supreme', level: 20 }, 'accessory_mining_stamina_reduction') === 0.3, '四阶极品 Lv20 镐头挖矿体力降低应锁定为 30%。')
+assert(dataModule.getEquipmentAccessoryEffectValue({ defId: 'gathering_probe', tier: 4, quality: 'supreme', level: 20 }, 'accessory_treasure_hint') === 1, '四阶极品 Lv20 探针宝物提示仍应保持 1 的上限。')
+{
+  const weaponrySet = dataModule.getEquipmentAccessorySetSummary('weaponry', [
+    { defId: 'weaponry_blade_core', tier: 4, quality: 'supreme', level: 20 },
+    { defId: 'weaponry_guard', tier: 4, quality: 'supreme', level: 20 },
+    { defId: 'weaponry_inscription', tier: 4, quality: 'supreme', level: 20 }
+  ])
+  assertApprox(weaponrySet.effectValues.accessory_attack_flat, 15.96672, '四阶极品 Lv20 兵刃三件套攻击应约为 15.96672。')
+  assert((weaponrySet.effectValues.accessory_attack_flat ?? 0) <= 18, '四阶极品 Lv20 兵刃三件套攻击不能超过 18 上限。')
+}
 
 for (const cost of dataModule.EQUIPMENT_ACCESSORY_UPGRADE_COSTS) {
   assert(cost.targetLevel >= 2 && cost.targetLevel <= 20, `升级目标等级异常：${cost.targetLevel}`)
@@ -417,12 +461,23 @@ for (const quality of ['normal', 'fine', 'excellent']) {
 }
 
 {
-  const { accessoryStore, inventoryStore, playerStore } = freshStores()
+  const { accessoryStore, gameStore, inventoryStore, playerStore } = freshStores()
   playerStore.earnMoney(100000)
   const buy = accessoryStore.buyDailyAccessoryMaterial(dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID, 8)
   assert(buy.success, '每日限购应允许购买配件材料。')
   assert(inventoryStore.getTotalItemCount(dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID) === 8, '每日限购应发放材料。')
   assert(accessoryStore.buyDailyAccessoryMaterial(dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID, 1).success === false, '每日限购不能超过上限。')
+  gameStore.nextDay()
+  assert(typeof accessoryStore.refreshDailyPurchaseState === 'function', 'Accessory store should expose a day-refresh method for daily purchases.')
+  accessoryStore.refreshDailyPurchaseState()
+  assert(
+    accessoryStore.dailyPurchaseState.dayTag === `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+    'Accessory daily purchases should bind to the new game day after refresh.'
+  )
+  assert(
+    Object.keys(accessoryStore.dailyPurchaseState.purchased).length === 0,
+    'Accessory daily purchases should clear bought counts on the next game day.'
+  )
 }
 
 const processingViewSource = fs.readFileSync(path.join(projectRoot, 'src/views/game/ProcessingView.vue'), 'utf8')
@@ -449,6 +504,8 @@ const miningStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/use
 const quarryStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useQuarryStore.ts'), 'utf8')
 const endDaySource = fs.readFileSync(path.join(projectRoot, 'src/composables/useEndDay.ts'), 'utf8')
 const playerStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/usePlayerStore.ts'), 'utf8')
+assert(endDaySource.includes('const equipmentAccessoryStore = useEquipmentAccessoryStore()'), 'End-day flow should keep one accessory store instance for daily accessory settlement.')
+assert(endDaySource.includes('equipmentAccessoryStore.refreshDailyPurchaseState()'), 'End-day flow should refresh accessory daily purchases after the date advances.')
 for (const effectKey of [
   'accessory_attack_flat',
   'accessory_crit_rate',

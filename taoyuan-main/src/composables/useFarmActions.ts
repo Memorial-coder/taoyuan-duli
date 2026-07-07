@@ -86,13 +86,13 @@ const consumeFarmEquipDurability = () => {
   if (hat) {
     const hRed = calculateConsumptionReduction(hat.affixes ?? [], hat.enchantmentId, npcUnlocked)
     const hMax = invStore.getHatMaxDurability?.(invStore.equippedHatIndex) ?? 100
-    consumeEquipmentDurability(hat, hMax, 1, hRed)
+    consumeEquipmentDurability(hat, hMax, 1, hRed, 'hat')
   }
   const shoe = invStore.equippedShoeIndex >= 0 ? invStore.ownedShoes[invStore.equippedShoeIndex] : null
   if (shoe) {
     const sRed = calculateConsumptionReduction(shoe.affixes ?? [], shoe.enchantmentId, npcUnlocked)
     const sMax = invStore.getShoeMaxDurability?.(invStore.equippedShoeIndex) ?? 100
-    consumeEquipmentDurability(shoe, sMax, 1, sRed)
+    consumeEquipmentDurability(shoe, sMax, 1, sRed, 'shoe')
   }
 }
 

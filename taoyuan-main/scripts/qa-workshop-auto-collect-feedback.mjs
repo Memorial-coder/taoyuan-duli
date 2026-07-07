@@ -10,9 +10,10 @@ const projectRoot = path.resolve(__dirname, '..')
 
 const readSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
-const [packageSource, processingStoreSource] = await Promise.all([
+const [packageSource, processingStoreSource, processingViewSource] = await Promise.all([
   readSource('package.json'),
-  readSource('src/stores/useProcessingStore.ts')
+  readSource('src/stores/useProcessingStore.ts'),
+  readSource('src/views/game/ProcessingView.vue')
 ])
 
 const packageJson = JSON.parse(packageSource)
@@ -62,6 +63,20 @@ assert(
 assert(
   !autoCollectBlock.includes('counts.set(name'),
   'daily auto collect summary should not count completion names'
+)
+
+const manualCollectBlockStart = processingViewSource.indexOf('const handleCollect = (slotIndex: number) => {')
+const manualCollectBlockEnd = processingViewSource.indexOf('const handleRemoveMachine', manualCollectBlockStart)
+const manualCollectBlock = manualCollectBlockStart >= 0 && manualCollectBlockEnd > manualCollectBlockStart
+  ? processingViewSource.slice(manualCollectBlockStart, manualCollectBlockEnd)
+  : ''
+assert(
+  manualCollectBlock.includes('背包或虚空成品箱空间不足，无法收取${getSlotOutputName(slot)}'),
+  'single-machine manual collect should explain blocked inventory or void output capacity'
+)
+assert(
+  manualCollectBlock.includes("slot.machineType === 'repair_bench'"),
+  'single-machine manual collect should keep repair-bench failures distinct from capacity failures'
 )
 
 if (errors.length > 0) {

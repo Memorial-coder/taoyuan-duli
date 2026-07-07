@@ -44,6 +44,88 @@ const POTENTIAL_NODE_MAX_RANK = {
   harmony_society_order: POTENTIAL_NODE_MAX_RANK_LIMIT,
   harmony_visitor_chance: POTENTIAL_NODE_MAX_RANK_LIMIT,
 };
+const USER_SAVE_SLOT_CACHE_LIMIT = Math.max(
+  50,
+  Math.floor(Number(process.env.TAOYUAN_SAVE_SLOT_CACHE_LIMIT) || 500)
+);
+const SAVE_IDENTITY_ENSURE_CACHE_LIMIT = Math.max(
+  100,
+  Math.floor(Number(process.env.TAOYUAN_SAVE_IDENTITY_ENSURE_CACHE_LIMIT) || 1000)
+);
+
+const userSaveSlotCache = new Map();
+const saveIdentityEnsureCache = new Map();
+let saveIdentityStoreCache = null;
+let saveIdentityListCache = null;
+
+function cloneUserSaveSlots(data) {
+  return {
+    slots: {
+      0: normalizeSlotEntry(data?.slots?.[0]),
+      1: normalizeSlotEntry(data?.slots?.[1]),
+      2: normalizeSlotEntry(data?.slots?.[2]),
+    },
+  };
+}
+
+function setUserSaveSlotCache(filePath, stat, data) {
+  userSaveSlotCache.set(filePath, {
+    mtimeMs: Number(stat?.mtimeMs) || 0,
+    size: Number(stat?.size) || 0,
+    data: cloneUserSaveSlots(data),
+  });
+  while (userSaveSlotCache.size > USER_SAVE_SLOT_CACHE_LIMIT) {
+    const firstKey = userSaveSlotCache.keys().next().value;
+    if (!firstKey) break;
+    userSaveSlotCache.delete(firstKey);
+  }
+}
+
+function getSlotEntryFingerprint(entry) {
+  if (!entry?.raw) return '';
+  return crypto
+    .createHash('sha1')
+    .update(String(entry.revision ?? 0))
+    .update(':')
+    .update(String(entry.raw).slice(0, 128))
+    .update(':')
+    .update(String(entry.raw).slice(-128))
+    .update(':')
+    .update(String(entry.raw).length.toString())
+    .digest('hex');
+}
+
+function getSaveIdentityEnsureCacheKey(username, slot, entry) {
+  const fingerprint = getSlotEntryFingerprint(entry);
+  return fingerprint ? `${String(username || '')}:${slot}:${fingerprint}` : '';
+}
+
+function getCachedSaveIdentityEnsureResult(username, slot, entry) {
+  const cacheKey = getSaveIdentityEnsureCacheKey(username, slot, entry);
+  if (!cacheKey) return null;
+  const cached = saveIdentityEnsureCache.get(cacheKey);
+  if (!cached) return null;
+  saveIdentityEnsureCache.delete(cacheKey);
+  saveIdentityEnsureCache.set(cacheKey, cached);
+  return {
+    entry,
+    identity: cached.identity,
+    changed: false,
+  };
+}
+
+function setCachedSaveIdentityEnsureResult(username, slot, entry, identity) {
+  const cacheKey = getSaveIdentityEnsureCacheKey(username, slot, entry);
+  if (!cacheKey) return;
+  saveIdentityEnsureCache.set(cacheKey, {
+    identity: identity ? normalizeSaveIdentityRecord(identity) : null,
+  });
+  while (saveIdentityEnsureCache.size > SAVE_IDENTITY_ENSURE_CACHE_LIMIT) {
+    const firstKey = saveIdentityEnsureCache.keys().next().value;
+    if (!firstKey) break;
+    saveIdentityEnsureCache.delete(firstKey);
+  }
+}
 
 function createError(message, status = 400, code = '') {
   const error = new Error(message);
@@ -111,14 +193,25 @@ function loadUserSaveSlots(username) {
   ensureTaoyuanSavesDir();
   const file = getTaoyuanSavePath(username);
   if (!fs.existsSync(file)) return { slots: createEmptySlots() };
+  const stat = fs.statSync(file);
+  const cached = userSaveSlotCache.get(file);
+  if (
+    cached &&
+    cached.mtimeMs === Number(stat.mtimeMs) &&
+    cached.size === Number(stat.size)
+  ) {
+    return cloneUserSaveSlots(cached.data);
+  }
   const raw = readJsonFileStrict(file);
-  return {
+  const data = {
     slots: {
       0: normalizeSlotEntry(raw?.slots?.[0]),
       1: normalizeSlotEntry(raw?.slots?.[1]),
       2: normalizeSlotEntry(raw?.slots?.[2]),
     },
   };
+  setUserSaveSlotCache(file, stat, data);
+  return cloneUserSaveSlots(data);
 }
 
 function saveUserSaveSlots(username, data) {
@@ -126,6 +219,16 @@ function saveUserSaveSlots(username, data) {
   const file = getTaoyuanSavePath(username);
   if (fs.existsSync(file)) readJsonFileStrict(file);
   writeJsonFileAtomic(file, data);
+  try {
+    setUserSaveSlotCache(file, fs.statSync(file), data);
+  } catch {
+    userSaveSlotCache.delete(file);
+  }
+  for (const key of saveIdentityEnsureCache.keys()) {
+    if (key.startsWith(`${String(username || '')}:`)) {
+      saveIdentityEnsureCache.delete(key);
+    }
+  }
 }
 
 function deleteUserSaveData(username) {
@@ -135,6 +238,7 @@ function deleteUserSaveData(username) {
   try {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   } catch {}
+  userSaveSlotCache.delete(filePath);
 
   const activeSlots = loadActiveSlots();
   if (Object.prototype.hasOwnProperty.call(activeSlots, safeUsername)) {
@@ -202,9 +306,31 @@ function normalizeEmbeddedSaveIdentity(entry) {
   });
 }
 
+function setSaveIdentityStoreCache(stat, store) {
+  saveIdentityStoreCache = {
+    mtimeMs: Number(stat?.mtimeMs) || 0,
+    size: Number(stat?.size) || 0,
+    store,
+  };
+  saveIdentityListCache = null;
+}
+
+function clearSaveIdentityStoreCache() {
+  saveIdentityStoreCache = null;
+  saveIdentityListCache = null;
+}
+
 function loadSaveIdentityStore() {
   try {
     if (!fs.existsSync(TAOYUAN_SAVE_IDENTITIES_FILE)) return createEmptySaveIdentityStore();
+    const stat = fs.statSync(TAOYUAN_SAVE_IDENTITIES_FILE);
+    if (
+      saveIdentityStoreCache &&
+      saveIdentityStoreCache.mtimeMs === Number(stat.mtimeMs) &&
+      saveIdentityStoreCache.size === Number(stat.size)
+    ) {
+      return saveIdentityStoreCache.store;
+    }
     const raw = JSON.parse(fs.readFileSync(TAOYUAN_SAVE_IDENTITIES_FILE, 'utf8'));
     const identities = {};
     for (const [key, value] of Object.entries(raw?.identities || {})) {
@@ -219,8 +345,11 @@ function loadSaveIdentityStore() {
       const record = normalizeSaveIdentityRecord(value, parsedKey[0], parsedKey[1]);
       if (record) identities[buildSaveIdentityKey(record.account_username, record.save_slot)] = record;
     }
-    return { identities };
+    const store = { identities };
+    setSaveIdentityStoreCache(stat, store);
+    return store;
   } catch {
+    clearSaveIdentityStoreCache();
     return createEmptySaveIdentityStore();
   }
 }
@@ -229,6 +358,24 @@ function saveSaveIdentityStore(store) {
   writeJsonFileAtomic(TAOYUAN_SAVE_IDENTITIES_FILE, {
     identities: store?.identities && typeof store.identities === 'object' ? store.identities : {},
   });
+  try {
+    const normalized = createEmptySaveIdentityStore();
+    for (const [key, value] of Object.entries(store?.identities || {})) {
+      const parsedKey = (() => {
+        try {
+          const tuple = JSON.parse(key);
+          return Array.isArray(tuple) ? tuple : [];
+        } catch {
+          return [];
+        }
+      })();
+      const record = normalizeSaveIdentityRecord(value, parsedKey[0], parsedKey[1]);
+      if (record) normalized.identities[buildSaveIdentityKey(record.account_username, record.save_slot)] = record;
+    }
+    setSaveIdentityStoreCache(fs.statSync(TAOYUAN_SAVE_IDENTITIES_FILE), normalized);
+  } catch {
+    clearSaveIdentityStoreCache();
+  }
 }
 
 function collectIssuedSaveIds(store, exceptKey = '') {
@@ -320,10 +467,13 @@ function findSaveIdentityById(saveId) {
 
 function listSaveIdentities() {
   const store = loadSaveIdentityStore();
-  return Object.values(store.identities || {})
-    .map(value => normalizeSaveIdentityRecord(value))
-    .filter(Boolean)
-    .sort((left, right) => Number(right.updated_at) - Number(left.updated_at));
+  if (!saveIdentityListCache) {
+    saveIdentityListCache = Object.values(store.identities || {})
+      .map(value => normalizeSaveIdentityRecord(value))
+      .filter(Boolean)
+      .sort((left, right) => Number(right.updated_at) - Number(left.updated_at));
+  }
+  return saveIdentityListCache.map(entry => ({ ...entry }));
 }
 
 function removeSaveSlotIdentity(username, slot) {
@@ -753,6 +903,8 @@ function ensureSaveIdentityForSlot(username, slot, entry) {
   if (normalizedSlot === null || !entry?.raw) {
     return { entry, identity: null, changed: false };
   }
+  const cached = getCachedSaveIdentityEnsureResult(username, normalizedSlot, entry);
+  if (cached) return cached;
 
   const decrypted = decryptTaoyuanRaw(entry.raw);
   const saveContainer = normalizeGameplaySaveContainer(decrypted);
@@ -762,7 +914,10 @@ function ensureSaveIdentityForSlot(username, slot, entry) {
 
   const identity = ensureSaveIdentityRecord(username, normalizedSlot, getSaveNicknameSnapshot(saveContainer, username));
   const changed = applySaveIdentityToContainer(saveContainer, identity);
-  if (!changed) return { entry, identity, changed: false };
+  if (!changed) {
+    setCachedSaveIdentityEnsureResult(username, normalizedSlot, entry, identity);
+    return { entry, identity, changed: false };
+  }
 
   return {
     entry: {

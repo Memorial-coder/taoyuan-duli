@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { CropDef, FarmPlot } from '@/types'
+import { warmBrowserAssetCache } from '@/utils/assetWarmCache'
 
 export type CropAssetVariant = '01' | '02'
 export type CropAssetSize = 128 | 256
@@ -47,6 +48,11 @@ export interface CropAssetManifest {
   byName?: Record<string, CropAssetManifestEntry>
 }
 
+type CropAssetManifestAliasIndex = Record<string, CropAssetManifestEntry | string>
+type RawCropAssetManifest = Omit<CropAssetManifest, 'byName'> & {
+  byName?: CropAssetManifestAliasIndex
+}
+
 export interface CropAssetLookup {
   cropId?: string | null
   cropName?: string | null
@@ -92,6 +98,33 @@ const appendVersion = (url: string, version: string): string => {
   return `${url}${joiner}v=${encodeURIComponent(version)}`
 }
 
+const isCropAssetManifestEntry = (value: unknown): value is CropAssetManifestEntry =>
+  !!value && typeof value === 'object' && !Array.isArray(value) && 'states' in value
+
+const hydrateCropAssetAliasIndex = (
+  index: CropAssetManifestAliasIndex | undefined,
+  primary: Record<string, CropAssetManifestEntry>,
+): Record<string, CropAssetManifestEntry> | undefined => {
+  if (!index) return undefined
+  const hydrated: Record<string, CropAssetManifestEntry> = {}
+  for (const [key, value] of Object.entries(index)) {
+    const entry = typeof value === 'string' ? primary[value] : value
+    if (isCropAssetManifestEntry(entry)) hydrated[key] = entry
+  }
+  return hydrated
+}
+
+const normalizeLoadedCropAssetManifest = (data: unknown): CropAssetManifest | null => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+  const raw = data as RawCropAssetManifest
+  const byCropId = raw.byCropId || {}
+  return {
+    ...raw,
+    byCropId,
+    byName: hydrateCropAssetAliasIndex(raw.byName, byCropId),
+  }
+}
+
 export const loadCropAssetManifest = async (): Promise<CropAssetManifest | null> => {
   if (manifestLoaded.value) return manifest.value
   if (loadPromise) return loadPromise
@@ -103,8 +136,8 @@ export const loadCropAssetManifest = async (): Promise<CropAssetManifest | null>
       const url = `${resolveStaticBase(FALLBACK_BASE_PATH)}/crop-asset-manifest.json`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`manifest ${res.status}`)
-      const data = (await res.json()) as CropAssetManifest
-      manifest.value = data && typeof data === 'object' ? data : null
+      const data = await res.json()
+      manifest.value = normalizeLoadedCropAssetManifest(data)
       manifestLoaded.value = true
       return manifest.value
     } catch (error) {
@@ -212,18 +245,7 @@ export const getCropAssetUrl = (
 }
 
 export const warmCropAssetCache = (url: string) => {
-  if (!url || typeof caches === 'undefined') return
-  void (async () => {
-    try {
-      const cache = await caches.open(ASSET_CACHE_NAME)
-      const cached = await cache.match(url)
-      if (cached) return
-      const res = await fetch(url, { cache: 'force-cache' })
-      if (res.ok) await cache.put(url, res.clone())
-    } catch {
-      /* best-effort browser cache */
-    }
-  })()
+  warmBrowserAssetCache(url, { cacheName: ASSET_CACHE_NAME })
 }
 
 export const useCropAssetManifest = () => ({

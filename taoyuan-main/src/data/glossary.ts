@@ -11,6 +11,20 @@ import { RINGS } from './rings'
 import { HATS } from './hats'
 import { SHOES } from './shoes'
 import { WEAPONS, ENCHANTMENTS } from './weapons'
+import {
+  EQUIPMENT_ACCESSORY_DEFS,
+  EQUIPMENT_ACCESSORY_FAMILIES,
+  EQUIPMENT_ACCESSORY_FUSION_RULES,
+  EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID,
+  EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID,
+  EQUIPMENT_ACCESSORY_QUALITIES,
+  EQUIPMENT_ACCESSORY_QUALITY_LABELS,
+  EQUIPMENT_ACCESSORY_RECIPES,
+  EQUIPMENT_ACCESSORY_SET_BONUSES,
+  EQUIPMENT_ACCESSORY_TIERS,
+  EQUIPMENT_ACCESSORY_TIER_LABELS,
+  EQUIPMENT_ACCESSORY_TUNING_STONE_ITEM_ID,
+} from './equipmentAccessories'
 import { MYSTERY_BOX_DEFS, MYSTERY_BOX_NAMING_LAYERS, MYSTERY_BOX_SOURCE_HINTS } from './mysteryBoxes'
 import { POTENTIAL_BRANCH_DEFS, POTENTIAL_EFFECT_VALUES, POTENTIAL_NODE_DEFS, POTENTIAL_RESOURCE_DEFS, POTENTIAL_SOURCE_RULES, formatPotentialEffectValue } from './potential'
 import { PRIZE_TICKET_NAMING_LAYERS, REWARD_TICKET_PRIZE_STAGES, REWARD_TICKET_SOURCE_HINTS } from './prizeTickets'
@@ -304,6 +318,14 @@ const LINKED_SYSTEM_LABELS: Record<string, string> = {
 }
 
 const formatPercent = (value: number): string => `${Math.round(value * 100)}%`
+
+const formatDecimal = (value: number): string =>
+  Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+
+const formatAccessoryEffectValue = (value: number, unit: 'flat' | 'percent' | 'hint'): string => {
+  if (unit === 'percent') return `${formatDecimal(value * 100)}%`
+  return formatDecimal(value)
+}
 
 const summarizeWalletEffect = (effect: {
   shopDiscount?: number
@@ -1230,6 +1252,90 @@ const buildGlossary = (): GlossaryEntry[] => {
       relatedEntryIds: [],
       keywords: ['武器', '战斗', WEAPON_TYPE_NAMES[weapon.type] ?? weapon.type, weapon.description ?? ''],
       intents: ['acquire', 'usage', 'system'],
+    }))
+  }
+
+  const accessoryMaterialEntryIds = [
+    EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID,
+    EQUIPMENT_ACCESSORY_TUNING_STONE_ITEM_ID,
+    EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID,
+  ].map(getGlossaryEntryIdForItemId)
+  const accessoryTierText = EQUIPMENT_ACCESSORY_TIERS.map(tier => EQUIPMENT_ACCESSORY_TIER_LABELS[tier]).join('、')
+  const accessoryQualityText = EQUIPMENT_ACCESSORY_QUALITIES.map(quality => EQUIPMENT_ACCESSORY_QUALITY_LABELS[quality]).join('、')
+  const accessoryFusionText = EQUIPMENT_ACCESSORY_FUSION_RULES
+    .slice(0, 3)
+    .map(rule => `${EQUIPMENT_ACCESSORY_QUALITY_LABELS[rule.fromQuality]}→${EQUIPMENT_ACCESSORY_QUALITY_LABELS[rule.toQuality]}保底${rule.pityThreshold}`)
+    .join('、')
+
+  for (const accessory of EQUIPMENT_ACCESSORY_DEFS) {
+    const family = EQUIPMENT_ACCESSORY_FAMILIES.find(entry => entry.id === accessory.familyId)
+    const setBonus = EQUIPMENT_ACCESSORY_SET_BONUSES.find(entry => entry.familyId === accessory.familyId)
+    const recipeTiers = EQUIPMENT_ACCESSORY_RECIPES
+      .filter(recipe => recipe.defId === accessory.id)
+      .map(recipe => `${EQUIPMENT_ACCESSORY_TIER_LABELS[recipe.tier]}${recipe.unlock === 'blueprint' ? '蓝图' : recipe.unlock === 'workshop_advanced' ? '进阶工坊' : '工坊'}`)
+      .join('、')
+    const effectText = accessory.effects
+      .map(effect => `${effect.label}：每级${formatAccessoryEffectValue(effect.basePerLevel, effect.unit)}，上限${formatAccessoryEffectValue(effect.maxValue, effect.unit)}`)
+      .join('、')
+    const setEffectText = setBonus?.effects
+      .map(effect => `${effect.label}：每级${formatAccessoryEffectValue(effect.basePerLevel, effect.unit)}，上限${formatAccessoryEffectValue(effect.maxValue, effect.unit)}`)
+      .join('、') ?? ''
+
+    entries.push(makeEntry({
+      id: `equipment_accessory_${accessory.id}`,
+      name: accessory.name,
+      category: 'system',
+      categoryLabel: '配件',
+      description: accessory.description,
+      details: [
+        { label: '配件线', value: family ? `${family.label}：${family.description}` : accessory.familyId },
+        { label: '槽位', value: accessory.shortName },
+        { label: '单件效果', value: effectText },
+        { label: '阶级', value: accessoryTierText },
+        { label: '品质', value: accessoryQualityText },
+        { label: '制作入口', value: recipeTiers || '主要来自矿洞、深层矿洞、蓝图或特殊奖励。' },
+        { label: '合成规则', value: `同名、同阶、同品质 3 件升为更高品质；${accessoryFusionText}；稳固石可在失败时保住 1 件材料配件。` },
+        { label: '套装效果', value: setBonus ? `${setBonus.label}：${setBonus.description}${setEffectText ? `（${setEffectText}）` : ''}` : '' },
+      ],
+      source: '在铁匠铺的配件页定向打造，或从矿洞、深层矿洞、四阶蓝图和后续 NPC / 公会奖励中取得。',
+      usage: '装入对应配件槽后提供单件基础效果；同一条线三槽齐备会触发三件套，套装阶级按三件中的最低阶计算，品质按平均品质向下取整。',
+      relatedPanels: [
+        { panel: 'upgrade', label: '去铁匠铺调校配件' },
+        { panel: 'mining', label: '去矿洞获取配件' },
+        { panel: 'quarry', label: '去采石场补材料' },
+      ],
+      relatedEntryIds: accessoryMaterialEntryIds,
+      keywords: [
+        '配件',
+        '装备配件',
+        '铁匠铺配件',
+        '配件调校',
+        '配件升级',
+        '配件合成',
+        '稳固石',
+        '调校石',
+        '配件材料',
+        '一阶',
+        '二阶',
+        '三阶',
+        '四阶',
+        '普通',
+        '精良',
+        '卓越',
+        '极品',
+        '三件套',
+        '套装效果',
+        '矿洞掉落',
+        '高级蓝图',
+        accessory.id,
+        accessory.shortName,
+        family?.label ?? '',
+        family?.description ?? '',
+        effectText,
+        setBonus?.label ?? '',
+        setBonus?.description ?? '',
+      ],
+      intents: ['acquire', 'usage', 'unlock', 'where', 'system'],
     }))
   }
 

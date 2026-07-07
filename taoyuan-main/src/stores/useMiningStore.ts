@@ -1909,7 +1909,7 @@ export const useMiningStore = defineStore('mining', () => {
       const wAffixes = equippedWeapon.affixes ?? []
       const wReduction = calculateConsumptionReduction(wAffixes, equippedWeapon.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
       const wMax = inventoryStore.getWeaponMaxDurability?.() ?? 100
-      consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction)
+      consumeEquipmentDurability(equippedWeapon, wMax, 1, wReduction, 'weapon')
     }
     // Ring durability
     const ringSlots = [inventoryStore.equippedRingSlot1, inventoryStore.equippedRingSlot2]
@@ -1919,7 +1919,7 @@ export const useMiningStore = defineStore('mining', () => {
         if (ring) {
           const rReduction = calculateConsumptionReduction(ring.affixes ?? [], ring.enchantmentId, durabilityNpcUnlocked) + getAccessoryDurabilityReduction()
           const rMax = inventoryStore.getRingMaxDurability?.(slot) ?? 100
-          consumeEquipmentDurability(ring, rMax, 1, rReduction)
+          consumeEquipmentDurability(ring, rMax, 1, rReduction, 'ring')
         }
       }
     }

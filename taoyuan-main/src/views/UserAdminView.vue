@@ -119,6 +119,47 @@
           </div>
         </div>
 
+        <div v-if="adminSession.permissions.view_user_ips" class="game-panel space-y-4">
+          <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <label class="admin-label xl:flex-1">
+              <span>IP 反查用户</span>
+              <input v-model="ipLookupInput" type="text" class="admin-input" placeholder="输入完整 IP 地址" @keydown.enter.prevent="handleIpLookup" />
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button class="btn !px-3 !py-2" :disabled="loadingIpLookup || !ipLookupInput.trim()" @click="handleIpLookup">
+                <Search :size="14" />
+                <span>{{ loadingIpLookup ? '查询中...' : '查询' }}</span>
+              </button>
+              <button class="btn !px-3 !py-2" :disabled="loadingIpLookup && !ipLookupResult" @click="clearIpLookup">
+                <X :size="14" />
+                <span>清空</span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="ipLookupResult" class="space-y-3">
+            <div class="admin-filter-summary">
+              <span class="admin-chip">IP：{{ ipLookupResult.ip_display || '-' }}</span>
+              <span class="admin-chip">用户数：{{ ipLookupResult.users.length }}</span>
+              <span class="admin-chip">保留：{{ ipLookupResult.retention_days }} 天</span>
+            </div>
+            <div v-if="!ipLookupResult.users.length" class="text-xs text-muted">暂无匹配用户。</div>
+            <div v-else class="admin-ip-result-grid">
+              <div v-for="entry in ipLookupResult.users" :key="`${entry.username}-${entry.ip_hash}`" class="admin-ip-entry">
+                <div class="min-w-0">
+                  <div class="text-sm text-text truncate">{{ entry.display_name || entry.username }}</div>
+                  <div class="text-xs text-muted">@{{ entry.username }}</div>
+                  <div class="text-xs text-muted mt-1">{{ formatTime(entry.last_seen_at) }} · {{ formatIpSources(entry) }}</div>
+                </div>
+                <button class="btn !px-2 !py-1" @click="selectUser(entry.username || '')">
+                  <Users :size="12" />
+                  <span>详情</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-4">
           <div class="game-panel space-y-4">
               <div class="flex items-center justify-between gap-3">
@@ -154,6 +195,7 @@
                   <div>注册时间</div>
                   <div>状态</div>
                   <div>额度</div>
+                  <div>最近 IP</div>
                   <div>最近保存</div>
                   <div>存档概览</div>
                   <div>操作</div>
@@ -198,6 +240,13 @@
                 <div class="admin-user-line" data-label="额度">
                   <div class="admin-user-line__value">{{ formatQuota(user.quota) }}</div>
                   <div class="admin-user-line__hint">账户额度</div>
+                </div>
+
+                <div class="admin-user-line" data-label="最近 IP">
+                  <div class="admin-user-line__value">{{ formatIpDisplay(user.last_ip) }}</div>
+                  <div class="admin-user-line__hint">
+                    {{ user.last_ip ? `${formatTime(user.last_ip.last_seen_at)} · 同 IP ${Math.max(0, user.last_ip.same_user_count - 1)} 人` : '暂无记录' }}
+                  </div>
                 </div>
 
                 <div class="admin-user-line" data-label="最近保存">
@@ -387,6 +436,66 @@
                       </div>
 
                       <div class="space-y-4">
+                        <div v-if="adminSession.permissions.view_user_ips" class="admin-record-card space-y-3">
+                          <div class="flex items-center justify-between gap-3">
+                            <div>
+                              <p class="text-sm text-accent">IP 来源</p>
+                              <p class="text-xs text-muted mt-1">{{ selectedUserIpProfile?.history.length || 0 }} 条记录 · 保留 {{ selectedUserIpProfile?.retention_days || 0 }} 天</p>
+                            </div>
+                            <button class="btn !px-2 !py-1" @click="loadUserIpProfileForUser(selectedUser.username)" :disabled="loadingIpProfile">
+                              <RefreshCw :size="12" />
+                              <span>{{ loadingIpProfile ? '加载中...' : '刷新' }}</span>
+                            </button>
+                          </div>
+
+                          <div v-if="loadingIpProfile" class="text-xs text-muted">IP 来源加载中...</div>
+                          <div v-else-if="!selectedUserIpProfile?.history.length" class="text-xs text-muted">暂无 IP 记录。</div>
+                          <template v-else>
+                            <div class="admin-ip-summary">
+                              <div>
+                                <div class="text-xs text-muted">最近 IP</div>
+                                <div class="text-base text-text break-all">{{ formatIpDisplay(selectedUserIpProfile.latest_ip) }}</div>
+                              </div>
+                              <div>
+                                <div class="text-xs text-muted">最近出现</div>
+                                <div class="text-sm text-text">{{ formatTime(selectedUserIpProfile.latest_ip?.last_seen_at) }}</div>
+                              </div>
+                              <div>
+                                <div class="text-xs text-muted">同 IP 用户</div>
+                                <div class="text-sm text-text">{{ Math.max(0, (selectedUserIpProfile.latest_ip?.same_user_count || 0) - 1) }}</div>
+                              </div>
+                            </div>
+
+                            <div class="space-y-2 max-h-[24vh] overflow-y-auto pr-1">
+                              <div v-for="entry in selectedUserIpProfile.history" :key="entry.ip_hash" class="admin-ip-entry admin-ip-entry--stack">
+                                <div class="flex items-center justify-between gap-3">
+                                  <span class="text-sm text-text break-all">{{ formatIpDisplay(entry) }}</span>
+                                  <span class="text-xs text-muted whitespace-nowrap">{{ entry.count }} 次</span>
+                                </div>
+                                <div class="text-xs text-muted">{{ formatTime(entry.first_seen_at) }} - {{ formatTime(entry.last_seen_at) }}</div>
+                                <div class="text-xs text-muted">{{ formatIpSources(entry) }} · 同 IP {{ Math.max(0, entry.same_user_count - 1) }} 人</div>
+                              </div>
+                            </div>
+
+                            <div v-if="selectedUserIpProfile.same_ip_users.length" class="space-y-2">
+                              <p class="text-xs text-muted">同 IP 用户</p>
+                              <div class="space-y-2 max-h-[22vh] overflow-y-auto pr-1">
+                                <div v-for="entry in selectedUserIpProfile.same_ip_users" :key="`${entry.username}-${entry.ip_hash}`" class="admin-ip-entry">
+                                  <div class="min-w-0">
+                                    <div class="text-sm text-text truncate">{{ entry.display_name || entry.username }}</div>
+                                    <div class="text-xs text-muted">@{{ entry.username }} · {{ formatIpDisplay(entry) }}</div>
+                                    <div class="text-xs text-muted mt-1">{{ formatTime(entry.last_seen_at) }}</div>
+                                  </div>
+                                  <button class="btn !px-2 !py-1" @click="selectUser(entry.username || '')">
+                                    <Users :size="12" />
+                                    <span>详情</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+
                         <div v-if="adminSession.permissions.view_gameplay_logs" class="admin-record-card space-y-3">
                           <div class="flex items-center justify-between gap-3">
                             <div>
@@ -455,15 +564,20 @@
     downloadAdminUserSave,
     fetchAdminAuditLogs,
     fetchAdminUserDetail,
+    fetchAdminUserIpProfile,
     fetchAdminUserSave,
     fetchAdminUsers,
     getAdminSessionToken,
+    lookupAdminUsersByIp,
     migrateAdminUserSave,
     resetAdminUserPassword,
     setAdminUserStatus,
     type AdminAuditLogEntry,
     type AdminSessionInfo,
     type UserAdminDetail,
+    type UserIpLookup,
+    type UserIpProfile,
+    type UserIpRecord,
     type UserAdminSummary,
     type UserAdminStatus,
     updateAdminUserQuota,
@@ -495,6 +609,7 @@
   const loadingDetail = ref(false)
   const detailRequestId = ref(0)
   const gameplayLogRequestId = ref(0)
+  const ipProfileRequestId = ref(0)
 
   const submittingQuota = ref(false)
   const submittingPassword = ref(false)
@@ -512,6 +627,11 @@
   const loadingAuditLogs = ref(false)
   const gameplayLogs = ref<GameplayLogEntry[]>([])
   const loadingGameplayLogs = ref(false)
+  const selectedUserIpProfile = ref<UserIpProfile | null>(null)
+  const loadingIpProfile = ref(false)
+  const ipLookupInput = ref('')
+  const ipLookupResult = ref<UserIpLookup | null>(null)
+  const loadingIpLookup = ref(false)
   const detailModalOpen = ref(false)
   const selectedGameplaySlot = ref<'all' | number>('all')
   const selectedUsernames = ref<string[]>([])
@@ -587,6 +707,25 @@
     return role === 'super_admin' ? '超级管理员' : role === 'admin' ? '普通管理员' : role
   }
 
+  const formatIpDisplay = (record?: Pick<UserIpRecord, 'ip_display'> | null) => {
+    return record?.ip_display || '-'
+  }
+
+  const formatIpSource = (source?: string) => {
+    const mapping: Record<string, string> = {
+      register: '注册',
+      login: '登录',
+      session_check: '会话校验',
+    }
+    const normalized = String(source || '').trim()
+    return mapping[normalized] || normalized || '-'
+  }
+
+  const formatIpSources = (record?: UserIpRecord | null) => {
+    if (!record?.sources?.length) return formatIpSource(record?.source)
+    return record.sources.map(item => `${formatIpSource(item.source)} ${item.count}`).join(' · ')
+  }
+
   const formatAuditAction = (action: string) => {
     const mapping: Record<string, string> = {
       set_user_quota: '修改额度',
@@ -595,6 +734,8 @@
       delete_user: '删除用户',
       export_user_save: '导出存档',
       migrate_user_save: '迁移存档',
+      view_user_ip_profile: '查看 IP 来源',
+      reverse_lookup_user_ip: 'IP 反查用户',
     }
     return mapping[action] || action
   }
@@ -630,6 +771,9 @@
     selectedUser.value = null
     auditLogs.value = []
     gameplayLogs.value = []
+    selectedUserIpProfile.value = null
+    ipLookupInput.value = ''
+    ipLookupResult.value = null
     detailModalOpen.value = false
     selectedGameplaySlot.value = 'all'
     selectedUsernames.value = []
@@ -691,15 +835,46 @@
     }
   }
 
+  const loadUserIpProfileForUser = async (username?: string, requestId?: number) => {
+    const activeRequestId = requestId ?? ++ipProfileRequestId.value
+    if (!username || !adminSession.value?.permissions.view_user_ips) {
+      selectedUserIpProfile.value = null
+      loadingIpProfile.value = false
+      return
+    }
+    loadingIpProfile.value = true
+    try {
+      const profile = await fetchAdminUserIpProfile(username)
+      if (activeRequestId !== ipProfileRequestId.value || username !== selectedUsername.value) return
+      selectedUserIpProfile.value = profile
+      if (selectedUser.value && selectedUser.value.username === username && profile.latest_ip) {
+        selectedUser.value = {
+          ...selectedUser.value,
+          last_ip: profile.latest_ip,
+        }
+      }
+    } catch (error) {
+      if (activeRequestId !== ipProfileRequestId.value || username !== selectedUsername.value) return
+      selectedUserIpProfile.value = null
+      showFloat(handleAdminRequestError(error, '读取用户 IP 来源失败'), 'danger')
+    } finally {
+      if (activeRequestId === ipProfileRequestId.value) {
+        loadingIpProfile.value = false
+      }
+    }
+  }
+
   const loadUserDetail = async (username: string) => {
     if (!username) {
       selectedUser.value = null
       gameplayLogs.value = []
+      selectedUserIpProfile.value = null
       resetDetailForms(null)
       return
     }
     const activeRequestId = ++detailRequestId.value
     gameplayLogRequestId.value = activeRequestId
+    ipProfileRequestId.value = activeRequestId
     loadingDetail.value = true
     try {
       const detail = await fetchAdminUserDetail(username)
@@ -707,11 +882,13 @@
       selectedUser.value = detail
       selectedUsername.value = detail.username
       resetDetailForms(detail)
+      await loadUserIpProfileForUser(detail.username, activeRequestId)
       await loadGameplayLogsForUser(detail.username, activeRequestId)
     } catch (error) {
       if (activeRequestId !== detailRequestId.value) return
       selectedUser.value = null
       gameplayLogs.value = []
+      selectedUserIpProfile.value = null
       resetDetailForms(null)
       showFloat(handleAdminRequestError(error, '读取用户详情失败'), 'danger')
     } finally {
@@ -740,6 +917,7 @@
         if (!detailModalOpen.value) {
           selectedUser.value = null
           gameplayLogs.value = []
+          selectedUserIpProfile.value = null
           resetDetailForms(null)
         }
       }
@@ -792,6 +970,30 @@
   const applyFilters = async () => {
     filters.value.page = 1
     await loadUsers(false)
+  }
+
+  const handleIpLookup = async () => {
+    const ip = ipLookupInput.value.trim()
+    if (!ip) {
+      showFloat('请先输入 IP 地址', 'danger')
+      return
+    }
+    loadingIpLookup.value = true
+    try {
+      ipLookupResult.value = await lookupAdminUsersByIp(ip)
+      showFloat(`找到 ${ipLookupResult.value.users.length} 个使用记录`, 'success')
+      await loadAuditLogs()
+    } catch (error) {
+      ipLookupResult.value = null
+      showFloat(handleAdminRequestError(error, 'IP 反查失败'), 'danger')
+    } finally {
+      loadingIpLookup.value = false
+    }
+  }
+
+  const clearIpLookup = () => {
+    ipLookupInput.value = ''
+    ipLookupResult.value = null
   }
 
   const changePage = async (page: number) => {
@@ -959,6 +1161,7 @@
         selectedUsername.value = ''
         detailModalOpen.value = false
         gameplayLogs.value = []
+        selectedUserIpProfile.value = null
         resetDetailForms(null)
       }
       await loadUsers(true)
@@ -1132,6 +1335,38 @@
     padding: 10px 12px;
   }
 
+  .admin-ip-result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+  }
+
+  .admin-ip-entry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    border: 1px solid rgba(200, 164, 92, 0.12);
+    border-radius: 2px;
+    background: rgba(14, 18, 28, 0.36);
+    padding: 10px 12px;
+  }
+
+  .admin-ip-entry--stack {
+    display: block;
+  }
+
+  .admin-ip-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    border: 1px solid rgba(200, 164, 92, 0.12);
+    border-radius: 2px;
+    background: rgba(14, 18, 28, 0.36);
+    padding: 10px 12px;
+  }
+
   .admin-user-table-wrap {
     border: 1px solid rgba(200, 164, 92, 0.14);
     border-radius: 2px;
@@ -1148,13 +1383,14 @@
       minmax(144px, 0.95fr)
       minmax(88px, 0.6fr)
       minmax(88px, 0.6fr)
+      minmax(140px, 0.85fr)
       minmax(150px, 0.95fr)
       minmax(220px, 1.35fr)
       minmax(220px, 1.3fr);
     gap: 12px;
     align-items: center;
     width: 100%;
-    min-width: 1180px;
+    min-width: 1320px;
   }
 
   .admin-user-table--head {
@@ -1259,6 +1495,7 @@
         minmax(132px, 0.9fr)
         minmax(82px, 0.55fr)
         minmax(82px, 0.55fr)
+        minmax(128px, 0.78fr)
         minmax(130px, 0.85fr)
         minmax(180px, 1.15fr)
         minmax(200px, 1.15fr);
@@ -1475,6 +1712,20 @@
 
   @media (max-width: 480px) {
     .admin-top-actions {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-ip-entry {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .admin-ip-entry :deep(.btn) {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .admin-ip-summary {
       grid-template-columns: minmax(0, 1fr);
     }
 

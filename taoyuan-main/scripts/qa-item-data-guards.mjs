@@ -173,6 +173,13 @@ expectItem('buffalo_milk', { category: 'animal_product', sellPrice: 230 })
 expectItem('donkey_milk', { category: 'animal_product', sellPrice: 300 })
 expectItem('ostrich_egg', { category: 'animal_product', sellPrice: 520 })
 expectItem('antler_velvet', { category: 'animal_product', sellPrice: 900 })
+expectItem('moon_pearl', { category: 'gem', sellPrice: 360 })
+expectItem('jade_orchid', { category: 'material', sellPrice: 380 })
+expectItem('lotus_seed_rare', { category: 'material', sellPrice: 400 })
+expectItem('jade_peach', { category: 'material', sellPrice: 420 })
+expectItem('snow_lotus_calm_elixir', { category: 'elixir', sellPrice: 880 })
+expectItem('dew_bloom_focus_elixir', { category: 'elixir', sellPrice: 900 })
+expectItem('star_lotus_calm_elixir', { category: 'elixir', sellPrice: 920 })
 
 for (const shopItem of HANHAI_SHOP_ITEMS.filter(item => item.itemId.endsWith('_seed'))) {
   const canonicalItem = getItemById(shopItem.itemId)

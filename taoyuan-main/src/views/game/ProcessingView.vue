@@ -3554,6 +3554,12 @@
       const name = getItemById(outputId)?.name ?? outputId
       const qualityText = recipe?.outputQuality ? QUALITY_NAMES[recipe.outputQuality] : ''
       addLog(`收取了${qualityText}${name}！`)
+    } else if (slot?.ready && recipe) {
+      if (slot.machineType === 'repair_bench') {
+        addLog('这项修理暂时无法领取，请检查装备是否仍在背包或已被其它方式修复。')
+      } else {
+        addLog(`背包或虚空成品箱空间不足，无法收取${getSlotOutputName(slot)}。请先整理背包或清出虚空成品箱。`)
+      }
     }
   }
 

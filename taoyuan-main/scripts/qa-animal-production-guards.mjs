@@ -93,6 +93,14 @@ assert.ok(
   'AnimalView should surface tracker output with production status instead of hiding the formula'
 )
 assert.ok(
+  animalViewSource.includes('const isNpcAnimalTrackerExpanded = ref(false)') &&
+    animalViewSource.includes('data-testid="npc-animal-tracker-toggle"') &&
+    animalViewSource.includes(':aria-expanded="isNpcAnimalTrackerExpanded"') &&
+    animalViewSource.includes('v-if="isNpcAnimalTrackerExpanded"') &&
+    animalViewSource.includes('data-testid="npc-animal-tracker-list"'),
+  'AnimalView should render the NPC animal tracker as a default-collapsed disclosure so animal mood remains visible'
+)
+assert.ok(
   animalStoreSource.includes("npcStore.isNpcFunctionEffectUnlocked('pasture_discovery')") &&
     animalStoreSource.includes('NPC_PASTURE_DISCOVERY_CHANCE') &&
     animalStoreSource.includes('pastureDiscoveries.push(discovery)') &&

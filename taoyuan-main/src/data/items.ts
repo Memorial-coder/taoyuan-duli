@@ -1852,6 +1852,30 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '蜜桃脯、桂花蜜与翠桃炼成的稀材醒神丹。定位为节会访客、远行备战和高压经营前的醒神丹药。',
     sellPrice: 860,
     edible: false
+  },
+  {
+    id: 'snow_lotus_calm_elixir',
+    name: '雪莲清心丹',
+    category: 'elixir',
+    description: '草药膏、莲心粉与雪莲子炼成的共同丹炉清心丹。定位为夜巡、远行和高阶安抚前的稳定丹药。',
+    sellPrice: 880,
+    edible: false
+  },
+  {
+    id: 'dew_bloom_focus_elixir',
+    name: '露花凝神丹',
+    category: 'elixir',
+    description: '桂花蜜、绿茶与露花炼成的共同丹炉凝神丹。定位为协作、拜访和节会筹备前的专注丹药。',
+    sellPrice: 900,
+    edible: false
+  },
+  {
+    id: 'star_lotus_calm_elixir',
+    name: '星莲安神丹',
+    category: 'elixir',
+    description: '草药膏、绿茶与星莲炼成的共同丹炉安神丹。定位为长线探索、社交和夜间经营前的安神丹药。',
+    sellPrice: 920,
+    edible: false
   }
 ]
 
@@ -2182,6 +2206,10 @@ export const ITEMS: ItemDef[] = [
   { id: 'luminous_algae', name: '夜光藻团', category: 'material', description: '夜里会发出淡蓝荧光的藻团，是泽地样本线的代表素材。', sellPrice: 160, edible: false },
   { id: 'ley_crystal_shard', name: '灵脉碎晶', category: 'gem', description: '云岚高地灵脉裂隙剥落的碎晶，可作为高阶准备与首领承接素材。', sellPrice: 260, edible: false },
   { id: 'wind_etched_core', name: '风蚀晶核', category: 'material', description: '经历风蚀与高压后保留下来的晶核，是高地区域的高规格战备素材。', sellPrice: 320, edible: false },
+  { id: 'moon_pearl', name: '月珠', category: 'gem', description: '共同丹炉稀材，月色凝成的温润珠核，可用于炼制安神丹药。', sellPrice: 360, edible: false },
+  { id: 'jade_orchid', name: '玉兰', category: 'material', description: '共同丹炉稀材，玉色兰瓣封存着清雅香息，可用于炼制凝心丹药。', sellPrice: 380, edible: false },
+  { id: 'lotus_seed_rare', name: '稀有莲子', category: 'material', description: '共同丹炉稀材，莲心灵息更厚的稀有莲子，可用于炼制护心丹药。', sellPrice: 400, edible: false },
+  { id: 'jade_peach', name: '翠桃', category: 'material', description: '共同丹炉稀材，翠色桃实带有醒神清香，可用于炼制社交与节会丹药。', sellPrice: 420, edible: false },
   {
     id: 'mega_bomb_recipe',
     name: '巨型炸弹配方',
@@ -2521,6 +2549,13 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   luminous_algae: '行旅图·蜃潮泽地',
   ley_crystal_shard: '行旅图·云岚高地',
   wind_etched_core: '行旅图·云岚高地',
+  moon_pearl: '共同丹炉稀材',
+  jade_orchid: '共同丹炉稀材',
+  lotus_seed_rare: '共同丹炉稀材',
+  jade_peach: '共同丹炉稀材',
+  snow_lotus_calm_elixir: '共同丹炉回流丹药',
+  dew_bloom_focus_elixir: '共同丹炉回流丹药',
+  star_lotus_calm_elixir: '共同丹炉回流丹药',
   mega_bomb_recipe: '瀚海沙漠',
   // 远古种子
   ancient_seed: '矿洞挖掘（可种植）',

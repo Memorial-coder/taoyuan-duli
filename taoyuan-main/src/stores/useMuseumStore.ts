@@ -1021,7 +1021,13 @@ export const useMuseumStore = defineStore('museum', () => {
   const refreshOperationalTelemetry = () => {
     const displayTelemetry = buildDisplayRatingTelemetry()
     const visitorTelemetry = buildVisitorFlowTelemetry(displayTelemetry.score)
-    refreshOperationalTelemetry()
+    telemetry.value = {
+      ...telemetry.value,
+      visitorFlow: visitorTelemetry,
+      displayRating: displayTelemetry,
+      scholarProgress: Object.values(scholarCommissionStates.value).filter(state => state.completed).length,
+      shrineFavor: Object.values(currentShrineThemeState.value.activationCounts).reduce((sum, count) => sum + count, 0)
+    }
     return { displayTelemetry, visitorTelemetry }
   }
 
@@ -1306,7 +1312,10 @@ export const useMuseumStore = defineStore('museum', () => {
 
     const inventoryStore = useInventoryStore()
     const inventorySnapshot = inventoryStore.serialize()
-    const exhibitSetSnapshot = cloneMuseumSaveData(serialize()).exhibitSetStates
+    const museumSnapshot = cloneMuseumSaveData(serialize())
+    const exhibitSetSnapshot = museumSnapshot.exhibitSetStates
+    const telemetrySnapshot = museumSnapshot.telemetry
+    const goalSnapshot = goalStore.serialize()
 
     try {
       const set = getExhibitSetOverview(setId)
@@ -1362,6 +1371,8 @@ export const useMuseumStore = defineStore('museum', () => {
     } catch {
       inventoryStore.deserialize(inventorySnapshot)
       exhibitSetStates.value = exhibitSetSnapshot
+      telemetry.value = telemetrySnapshot
+      goalStore.deserialize(goalSnapshot)
       return failExhibitSetSubmission('专题展组提交失败，已回滚，请稍后再试。')
     } finally {
       finishMuseumAction(lockId)
@@ -1370,18 +1381,28 @@ export const useMuseumStore = defineStore('museum', () => {
 
   const claimExhibitSetReward = (setId: string): { success: boolean; message: string } => {
     const lockId = `claimMuseumExhibitSet:${setId}`
+    const failExhibitSetRewardClaim = (message: string) => {
+      addLog(`【博物馆】专题展组奖励确认失败：${message}`, {
+        category: 'museum',
+        tags: ['museum_exhibit_set', 'late_game_cycle', 'resource_sink'],
+        meta: { setId }
+      })
+      return { success: false, message }
+    }
     if (!beginMuseumAction(lockId)) {
-      return { success: false, message: '该专题展组奖励正在确认中，请勿重复点击。' }
+      return failExhibitSetRewardClaim('该专题展组奖励正在确认中，请勿重复点击。')
     }
 
-    const exhibitSetSnapshot = cloneMuseumSaveData(serialize()).exhibitSetStates
+    const museumSnapshot = cloneMuseumSaveData(serialize())
+    const exhibitSetSnapshot = museumSnapshot.exhibitSetStates
+    const telemetrySnapshot = museumSnapshot.telemetry
 
     try {
       const set = getExhibitSetOverview(setId)
-      if (!set) return { success: false, message: '博物馆专题展组不存在。' }
-      if (!set.unlocked) return { success: false, message: `展陈等级 ${exhibitLevel.value}/${set.unlockExhibitLevel}，暂未开放。` }
-      if (!set.completed) return { success: false, message: '该专题展组尚未完成。' }
-      if (set.state.rewardClaimed) return { success: false, message: '该专题展组奖励已经确认。' }
+      if (!set) return failExhibitSetRewardClaim('博物馆专题展组不存在。')
+      if (!set.unlocked) return failExhibitSetRewardClaim(`展陈等级 ${exhibitLevel.value}/${set.unlockExhibitLevel}，暂未开放。`)
+      if (!set.completed) return failExhibitSetRewardClaim('该专题展组尚未完成。')
+      if (set.state.rewardClaimed) return failExhibitSetRewardClaim('该专题展组奖励已经确认。')
 
       setExhibitSetState(setId, { rewardClaimed: true })
       refreshOperationalTelemetry()
@@ -1409,7 +1430,8 @@ export const useMuseumStore = defineStore('museum', () => {
       }
     } catch {
       exhibitSetStates.value = exhibitSetSnapshot
-      return { success: false, message: '专题展组奖励确认失败，已回滚，请稍后再试。' }
+      telemetry.value = telemetrySnapshot
+      return failExhibitSetRewardClaim('专题展组奖励确认失败，已回滚，请稍后再试。')
     } finally {
       finishMuseumAction(lockId)
     }

@@ -4988,7 +4988,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         if (equippedWeaponR) {
           const wRedR = calculateConsumptionReduction(equippedWeaponR.affixes ?? [], equippedWeaponR.enchantmentId, durabilityNpcUnlocked)
           const wMaxR = inventoryStore.getWeaponMaxDurability?.() ?? 100
-          consumeEquipmentDurability(equippedWeaponR, wMaxR, 1, wRedR)
+          consumeEquipmentDurability(equippedWeaponR, wMaxR, 1, wRedR, 'weapon')
         }
         for (const rSlot of [inventoryStore.equippedRingSlot1, inventoryStore.equippedRingSlot2]) {
           if (rSlot >= 0) {
@@ -4996,7 +4996,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             if (rInst) {
               const rRedR = calculateConsumptionReduction(rInst.affixes ?? [], rInst.enchantmentId, durabilityNpcUnlocked)
               const rMaxR = inventoryStore.getRingMaxDurability?.(rSlot) ?? 100
-              consumeEquipmentDurability(rInst, rMaxR, 1, rRedR)
+              consumeEquipmentDurability(rInst, rMaxR, 1, rRedR, 'ring')
             }
           }
         }

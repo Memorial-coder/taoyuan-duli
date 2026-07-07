@@ -16,6 +16,10 @@ const {
 
 const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data');
 const TAOYUAN_MAILBOX_FILE = path.join(DATA_DIR, 'taoyuan_mailbox.json');
+const MAILBOX_USER_CACHE_TTL_MS = Math.max(
+  1000,
+  Math.floor(Number(process.env.TAOYUAN_MAILBOX_USER_CACHE_TTL_MS) || 10000)
+);
 const ITEM_MAX_STACK = 999;
 const TEMP_BAG_CAPACITY = 10;
 const MAX_TITLE_LENGTH = 60;
@@ -68,6 +72,9 @@ const GUILD_SEASON_MAILBOX_CONFIG = Object.freeze({
 });
 
 let _mailboxLockTail = Promise.resolve();
+let mailboxDataCache = null;
+let mailboxDataVersion = 0;
+const mailboxUserMailsCache = new Map();
 
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -247,17 +254,75 @@ function normalizeMemorialEntry(entry) {
   };
 }
 
+function normalizeMailboxData(raw) {
+  return {
+    campaigns: Array.isArray(raw?.campaigns) ? raw.campaigns.map(normalizeCampaign).filter(Boolean) : [],
+    deliveries: Array.isArray(raw?.deliveries) ? raw.deliveries.map(normalizeDelivery).filter(Boolean) : [],
+    claim_logs: Array.isArray(raw?.claim_logs) ? raw.claim_logs.map(normalizeClaimLog).filter(Boolean) : [],
+    memorial_entries: Array.isArray(raw?.memorial_entries) ? raw.memorial_entries.map(normalizeMemorialEntry).filter(Boolean) : [],
+  };
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function clearMailboxDerivedCaches() {
+  mailboxUserMailsCache.clear();
+}
+
+function setMailboxDataCache(stat, data) {
+  mailboxDataVersion += 1;
+  mailboxDataCache = {
+    mtimeMs: Number(stat?.mtimeMs) || 0,
+    size: Number(stat?.size) || 0,
+    version: mailboxDataVersion,
+    data,
+  };
+  clearMailboxDerivedCaches();
+}
+
+function getCachedUserMails(username) {
+  const key = `${mailboxDataVersion}:${String(username || '')}`;
+  const entry = mailboxUserMailsCache.get(key);
+  if (!entry || entry.expires_at <= Date.now()) {
+    if (entry) mailboxUserMailsCache.delete(key);
+    return null;
+  }
+  return cloneJson(entry.value);
+}
+
+function setCachedUserMails(username, value) {
+  const key = `${mailboxDataVersion}:${String(username || '')}`;
+  mailboxUserMailsCache.set(key, {
+    expires_at: Date.now() + MAILBOX_USER_CACHE_TTL_MS,
+    value: cloneJson(value),
+  });
+  while (mailboxUserMailsCache.size > 500) {
+    const firstKey = mailboxUserMailsCache.keys().next().value;
+    if (!firstKey) break;
+    mailboxUserMailsCache.delete(firstKey);
+  }
+}
+
 function loadMailboxData() {
   try {
     if (!fs.existsSync(TAOYUAN_MAILBOX_FILE)) return defaultMailboxData();
+    const stat = fs.statSync(TAOYUAN_MAILBOX_FILE);
+    if (
+      mailboxDataCache &&
+      mailboxDataCache.mtimeMs === Number(stat.mtimeMs) &&
+      mailboxDataCache.size === Number(stat.size)
+    ) {
+      return mailboxDataCache.data;
+    }
     const raw = JSON.parse(fs.readFileSync(TAOYUAN_MAILBOX_FILE, 'utf8'));
-    return {
-      campaigns: Array.isArray(raw?.campaigns) ? raw.campaigns.map(normalizeCampaign).filter(Boolean) : [],
-      deliveries: Array.isArray(raw?.deliveries) ? raw.deliveries.map(normalizeDelivery).filter(Boolean) : [],
-      claim_logs: Array.isArray(raw?.claim_logs) ? raw.claim_logs.map(normalizeClaimLog).filter(Boolean) : [],
-      memorial_entries: Array.isArray(raw?.memorial_entries) ? raw.memorial_entries.map(normalizeMemorialEntry).filter(Boolean) : [],
-    };
+    const data = normalizeMailboxData(raw);
+    setMailboxDataCache(stat, data);
+    return data;
   } catch {
+    mailboxDataCache = null;
+    clearMailboxDerivedCaches();
     return defaultMailboxData();
   }
 }
@@ -277,6 +342,12 @@ function saveMailboxData(data) {
     claim_logs: Array.isArray(data?.claim_logs) ? data.claim_logs : [],
     memorial_entries: Array.isArray(data?.memorial_entries) ? data.memorial_entries : [],
   });
+  try {
+    setMailboxDataCache(fs.statSync(TAOYUAN_MAILBOX_FILE), normalizeMailboxData(data));
+  } catch {
+    mailboxDataCache = null;
+    clearMailboxDerivedCaches();
+  }
 }
 
 async function withMailboxLock(fn) {
@@ -1117,6 +1188,8 @@ async function sendChatGiftPackage(payload = {}, actor = {}, options = {}) {
 
 function listUserMails(username) {
   const data = loadMailboxData();
+  const cached = getCachedUserMails(username);
+  if (cached) return cached;
   const deliveries = data.deliveries
     .filter(item => item.username === String(username) && !item.deleted_at && !isChatSurfaceDelivery(item))
     .sort((a, b) => {
@@ -1125,10 +1198,12 @@ function listUserMails(username) {
       return (b.sent_at || 0) - (a.sent_at || 0);
     });
   const mails = deliveries.map(buildUserMailSummary);
-  return {
+  const result = {
     mails,
     unread_count: mails.filter(item => item.unread).length,
   };
+  setCachedUserMails(username, result);
+  return result;
 }
 
 function listUserMailReceipts(username, limit = 20) {

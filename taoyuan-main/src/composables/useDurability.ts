@@ -11,6 +11,15 @@ interface DurableInstance {
   [key: string]: unknown
 }
 
+export type EquipmentDurabilityWearType = 'weapon' | 'ring' | 'hat' | 'shoe'
+
+export const EQUIPMENT_DURABILITY_WEAR_MULTIPLIER: Record<EquipmentDurabilityWearType, number> = {
+  weapon: 0.5,
+  ring: 0.5,
+  hat: 0.75,
+  shoe: 0.75
+}
+
 const normalizeWearProgress = (value: unknown): number => {
   const progress = Number(value)
   if (!Number.isFinite(progress) || progress <= 0) return 0
@@ -24,11 +33,13 @@ export function consumeEquipmentDurability(
   instance: DurableInstance,
   maxDurability: number,
   amount: number = 1,
-  consumptionReduction: number = 0
+  consumptionReduction: number = 0,
+  wearType?: EquipmentDurabilityWearType
 ): { broken: boolean } {
   if (instance.locked) return { broken: false }
   const current = instance.durability ?? maxDurability
-  const effectiveAmount = Math.max(0, amount * Math.max(0.1, 1 - consumptionReduction))
+  const typeMultiplier = wearType ? EQUIPMENT_DURABILITY_WEAR_MULTIPLIER[wearType] : 1
+  const effectiveAmount = Math.max(0, amount * typeMultiplier * Math.max(0.1, 1 - consumptionReduction))
   const nextWearProgress = normalizeWearProgress(instance.durabilityWearProgress) + effectiveAmount
   const consumeAmount = Math.floor(nextWearProgress + WEAR_PROGRESS_EPSILON)
   instance.durabilityWearProgress = nextWearProgress - consumeAmount

@@ -2073,8 +2073,8 @@
                           <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
                           <span class="truncate">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
                         </span>
-                        <span :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
-                          {{ inventoryStore.getItemCount(mat.itemId) }}/{{ mat.quantity }}
+                        <span :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
+                          {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
                         </span>
                       </div>
                     </div>

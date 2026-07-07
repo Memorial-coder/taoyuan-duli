@@ -30,6 +30,35 @@ const TAOYUAN_SOCIAL_REPORT_FILE = path.join(DATA_DIR, 'taoyuan_social_reports.j
 
 const FRIEND_DISCOVERY_ONLINE_WINDOW_SECONDS = 5 * 60;
 const FRIEND_DISCOVERY_RECENT_WINDOW_SECONDS = 14 * 24 * 60 * 60;
+const FRIEND_DISCOVERY_CACHE_TTL_MS = Math.max(
+  5000,
+  Math.floor(Number(process.env.TAOYUAN_FRIEND_DISCOVERY_CACHE_TTL_MS) || 30000)
+);
+const FRIEND_DISCOVERY_CANDIDATE_LIMIT = Math.max(
+  12,
+  Math.min(100, Math.floor(Number(process.env.TAOYUAN_FRIEND_DISCOVERY_CANDIDATE_LIMIT) || 60))
+);
+const FRIEND_DISCOVERY_SCAN_LIMIT = Math.max(
+  FRIEND_DISCOVERY_CANDIDATE_LIMIT,
+  Math.min(1000, Math.floor(Number(process.env.TAOYUAN_FRIEND_DISCOVERY_SCAN_LIMIT) || 300))
+);
+const FRIEND_DISCOVERY_QUERY_SCAN_LIMIT = Math.max(
+  FRIEND_DISCOVERY_SCAN_LIMIT,
+  Math.min(3000, Math.floor(Number(process.env.TAOYUAN_FRIEND_DISCOVERY_QUERY_SCAN_LIMIT) || 1000))
+);
+const PROFILE_ACTIVITY_TOUCH_INTERVAL_SECONDS = Math.max(
+  5,
+  Math.floor(Number(process.env.TAOYUAN_PROFILE_ACTIVITY_TOUCH_INTERVAL_SECONDS) || 30)
+);
+const SOCIAL_RESPONSE_CACHE_TTL_MS = Math.max(
+  1000,
+  Math.floor(Number(process.env.TAOYUAN_SOCIAL_RESPONSE_CACHE_TTL_MS) || 10000)
+);
+const friendDiscoveryCache = new Map();
+let socialProfileStoreCache = null;
+let socialProfileStoreVersion = 0;
+const profileResponseCache = new Map();
+const relationshipOverviewCache = new Map();
 
 const SEASON_LABELS = Object.freeze({
   spring: '春',
@@ -309,23 +338,56 @@ function ensureSocialProfileStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_SOCIAL_PROFILE_FILE), { recursive: true });
 }
 
+function normalizeSocialProfileStore(raw) {
+  return raw && typeof raw === 'object'
+    ? {
+        profiles: raw.profiles && typeof raw.profiles === 'object' ? raw.profiles : {},
+        friend_requests: Array.isArray(raw.friend_requests) ? raw.friend_requests : [],
+        friendships: Array.isArray(raw.friendships) ? raw.friendships : [],
+        blocks: Array.isArray(raw.blocks) ? raw.blocks : [],
+        neighbor_groups: Array.isArray(raw.neighbor_groups) ? raw.neighbor_groups : [],
+        neighbor_join_requests: Array.isArray(raw.neighbor_join_requests) ? raw.neighbor_join_requests : [],
+        subscriptions: Array.isArray(raw.subscriptions) ? raw.subscriptions : [],
+      }
+    : createEmptySocialStore();
+}
+
+function clearSocialDerivedCaches() {
+  clearFriendDiscoveryCache();
+  profileResponseCache.clear();
+  relationshipOverviewCache.clear();
+}
+
+function setSocialProfileStoreCache(stat, store) {
+  socialProfileStoreVersion += 1;
+  socialProfileStoreCache = {
+    mtimeMs: Number(stat?.mtimeMs) || 0,
+    size: Number(stat?.size) || 0,
+    version: socialProfileStoreVersion,
+    store,
+  };
+  clearSocialDerivedCaches();
+}
+
 function loadSocialProfileStore() {
   ensureSocialProfileStore();
   try {
     if (!fs.existsSync(TAOYUAN_SOCIAL_PROFILE_FILE)) return createEmptySocialStore();
+    const stat = fs.statSync(TAOYUAN_SOCIAL_PROFILE_FILE);
+    if (
+      socialProfileStoreCache &&
+      socialProfileStoreCache.mtimeMs === Number(stat.mtimeMs) &&
+      socialProfileStoreCache.size === Number(stat.size)
+    ) {
+      return socialProfileStoreCache.store;
+    }
     const raw = JSON.parse(fs.readFileSync(TAOYUAN_SOCIAL_PROFILE_FILE, 'utf8'));
-    return raw && typeof raw === 'object'
-      ? {
-          profiles: raw.profiles && typeof raw.profiles === 'object' ? raw.profiles : {},
-          friend_requests: Array.isArray(raw.friend_requests) ? raw.friend_requests : [],
-          friendships: Array.isArray(raw.friendships) ? raw.friendships : [],
-          blocks: Array.isArray(raw.blocks) ? raw.blocks : [],
-          neighbor_groups: Array.isArray(raw.neighbor_groups) ? raw.neighbor_groups : [],
-          neighbor_join_requests: Array.isArray(raw.neighbor_join_requests) ? raw.neighbor_join_requests : [],
-          subscriptions: Array.isArray(raw.subscriptions) ? raw.subscriptions : [],
-        }
-      : createEmptySocialStore();
+    const store = normalizeSocialProfileStore(raw);
+    setSocialProfileStoreCache(stat, store);
+    return store;
   } catch {
+    socialProfileStoreCache = null;
+    clearSocialDerivedCaches();
     return createEmptySocialStore();
   }
 }
@@ -341,6 +403,12 @@ function saveSocialProfileStore(store) {
     neighbor_join_requests: Array.isArray(store?.neighbor_join_requests) ? store.neighbor_join_requests : [],
     subscriptions: Array.isArray(store?.subscriptions) ? store.subscriptions : [],
   });
+  try {
+    setSocialProfileStoreCache(fs.statSync(TAOYUAN_SOCIAL_PROFILE_FILE), normalizeSocialProfileStore(store));
+  } catch {
+    socialProfileStoreCache = null;
+    clearSocialDerivedCaches();
+  }
 }
 
 function readJsonStore(filePath, fallbackValue) {
@@ -922,6 +990,140 @@ function normalizeStoredProfile(profile) {
   };
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function clearFriendDiscoveryCache() {
+  friendDiscoveryCache.clear();
+}
+
+function getFriendDiscoveryCacheKey(viewer, viewerIdentity, mode, query, limit, seed = '') {
+  return [
+    normalizeUsername(viewer),
+    normalizeSocialSaveId(viewerIdentity?.save_id),
+    normalizeSocialSaveSlot(viewerIdentity?.save_slot) ?? '',
+    mode,
+    query,
+    limit,
+    seed,
+  ].join('|');
+}
+
+function getCachedFriendDiscovery(cacheKey) {
+  const entry = friendDiscoveryCache.get(cacheKey);
+  if (!entry || entry.expires_at <= Date.now()) {
+    if (entry) friendDiscoveryCache.delete(cacheKey);
+    return null;
+  }
+  return cloneJson(entry.value);
+}
+
+function setCachedFriendDiscovery(cacheKey, value) {
+  friendDiscoveryCache.set(cacheKey, {
+    expires_at: Date.now() + FRIEND_DISCOVERY_CACHE_TTL_MS,
+    value: cloneJson(value),
+  });
+  while (friendDiscoveryCache.size > 200) {
+    const firstKey = friendDiscoveryCache.keys().next().value;
+    if (!firstKey) break;
+    friendDiscoveryCache.delete(firstKey);
+  }
+}
+
+function getCachedSocialResponse(cache, cacheKey) {
+  const entry = cache.get(cacheKey);
+  if (!entry || entry.expires_at <= Date.now()) {
+    if (entry) cache.delete(cacheKey);
+    return null;
+  }
+  return cloneJson(entry.value);
+}
+
+function setCachedSocialResponse(cache, cacheKey, value, limit = 500) {
+  cache.set(cacheKey, {
+    expires_at: Date.now() + SOCIAL_RESPONSE_CACHE_TTL_MS,
+    value: cloneJson(value),
+  });
+  while (cache.size > limit) {
+    const firstKey = cache.keys().next().value;
+    if (!firstKey) break;
+    cache.delete(firstKey);
+  }
+}
+
+function buildLightweightPublicTags(storedProfile = DEFAULT_PROFILE) {
+  return (storedProfile.selected_tag_ids || [])
+    .filter(id => PROFILE_TAG_LABELS[id])
+    .map(id => ({
+      id,
+      label: PROFILE_TAG_LABELS[id],
+      source: 'selected',
+    }));
+}
+
+function buildEmptyAwardShowcase() {
+  return {
+    honors: [],
+    commemoratives: [],
+    titles: [],
+    achievement_cards: [],
+    summary: {
+      honor_count: 0,
+      commemorative_count: 0,
+      title_count: 0,
+      achievement_count: 0,
+    },
+  };
+}
+
+function buildLightweightDiscoveryProfile(username, identity = {}, storedProfile = DEFAULT_PROFILE) {
+  const normalizedUsername = normalizeUsername(username);
+  const profile = normalizeStoredProfile(storedProfile);
+  const displayName = sanitizeText(identity.nickname_snapshot || normalizedUsername, 40) || normalizedUsername;
+  const publicTags = buildLightweightPublicTags(profile);
+
+  return {
+    username: normalizedUsername,
+    display_name: displayName,
+    player_name: displayName,
+    honorific: '',
+    manor_name: profile.manor_name,
+    season_progress: '',
+    primary_route_label: profile.public_title || profile.showcase_theme || '',
+    recent_activity: '',
+    public_title: profile.public_title,
+    neighborhood_role: profile.neighborhood_role,
+    showcase_theme: profile.showcase_theme,
+    public_intro: profile.public_intro,
+    avatar_image_url: profile.avatar_image_url,
+    avatar_image_alt: profile.avatar_image_alt,
+    visibility: profile.visibility,
+    active_quest_count: 0,
+    public_tags: publicTags,
+    selected_tag_ids: [...profile.selected_tag_ids],
+    available_tag_options: PROFILE_TAG_OPTIONS.map(entry => ({ ...entry })),
+    player_chronicle: null,
+    award_showcase: buildEmptyAwardShowcase(),
+    updated_at: profile.updated_at,
+    last_active_at: profile.last_active_at,
+  };
+}
+
+function buildDiscoverySearchBlob(identity = {}, targetUsername = '', storedProfile = DEFAULT_PROFILE) {
+  const profile = normalizeStoredProfile(storedProfile);
+  return [
+    String(identity.save_id || ''),
+    targetUsername,
+    identity.nickname_snapshot,
+    profile.manor_name,
+    profile.public_title,
+    profile.showcase_theme,
+    profile.public_intro,
+    ...(profile.selected_tag_ids || []).map(id => PROFILE_TAG_LABELS[id] || id),
+  ].join(' ').toLocaleLowerCase('zh-CN');
+}
+
 function getStoredProfile(username) {
   const store = loadSocialProfileStore();
   const key = String(username || '').trim();
@@ -931,19 +1133,33 @@ function getStoredProfile(username) {
 function updateStoredProfile(username, patch = {}) {
   const store = loadSocialProfileStore();
   const key = String(username || '').trim();
+  const hasExistingProfile = !!store.profiles?.[key];
   const current = normalizeStoredProfile(store.profiles?.[key] || DEFAULT_PROFILE);
+  const patchKeys = Object.keys(patch || {}).filter(item => patch[item] !== undefined);
+  const isTouchOnly = patchKeys.length === 0;
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    isTouchOnly &&
+    hasExistingProfile &&
+    current.last_active_at >= now - PROFILE_ACTIVITY_TOUCH_INTERVAL_SECONDS
+  ) {
+    return current;
+  }
   const normalizedVisibility = normalizeVisibility(patch?.visibility ?? current.visibility);
   const nextPublicSince = normalizedVisibility === 'public'
-    ? (current.public_since > 0 ? current.public_since : Math.floor(Date.now() / 1000))
+    ? (current.public_since > 0 ? current.public_since : now)
     : current.public_since;
   const next = normalizeStoredProfile({
     ...current,
     ...patch,
     visibility: normalizedVisibility,
     public_since: nextPublicSince,
-    updated_at: Math.floor(Date.now() / 1000),
-    last_active_at: Math.floor(Date.now() / 1000),
+    updated_at: isTouchOnly ? current.updated_at : now,
+    last_active_at: now,
   });
+  if (hasExistingProfile && JSON.stringify(current) === JSON.stringify(next)) {
+    return current;
+  }
   store.profiles[key] = next;
   saveSocialProfileStore(store);
   return next;
@@ -1538,6 +1754,106 @@ function getFriendSaveIdsForIdentity(store, identity = null) {
   return result;
 }
 
+function addFriendSaveId(map, key, saveId) {
+  if (!key || !saveId) return;
+  const current = map.get(key) || new Set();
+  current.add(saveId);
+  map.set(key, current);
+}
+
+function buildRelationshipLookupIndex(store) {
+  const index = {
+    friendSaveIdsBySaveId: new Map(),
+    friendSaveIdsByUsername: new Map(),
+    friendshipSavePairKeys: new Set(),
+    friendshipUsernamePairKeys: new Set(),
+    blockedSavePairKeys: new Set(),
+    blockedUsernamePairKeys: new Set(),
+    pendingBySavePairKey: new Map(),
+    pendingByUsernamePairKey: new Map(),
+  };
+
+  for (const friendship of store.friendships.map(normalizeFriendship)) {
+    const sideA = getFriendshipSide(friendship, 'a');
+    const sideB = getFriendshipSide(friendship, 'b');
+    const savePairKey = buildFriendshipSavePairKey(friendship);
+    const usernamePairKey = buildPairKey(sideA.username, sideB.username);
+    if (savePairKey) index.friendshipSavePairKeys.add(savePairKey);
+    if (usernamePairKey) index.friendshipUsernamePairKeys.add(usernamePairKey);
+    addFriendSaveId(index.friendSaveIdsBySaveId, sideA.save_id, sideB.save_id);
+    addFriendSaveId(index.friendSaveIdsBySaveId, sideB.save_id, sideA.save_id);
+    addFriendSaveId(index.friendSaveIdsByUsername, sideA.username, sideB.save_id);
+    addFriendSaveId(index.friendSaveIdsByUsername, sideB.username, sideA.save_id);
+  }
+
+  for (const block of store.blocks.map(normalizeBlockRelation)) {
+    const savePairKey = buildSavePairKey(block.blocker_save_id, block.blocked_save_id);
+    const usernamePairKey = buildPairKey(block.blocker_username, block.blocked_username);
+    if (savePairKey) index.blockedSavePairKeys.add(savePairKey);
+    if (usernamePairKey) index.blockedUsernamePairKeys.add(usernamePairKey);
+  }
+
+  for (const request of store.friend_requests.map(normalizeFriendRequest)) {
+    if (request.status !== 'pending') continue;
+    const savePairKey = buildFriendRequestSavePairKey(request);
+    const usernamePairKey = buildPairKey(request.from_username, request.to_username);
+    if (savePairKey) index.pendingBySavePairKey.set(savePairKey, request);
+    if (usernamePairKey) index.pendingByUsernamePairKey.set(usernamePairKey, request);
+  }
+
+  return index;
+}
+
+function getFriendSaveIdsFromIndex(index, identity = null) {
+  const saveId = normalizeSocialSaveId(identity?.save_id);
+  const username = normalizeUsername(identity?.account_username);
+  if (saveId && index.friendSaveIdsBySaveId.has(saveId)) {
+    return index.friendSaveIdsBySaveId.get(saveId);
+  }
+  if (username && index.friendSaveIdsByUsername.has(username)) {
+    return index.friendSaveIdsByUsername.get(username);
+  }
+  return new Set();
+}
+
+function countMutualFriendSaveIds(viewerFriendSaveIds, targetFriendSaveIds) {
+  let count = 0;
+  for (const saveId of viewerFriendSaveIds || []) {
+    if (targetFriendSaveIds?.has(saveId)) count += 1;
+  }
+  return count;
+}
+
+function getRelationshipStatusFromIndex(index, viewerUsername, viewerIdentity = null, targetUsername, targetIdentity = null) {
+  const normalizedViewer = normalizeUsername(viewerUsername);
+  const normalizedTarget = normalizeUsername(targetUsername);
+  const savePairKey = buildSavePairKey(viewerIdentity?.save_id, targetIdentity?.save_id);
+  const usernamePairKey = buildPairKey(normalizedViewer, normalizedTarget);
+
+  if (
+    (savePairKey && index.blockedSavePairKeys.has(savePairKey)) ||
+    (usernamePairKey && index.blockedUsernamePairKeys.has(usernamePairKey))
+  ) {
+    return 'blocked';
+  }
+  if (
+    (savePairKey && index.friendshipSavePairKeys.has(savePairKey)) ||
+    (usernamePairKey && index.friendshipUsernamePairKeys.has(usernamePairKey))
+  ) {
+    return 'friend';
+  }
+
+  const pending = (savePairKey && index.pendingBySavePairKey.get(savePairKey)) ||
+    (usernamePairKey && index.pendingByUsernamePairKey.get(usernamePairKey));
+  if (!pending) return 'none';
+
+  const viewerSaveId = normalizeSocialSaveId(viewerIdentity?.save_id);
+  if (viewerSaveId && (pending.from_save_id || pending.to_save_id)) {
+    return pending.from_save_id === viewerSaveId ? 'pending_outgoing' : 'pending_incoming';
+  }
+  return pending.from_username === normalizedViewer ? 'pending_outgoing' : 'pending_incoming';
+}
+
 function countMutualFriends(store, viewerIdentity = null, targetIdentity = null) {
   const viewerFriends = getFriendSaveIdsForIdentity(store, viewerIdentity);
   const targetFriends = getFriendSaveIdsForIdentity(store, targetIdentity);
@@ -1909,12 +2225,26 @@ async function buildRelationCard(username, viewerUsername = '', options = {}) {
 }
 
 async function getOwnProfile(username) {
-  updateStoredProfile(username, {});
-  return buildProfile(username, username);
+  const normalizedUsername = normalizeUsername(username);
+  updateStoredProfile(normalizedUsername, {});
+  const cacheKey = `${socialProfileStoreVersion}:profile:own:${normalizedUsername}`;
+  const cached = getCachedSocialResponse(profileResponseCache, cacheKey);
+  if (cached) return cached;
+  const profile = await buildProfile(normalizedUsername, normalizedUsername);
+  setCachedSocialResponse(profileResponseCache, cacheKey, profile);
+  return profile;
 }
 
 async function getPublicProfile(username, viewerUsername = '') {
-  return buildProfile(username, viewerUsername);
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedViewer = normalizeUsername(viewerUsername);
+  loadSocialProfileStore();
+  const cacheKey = `${socialProfileStoreVersion}:profile:public:${normalizedUsername}:${normalizedViewer}`;
+  const cached = getCachedSocialResponse(profileResponseCache, cacheKey);
+  if (cached) return cached;
+  const profile = await buildProfile(normalizedUsername, normalizedViewer);
+  setCachedSocialResponse(profileResponseCache, cacheKey, profile);
+  return profile;
 }
 
 async function searchPlayerBySaveId(viewerUsername, rawSaveId) {
@@ -1941,15 +2271,27 @@ async function listFriendDiscovery(viewerUsername, options = {}) {
   const viewer = normalizeUsername(viewerUsername);
   const viewerContext = resolveActiveSaveContext(viewer);
   const viewerIdentity = viewerContext?.identity || null;
+  const viewerLookupIdentity = viewerIdentity || { account_username: viewer };
   const viewerLevel = getGameplayLevel(viewerContext?.data || {});
   const mode = normalizeDiscoveryMode(options.mode ?? options.filter);
   const query = normalizeDiscoveryQuery(options.query ?? options.q);
   const limit = Math.max(1, Math.min(30, Math.floor(Number(options.limit) || 12)));
   const now = Math.floor(Date.now() / 1000);
-  const randomSeed = getRandomSeed(`${viewer}:${options.seed || now}:${query}:${mode}`);
+  const seed = options.seed || Math.floor(now / Math.max(1, FRIEND_DISCOVERY_CACHE_TTL_MS / 1000));
+  const cacheKey = getFriendDiscoveryCacheKey(viewer, viewerIdentity, mode, query, limit, seed);
+  const cached = getCachedFriendDiscovery(cacheKey);
+  if (cached) return cached;
+
+  const randomSeed = getRandomSeed(`${viewer}:${seed}:${query}:${mode}`);
   const presenceByKey = normalizePresenceRecords(options.presenceRecords || []);
-  const identities = listSaveIdentities();
-  const cards = [];
+  const scanLimit = Math.max(
+    limit * 4,
+    query ? FRIEND_DISCOVERY_QUERY_SCAN_LIMIT : FRIEND_DISCOVERY_SCAN_LIMIT
+  );
+  const identities = listSaveIdentities().slice(0, scanLimit);
+  const relationshipIndex = buildRelationshipLookupIndex(store);
+  const candidates = [];
+  const viewerFriendSaveIds = getFriendSaveIdsFromIndex(relationshipIndex, viewerLookupIdentity);
 
   for (let index = 0; index < identities.length; index += 1) {
     const identity = identities[index];
@@ -1957,44 +2299,27 @@ async function listFriendDiscovery(viewerUsername, options = {}) {
     if (!targetUsername) continue;
     if (viewerIdentity?.save_id && identity.save_id === viewerIdentity.save_id) continue;
     if (!viewerIdentity?.save_id && targetUsername === viewer) continue;
-    if (!isProfileDiscoverable(store.profiles?.[targetUsername] || DEFAULT_PROFILE)) continue;
+    const storedProfile = normalizeStoredProfile(store.profiles?.[targetUsername] || DEFAULT_PROFILE);
+    if (!isProfileDiscoverable(storedProfile)) continue;
+    if (query && !buildDiscoverySearchBlob(identity, targetUsername, storedProfile).includes(query)) continue;
 
     const presence = presenceByKey.get(`save:${identity.save_id}`) || presenceByKey.get(`user:${targetUsername}`) || null;
-    const targetContext = resolveActiveSaveContext(targetUsername, identity.save_slot);
-    const storedProfile = normalizeStoredProfile(store.profiles?.[targetUsername] || DEFAULT_PROFILE);
     const lastActiveAt = Math.max(
       Number(storedProfile.last_active_at) || 0,
       Number(identity.updated_at) || 0,
-      Math.floor((Number(targetContext?.saveContainer?.root?.meta?.savedAtMs) || 0) / 1000)
+      Number(presence?.last_seen_at) || 0
     );
     const isOnline = presence?.status === 'online' && presence.last_seen_at >= now - FRIEND_DISCOVERY_ONLINE_WINDOW_SECONDS;
     const isRecentlyActive = isOnline || lastActiveAt >= now - FRIEND_DISCOVERY_RECENT_WINDOW_SECONDS || (presence?.last_seen_at || 0) >= now - FRIEND_DISCOVERY_RECENT_WINDOW_SECONDS;
     if (mode === 'online' && !isOnline) continue;
     if (mode === 'recent' && !isRecentlyActive) continue;
 
-    const relationStatus = getRelationshipStatus(store, viewer, viewerIdentity, targetUsername, identity);
+    const relationStatus = getRelationshipStatusFromIndex(relationshipIndex, viewer, viewerIdentity, targetUsername, identity);
     if (relationStatus === 'blocked') continue;
 
-    let profile = null;
-    try {
-      profile = await buildRelationCard(targetUsername, viewer, {
-        preferredSlot: identity.save_slot,
-      });
-    } catch {
-      continue;
-    }
-    const searchBlob = [
-      String(identity.save_id),
-      targetUsername,
-      identity.nickname_snapshot,
-      profile.display_name,
-      profile.player_name,
-    ].join(' ').toLocaleLowerCase('zh-CN');
-    if (query && !searchBlob.includes(query)) continue;
-
-    const targetLevel = getGameplayLevel(targetContext?.data || {});
+    const targetLevel = Math.max(1, Math.floor(Number(identity.level_snapshot) || viewerLevel || 1));
     const levelGap = Math.abs(viewerLevel - targetLevel);
-    const mutualFriendCount = countMutualFriends(store, viewerIdentity, identity);
+    const mutualFriendCount = countMutualFriendSaveIds(viewerFriendSaveIds, getFriendSaveIdsFromIndex(relationshipIndex, identity));
     const score =
       (isOnline ? 10000 : 0) +
       (isRecentlyActive ? 3000 : 0) +
@@ -2003,9 +2328,10 @@ async function listFriendDiscovery(viewerUsername, options = {}) {
       Math.min(1800, Math.max(0, lastActiveAt)) / 100000 +
       seededJitter(randomSeed, index);
 
-    cards.push({
+    candidates.push({
       save_identity: identity,
-      profile,
+      target_username: targetUsername,
+      stored_profile: storedProfile,
       status: isOnline ? 'online' : isRecentlyActive ? 'recent' : 'offline',
       is_online: isOnline,
       is_recently_active: isRecentlyActive,
@@ -2025,12 +2351,16 @@ async function listFriendDiscovery(viewerUsername, options = {}) {
     });
   }
 
-  const visibleCards = cards
+  const visibleCards = candidates
     .sort((left, right) => right.score - left.score)
-    .slice(0, limit)
-    .map(({ score, ...entry }) => entry);
+    .slice(0, Math.min(FRIEND_DISCOVERY_CANDIDATE_LIMIT, Math.max(limit, limit * 4)))
+    .map(({ score, target_username: targetUsername, stored_profile: storedProfile, ...entry }) => ({
+      ...entry,
+      profile: buildLightweightDiscoveryProfile(targetUsername, entry.save_identity, storedProfile),
+    }))
+    .slice(0, limit);
 
-  return {
+  const result = {
     players: visibleCards,
     filters: {
       mode,
@@ -2038,12 +2368,14 @@ async function listFriendDiscovery(viewerUsername, options = {}) {
       limit,
     },
     summary: {
-      total_visible: cards.length,
+      total_visible: candidates.length,
       returned: visibleCards.length,
-      online: cards.filter(entry => entry.is_online).length,
-      recent: cards.filter(entry => entry.is_recently_active).length,
+      online: candidates.filter(entry => entry.is_online).length,
+      recent: candidates.filter(entry => entry.is_recently_active).length,
     },
   };
+  setCachedFriendDiscovery(cacheKey, result);
+  return cloneJson(result);
 }
 
 function resolveOwnSaveIdentity(username) {
@@ -2205,8 +2537,11 @@ async function updateOwnProfile(username, payload = {}, auditContext = {}) {
 }
 
 async function listRelationshipOverview(username) {
-  const store = loadSocialProfileStore();
   const normalizedUsername = normalizeUsername(username);
+  const store = loadSocialProfileStore();
+  const cacheKey = `${socialProfileStoreVersion}:relationships:${normalizedUsername}`;
+  const cached = getCachedSocialResponse(relationshipOverviewCache, cacheKey);
+  if (cached) return cached;
   const ownIdentity = resolveActiveSaveContext(normalizedUsername)?.identity || null;
 
   const incoming_requests = await Promise.all(
@@ -2318,13 +2653,15 @@ async function listRelationshipOverview(username) {
     };
   })();
 
-  return {
+  const overview = {
     incoming_requests,
     outgoing_requests,
     friends,
     blocked_users,
     neighbor_group,
   };
+  setCachedSocialResponse(relationshipOverviewCache, cacheKey, overview);
+  return overview;
 }
 
 async function requestFriendship(username, targetPayload) {
