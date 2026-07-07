@@ -17,6 +17,7 @@ import {
   getCropUseRequirementAvailableCount,
   getLowestCropUsePlanQuality,
   resolveCropUseSubstitutionPlan,
+  type CropUseSubstitutionPreference,
   type CropUseSubstitutionPlan
 } from '@/utils/cropUseSubstitution'
 import { useNpcStore } from './useNpcStore'
@@ -353,14 +354,22 @@ export const useCookingStore = defineStore('cooking', () => {
     }))
   }
 
-  const resolveCookingUsePlan = (recipe: RecipeDef, quantity: number = 1): CropUseSubstitutionPlan => {
-    return resolveCropUseSubstitutionPlan(buildCookingRequirements(recipe, quantity), getCombinedItemCount)
+  const resolveCookingUsePlan = (
+    recipe: RecipeDef,
+    quantity: number = 1,
+    preferences: CropUseSubstitutionPreference[] = []
+  ): CropUseSubstitutionPlan => {
+    return resolveCropUseSubstitutionPlan(buildCookingRequirements(recipe, quantity), getCombinedItemCount, preferences)
   }
 
-  const getCookingUsePlan = (recipeId: string, quantity: number = 1): CropUseSubstitutionPlan => {
+  const getCookingUsePlan = (
+    recipeId: string,
+    quantity: number = 1,
+    preferences: CropUseSubstitutionPreference[] = []
+  ): CropUseSubstitutionPlan => {
     const recipe = getRecipeById(recipeId)
     return recipe
-      ? resolveCookingUsePlan(recipe, quantity)
+      ? resolveCookingUsePlan(recipe, quantity, preferences)
       : { fulfilled: false, entries: [], missing: [] }
   }
 
@@ -368,8 +377,12 @@ export const useCookingStore = defineStore('cooking', () => {
     return getCropUseRequirementAvailableCount({ itemId, quantity: 1, tags: ['food'] }, getCombinedItemCount)
   }
 
-  const getCookingSubstitutionText = (recipeId: string, quantity: number = 1): string => {
-    return formatCropUseSubstitutionSummary(getCookingUsePlan(recipeId, quantity), getItemName)
+  const getCookingSubstitutionText = (
+    recipeId: string,
+    quantity: number = 1,
+    preferences: CropUseSubstitutionPreference[] = []
+  ): string => {
+    return formatCropUseSubstitutionSummary(getCookingUsePlan(recipeId, quantity, preferences), getItemName)
   }
 
   /** 检查是否有足够材料 */
@@ -386,7 +399,7 @@ export const useCookingStore = defineStore('cooking', () => {
   }
 
   /** 计算最多能烹饪几份 */
-  const maxCookable = (recipeId: string): number => {
+  const maxCookable = (recipeId: string, preferences: CropUseSubstitutionPreference[] = []): number => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return 0
     if (!isRecipeKnown(recipeId)) return 0
@@ -405,7 +418,7 @@ export const useCookingStore = defineStore('cooking', () => {
     let high = upper
     while (low < high) {
       const mid = Math.ceil((low + high + 1) / 2)
-      if (resolveCookingUsePlan(recipe, mid).fulfilled) {
+      if (resolveCookingUsePlan(recipe, mid, preferences).fulfilled) {
         low = mid
       } else {
         high = mid - 1
@@ -415,10 +428,10 @@ export const useCookingStore = defineStore('cooking', () => {
   }
 
   /** 预览烹饪品质（取所有材料最低品质） */
-  const previewCookQuality = (recipeId: string): Quality => {
+  const previewCookQuality = (recipeId: string, preferences: CropUseSubstitutionPreference[] = []): Quality => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return 'normal'
-    const plan = resolveCookingUsePlan(recipe)
+    const plan = resolveCookingUsePlan(recipe, 1, preferences)
     if (plan.entries.length > 0) return getLowestCropUsePlanQuality(plan)
     let minIdx = 3
     for (const ing of recipe.ingredients) {
@@ -432,8 +445,11 @@ export const useCookingStore = defineStore('cooking', () => {
   const getNpcCookingQualityBoostChance = (): number =>
     Math.min(0.5, Math.max(0, npcStore.getNpcFunctionEffectValue('cook_success_boost') / 100))
 
-  const getPreviewCookQualityWithNpc = (recipeId: string): Quality => {
-    const baseQuality = previewCookQuality(recipeId)
+  const getPreviewCookQualityWithNpc = (
+    recipeId: string,
+    preferences: CropUseSubstitutionPreference[] = []
+  ): Quality => {
+    const baseQuality = previewCookQuality(recipeId, preferences)
     return getNpcCookingQualityBoostChance() > 0 ? getNextQuality(baseQuality) : baseQuality
   }
 
@@ -443,7 +459,11 @@ export const useCookingStore = defineStore('cooking', () => {
   }
 
   /** 烹饪 */
-  const cook = (recipeId: string, quantity: number = 1): { success: boolean; message: string } => {
+  const cook = (
+    recipeId: string,
+    quantity: number = 1,
+    preferences: CropUseSubstitutionPreference[] = []
+  ): { success: boolean; message: string } => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return { success: false, message: '食谱不存在。' }
     if (!isRecipeKnown(recipeId)) return { success: false, message: '尚未解锁此食谱。' }
@@ -456,10 +476,10 @@ export const useCookingStore = defineStore('cooking', () => {
     }
 
     // 计算最多能做几份
-    const maxPossible = Math.min(Math.floor(quantity), maxCookable(recipeId))
+    const maxPossible = Math.min(Math.floor(quantity), maxCookable(recipeId, preferences))
     if (maxPossible <= 0) return { success: false, message: '材料不足。' }
 
-    const cookingPlan = resolveCookingUsePlan(recipe, maxPossible)
+    const cookingPlan = resolveCookingUsePlan(recipe, maxPossible, preferences)
     if (!cookingPlan.fulfilled) return { success: false, message: '材料不足。' }
 
     // 计算品质（取所有材料中最低品质）

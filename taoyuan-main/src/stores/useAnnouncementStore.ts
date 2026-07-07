@@ -1,7 +1,6 @@
 import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, getActivePinia } from 'pinia'
 import { buildScopedSingleKey, ensureCurrentAccount } from '@/utils/accountStorage'
-import { useSaveStore } from '@/stores/useSaveStore'
 import {
   claimAnnouncementReward,
   fetchActiveAnnouncements,
@@ -12,12 +11,25 @@ import type { TaoyuanAnnouncement } from '@/types/announcement'
 
 const SUPPRESSED_PREFIX = 'taoyuan_announcement_suppressed_'
 
+type AnnouncementSaveRuntimeStore = {
+  runtimeSessionMode?: string
+  runtimeSessionSlot?: number
+  activeSlotMode?: string
+  activeSlot?: number
+  storageMode?: string
+  currentOnlineIdentity?: { save_id?: number } | null
+}
+
+const getActiveSaveStore = (): AnnouncementSaveRuntimeStore | undefined =>
+  getActivePinia()?._s.get('save') as AnnouncementSaveRuntimeStore | undefined
+
 const getAnnouncementSuppressionScope = (): string => {
   try {
-    const saveStore = useSaveStore()
+    const saveStore = getActiveSaveStore()
+    if (!saveStore) return ''
     const mode = saveStore.runtimeSessionMode ?? saveStore.activeSlotMode ?? saveStore.storageMode
     const slot = Number(
-      saveStore.runtimeSessionSlot >= 0
+      (saveStore.runtimeSessionSlot ?? -1) >= 0
         ? saveStore.runtimeSessionSlot
         : saveStore.activeSlot
     )
@@ -64,8 +76,7 @@ const writeLocalSuppressed = (announcementId: string): boolean => {
 
 const canClaimAnnouncementRewards = (): boolean => {
   try {
-    const saveStore = useSaveStore()
-    return saveStore.runtimeSessionMode === 'server'
+    return getActiveSaveStore()?.runtimeSessionMode === 'server'
   } catch {
     return false
   }

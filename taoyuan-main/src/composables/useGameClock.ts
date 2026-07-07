@@ -2,7 +2,6 @@ import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/useGameStore'
 import { PASSOUT_HOUR, MIDNIGHT_HOUR } from '@/data/timeConstants'
 import { addLog } from './useGameLog'
-import { handleEndDay } from './useEndDay'
 
 // === 常量 ===
 /** 星露谷速率：0.7 真实秒 = 1 游戏分钟 */
@@ -19,6 +18,10 @@ const isPaused = ref(true)
 const pauseReasons = ref<Set<PauseReason>>(new Set())
 const shouldAutoPauseOnSettingsOpen = ref(true)
 let timerId: ReturnType<typeof setInterval> | null = null
+const runEndDay = async () => {
+  const { handleEndDay } = await import('./useEndDay')
+  handleEndDay()
+}
 /** 页面隐藏前时钟是否在运行（用于恢复） */
 let wasRunningBeforeHidden = false
 
@@ -106,12 +109,10 @@ const tick = () => {
     gameStore.hour = PASSOUT_HOUR
     addPauseReason('endday')
     addLog('已经凌晨2点了，你撑不住倒下了……')
-    try {
-      handleEndDay()
-    } finally {
+    void runEndDay().catch(() => {}).finally(() => {
       // 新一天开始后恢复 endday 暂停；若仍有弹窗/手动暂停等原因，会继续保持暂停
       removePauseReason('endday')
-    }
+    })
     return
   }
 

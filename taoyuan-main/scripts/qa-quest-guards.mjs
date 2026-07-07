@@ -425,9 +425,9 @@ assert(
 )
 assert(
   questStoreSource.includes('getQuestInventoryCount') &&
-    questStoreSource.includes('getTotalItemCountAtLeast') &&
-    questStoreSource.includes('removeItemAnywhereAtLeast'),
-  'Quest submission should count and consume minimum-quality inventory through shared helpers.'
+    questStoreSource.includes('getCombinedItemCountAtLeast') &&
+    questStoreSource.includes('removeCombinedItemAtLeast'),
+  'Quest submission should count and consume minimum-quality combined inventory through shared helpers.'
 )
 assert(
   questViewSource.includes('formatQuestRequirementTarget') &&

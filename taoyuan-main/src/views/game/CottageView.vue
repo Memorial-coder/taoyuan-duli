@@ -948,7 +948,7 @@
   import type { Quality, ChildStage, ChildState, PregnancyStage, Season, FarmHelperTask } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { showChildProposal, triggerHeartEvent } from '@/composables/useDialogs'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
 

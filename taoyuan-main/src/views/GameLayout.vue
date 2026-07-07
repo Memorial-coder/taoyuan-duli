@@ -8,10 +8,10 @@
   >
     <div class="game-layout-frame flex min-h-0 flex-1 flex-col gap-1 md:gap-4" data-testid="game-layout-frame">
       <!-- 状态栏 -->
-      <StatusBar @request-sleep="showSleepConfirm = true" @request-save-prompt="openSavePrompt" />
+      <StatusBar @request-sleep="openSleepPrompt" @request-save-prompt="openSavePrompt" />
 
       <div class="game-layout-header-actions">
-        <Button data-testid="sleep-button" class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="showSleepConfirm = true">
+        <Button data-testid="sleep-button" class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="openSleepPrompt">
           {{ sleepLabel }} <kbd class="game-layout-sleep-shortcut">{{ getShortcutLabel('systemSleepPrompt') }}</kbd>
         </Button>
       </div>
@@ -51,11 +51,11 @@
           <span class="online-room-invite-prompt__title">联机邀请待处理</span>
           <span class="online-room-invite-prompt__meta">{{ pendingOnlineRoomInviteCount }} 个房间等你确认</span>
         </button>
-        <button class="mobile-hub-btn" data-testid="mobile-hub-button" :aria-label="mobileHubTitle" :title="mobileHubTitle" @click="showMobileMap = true">
+        <button class="mobile-hub-btn" data-testid="mobile-hub-button" :aria-label="mobileHubTitle" :title="mobileHubTitle" @click="openMobileMap">
           <Map :size="20" />
-          <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
+          <span v-if="mailboxUnreadCount > 0" class="mail-badge">{{ mailboxUnreadCount > 99 ? '99+' : mailboxUnreadCount }}</span>
           <span v-if="pendingFriendRequestCount > 0" class="friend-request-badge">{{ friendRequestBadgeLabel }}</span>
-          <span v-if="friendChatStore.totalUnreadCount > 0" class="friend-chat-badge">{{ mobileChatUnreadLabel }}</span>
+          <span v-if="friendChatUnreadCount > 0" class="friend-chat-badge">{{ mobileChatUnreadLabel }}</span>
           <span v-if="pendingOnlineRoomInviteCount > 0" class="online-room-invite-badge">{{ onlineRoomInviteBadgeLabel }}</span>
         </button>
         <button
@@ -73,7 +73,7 @@
       </div>
     </div>
 
-    <SettingsDialog :open="showSettings" @close="closeSettings" />
+    <SettingsDialog v-if="showSettings" :open="showSettings" @close="closeSettings" />
 
     <Transition name="panel-fade">
       <SaveManager
@@ -116,6 +116,7 @@
 
     <!-- 移动端地图菜单 -->
     <MobileMapMenu
+      v-if="shouldRenderMobileMap"
       :open="showMobileMap"
       :current="currentPanel"
       :has-void-chest="warehouseStore.hasVoidChest"
@@ -509,30 +510,18 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+  import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
-  import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
-  import { useHomeStore } from '@/stores/useHomeStore'
   import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
-  import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
-  import { useSaveStore } from '@/stores/useSaveStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
-  import { useRealtimeStore } from '@/stores/useRealtimeStore'
   import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
   import { useMiningStore } from '@/stores/useMiningStore'
-  import { useFriendChatStore } from '@/stores/useFriendChatStore'
-  import { useSocialStore } from '@/stores/useSocialStore'
-  import { useFarmStore } from '@/stores/useFarmStore'
-  import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
-  import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
-  import { handleEndDay } from '@/composables/useEndDay'
   import { addLog, showFloat, setQmsgParent, _registerDayLabelGetter } from '@/composables/useGameLog'
   import {
     LATE_NIGHT_RECOVERY_MAX,
@@ -542,7 +531,9 @@
     PASSOUT_MONEY_PENALTY_CAP,
     SHORT_REST_OPTIONS
   } from '@/data/timeConstants'
-  import { getNpcById, getItemById, getCropById } from '@/data'
+  import { getCropById } from '@/data/crops'
+  import { getItemById } from '@/data/items'
+  import { getNpcById } from '@/data/npcs'
   import { useGameClock } from '@/composables/useGameClock'
   import { navigateToPanel, syncNavigationClockPauseForRoute, type PanelKey } from '@/composables/useNavigation'
   import { useAudio } from '@/composables/useAudio'
@@ -551,31 +542,11 @@
   import type { Quality, RecordCenterTabId } from '@/types'
   import type { SaveSlotInfo } from '@/stores/useSaveStore'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
-  import { Moon, X, Map, ArrowDown, ArrowDownToLine, Maximize2, Minimize2 } from 'lucide-vue-next'
+  import { Moon, X, Map, ArrowDown, ArrowDownToLine, Maximize2, Minimize2, Archive } from 'lucide-vue-next'
   import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
-  import DailyDigestSummaryDialog from '@/components/game/DailyDigestSummaryDialog.vue'
-  import AnnouncementDialog from '@/components/game/AnnouncementDialog.vue'
-  import MobileMapMenu from '@/components/game/MobileMapMenu.vue'
-  import PlayerRecordCenterPanel from '@/components/game/PlayerRecordCenterPanel.vue'
   import StatusBar from '@/components/game/StatusBar.vue'
-  import EventDialog from '@/components/game/EventDialog.vue'
-  import HeartEventDialog from '@/components/game/HeartEventDialog.vue'
-  import ItemIcon from '@/components/game/ItemIcon.vue'
-  import PerkSelectDialog from '@/components/game/PerkSelectDialog.vue'
-  import FishingContestView from '@/components/game/FishingContestView.vue'
-  import HarvestFairView from '@/components/game/HarvestFairView.vue'
-  import DragonBoatView from '@/components/game/DragonBoatView.vue'
-  import LanternRiddleView from '@/components/game/LanternRiddleView.vue'
-  import PotThrowingView from '@/components/game/PotThrowingView.vue'
-  import DumplingMakingView from '@/components/game/DumplingMakingView.vue'
-  import FireworkShowView from '@/components/game/FireworkShowView.vue'
-  import TeaContestView from '@/components/game/TeaContestView.vue'
-  import KiteFlyingView from '@/components/game/KiteFlyingView.vue'
-  import SettingsDialog from '@/components/game/SettingsDialog.vue'
-  import SaveManager from '@/components/game/SaveManager.vue'
-  import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
   import { openAnnouncementTarget } from '@/utils/announcementApi'
   import { Capacitor } from '@capacitor/core'
 
@@ -584,6 +555,26 @@
   const MOBILE_BOTTOM_REVEAL_EDGE_PX = 4
   const MOBILE_BOTTOM_REVEAL_RELEASE_DELAY_MS = 64
   const MOBILE_BOTTOM_REVEAL_REBOUND_MS = 220
+  const DailyDigestSummaryDialog = defineAsyncComponent(() => import('@/components/game/DailyDigestSummaryDialog.vue'))
+  const AnnouncementDialog = defineAsyncComponent(() => import('@/components/game/AnnouncementDialog.vue'))
+  const MobileMapMenu = defineAsyncComponent(() => import('@/components/game/MobileMapMenu.vue'))
+  const PlayerRecordCenterPanel = defineAsyncComponent(() => import('@/components/game/PlayerRecordCenterPanel.vue'))
+  const EventDialog = defineAsyncComponent(() => import('@/components/game/EventDialog.vue'))
+  const HeartEventDialog = defineAsyncComponent(() => import('@/components/game/HeartEventDialog.vue'))
+  const ItemIcon = defineAsyncComponent(() => import('@/components/game/ItemIcon.vue'))
+  const PerkSelectDialog = defineAsyncComponent(() => import('@/components/game/PerkSelectDialog.vue'))
+  const FishingContestView = defineAsyncComponent(() => import('@/components/game/FishingContestView.vue'))
+  const HarvestFairView = defineAsyncComponent(() => import('@/components/game/HarvestFairView.vue'))
+  const DragonBoatView = defineAsyncComponent(() => import('@/components/game/DragonBoatView.vue'))
+  const LanternRiddleView = defineAsyncComponent(() => import('@/components/game/LanternRiddleView.vue'))
+  const PotThrowingView = defineAsyncComponent(() => import('@/components/game/PotThrowingView.vue'))
+  const DumplingMakingView = defineAsyncComponent(() => import('@/components/game/DumplingMakingView.vue'))
+  const FireworkShowView = defineAsyncComponent(() => import('@/components/game/FireworkShowView.vue'))
+  const TeaContestView = defineAsyncComponent(() => import('@/components/game/TeaContestView.vue'))
+  const KiteFlyingView = defineAsyncComponent(() => import('@/components/game/KiteFlyingView.vue'))
+  const SettingsDialog = defineAsyncComponent(() => import('@/components/game/SettingsDialog.vue'))
+  const SaveManager = defineAsyncComponent(() => import('@/components/game/SaveManager.vue'))
+  const DiscoveryScene = defineAsyncComponent(() => import('@/components/game/DiscoveryScene.vue'))
   type ShortRestOption = (typeof SHORT_REST_OPTIONS)[number]
 
   type FullscreenDocument = Document & {
@@ -602,16 +593,8 @@
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const playerRecordCenterStore = usePlayerRecordCenterStore()
-  const farmStore = useFarmStore()
-  const mailboxStore = useMailboxStore()
-  const saveStore = useSaveStore()
   const miningStore = useMiningStore()
-  const realtimeStore = useRealtimeStore()
   const announcementStore = useAnnouncementStore()
-  const friendChatStore = useFriendChatStore()
-  const socialStore = useSocialStore()
-  const festivalRoomStore = useFestivalRoomStore()
-  const expeditionRoomStore = useExpeditionRoomStore()
   const { switchToSeasonalBgm } = useAudio()
   const gameLayoutRoot = ref<HTMLDivElement | null>(null)
   const contentViewport = ref<HTMLDivElement | null>(null)
@@ -619,19 +602,35 @@
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
-  const pendingFriendRequestCount = computed(() => socialStore.incomingRequests.length)
-  const pendingOnlineRoomInviteCount = computed(() => festivalRoomStore.invitedRooms.length + expeditionRoomStore.invitedRooms.length)
+
+  const runEndDay = async () => {
+    const { handleEndDay } = await import('@/composables/useEndDay')
+    handleEndDay()
+  }
+  type SaveStore = ReturnType<(typeof import('@/stores/useSaveStore'))['useSaveStore']>
+  let saveStorePromise: Promise<SaveStore> | null = null
+  const getSaveStore = () => {
+    saveStorePromise ??= import('@/stores/useSaveStore').then(module => module.useSaveStore())
+    return saveStorePromise
+  }
+  const mailboxUnreadCount = ref(0)
+  const friendChatUnreadCount = ref(0)
+  const pendingFriendRequestCount = ref(0)
+  const festivalRoomInviteCount = ref(0)
+  const expeditionRoomInviteCount = ref(0)
+  const pendingOnlineRoomInviteCount = computed(() => festivalRoomInviteCount.value + expeditionRoomInviteCount.value)
   const friendRequestBadgeLabel = computed(() => pendingFriendRequestCount.value > 99 ? '99+' : String(pendingFriendRequestCount.value))
   const onlineRoomInviteBadgeLabel = computed(() => pendingOnlineRoomInviteCount.value > 99 ? '99+' : String(pendingOnlineRoomInviteCount.value))
-  const mobileChatUnreadLabel = computed(() => friendChatStore.totalUnreadCount > 99 ? '99+' : String(friendChatStore.totalUnreadCount))
+  const mobileChatUnreadLabel = computed(() => friendChatUnreadCount.value > 99 ? '99+' : String(friendChatUnreadCount.value))
+  let realtimeStoreStop: (() => void) | null = null
   const onlineRoomInvitePromptLabel = computed(() => {
-    const domain = festivalRoomStore.invitedRooms.length > 0 ? '节会' : expeditionRoomStore.invitedRooms.length > 0 ? '远征' : '联机'
+    const domain = festivalRoomInviteCount.value > 0 ? '节会' : expeditionRoomInviteCount.value > 0 ? '远征' : '联机'
     return `处理${domain}房间邀请，共 ${pendingOnlineRoomInviteCount.value} 个待确认`
   })
   const mobileHubTitle = computed(() => {
     if (pendingOnlineRoomInviteCount.value > 0) return `地图（${pendingOnlineRoomInviteCount.value} 个联机房间邀请待处理）`
     if (pendingFriendRequestCount.value > 0) return `地图（${pendingFriendRequestCount.value} 个好友申请待处理）`
-    if (friendChatStore.totalUnreadCount > 0) return `地图（${friendChatStore.totalUnreadCount} 条私聊未读）`
+    if (friendChatUnreadCount.value > 0) return `地图（${friendChatUnreadCount.value} 条私聊未读）`
     return '地图'
   })
   let bottomRevealActive = false
@@ -666,9 +665,47 @@
 
   /** 移动端地图菜单 */
   const showMobileMap = ref(false)
+  const shouldRenderMobileMap = ref(false)
+  const openMobileMap = () => {
+    shouldRenderMobileMap.value = true
+    showMobileMap.value = true
+    refreshBadgesForCurrentRoute()
+  }
 
   /** 休息确认弹窗 */
   const showSleepConfirm = ref(false)
+  const sleepStaminaBonus = ref(0)
+  const sleepVillageRecoveryBonus = ref(0)
+  const sleepFarmPlots = ref<Array<{ state: string; cropId?: string | null }>>([])
+
+  const refreshSleepSupportSnapshot = async () => {
+    try {
+      const [
+        { useHomeStore },
+        { useVillageProjectStore },
+        { useFarmStore },
+      ] = await Promise.all([
+        import('@/stores/useHomeStore'),
+        import('@/stores/useVillageProjectStore'),
+        import('@/stores/useFarmStore'),
+      ])
+      const homeStore = useHomeStore()
+      const villageProjectStore = useVillageProjectStore()
+      const farmStore = useFarmStore()
+      sleepStaminaBonus.value = homeStore.getStaminaRecoveryBonus()
+      sleepVillageRecoveryBonus.value = villageProjectStore.getDailyRecoveryBonus()
+      sleepFarmPlots.value = farmStore.plots
+    } catch {
+      sleepStaminaBonus.value = 0
+      sleepVillageRecoveryBonus.value = 0
+      sleepFarmPlots.value = []
+    }
+  }
+
+  const openSleepPrompt = () => {
+    showSleepConfirm.value = true
+    void refreshSleepSupportSnapshot()
+  }
 
   /** 设置弹窗 */
   const showSettings = ref(false)
@@ -720,7 +757,7 @@
   }
   const openOnlineRoomInvitesFromPrompt = () => {
     showMobileMap.value = false
-    const targetTab = festivalRoomStore.invitedRooms.length > 0 ? 'festival-room' : 'expedition-room'
+    const targetTab = festivalRoomInviteCount.value > 0 ? 'festival-room' : 'expedition-room'
     void router.push({ name: 'online-festival', query: { tab: targetTab, focus: 'invites' } })
   }
 
@@ -1040,18 +1077,140 @@
   const backgroundAutoSaveInFlight = ref(false)
   const pendingSaveSyncTimer = ref<number | null>(null)
   let mailboxVisibilityHandler: (() => void) | null = null
+  type IdleSchedulerWindow = Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number
+    cancelIdleCallback?: (handle: number) => void
+  }
+  const layoutIdleCancels: Array<() => void> = []
+  const mailRouteNames = new Set(['mail'])
+  const chatRouteNames = new Set(['friend-chat', 'friend-station'])
+  const onlineRouteNames = new Set([
+    'online',
+    'online-manor',
+    'online-cohabitation',
+    'online-neighbor',
+    'online-orders',
+    'online-festival',
+    'online-society',
+    'expedition-room'
+  ])
+
+  const scheduleLayoutIdleTask = (task: () => void, timeout = 2000) => {
+    if (typeof window === 'undefined') return
+    let active = true
+    const run = () => {
+      if (!active) return
+      active = false
+      task()
+    }
+    const scheduler = window as IdleSchedulerWindow
+    if (typeof scheduler.requestIdleCallback === 'function') {
+      const handle = scheduler.requestIdleCallback(run, { timeout })
+      layoutIdleCancels.push(() => {
+        active = false
+        scheduler.cancelIdleCallback?.(handle)
+      })
+      return
+    }
+    const handle = window.setTimeout(run, timeout)
+    layoutIdleCancels.push(() => {
+      active = false
+      window.clearTimeout(handle)
+    })
+  }
+
+  const clearLayoutIdleTasks = () => {
+    for (const cancel of layoutIdleCancels.splice(0)) cancel()
+  }
+
+  const currentRouteName = () => String(route.name ?? '')
+
+  const refreshMailboxBadge = async () => {
+    try {
+      const { useMailboxStore } = await import('@/stores/useMailboxStore')
+      const mailboxStore = useMailboxStore()
+      await mailboxStore.refreshList({ silent: true }).catch(() => {})
+      mailboxUnreadCount.value = mailboxStore.unreadCount
+    } catch {
+      /* defer optional mailbox badge failures */
+    }
+  }
+
+  const refreshFriendChatBadge = async () => {
+    try {
+      const { useFriendChatStore } = await import('@/stores/useFriendChatStore')
+      const friendChatStore = useFriendChatStore()
+      await friendChatStore.refreshConversations({ silent: true }).catch(() => {})
+      friendChatUnreadCount.value = friendChatStore.totalUnreadCount
+    } catch {
+      /* defer optional chat badge failures */
+    }
+  }
+
+  const refreshOnlineBadges = async () => {
+    try {
+      const [
+        { useSocialStore },
+        { useFestivalRoomStore },
+        { useExpeditionRoomStore },
+      ] = await Promise.all([
+        import('@/stores/useSocialStore'),
+        import('@/stores/useFestivalRoomStore'),
+        import('@/stores/useExpeditionRoomStore'),
+      ])
+      const socialStore = useSocialStore()
+      const festivalRoomStore = useFestivalRoomStore()
+      const expeditionRoomStore = useExpeditionRoomStore()
+      await Promise.allSettled([
+        socialStore.refreshRelationships({ silent: true }),
+        festivalRoomStore.refreshOverview({ silent: true }),
+        expeditionRoomStore.refreshOverview({ silent: true }),
+      ])
+      pendingFriendRequestCount.value = socialStore.incomingRequests.length
+      festivalRoomInviteCount.value = festivalRoomStore.invitedRooms.length
+      expeditionRoomInviteCount.value = expeditionRoomStore.invitedRooms.length
+    } catch {
+      /* defer optional online badge failures */
+    }
+  }
+
+  const startRealtimeRuntime = async () => {
+    if (realtimeStoreStop) return
+    try {
+      const { useRealtimeStore } = await import('@/stores/useRealtimeStore')
+      const realtimeStore = useRealtimeStore()
+      realtimeStoreStop = () => realtimeStore.stop()
+      void realtimeStore.start()
+    } catch {
+      /* realtime is optional for non-online first paint */
+    }
+  }
+
+  const refreshBadgesForCurrentRoute = () => {
+    const name = currentRouteName()
+    if (mailRouteNames.has(name) || showMobileMap.value) void refreshMailboxBadge()
+    if (chatRouteNames.has(name) || showMobileMap.value) void refreshFriendChatBadge()
+    if (onlineRouteNames.has(name) || showMobileMap.value) {
+      void startRealtimeRuntime()
+      void refreshOnlineBadges()
+    }
+  }
 
   const refreshMobileBadgesOnResume = () => {
-    void mailboxStore.refreshList({ silent: true }).catch(() => {})
-    void friendChatStore.refreshConversations({ silent: true }).catch(() => {})
-    void socialStore.refreshRelationships({ silent: true }).catch(() => {})
-    void festivalRoomStore.refreshOverview({ silent: true }).catch(() => {})
-    void expeditionRoomStore.refreshOverview({ silent: true }).catch(() => {})
+    refreshBadgesForCurrentRoute()
   }
+
+  watch(
+    () => route.name,
+    () => {
+      refreshBadgesForCurrentRoute()
+    }
+  )
 
   const runBackgroundAutoSave = async () => {
     if (backgroundAutoSaveInFlight.value) return
     if (showSaveManager.value || showSavePrompt.value) return
+    const saveStore = await getSaveStore()
     if (saveStore.getSaveBlockReason()) return
     if (saveStore.serverSaveConflict) return
 
@@ -1068,7 +1227,7 @@
     return Number.isFinite(timestamp) ? timestamp : 0
   }
 
-  const resolveDeepLinkRecoverySlot = async () => {
+  const resolveDeepLinkRecoverySlot = async (saveStore: SaveStore) => {
     if (saveStore.activeSlot >= 0 && saveStore.activeSlotMode === saveStore.storageMode) {
       return saveStore.activeSlot
     }
@@ -1088,7 +1247,8 @@
 
     deepLinkRecoveryInProgress.value = true
     const requestedFullPath = route.fullPath || '/game/farm'
-    const recoverySlot = await resolveDeepLinkRecoverySlot()
+    const saveStore = await getSaveStore()
+    const recoverySlot = await resolveDeepLinkRecoverySlot(saveStore)
     if (recoverySlot >= 0 && await saveStore.loadFromSlot(recoverySlot)) {
       addLog(`已从存档 ${recoverySlot + 1} 恢复当前页面。`)
       deepLinkRecoveryInProgress.value = false
@@ -1108,21 +1268,18 @@
     syncFullscreenState()
     document.addEventListener('fullscreenchange', syncFullscreenState)
     document.addEventListener('webkitfullscreenchange', syncFullscreenState)
-    void realtimeStore.start()
     void announcementStore.fetchActive()
-    void saveStore.syncPendingServerSaves()
-    void mailboxStore.refreshList().catch(() => {})
-    void friendChatStore.refreshConversations({ silent: true }).catch(() => {})
-    void socialStore.refreshRelationships({ silent: true }).catch(() => {})
-    void festivalRoomStore.refreshOverview({ silent: true }).catch(() => {})
-    void expeditionRoomStore.refreshOverview({ silent: true }).catch(() => {})
+    scheduleLayoutIdleTask(() => {
+      void getSaveStore().then(saveStore => saveStore.syncPendingServerSaves())
+    }, 2500)
+    scheduleLayoutIdleTask(refreshBadgesForCurrentRoute, 3500)
     mailboxVisibilityHandler = () => {
       if (document.visibilityState !== 'visible') return
       refreshMobileBadgesOnResume()
     }
     document.addEventListener('visibilitychange', mailboxVisibilityHandler)
     pendingSaveSyncTimer.value = window.setInterval(() => {
-      void saveStore.syncPendingServerSaves()
+      void getSaveStore().then(saveStore => saveStore.syncPendingServerSaves())
     }, 15000)
     backgroundAutoSaveTimer.value = window.setInterval(() => {
       void runBackgroundAutoSave()
@@ -1136,7 +1293,9 @@
   onUnmounted(() => {
     clearBottomRevealTimer()
     stopClock()
-    realtimeStore.stop()
+    realtimeStoreStop?.()
+    realtimeStoreStop = null
+    clearLayoutIdleTasks()
     document.removeEventListener('fullscreenchange', syncFullscreenState)
     document.removeEventListener('webkitfullscreenchange', syncFullscreenState)
     setQmsgParent(null)
@@ -1203,9 +1362,8 @@
 
   const sleepWarning = computed(() => {
     const warnings: string[] = []
-    const homeStore = useHomeStore()
-    const staminaBonus = homeStore.getStaminaRecoveryBonus()
-    const villageBonus = useVillageProjectStore().getDailyRecoveryBonus()
+    const staminaBonus = sleepStaminaBonus.value
+    const villageBonus = sleepVillageRecoveryBonus.value
     if (playerStore.stamina <= 0 || gameStore.hour >= 26) {
       const pct = Math.round(Math.min(PASSOUT_STAMINA_RECOVERY + staminaBonus + villageBonus, 1) * 100)
       const penaltyPct = Math.round(PASSOUT_MONEY_PENALTY_RATE * 100)
@@ -1229,7 +1387,7 @@
       const nextSeason = SEASON_ORDER[(SEASON_ORDER.indexOf(gameStore.season) + 1) % 4]!
       let willWitherCount = 0
       let harvestableCount = 0
-      for (const plot of farmStore.plots) {
+      for (const plot of sleepFarmPlots.value) {
         if ((plot.state === 'planted' || plot.state === 'growing' || plot.state === 'harvestable') && plot.cropId) {
           const crop = getCropById(plot.cropId)
           if (crop && !crop.season.includes(nextSeason)) {
@@ -1263,14 +1421,14 @@
     return recover > 0 ? `${option.label} +${recover}体力` : option.label
   }
 
-  const handleShortRest = (option: ShortRestOption) => {
+  const handleShortRest = async (option: ShortRestOption) => {
     showSleepConfirm.value = false
     const tr = gameStore.advanceTime(option.timeHours, { skipSpeedBuff: true })
     if (tr.passedOut) {
       if (tr.message) addLog(tr.message)
       pauseClock('endday')
       try {
-        handleEndDay()
+        await runEndDay()
       } finally {
         resumeClock('endday')
       }
@@ -1293,8 +1451,9 @@
   const petChoice = ref<'cat' | 'dog' | null>(null)
   const petNameInput = ref('')
 
-  const confirmPetAdoption = () => {
+  const confirmPetAdoption = async () => {
     if (!petChoice.value) return
+    const { useAnimalStore } = await import('@/stores/useAnimalStore')
     const animalStore = useAnimalStore()
     const defaultName = petChoice.value === 'cat' ? '小花' : '旺财'
     const name = petNameInput.value.trim() || defaultName
@@ -1566,7 +1725,7 @@
       priority: 50,
       canRun: () => !showSettings.value && !showSleepConfirm.value && !hasNonSettingsShortcutModal.value && !miningStore.inCombat,
       run: () => {
-        showSleepConfirm.value = true
+        openSleepPrompt()
       }
     },
     // === v3: 最上层弹窗取消/关闭 ===
@@ -1755,11 +1914,11 @@
     voidQtyModal.value = null
   }
 
-  const confirmSleep = () => {
+  const confirmSleep = async () => {
     showSleepConfirm.value = false
     pauseClock('endday')
     try {
-      handleEndDay()
+      await runEndDay()
     } finally {
       resumeClock('endday')
     }

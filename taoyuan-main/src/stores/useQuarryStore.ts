@@ -60,6 +60,7 @@ import {
   rollAttackOutcome
 } from '@/utils/combatRuntime'
 import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
+import { getCombinedItemCount, hasCombinedItems, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { getWeekCycleInfo } from '@/utils/weekCycle'
 import { useAchievementStore } from './useAchievementStore'
 import { useCookingStore } from './useCookingStore'
@@ -1014,16 +1015,16 @@ export const useQuarryStore = defineStore('quarry', () => {
     if (playerStore.money < info.nextStage.moneyCost) {
       return { success: false, message: `资金不足，需要 ${info.nextStage.moneyCost} 文。` }
     }
-    for (const material of info.nextStage.materialCosts) {
-      if (inventoryStore.getItemCount(material.itemId) < material.quantity) {
-        const itemName = getItemById(material.itemId)?.name ?? material.itemId
-        return { success: false, message: `${itemName}不足，需要 ${material.quantity}。` }
-      }
+    if (!hasCombinedItems(info.nextStage.materialCosts)) {
+      const missing = info.nextStage.materialCosts.find(material => getCombinedItemCount(material.itemId) < material.quantity)
+      const itemName = getItemById(missing?.itemId ?? '')?.name ?? missing?.itemId ?? '材料'
+      return { success: false, message: `${itemName}不足，需要 ${missing?.quantity ?? 0}。` }
     }
 
     playerStore.spendMoney(info.nextStage.moneyCost)
-    for (const material of info.nextStage.materialCosts) {
-      inventoryStore.removeItem(material.itemId, material.quantity)
+    if (!removeCombinedItems(info.nextStage.materialCosts)) {
+      playerStore.earnMoney(info.nextStage.moneyCost, { countAsEarned: false })
+      return { success: false, message: '材料不足，无法扩建采石场。' }
     }
 
     const oldSize = activeSize.value

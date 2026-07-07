@@ -20,6 +20,8 @@ import { useGameStore } from './useGameStore'
 import { useGoalStore } from './useGoalStore'
 import { useRegionMapStore } from './useRegionMapStore'
 import { addLog } from '@/composables/useGameLog'
+import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
+import { useWarehouseStore } from './useWarehouseStore'
 
 type GuildQuestMarketCategory = 'processed' | 'animal_product' | 'ore' | 'gem'
 
@@ -561,8 +563,10 @@ export const useGuildStore = defineStore('guild', () => {
     const item = GUILD_SHOP_ITEMS.find(i => i.itemId === itemId)
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
     const playerSnapshot = playerStore.serialize()
     const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     const guildSnapshot = serialize()
 
     try {
@@ -589,7 +593,7 @@ export const useGuildStore = defineStore('guild', () => {
       // 检查材料是否足够
       if (item.materials) {
         for (const mat of item.materials) {
-          if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
+          if (getCombinedItemCount(mat.itemId) < mat.quantity) return false
         }
       }
 
@@ -604,12 +608,8 @@ export const useGuildStore = defineStore('guild', () => {
       }
 
       // 扣除材料
-      if (item.materials) {
-        for (const mat of item.materials) {
-          if (!inventoryStore.removeItem(mat.itemId, mat.quantity)) {
-            throw new Error(`failed to remove material: ${mat.itemId}`)
-          }
-        }
+      if (item.materials && !removeCombinedItems(item.materials)) {
+        throw new Error(`failed to remove material: ${item.materials[0]?.itemId ?? item.itemId}`)
       }
 
       // 根据装备类型添加到对应栏位
@@ -645,6 +645,7 @@ export const useGuildStore = defineStore('guild', () => {
     } catch {
       playerStore.deserialize(playerSnapshot)
       inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       deserialize(guildSnapshot)
       return false
     } finally {

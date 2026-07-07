@@ -71,8 +71,10 @@ import { useSecretNoteStore } from './useSecretNoteStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
 import { addLog } from '@/composables/useGameLog'
+import { getCombinedItemCount, getCombinedItemCountAtLeast, removeCombinedItem, removeCombinedItemAtLeast } from '@/composables/useCombinedInventory'
 import { getAbsoluteDay } from '@/utils/weekCycle'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
+import { useWarehouseStore } from './useWarehouseStore'
 
 type CompletedQuestHistoryEntry = {
   id: string
@@ -115,6 +117,7 @@ const ORDER_COOKING_TOPIC_LABELS = ['订单委托']
 
 export const useQuestStore = defineStore('quest', () => {
   const inventoryStore = useInventoryStore()
+  const warehouseStore = useWarehouseStore()
   const playerStore = usePlayerStore()
   const npcStore = useNpcStore()
   const achievementStore = useAchievementStore()
@@ -931,10 +934,10 @@ export const useQuestStore = defineStore('quest', () => {
   const getSpecialOrderBaseline = () => specialOrderBaseline
 
   const getQuestInventoryCount = (itemId: string, minQuality?: Quality): number =>
-    minQuality ? inventoryStore.getTotalItemCountAtLeast(itemId, minQuality) : inventoryStore.getTotalItemCount(itemId)
+    minQuality ? getCombinedItemCountAtLeast(itemId, minQuality) : getCombinedItemCount(itemId)
 
   const removeQuestInventoryItems = (itemId: string, quantity: number, minQuality?: Quality): boolean =>
-    minQuality ? inventoryStore.removeItemAnywhereAtLeast(itemId, quantity, minQuality) : inventoryStore.removeItemAnywhere(itemId, quantity)
+    minQuality ? removeCombinedItemAtLeast(itemId, quantity, minQuality) : removeCombinedItem(itemId, quantity)
 
   const getQuestRequiredItemLabel = (itemName: string, minQuality?: Quality): string => {
     const qualityLabel = getQuestMinQualityLabel(minQuality)
@@ -1616,6 +1619,7 @@ export const useQuestStore = defineStore('quest', () => {
       return { success: false, message: '该特殊订单已完成结算，请勿重复提交。' }
     }
     const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     const fishPondSnapshot = fishPondStore.serialize()
     const rewardItems = (quest.itemReward ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
     const cloneSubmissionState = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -1627,6 +1631,7 @@ export const useQuestStore = defineStore('quest', () => {
     const npcFunctionAdvancedOrderCompletionCountSnapshot = npcFunctionAdvancedOrderCompletionCount.value
     const rollbackSubmissionState = () => {
       inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       fishPondStore.deserialize(fishPondSnapshot)
       activeQuests.value = cloneSubmissionState(activeQuestsSnapshot)
       completedQuestCount.value = completedQuestCountSnapshot
@@ -2239,8 +2244,8 @@ export const useQuestStore = defineStore('quest', () => {
       case 'hasChild':
         return npcStore.children.length > 0
       case 'deliverItem':
-        // deliverItem 允许从主背包或临时背包提交
-        return inventoryStore.getTotalItemCount(obj.itemId ?? '') >= (obj.itemQuantity ?? 1)
+        // deliverItem 允许从主背包、临时背包和仓库提交
+        return getCombinedItemCount(obj.itemId ?? '') >= (obj.itemQuantity ?? 1)
       default:
         return false
     }
@@ -2333,6 +2338,7 @@ export const useQuestStore = defineStore('quest', () => {
       if (!def) return { success: false, message: '主线任务数据异常。' }
 
       const inventorySnapshot = inventoryStore.serialize()
+      const warehouseSnapshot = warehouseStore.serialize()
       const playerSnapshot = playerStore.serialize()
       const npcSnapshot = npcStore.serialize()
       const mainQuestSnapshot = mainQuest.value
@@ -2346,6 +2352,7 @@ export const useQuestStore = defineStore('quest', () => {
 
       rollbackMainQuestSubmission = () => {
         inventoryStore.deserialize(inventorySnapshot)
+        warehouseStore.deserialize(warehouseSnapshot)
         playerStore.deserialize(playerSnapshot)
         npcStore.deserialize(npcSnapshot)
         mainQuest.value = mainQuestSnapshot
@@ -2368,7 +2375,7 @@ export const useQuestStore = defineStore('quest', () => {
       // deliverItem 类型扣除背包物品
       for (const obj of def.objectives) {
         if (obj.type === 'deliverItem' && obj.itemId && obj.itemQuantity) {
-          if (!inventoryStore.removeItemAnywhere(obj.itemId, obj.itemQuantity)) {
+          if (!removeCombinedItem(obj.itemId, obj.itemQuantity)) {
             rollbackMainQuestSubmission()
             return { success: false, message: '背包中物品不足，无法提交。' }
           }

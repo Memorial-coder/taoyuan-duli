@@ -292,7 +292,7 @@
   } from '@/composables/useHiddenNpcActions'
   import { triggerHeartEvent } from '@/composables/useDialogs'
   import { addLog } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import Button from '@/components/game/Button.vue'
   import NpcPortrait from '@/components/game/NpcPortrait.vue'
   import NpcPortraitVariantPicker from '@/components/game/NpcPortraitVariantPicker.vue'

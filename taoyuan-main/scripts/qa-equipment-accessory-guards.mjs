@@ -184,6 +184,7 @@ const accessoryStoreModule = await import(pathToFileURL(path.join(projectRoot, '
 const gameStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useGameStore.ts')).href)
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const warehouseStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useWarehouseStore.ts')).href)
 await import(pathToFileURL(path.join(projectRoot, 'src/stores/useSaveStore.ts')).href)
 
 const freshStores = () => {
@@ -193,6 +194,7 @@ const freshStores = () => {
     gameStore: gameStoreModule.useGameStore(),
     inventoryStore: inventoryStoreModule.useInventoryStore(),
     playerStore: playerStoreModule.usePlayerStore(),
+    warehouseStore: warehouseStoreModule.useWarehouseStore(),
     saveStore: null
   }
 }
@@ -461,6 +463,28 @@ for (const quality of ['normal', 'fine', 'excellent']) {
 }
 
 {
+  const { accessoryStore, inventoryStore, playerStore, warehouseStore } = freshStores()
+  warehouseStore.unlocked = true
+  assert(warehouseStore.addChest('void', 'QA') === true, 'QA should create a void chest for accessory material consumption.')
+  const chestId = warehouseStore.chests[0]?.id
+  assert(!!chestId, 'QA void chest should exist.')
+  if (chestId) {
+    warehouseStore.setVoidRole(chestId, 'input')
+    assert(warehouseStore.addItemToChest(chestId, 'copper_ore', 8) === true, 'QA should seed copper ore into the void input chest.')
+    assert(warehouseStore.addItemToChest(chestId, 'stone', 12) === true, 'QA should seed stone into the void input chest.')
+    assert(warehouseStore.addItemToChest(chestId, dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID, 8) === true, 'QA should seed accessory materials into the void input chest.')
+    playerStore.earnMoney(100000)
+
+    const crafted = accessoryStore.craftAccessory('weaponry_blade_core', 1)
+    assert(crafted.success && crafted.accessory?.tier === 1, 'Accessory crafting should consume materials from warehouse and void chests, not only backpack.')
+    assert(inventoryStore.getTotalItemCount('copper_ore') === 0, 'QA setup should not rely on backpack copper ore.')
+    assert(warehouseStore.getChestItemCount(chestId, 'copper_ore') === 0, 'Accessory crafting should remove copper ore from the void input chest.')
+    assert(warehouseStore.getChestItemCount(chestId, 'stone') === 0, 'Accessory crafting should remove stone from the void input chest.')
+    assert(warehouseStore.getChestItemCount(chestId, dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID) === 0, 'Accessory crafting should remove accessory materials from the void input chest.')
+  }
+}
+
+{
   const { accessoryStore, gameStore, inventoryStore, playerStore } = freshStores()
   playerStore.earnMoney(100000)
   const buy = accessoryStore.buyDailyAccessoryMaterial(dataModule.EQUIPMENT_ACCESSORY_MATERIAL_ITEM_ID, 8)
@@ -486,17 +510,26 @@ assert(processingViewSource.includes('data-testid="processing-tab-accessory"'), 
 assert(processingViewSource.includes('<EquipmentAccessoryPanel />'), '铁匠铺配件标签应渲染配件调校面板。')
 
 const accessoryPanelSource = fs.readFileSync(path.join(projectRoot, 'src/components/game/EquipmentAccessoryPanel.vue'), 'utf8')
+const accessoryStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useEquipmentAccessoryStore.ts'), 'utf8')
 assert(accessoryPanelSource.includes('data-testid="equipment-accessory-panel"'), '配件面板应保留测试入口。')
 assert(accessoryPanelSource.includes('canUpgradeSelected') && accessoryPanelSource.includes(':disabled="!canUpgradeSelected.success"'), '升级按钮必须按实际材料与铜钱状态禁用，不能只看升级预览。')
 assert(accessoryPanelSource.includes('equipment-accessory-tab-craft') && accessoryPanelSource.includes('equipment-accessory-tab-fusion'), '配件面板应包含打造与合成视图标签。')
 assert(accessoryPanelSource.includes('accessory-fusion-stage--success') && accessoryPanelSource.includes('accessory-fusion-stage--failure'), '合成面板应保留成功与失败动画状态。')
 assert(accessoryPanelSource.includes('craftTierStatus') && accessoryPanelSource.includes('accessory-tier-button--locked'), '打造阶级按钮应显示已开/未开状态。')
+assert(accessoryPanelSource.includes("import { getCombinedItemCount } from '@/composables/useCombinedInventory'"), 'Accessory panel material rows should display combined backpack, temp inventory, warehouse, and void chest counts.')
+assert(!accessoryPanelSource.includes('inventoryStore.getTotalItemCount'), 'Accessory panel should not display backpack-only material counts.')
+assert(accessoryStoreSource.includes("from '@/composables/useCombinedInventory'"), 'Accessory store should consume combined inventory materials.')
+assert(accessoryStoreSource.includes('hasCombinedItems') && accessoryStoreSource.includes('removeCombinedItems'), 'Accessory crafting and upgrades should check and remove grouped combined inventory materials.')
 for (const forbiddenPlayerCopy of ['store', 'migration', 'guard', 'effectKey']) {
   assert(!accessoryPanelSource.includes(`>${forbiddenPlayerCopy}<`), `配件玩家界面不应直接展示开发词：${forbiddenPlayerCopy}`)
 }
 
 const saveStoreSource = fs.readFileSync(path.join(projectRoot, 'src/stores/useSaveStore.ts'), 'utf8')
-assert(saveStoreSource.includes("import { useEquipmentAccessoryStore }"), '总存档应接入配件 store。')
+assert(
+  saveStoreSource.includes("import { useEquipmentAccessoryStore }") ||
+    saveStoreSource.includes("import('./useEquipmentAccessoryStore')"),
+  '总存档应接入配件 store。'
+)
 assert(saveStoreSource.includes('equipmentAccessory: equipmentAccessoryStore.serialize()'), '总存档应写入配件数据。')
 assert(saveStoreSource.includes('equipmentAccessoryStore.deserialize(payload.equipmentAccessory ?? {})'), '总读档应恢复配件数据并兼容旧档。')
 

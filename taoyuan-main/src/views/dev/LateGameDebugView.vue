@@ -459,7 +459,7 @@
     Wand2
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { logHistory, showFloat } from '@/composables/useGameLog'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'

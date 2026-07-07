@@ -35,11 +35,11 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { Lock } from 'lucide-vue-next'
   import type { ItemDef, Quality } from '@/types'
   import ItemIcon from '@/components/game/ItemIcon.vue'
-  import { getItemLinkageUseTags, type ItemLinkageUseTag } from '@/data/itemLinkage'
+  import type { ItemLinkageUseTag } from '@/data/itemLinkage'
 
   const props = withDefaults(defineProps<{
     item?: ItemDef | null
@@ -97,11 +97,27 @@
 
   const resolvedSilhouette = computed(() => props.silhouette ?? !props.discovered)
 
+  const resolvedUsageTags = ref<ItemLinkageUseTag[]>([])
+  let usageTagsRequestId = 0
+
+  watch(
+    () => [props.showUsageTags, props.discovered, props.item?.id ?? '', props.maxUsageTags, props.usageTags.length] as const,
+    async ([showUsageTags, discovered, itemId, maxUsageTags, providedCount]) => {
+      const requestId = ++usageTagsRequestId
+      resolvedUsageTags.value = []
+      if (!showUsageTags || !discovered || !itemId || providedCount > 0) return
+      const { getItemLinkageUseTags } = await import('@/data/itemLinkage')
+      if (requestId !== usageTagsRequestId) return
+      resolvedUsageTags.value = getItemLinkageUseTags(itemId, maxUsageTags)
+    },
+    { immediate: true }
+  )
+
   const visibleUsageTags = computed(() => {
     if (!props.showUsageTags || !props.discovered || !props.item) return []
     const sourceTags = props.usageTags.length > 0
       ? props.usageTags
-      : getItemLinkageUseTags(props.item.id, props.maxUsageTags)
+      : resolvedUsageTags.value
     const seen = new Set<string>()
     return sourceTags.filter(tag => {
       if (!tag.label || seen.has(tag.label)) return false

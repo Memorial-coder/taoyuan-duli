@@ -1,7 +1,7 @@
 import { ref } from 'vue'
+import { getActivePinia } from 'pinia'
 import type { Season, Weather, TimePeriod } from '@/types'
 import type * as ToneNs from 'tone'
-import { useGameStore } from '@/stores/useGameStore'
 import { getTimePeriod } from '@/data/timeConstants'
 
 // ====== Tone.js 延迟加载（避免模块初始化时创建 AudioContext） ======
@@ -566,8 +566,41 @@ type MinigameBgmType =
   | 'minigame_firework'
   | 'hanhai'
 type BgmType = SeasonBgmType | FestivalBgmType | MinigameBgmType | 'battle'
+type AudioGameSnapshot = {
+  hour: number
+  season: SeasonBgmType
+  weather: Weather
+}
+type LightweightAudioGameStore = Partial<AudioGameSnapshot>
 
 let currentFestivalOverride: FestivalBgmType | MinigameBgmType | null = null
+
+const FALLBACK_AUDIO_GAME_SNAPSHOT: AudioGameSnapshot = {
+  hour: 6,
+  season: 'spring',
+  weather: 'sunny'
+}
+
+const isSeasonBgmType = (value: unknown): value is SeasonBgmType =>
+  value === 'spring' || value === 'summer' || value === 'autumn' || value === 'winter'
+
+const isWeatherType = (value: unknown): value is Weather =>
+  value === 'sunny'
+  || value === 'rainy'
+  || value === 'stormy'
+  || value === 'snowy'
+  || value === 'windy'
+  || value === 'green_rain'
+
+const getAudioGameSnapshot = (): AudioGameSnapshot => {
+  const store = getActivePinia()?._s.get('game') as LightweightAudioGameStore | undefined
+  const hour = Number(store?.hour)
+  return {
+    hour: Number.isFinite(hour) ? hour : FALLBACK_AUDIO_GAME_SNAPSHOT.hour,
+    season: isSeasonBgmType(store?.season) ? store.season : FALLBACK_AUDIO_GAME_SNAPSHOT.season,
+    weather: isWeatherType(store?.weather) ? store.weather : FALLBACK_AUDIO_GAME_SNAPSHOT.weather
+  }
+}
 
 // ---- 春季 BGM（明快上行，晨光田园） ----
 
@@ -1015,8 +1048,8 @@ const playBgmLoop = async (type: BgmType = 'spring', weather: Weather = 'sunny')
     if (!melodySynth || !bassSynth) return
 
     // 时段修饰（逐音符动态读取，战斗跳过）
-    const gameStore = useGameStore()
-    const timeMod = isBattle ? TIME_MODIFIERS.morning : TIME_MODIFIERS[getTimePeriod(gameStore.hour)]
+    const { hour } = getAudioGameSnapshot()
+    const timeMod = isBattle ? TIME_MODIFIERS.morning : TIME_MODIFIERS[getTimePeriod(hour)]
 
     // 合成最终参数
     const noteDur = weatherNoteDur * timeMod.tempoScale
@@ -1065,11 +1098,11 @@ const stopBgm = () => {
 
 /** 解析当前应播放的 BGM 类型和天气 */
 const resolveCurrentBgm = (): { type: BgmType; weather: Weather } => {
-  const gameStore = useGameStore()
   if (currentFestivalOverride) {
     return { type: currentFestivalOverride, weather: 'sunny' }
   }
-  return { type: gameStore.season as SeasonBgmType, weather: gameStore.weather as Weather }
+  const { season, weather } = getAudioGameSnapshot()
+  return { type: season, weather }
 }
 
 // ====== 页面可见性处理（切标签页时停止/恢复音频） ======

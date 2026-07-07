@@ -216,6 +216,8 @@ assertIncludes(settingsStore, 'inventoryCropUseFilter.value = cropUseFilterState
 assertIncludes(cropUseSubstitutionSource, 'resolveCropUseSubstitutionPlan', '用途标签替代工具必须提供统一规划入口')
 assertIncludes(cropUseSubstitutionSource, 'getCropUseSubstitutionCandidateIds', '用途标签替代工具必须能枚举同类作物候选')
 assertIncludes(cropUseSubstitutionSource, 'formatCropUseSubstitutionSummary', '用途标签替代工具必须能输出玩家可读替代摘要')
+assertIncludes(cropUseSubstitutionSource, 'CropUseSubstitutionPreference', '用途标签替代工具必须支持本次材料优先参数')
+assertIncludes(cropUseSubstitutionSource, 'preferredItemIds', '用途标签替代工具必须按 preferredItemIds 调整材料消耗顺序')
 assertIncludes(cookingStoreSource, 'resolveCookingUsePlan', '灶台必须按用途标签生成材料替代计划')
 assertIncludes(cookingStoreSource, 'getCookingIngredientAvailableCount', '灶台材料可用量必须纳入用途标签替代')
 assertIncludes(cookingStoreSource, 'getCookingSubstitutionText', '灶台必须向界面暴露用途替代提示')
@@ -223,6 +225,10 @@ assertIncludes(processingStoreSource, 'resolveAlchemyMaterialPlan', '丹炉必�
 assertIncludes(processingStoreSource, 'getAlchemyRequirementAvailableCount', '丹炉材料可用量必须纳入用途标签替代')
 assertIncludes(processingStoreSource, 'consumedInputs', '丹炉替代消耗必须记录真实消耗材料以便取消退回')
 assertIncludes(cookingViewSource, 'substitutionText', '灶台界面必须展示用途标签替代提示')
+assertIncludes(cookingViewSource, 'cooking-material-priority', '灶台弹窗必须提供本次先用材料控制')
+assertIncludes(cookingViewSource, 'cooking-material-consumption-preview', '灶台弹窗必须展示本次实际材料消耗预览')
+assertIncludes(cookingViewSource, 'modalCookingPreferences', '灶台弹窗必须将材料优先级整理为本次偏好')
+assertIncludes(cookingViewSource, 'cookingStore.cook(modalInfo.value.recipe.id, qty, modalCookingPreferences.value)', '灶台烹饪执行必须把本次材料偏好传给 store')
 assertIncludes(processingViewSource, 'substitutionText', '加工界面必须展示丹炉用途标签替代提示')
 
 const {
@@ -251,6 +257,59 @@ assert(
   formatCropUseSubstitutionSummary(cabbageFoodPlan, itemId => getItemById(itemId)?.name ?? itemId).includes('白菜代青菜×2'),
   '料理用途替代摘要必须说明实际食材流向'
 )
+
+const cabbageDefaultOrderPlan = resolveCropUseSubstitutionPlan(
+  [{ itemId: 'cabbage', quantity: 2, tags: ['food'] }],
+  (itemId, quality) => {
+    if (quality !== 'normal') return 0
+    if (itemId === 'cabbage') return 1
+    if (itemId === 'napa_cabbage') return 2
+    return 0
+  }
+)
+assert(cabbageDefaultOrderPlan.entries[0]?.itemId === 'cabbage', '未设置材料优先时，料理必须保持原食材先消耗')
+
+const cabbagePreferredPlan = resolveCropUseSubstitutionPlan(
+  [{ itemId: 'cabbage', quantity: 2, tags: ['food'] }],
+  (itemId, quality) => {
+    if (quality !== 'normal') return 0
+    if (itemId === 'cabbage') return 2
+    if (itemId === 'napa_cabbage') return 2
+    return 0
+  },
+  [{ requirementItemId: 'cabbage', preferredItemIds: ['napa_cabbage', 'cabbage'] }]
+)
+assert(cabbagePreferredPlan.entries[0]?.itemId === 'napa_cabbage', '设置先用材料后，料理必须优先消耗玩家指定食材')
+assert(cabbagePreferredPlan.entries[0]?.quantity === 2, '指定食材足量时必须优先满足完整需求')
+
+const cabbagePartialPreferencePlan = resolveCropUseSubstitutionPlan(
+  [{ itemId: 'cabbage', quantity: 2, tags: ['food'] }],
+  (itemId, quality) => {
+    if (quality !== 'normal') return 0
+    if (itemId === 'cabbage') return 2
+    if (itemId === 'napa_cabbage') return 1
+    return 0
+  },
+  [{ requirementItemId: 'cabbage', preferredItemIds: ['napa_cabbage'] }]
+)
+assert(
+  cabbagePartialPreferencePlan.entries.some(entry => entry.itemId === 'napa_cabbage' && entry.quantity === 1) &&
+    cabbagePartialPreferencePlan.entries.some(entry => entry.itemId === 'cabbage' && entry.quantity === 1),
+  '指定食材不足时必须先用指定食材，再按现有规则自动补齐'
+)
+
+const cabbageInvalidPreferencePlan = resolveCropUseSubstitutionPlan(
+  [{ itemId: 'cabbage', quantity: 2, tags: ['food'] }],
+  (itemId, quality) => {
+    if (quality !== 'normal') return 0
+    if (itemId === 'not_a_food_candidate') return 99
+    if (itemId === 'cabbage') return 2
+    return 0
+  },
+  [{ requirementItemId: 'cabbage', preferredItemIds: ['not_a_food_candidate'] }]
+)
+assert(!cabbageInvalidPreferencePlan.entries.some(entry => entry.itemId === 'not_a_food_candidate'), '非法材料优先项必须被忽略')
+assert(cabbageInvalidPreferencePlan.entries[0]?.itemId === 'cabbage', '非法材料优先项不得改变默认材料消耗顺序')
 
 const radishAlchemyCandidates = getCropUseSubstitutionCandidateIds('radish', ['alchemy', 'medicine'])
 assert(radishAlchemyCandidates.includes('potato'), '炼丹用途替代必须能用同类根茎丹材补位萝卜')

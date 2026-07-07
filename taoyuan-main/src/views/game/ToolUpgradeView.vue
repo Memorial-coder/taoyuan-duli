@@ -563,7 +563,7 @@
   } from '@/data/forgeAffixes'
   import { ACTION_TIME_COSTS, isShopOpen } from '@/data/timeConstants'
   import { addLog } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
 
   /** 升级目标等级 → 所需小满好感 */
   const TIER_FRIENDSHIP_REQ: Partial<Record<ToolTier, FriendshipLevel>> = {

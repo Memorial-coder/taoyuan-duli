@@ -84,7 +84,7 @@ assert(settleWeeklyActivityBody.includes('grantWeeklyActivityTierReward(state, t
 assert(!settleWeeklyActivityBody.includes('claimWeeklyActivityReward('), 'Weekly activity weekly settlement must not call the UI claim function, which refreshes current-week state.')
 
 const submitWeeklyActivityBody = getFunctionBody(goalStoreSource, 'submitWeeklyActivityTask')
-assert(submitWeeklyActivityBody.includes('removeItemAnywhere'), 'Item submission tasks must consume submitted inventory.')
+assert(submitWeeklyActivityBody.includes('removeCombinedItem'), 'Item submission tasks must consume submitted combined inventory.')
 assert(submitWeeklyActivityBody.includes('submitEligibleFishForOrder'), 'Fish submission tasks must consume eligible pond fish.')
 assert(submitWeeklyActivityBody.includes('breedingStore.removeFromBox'), 'Seed submission tasks must consume eligible breeding-box seeds.')
 assert(goalStoreSource.includes('recordWeeklyActivityCounter'), 'Goal store must expose weekly activity counters for gameplay hooks.')

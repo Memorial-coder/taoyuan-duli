@@ -69,9 +69,12 @@ registerHooks({
 const combinedInventorySource = readSource('composables', 'useCombinedInventory.ts')
 assert.match(combinedInventorySource, /normalizeCombinedItemRequirements/, 'combined inventory should aggregate duplicate material requirements')
 assert.match(combinedInventorySource, /export const removeCombinedItems/, 'combined inventory should expose atomic grouped removal')
+assert.match(combinedInventorySource, /export const getCombinedItemCountAtLeast/, 'combined inventory should expose min-quality combined counts')
+assert.match(combinedInventorySource, /export const removeCombinedItemAtLeast/, 'combined inventory should expose min-quality combined removal')
 assert.match(combinedInventorySource, /const inventorySnapshot = inv\.serialize\(\)/, 'grouped removal should snapshot inventory')
 assert.match(combinedInventorySource, /const warehouseSnapshot = wh\.serialize\(\)/, 'grouped removal should snapshot warehouse')
 assert.match(combinedInventorySource, /let combinedItemCountIndex: ComputedRef<CombinedItemCountIndex> \| null = null/, 'combined inventory count queries should share a cached reactive index')
+assert.match(combinedInventorySource, /combinedItemCountIndexPinia !== activePinia/, 'combined inventory count cache should reset when active Pinia changes')
 assert.match(combinedInventorySource, /export const getCombinedItemCountSignature/, 'combined inventory should expose a cached signature for recipe refresh checks')
 assert.doesNotMatch(
   combinedInventorySource,
@@ -97,7 +100,81 @@ assert.match(processingSource, /removeCombinedItems\(recipe\.extraInputs\)/, 'pr
 
 const regionMapSource = readSource('stores', 'useRegionMapStore.ts')
 assert.match(regionMapSource, /normalizeJourneyRequiredItems/, 'journey crafting should aggregate required items')
+assert.match(regionMapSource, /getCombinedItemCount\(demand\.itemId\)/, 'region resource turn-in previews should count warehouse and void chest items')
+assert.match(regionMapSource, /removeCombinedItem\(requirement\.itemId, requirement\.required\)/, 'region resource turn-ins should consume warehouse and void chest items')
+assert.match(regionMapSource, /hasCombinedItems\(normalized\)/, 'journey crafting checks should use combined inventory')
+assert.match(regionMapSource, /removeCombinedItems\(normalized\)/, 'journey crafting should consume grouped combined inventory')
 assert.match(regionMapSource, /removeJourneyRequiredItems\(recipe\.requiredItems\)/, 'journey crafting should consume grouped required items')
+
+const goalStoreSource = readSource('stores', 'useGoalStore.ts')
+assert.match(goalStoreSource, /getCombinedItemCount\(task\.itemSubmission\.itemId\)/, 'weekly activity item submissions should count warehouse and void chest items')
+assert.match(goalStoreSource, /removeCombinedItem\(task\.itemSubmission\.itemId, task\.itemSubmission\.quantity\)/, 'weekly activity item submissions should consume warehouse and void chest items')
+
+const questStoreSource = readSource('stores', 'useQuestStore.ts')
+assert.match(questStoreSource, /getCombinedItemCountAtLeast\(itemId, minQuality\)/, 'quest submissions should count min-quality warehouse and void chest items')
+assert.match(questStoreSource, /removeCombinedItemAtLeast\(itemId, quantity, minQuality\)/, 'quest submissions should consume min-quality warehouse and void chest items')
+assert.match(questStoreSource, /const warehouseSnapshot = warehouseStore\.serialize\(\)/, 'quest submission rollback should snapshot warehouse when combined inventory can be consumed')
+assert.match(questStoreSource, /warehouseStore\.deserialize\(warehouseSnapshot\)/, 'quest submission rollback should restore warehouse when combined inventory can be consumed')
+
+const questViewSource = readSource('views', 'game', 'QuestView.vue')
+assert.match(questViewSource, /getCombinedItemCountAtLeast\(quest\.targetItemId, quest\.minQuality\)/, 'quest UI should count min-quality warehouse and void chest items')
+assert.match(questViewSource, /getCombinedItemCount\(quest\.targetItemId\)/, 'quest UI should count warehouse and void chest items')
+
+const hanhaiStoreSource = readSource('stores', 'useHanhaiStore.ts')
+assert.match(hanhaiStoreSource, /getCombinedItemCount\(cost\.itemId\)/, 'Hanhai material previews should count warehouse and void chest items')
+assert.match(hanhaiStoreSource, /removeCombinedItems\(extraCosts\)/, 'Hanhai shop material exchanges should consume grouped combined inventory')
+assert.match(hanhaiStoreSource, /removeCombinedItems\(travelPrep\.def\.costItems\)/, 'Hanhai travel prep should consume grouped combined inventory')
+assert.match(hanhaiStoreSource, /warehouse: warehouseStore\.serialize\(\)/, 'Hanhai rollback snapshots should include warehouse state')
+
+const hanhaiViewSource = readSource('views', 'game', 'HanhaiView.vue')
+assert.match(hanhaiViewSource, /getCombinedItemCount\(cost\.itemId\) >= cost\.quantity/, 'Hanhai shop UI should display combined material availability')
+assert.match(hanhaiViewSource, /\(item\.costItems \?\? \[\]\)\.every\(cost => getCombinedItemCount\(cost\.itemId\) >= cost\.quantity\)/, 'Hanhai shop buy checks should count warehouse and void chest items')
+
+const guildStoreSource = readSource('stores', 'useGuildStore.ts')
+assert.match(guildStoreSource, /getCombinedItemCount\(mat\.itemId\)/, 'guild shop material checks should count warehouse and void chest items')
+assert.match(guildStoreSource, /removeCombinedItems\(item\.materials\)/, 'guild shop material costs should consume grouped combined inventory')
+assert.match(guildStoreSource, /warehouseStore\.deserialize\(warehouseSnapshot\)/, 'guild shop rollback should restore warehouse state')
+
+const guildViewSource = readSource('views', 'game', 'GuildView.vue')
+assert.match(guildViewSource, /getCombinedItemCount\(mat\.itemId\) >= mat\.quantity \* shopBuyQty/, 'guild shop UI should display combined material availability')
+assert.match(guildViewSource, /Math\.floor\(getCombinedItemCount\(mat\.itemId\) \/ mat\.quantity\)/, 'guild shop max buy quantity should count warehouse and void chest items')
+assert.match(guildViewSource, /getCombinedItemCount\(mat\.itemId\) < mat\.quantity \* safeQty/, 'guild shop blocked reason should count warehouse and void chest items')
+
+const museumStoreSource = readSource('stores', 'useMuseumStore.ts')
+assert.match(museumStoreSource, /getCombinedItemCount\(requirement\.itemId\)/, 'museum exhibit set overview should count warehouse and void chest items')
+assert.match(museumStoreSource, /removeCombinedItems\(materialRequirements\)/, 'museum scholar commissions should consume grouped combined inventory')
+assert.match(museumStoreSource, /removeCombinedItem\(itemId, submitQuantity\)/, 'museum exhibit set submissions should consume warehouse and void chest items')
+assert.match(museumStoreSource, /warehouseStore\.deserialize\(warehouseSnapshot\)/, 'museum material rollback should restore warehouse state')
+
+const achievementStoreSource = readSource('stores', 'useAchievementStore.ts')
+assert.match(achievementStoreSource, /getCombinedItemCount\(itemId\)/, 'community bundle submissions should count warehouse and void chest items')
+assert.match(achievementStoreSource, /removeCombinedItem\(itemId, acceptedQuantity\)/, 'community bundle submissions should consume warehouse and void chest items')
+
+const achievementViewSource = readSource('views', 'game', 'AchievementView.vue')
+assert.match(achievementViewSource, /getCombinedItemCount\(req\.itemId\) <= 0/, 'community bundle UI should enable submissions from warehouse and void chest items')
+assert.match(achievementViewSource, /const available = getCombinedItemCount\(itemId\)/, 'community bundle UI should submit combined inventory quantities')
+
+const npcStoreSource = readSource('stores', 'useNpcStore.ts')
+assert.match(npcStoreSource, /getCombinedItemCountAtLeast\(requirement\.itemId, requirement\.minQuality\)/, 'NPC family wishes and child training should count min-quality warehouse and void chest items')
+assert.match(npcStoreSource, /removeCombinedItemAtLeast\(requirement\.itemId, requirement\.quantity, requirement\.minQuality\)/, 'NPC family wishes and child training should consume min-quality warehouse and void chest items')
+assert.match(npcStoreSource, /removeCombinedItems\(target\.smallOrder\.requestedItems\)/, 'random NPC small orders should consume grouped combined inventory')
+assert.match(npcStoreSource, /removeCombinedItems\(commission\.requestedItems\)/, 'random NPC family commissions should consume grouped combined inventory')
+assert.match(npcStoreSource, /removeCombinedItems\(def\.materialCost\)/, 'NPC companion projects should consume grouped combined inventory')
+assert.match(npcStoreSource, /removeCombinedItem\(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID, RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY\)/, 'random NPC old-letter recall should consume warehouse and void chest items')
+
+const npcViewSource = readSource('views', 'game', 'NpcView.vue')
+assert.match(npcViewSource, /const getRandomNpcSmallOrderItemCount = \(itemId: string\): number => getCombinedItemCount\(itemId\)/, 'random NPC small order UI should count warehouse and void chest items')
+assert.match(npcViewSource, /randomNpcOldLetterCount = computed\(\(\) => getCombinedItemCount\(randomNpcOldLetterItemId\)\)/, 'random NPC old-letter UI should count warehouse and void chest items')
+
+const quarryStoreSource = readSource('stores', 'useQuarryStore.ts')
+assert.match(quarryStoreSource, /hasCombinedItems\(info\.nextStage\.materialCosts\)/, 'quarry expansion checks should count warehouse and void chest items')
+assert.match(quarryStoreSource, /removeCombinedItems\(info\.nextStage\.materialCosts\)/, 'quarry expansion should consume grouped combined inventory')
+
+const shopViewSource = readSource('views', 'game', 'ShopView.vue')
+assert.match(shopViewSource, /hasCombinedItems\(w\.shopMaterials\)/, 'weapon shop material checks should count warehouse and void chest items')
+assert.match(shopViewSource, /removeCombinedItems\(w\.shopMaterials\)/, 'weapon shop material costs should consume grouped combined inventory')
+assert.match(shopViewSource, /craftEquipmentFromCombinedMaterials/, 'ring, hat, and shoe crafting should use a combined-inventory material helper')
+assert.doesNotMatch(shopViewSource, /inventoryStore\.craft(?:Ring|Hat|Shoe)\(/, 'shop equipment crafting should not call inventory-only craft helpers')
 
 const toolUpgradeSource = readSource('views', 'game', 'ToolUpgradeView.vue')
 assert.match(toolUpgradeSource, /removeCombinedItems\(cost\.materials\)/, 'tool upgrades should consume grouped materials')
@@ -107,9 +184,32 @@ assert.match(toolUpgradeSource, /inventoryStore\.upgradeTool\(type\)/, 'rush too
 const breedingViewSource = readSource('views', 'game', 'BreedingView.vue')
 assert.match(breedingViewSource, /materials => removeCombinedItems\(materials\)/, 'breeding upgrades should consume grouped materials')
 
+const animalStoreSource = readSource('stores', 'useAnimalStore.ts')
+assert.match(animalStoreSource, /removeCombinedItems\(def\.materialCost\)/, 'animal building construction should consume grouped combined inventory')
+assert.match(animalStoreSource, /removeCombinedItems\(upgrade\.materialCost\)/, 'animal building upgrades should consume grouped combined inventory')
+
+const animalViewSource = readSource('views', 'game', 'AnimalView.vue')
+assert.match(animalViewSource, /const canBuildBuilding = \(type: AnimalBuildingType\): boolean =>/, 'animal construction UI should preflight material availability')
+assert.match(animalViewSource, /getCombinedItemCount\(mat\.itemId\) >= mat\.quantity/, 'animal construction UI should display combined material availability')
+assert.match(animalViewSource, /getCombinedItemCount\(mat\.itemId\) >= mat\.need/, 'animal upgrade UI should display combined material availability')
+
+const fishPondStoreSource = readSource('stores', 'useFishPondStore.ts')
+assert.match(fishPondStoreSource, /removeCombinedItems\(POND_BUILD_COST\.materials\)/, 'fish pond construction should consume grouped combined inventory')
+assert.match(fishPondStoreSource, /removeCombinedItems\(cost\.materials\)/, 'fish pond upgrades should consume grouped combined inventory')
+
+const fishPondViewSource = readSource('views', 'game', 'FishPondView.vue')
+assert.match(fishPondViewSource, /owned: getCombinedItemCount\(m\.itemId\)/, 'fish pond material UI should count warehouse and void chest items')
+assert.match(fishPondViewSource, /enough: getCombinedItemCount\(m\.itemId\) >= m\.quantity/, 'fish pond material checks should count warehouse and void chest items')
+
 const homeViewSource = readSource('views', 'game', 'HomeView.vue')
 assert.match(homeViewSource, /removeCombinedItems\(WAREHOUSE_UNLOCK_MATERIALS\)/, 'warehouse unlock should consume grouped materials')
 assert.match(homeViewSource, /playerStore\.earnMoney\(warehouseStore\.UNLOCK_COST, \{ countAsEarned: false \}\)/, 'warehouse unlock should refund money if material consumption fails')
+
+const festivalStallStoreSource = readSource('stores', 'useFestivalStallStore.ts')
+assert.match(festivalStallStoreSource, /hasCombinedItems\(itemCosts\)/, 'festival stall supply costs should count warehouse and void chest items')
+assert.match(festivalStallStoreSource, /removeCombinedItems\(itemCosts\)/, 'festival stall supply costs should consume grouped combined inventory')
+assert.match(festivalStallStoreSource, /const warehouseSnapshot = warehouseStore\.serialize\(\)/, 'festival stall supply rollback should snapshot warehouse state')
+assert.match(festivalStallStoreSource, /warehouseStore\.deserialize\(warehouseSnapshot\)/, 'festival stall supply rollback should restore warehouse state')
 
 const processingViewSource = readSource('views', 'game', 'ProcessingView.vue')
 assert.match(processingViewSource, /removeCombinedItems\(JADE_RING_COST\)/, 'jade ring crafting should consume grouped materials')
@@ -123,6 +223,8 @@ assert.match(inventoryStoreSource, /removeItemsWithRollback/, 'equipment craftin
 assert.match(inventoryStoreSource, /const recipe = normalizeItemRequirements\(def\.recipe\)/, 'equipment crafting should aggregate duplicate recipe items')
 
 const farmViewSource = readSource('views', 'game', 'FarmView.vue')
+assert.match(farmViewSource, /getCombinedItemCount\(mat\.itemId\)/, 'greenhouse upgrade material counts should include warehouse and void chest items')
+assert.match(farmViewSource, /removeCombinedItems\(materialCost\)/, 'greenhouse upgrades should consume grouped combined inventory')
 assert.match(farmViewSource, /if \(farmStore\.greenhousePlantCrop\(plot\.id, cropId, seedQuality\)\) \{\s*planted\+\+/s, 'greenhouse batch planting should only count successful plant calls')
 assert.match(farmViewSource, /playerStore\.restoreStamina\(cost\)\s*inventoryStore\.addItem\(crop\.seedId, 1, seedQuality\)/s, 'greenhouse batch planting should refund failed plant attempts with the consumed seed quality')
 

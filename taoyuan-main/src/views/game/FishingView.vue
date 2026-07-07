@@ -501,7 +501,7 @@
   import { ACTION_TIME_COSTS, TOOL_TIME_SAVINGS, SKILL_TIME_REDUCTION_PER_LEVEL, MIN_ACTION_MINUTES } from '@/data/timeConstants'
   import { sfxFishCatch, sfxLineBroken, sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import FishingMiniGame from '@/components/game/FishingMiniGame.vue'
   import FishBossImage from '@/components/game/FishBossImage.vue'
   import Button from '@/components/game/Button.vue'

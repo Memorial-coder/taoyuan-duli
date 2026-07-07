@@ -1,18 +1,77 @@
 html,
 body {
-  background: #0d1117;
+  background: #111315;
   margin: 0;
 }
 
 #app:empty {
+  box-sizing: border-box;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  color: #8b949e;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 24px;
+  color: #d7ad58;
   font-family: 'zpix', monospace;
+  text-align: center;
+}
+
+#app:empty::before {
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 18px;
+  border: 2px solid rgba(200, 164, 92, 0.2);
+  border-top-color: #d7ad58;
+  border-radius: 50%;
+  content: '';
+  animation: taoyuan-entry-spin 0.9s linear infinite;
 }
 
 #app:empty::after {
-  content: '桃源乡加载中...';
+  display: block;
+  width: min(280px, 100%);
+  color: #8b949e;
+  content: '桃源乡加载中...\A 正在准备页面资源，请稍等。';
+  font-size: 14px;
+  line-height: 1.9;
+  padding-bottom: 16px;
+  white-space: pre-line;
+  background:
+    linear-gradient(#d7ad58 0 0) left bottom / 38% 2px no-repeat,
+    linear-gradient(rgba(200, 164, 92, 0.18) 0 0) left bottom / 100% 1px no-repeat;
+  animation: taoyuan-entry-meter 1.8s ease-in-out infinite;
+}
+
+@keyframes taoyuan-entry-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes taoyuan-entry-meter {
+  0% {
+    background-position: left bottom, left bottom;
+  }
+
+  50% {
+    background-position: right bottom, left bottom;
+  }
+
+  100% {
+    background-position: left bottom, left bottom;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app:empty::before,
+  #app:empty::after {
+    animation: none;
+  }
 }

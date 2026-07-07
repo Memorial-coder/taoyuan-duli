@@ -694,7 +694,6 @@
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import type { QuestInstance, RelationshipStage, RewardTicketType, VillagerQuestCategory } from '@/types'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useQuestStore } from '@/stores/useQuestStore'
@@ -706,10 +705,10 @@
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
   import { getCropById } from '@/data/crops'
   import { addLog } from '@/composables/useGameLog'
+  import { getCombinedItemCount, getCombinedItemCountAtLeast } from '@/composables/useCombinedInventory'
 
   const route = useRoute()
   const questStore = useQuestStore()
-  const inventoryStore = useInventoryStore()
   const goalStore = useGoalStore()
   const isCompactMobile = ref(false)
   const questPreludeExpanded = ref(false)
@@ -765,8 +764,8 @@
   const getQuestCarriedCount = (quest: QuestInstance | null | undefined): number => {
     if (!quest) return 0
     return quest.minQuality
-      ? inventoryStore.getTotalItemCountAtLeast(quest.targetItemId, quest.minQuality)
-      : inventoryStore.getTotalItemCount(quest.targetItemId)
+      ? getCombinedItemCountAtLeast(quest.targetItemId, quest.minQuality)
+      : getCombinedItemCount(quest.targetItemId)
   }
 
   const getQuestQualitySuffix = (minQuality?: QuestInstance['minQuality']): string => {

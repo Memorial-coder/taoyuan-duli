@@ -65,6 +65,7 @@ import type {
   WeeklyMetricArchive
 } from '@/types'
 import { addLog, showFloat } from '@/composables/useGameLog'
+import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
 import { useAchievementStore } from './useAchievementStore'
 import { useBreedingStore } from './useBreedingStore'
 import { useFishingStore } from './useFishingStore'
@@ -1824,8 +1825,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (!task || task.completed) return { canSubmit: false, label: task?.completed ? '已完成' : '不可提交' }
 
     if (task.kind === 'itemSubmission' && task.itemSubmission) {
-      const inventoryStore = useInventoryStore()
-      const owned = inventoryStore.getTotalItemCount(task.itemSubmission.itemId)
+      const owned = getCombinedItemCount(task.itemSubmission.itemId)
       return {
         canSubmit: owned >= task.itemSubmission.quantity,
         label: owned >= task.itemSubmission.quantity ? '提交' : `${owned}/${task.itemSubmission.quantity}`
@@ -1880,12 +1880,11 @@ export const useGoalStore = defineStore('goal', () => {
     if (!task || task.completed) return false
 
     if (task.kind === 'itemSubmission' && task.itemSubmission) {
-      const inventoryStore = useInventoryStore()
-      if (inventoryStore.getTotalItemCount(task.itemSubmission.itemId) < task.itemSubmission.quantity) {
+      if (getCombinedItemCount(task.itemSubmission.itemId) < task.itemSubmission.quantity) {
         showFloat('提交物品不足', 'danger')
         return false
       }
-      if (!inventoryStore.removeItemAnywhere(task.itemSubmission.itemId, task.itemSubmission.quantity)) {
+      if (!removeCombinedItem(task.itemSubmission.itemId, task.itemSubmission.quantity)) {
         showFloat('提交失败', 'danger')
         return false
       }

@@ -722,8 +722,9 @@
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useFishingStore } from '@/stores/useFishingStore'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { navigateToPanel } from '@/composables/useNavigation'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { POND_BUILD_COST, POND_UPGRADE_COSTS, POND_CAPACITY, PONDABLE_FISH, getPondableFish, FISH_BREEDING_DAYS } from '@/data/fishPond'
@@ -884,8 +885,8 @@
       itemId: m.itemId,
       name: getItemName(m.itemId),
       required: m.quantity,
-      owned: inventoryStore.getItemCount(m.itemId),
-      enough: inventoryStore.getItemCount(m.itemId) >= m.quantity
+      owned: getCombinedItemCount(m.itemId),
+      enough: getCombinedItemCount(m.itemId) >= m.quantity
     }))
   })
 

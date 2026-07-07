@@ -1,5 +1,6 @@
 import { computed, type ComputedRef } from 'vue'
-import { useInventoryStore } from '@/stores/useInventoryStore'
+import { getActivePinia, type Pinia } from 'pinia'
+import { getInventoryQualitiesAtLeast, useInventoryStore } from '@/stores/useInventoryStore'
 import { useWarehouseStore } from '@/stores/useWarehouseStore'
 import type { Quality } from '@/types'
 
@@ -38,9 +39,12 @@ interface CombinedItemCountIndex {
 const getInventoryQualityKey = (itemId: string, quality: Quality) => `${itemId}::${quality}`
 
 let combinedItemCountIndex: ComputedRef<CombinedItemCountIndex> | null = null
+let combinedItemCountIndexPinia: Pinia | undefined | null = null
 
 const getCombinedItemCountIndex = (): CombinedItemCountIndex => {
-  if (!combinedItemCountIndex) {
+  const activePinia = getActivePinia()
+  if (!combinedItemCountIndex || combinedItemCountIndexPinia !== activePinia) {
+    combinedItemCountIndexPinia = activePinia
     combinedItemCountIndex = computed(() => {
       const inv = useInventoryStore()
       const wh = useWarehouseStore()
@@ -95,6 +99,9 @@ export const getCombinedItemCount = (itemId: string, quality?: Quality): number 
   return index.totalByItemId.get(itemId) ?? 0
 }
 
+export const getCombinedItemCountAtLeast = (itemId: string, minQuality: Quality = 'normal'): number =>
+  getInventoryQualitiesAtLeast(minQuality).reduce((sum, quality) => sum + getCombinedItemCount(itemId, quality), 0)
+
 /** 主背包 + 临时背包 + 仓库所有箱子是否合计拥有足够数量 */
 export const hasCombinedItem = (itemId: string, quantity: number = 1): boolean => getCombinedItemCount(itemId) >= quantity
 
@@ -137,6 +144,36 @@ export const removeCombinedItem = (itemId: string, quantity: number = 1, quality
     const take = Math.min(remaining, chest.count)
     wh.removeItemFromChest(chest.id, itemId, take, quality)
     remaining -= take
+  }
+
+  return true
+}
+
+export const removeCombinedItemAtLeast = (itemId: string, quantity: number = 1, minQuality: Quality = 'normal'): boolean => {
+  if (getCombinedItemCountAtLeast(itemId, minQuality) < quantity) return false
+
+  const inv = useInventoryStore()
+  const wh = useWarehouseStore()
+  const inventorySnapshot = inv.serialize()
+  const warehouseSnapshot = wh.serialize()
+  let remaining = quantity
+
+  for (const quality of getInventoryQualitiesAtLeast(minQuality)) {
+    if (remaining <= 0) break
+    const take = Math.min(remaining, getCombinedItemCount(itemId, quality))
+    if (take <= 0) continue
+    if (!removeCombinedItem(itemId, take, quality)) {
+      inv.deserialize(inventorySnapshot)
+      wh.deserialize(warehouseSnapshot)
+      return false
+    }
+    remaining -= take
+  }
+
+  if (remaining > 0) {
+    inv.deserialize(inventorySnapshot)
+    wh.deserialize(warehouseSnapshot)
+    return false
   }
 
   return true

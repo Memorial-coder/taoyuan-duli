@@ -1415,6 +1415,32 @@ export const useProcessingStore = defineStore('processing', () => {
     return { collected, blocked, outputs }
   }
 
+  const collectProductsBySlotIndices = (slotIndices: number[]): { collected: number; blocked: number; outputs: ProcessingCollectedOutputEntry[] } => {
+    let collected = 0
+    let blocked = 0
+    const outputs: ProcessingCollectedOutputEntry[] = []
+
+    for (const slotIndex of slotIndices) {
+      const slot = machines.value[slotIndex]
+      const recipe = slot?.recipeId ? getProcessingRecipeById(slot.recipeId) : null
+      const output = slot && recipe ? getSlotOutput(slot, recipe) : null
+      const outputId = collectProduct(slotIndex)
+      if (outputId) {
+        collected++
+        outputs.push({
+          itemId: outputId,
+          quantity: output?.quantity ?? 1,
+          quality: recipe?.outputQuality ?? 'normal',
+          fixedQuality: !!recipe?.outputQuality
+        })
+      } else {
+        blocked++
+      }
+    }
+
+    return { collected, blocked, outputs }
+  }
+
   const createEmptyMachineRemovalPreview = (): ProcessingMachineRemovalPreview => ({
     total: 0,
     idle: 0,
@@ -1910,6 +1936,7 @@ export const useProcessingStore = defineStore('processing', () => {
     startProcessingBatch,
     collectProduct,
     collectProductsByType,
+    collectProductsBySlotIndices,
     cancelProcessing,
     cancelProcessingByType,
     previewRemoveMachinesByType,

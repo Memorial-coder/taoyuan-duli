@@ -579,9 +579,9 @@
               </span>
               <span
                 class="text-xs"
-                :class="inventoryStore.getTotalItemCount(cost.itemId) >= cost.quantity ? '' : 'text-danger'"
+                :class="getCombinedItemCount(cost.itemId) >= cost.quantity ? '' : 'text-danger'"
               >
-                {{ inventoryStore.getTotalItemCount(cost.itemId) }}/{{ cost.quantity }}
+                {{ getCombinedItemCount(cost.itemId) }}/{{ cost.quantity }}
               </span>
             </div>
             <div v-if="shopModalItem.weeklyLimit" class="flex items-center justify-between mt-0.5">
@@ -978,6 +978,7 @@
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGameClock } from '@/composables/useGameClock'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
 
   // suppress unused warnings for template-only refs
   void CRICKET_WIN_MULTIPLIER
@@ -1262,7 +1263,7 @@
   }
 
   const hasEnoughShopCostItems = (item: HanhaiShopItemDef): boolean =>
-    (item.costItems ?? []).every(cost => inventoryStore.getTotalItemCount(cost.itemId) >= cost.quantity)
+    (item.costItems ?? []).every(cost => getCombinedItemCount(cost.itemId) >= cost.quantity)
 
   const canFitShopItem = (item: HanhaiShopItemDef): boolean =>
     inventoryStore.canAddItem(item.itemId, getShopItemQuantity(item))

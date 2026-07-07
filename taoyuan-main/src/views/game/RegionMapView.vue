@@ -1349,7 +1349,7 @@
   import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
   import { getItemById } from '@/data/items'
   import { showFloat } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { useRegionJourneyHandoffModel } from '@/composables/useRegionJourneyHandoffModel'

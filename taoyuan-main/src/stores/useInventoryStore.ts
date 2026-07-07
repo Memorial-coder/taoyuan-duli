@@ -1,6 +1,6 @@
 import { calculateEffectiveMaxDurability, calculateEffectiveMaxSturdiness, repairEquipment, refurbishEquipment, getCurrentDurability, getCurrentSturdiness } from '@/composables/useDurability'
 import { ref, computed } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, getActivePinia } from 'pinia'
 import type { ForgeAffixRoll, InventoryItem, InventoryPondFishMeta, Quality, Tool, ToolType, ToolTier, OwnedWeapon, OwnedRing, RingEffectType, OwnedHat, OwnedShoe } from '@/types'
 import type { ForgeAffixEffectType, ForgeAffixTarget } from '@/data/forgeAffixes'
 import type { RepairBenchEquipType, RepairBenchMode } from '@/utils/durability'
@@ -79,10 +79,6 @@ import {
   getRepairBaseMaterial,
   getRepairQualityTier
 } from '@/utils/durability'
-import { usePlayerStore } from './usePlayerStore'
-import { useAchievementStore } from './useAchievementStore'
-import { useSkillStore } from './useSkillStore'
-import { useNpcStore } from './useNpcStore'
 import {
   INVENTORY_INITIAL_CAPACITY,
   INVENTORY_REGULAR_MAX_CAPACITY,
@@ -99,6 +95,24 @@ const INVENTORY_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supr
 const FIXED_NORMAL_QUALITY_ITEM_CATEGORIES = new Set(['ore', 'gem'])
 type EquipmentLockTarget = 'weapon' | 'ring' | 'hat' | 'shoe'
 type LockableEquipmentEntry = { locked?: boolean; durability?: number; sturdiness?: number }
+type LightweightAchievementStore = { discoverItem: (itemId: string) => void }
+type LightweightNpcStore = {
+  isNpcFunctionEffectUnlocked: (effectId: string) => boolean
+  getNpcFunctionEffectValue: (effectId: string) => number
+}
+type LightweightSkillStore = { getSkillMasteryEffectValue: (effectId: string) => number }
+type LightweightPlayerDiscoverySnapshot = {
+  prizeProgress: Record<string, unknown>
+  mysteryBoxes: Record<string, unknown>
+}
+type LightweightPlayerStore = {
+  money: number
+  earnMoney: (amount: number, options?: { countAsEarned?: boolean }) => void
+  spendMoney: (amount: number) => boolean
+  hasLifestyleDiscovery: (collection: string, id: string) => boolean
+  getLifestyleDiscoverySnapshot: () => LightweightPlayerDiscoverySnapshot
+  markLifestyleUnlock: (id: string) => void
+}
 type EnchantedEquipmentEntry = {
   defId: string
   enchantmentId?: string | null
@@ -110,6 +124,40 @@ type EnchantedEquipmentEntry = {
 }
 export type InventoryItemStackMeta = Pick<InventoryItem, 'origin' | 'purchaseDay' | 'purchaseUnitPrice' | 'pondFish'>
 type InventoryAddEntry = { itemId: string; quantity: number; quality?: Quality } & InventoryItemStackMeta
+
+const getExistingPiniaStore = <T>(id: string): T | undefined => getActivePinia()?._s.get(id) as T | undefined
+
+const isNpcFunctionEffectUnlocked = (effectId: string): boolean =>
+  getExistingPiniaStore<LightweightNpcStore>('npc')?.isNpcFunctionEffectUnlocked(effectId) ?? false
+
+const getNpcFunctionEffectValue = (effectId: string): number =>
+  getExistingPiniaStore<LightweightNpcStore>('npc')?.getNpcFunctionEffectValue(effectId) ?? 0
+
+const getSkillMasteryEffectValue = (effectId: string): number =>
+  getExistingPiniaStore<LightweightSkillStore>('skill')?.getSkillMasteryEffectValue(effectId) ?? 0
+
+const getExistingPlayerStore = (): LightweightPlayerStore | undefined => getExistingPiniaStore<LightweightPlayerStore>('player')
+
+const hasPlayerLifestyleDiscovery = (collection: string, id: string): boolean =>
+  getExistingPlayerStore()?.hasLifestyleDiscovery(collection, id) ?? false
+
+const getPlayerLifestyleDiscoverySnapshot = (): LightweightPlayerDiscoverySnapshot =>
+  getExistingPlayerStore()?.getLifestyleDiscoverySnapshot() ?? { prizeProgress: {}, mysteryBoxes: {} }
+
+const createPlayerStoreUnavailableResult = () => ({ success: false, message: '玩家状态未初始化，请稍后重试。' })
+
+const discoverAchievementItem = (itemId: string) => {
+  const achievementStore = getExistingPiniaStore<LightweightAchievementStore>('achievement')
+  if (achievementStore) {
+    achievementStore.discoverItem(itemId)
+    return
+  }
+  void import('./useAchievementStore')
+    .then(module => module.useAchievementStore().discoverItem(itemId))
+    .catch(() => {
+      /* achievement discovery is optional for first-paint inventory actions */
+    })
+}
 
 export const normalizeInventoryItemQuality = (itemId: string, quality: Quality = 'normal'): Quality => {
   const def = getItemById(itemId)
@@ -233,10 +281,9 @@ export const mergeVisibleInventoryItems = (sourceItems: InventoryItem[]): Visibl
 }
 
 export const useInventoryStore = defineStore('inventory', () => {
-  const playerStore = usePlayerStore()
   const items = ref<InventoryItem[]>([])
   const visibleItems = computed(() => mergeVisibleInventoryItems(items.value))
-  const npcCustomEquipUnlocked = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('custom_equip'))
+  const npcCustomEquipUnlocked = computed(() => isNpcFunctionEffectUnlocked('custom_equip'))
   const capacity = ref(INITIAL_CAPACITY)
   const tools = ref<Tool[]>([
     { type: 'wateringCan', tier: 'basic' },
@@ -463,10 +510,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
     equippedWeaponIndex.value = ensureDefaultWeapon()
   }
-  const isTrinketSlotUnlocked = computed(() => playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat'))
+  const isTrinketSlotUnlocked = computed(() => hasPlayerLifestyleDiscovery('masteryUnlocks', 'mastery_combat'))
   const unlockedTrinkets = computed<TrinketDef[]>(() => {
     if (!isTrinketSlotUnlocked.value) return []
-    const snapshot = playerStore.getLifestyleDiscoverySnapshot()
+    const snapshot = getPlayerLifestyleDiscoverySnapshot()
     return TRINKETS.filter(def => {
       switch (def.unlockRule) {
         case 'prize_progress':
@@ -474,11 +521,11 @@ export const useInventoryStore = defineStore('inventory', () => {
         case 'mystery_box':
           return Object.keys(snapshot.mysteryBoxes).length > 0
         case 'combat_mastery':
-          return playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
+          return hasPlayerLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
         case 'quarry_mine':
           return (
-            playerStore.hasLifestyleDiscovery('lifestyleUnlocks', 'trinket_quarry_mine') ||
-            playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
+            hasPlayerLifestyleDiscovery('lifestyleUnlocks', 'trinket_quarry_mine') ||
+            hasPlayerLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
           )
         default:
           return false
@@ -568,7 +615,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     if (!def) return 100
 
-    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
 
     return calculateEffectiveMaxDurability(
 
@@ -602,7 +649,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     if (!def) return 100
 
-    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
 
     return calculateEffectiveMaxDurability(
 
@@ -638,7 +685,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     if (!def) return 100
 
-    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
 
     return calculateEffectiveMaxDurability(
 
@@ -674,7 +721,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     if (!def) return 100
 
-    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
 
     return calculateEffectiveMaxDurability(
 
@@ -695,7 +742,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   const getOwnedEquipmentContext = (equipType: RepairBenchEquipType, index: number) => {
-    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
     if (equipType === 'weapon') {
       const entry = ownedWeapons.value[index]
       if (!entry) return null
@@ -752,7 +799,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
     const context = getOwnedEquipmentContext(type, index)
     if (!context) return false
-    const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+    const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
     const durability = { current: getCurrentDurability(context.entry, context.maxDurability), max: context.maxDurability }
     const sturdiness = { current: getCurrentSturdiness(context.entry, context.maxSturdiness), max: context.maxSturdiness }
     const preview = calculateRepairBenchModeCost(type, context.defId, npcUnlocked, durability, sturdiness, mode)
@@ -842,7 +889,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       const sturdiness = getOwnedEquipmentSturdiness(type, index)
       if (!durability || durability.current >= durability.max) return
       if (!sturdiness) return
-      const npcUnlocked = useNpcStore().isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
+      const npcUnlocked = isNpcFunctionEffectUnlocked('equip_durability') ? ['equip_durability'] : []
       const preview = calculateRepairBenchModeCost(repairType, defId, npcUnlocked, durability, sturdiness, 'fine')
       if (!preview.canRepair) return
       candidates.push({ type: repairType, index, current: durability.current, max: durability.max, name: defId })
@@ -862,7 +909,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const addWeapon = (defId: string, enchantmentId: string | null = null, affixes?: ForgeAffixRoll[] | null): boolean => {
     const normalizedAffixes = normalizeForgeAffixesForTarget('weapon', affixes, enchantmentId)
     ownedWeapons.value.push({ defId, enchantmentId: null, affixes: normalizedAffixes })
-    useAchievementStore().discoverItem(defId)
+    discoverAchievementItem(defId)
     return true
   }
 
@@ -906,7 +953,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     const weapon = ownedWeapons.value[index]!
     if (weapon.locked) return { success: false, message: '这件装备已锁定，先解锁才能卖出。' }
     const price = getWeaponSellPrice(weapon.defId, weapon.enchantmentId, weapon.affixes)
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     playerStore.earnMoney(price)
     clearActivePreset()
     ownedWeapons.value.splice(index, 1)
@@ -943,7 +991,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 校验物品是否存在
     if (!getItemById(itemId)) return false
     // 自动注册到图鉴
-    useAchievementStore().discoverItem(itemId)
+    discoverAchievementItem(itemId)
     const entry = createInventoryItemSlot(itemId, quantity, quality, meta)
     let remaining = quantity
 
@@ -1546,7 +1594,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const nextTier = getNextToolTier(tool.tier)
     if (!nextTier) return false
     tool.tier = nextTier
-    if (type === 'pickaxe' && useNpcStore().isNpcFunctionEffectUnlocked('tool_bonus_slot') && (!tool.affixes || tool.affixes.length <= 0)) {
+    if (type === 'pickaxe' && isNpcFunctionEffectUnlocked('tool_bonus_slot') && (!tool.affixes || tool.affixes.length <= 0)) {
       const bonusAffixes = rollForgeAffixes({ target: 'pickaxe', workshopLevel: 7 }).slice(0, 1)
       if (bonusAffixes.length > 0) tool.affixes = bonusAffixes
     }
@@ -1594,7 +1642,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const tool = getTool(type)
     const nextTier = tool ? getNextToolTier(tool.tier) : null
     if (!nextTier || targetTier !== nextTier) return false
-    const speedReduction = Math.max(0, Math.floor(useNpcStore().getNpcFunctionEffectValue('tool_upgrade_speed')))
+    const speedReduction = Math.max(0, Math.floor(getNpcFunctionEffectValue('tool_upgrade_speed')))
     pendingUpgrade.value = { toolType: type, targetTier, daysRemaining: Math.max(1, 2 - speedReduction) }
     return true
   }
@@ -1634,7 +1682,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 添加戒指到收藏 */
   const addRing = (defId: string, enchantmentId: string | null = null, affixes?: ForgeAffixRoll[] | null): boolean => {
     ownedRings.value.push({ defId, enchantmentId: null, affixes: normalizeForgeAffixesForTarget('ring', affixes, enchantmentId) })
-    useAchievementStore().discoverItem(defId)
+    discoverAchievementItem(defId)
     return true
   }
 
@@ -1692,7 +1740,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     // 自动卸下
     if (equippedRingSlot1.value === index) equippedRingSlot1.value = -1
     if (equippedRingSlot2.value === index) equippedRingSlot2.value = -1
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     playerStore.earnMoney(price)
     ownedRings.value.splice(index, 1)
     // 修正装备索引
@@ -1747,7 +1796,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       total = addMatchingEquipmentEffects(total, getForgeAffixEquipmentEffects(shoe.affixes), effectType)
     }
     if (equippedTrinket.value) {
-      const trinketTuningMultiplier = 1 + useSkillStore().getSkillMasteryEffectValue('trinket_tuning')
+      const trinketTuningMultiplier = 1 + getSkillMasteryEffectValue('trinket_tuning')
       for (const eff of equippedTrinket.value.effects) {
         if (eff.type === effectType) total += eff.value * trinketTuningMultiplier
       }
@@ -1756,10 +1805,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     for (const b of activeSetBonuses.value) {
       if (b.type === effectType) total += b.value
     }
-    if (useNpcStore().isNpcFunctionEffectUnlocked('embroidery_craft')) {
+    if (isNpcFunctionEffectUnlocked('embroidery_craft')) {
       if (effectType === 'defense_bonus') total += 0.02
     }
-    if (useNpcStore().isNpcFunctionEffectUnlocked('embroidery_boost')) {
+    if (isNpcFunctionEffectUnlocked('embroidery_boost')) {
       if (effectType === 'max_hp_bonus') total += 10
       if (effectType === 'defense_bonus') total += 0.03
     }
@@ -1852,7 +1901,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
 
     // 检查铜钱（延迟导入避免循环依赖）
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     if (playerStore.money < def.recipeMoney) {
       return { success: false, message: `铜钱不足（需要${def.recipeMoney}文）。` }
     }
@@ -1878,7 +1928,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 添加帽子到收藏 */
   const addHat = (defId: string, enchantmentId: string | null = null, affixes?: ForgeAffixRoll[] | null): boolean => {
     ownedHats.value.push({ defId, enchantmentId: null, affixes: normalizeForgeAffixesForTarget('hat', affixes, enchantmentId) })
-    useAchievementStore().discoverItem(defId)
+    discoverAchievementItem(defId)
     return true
   }
 
@@ -1914,7 +1964,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     clearActivePreset()
     // 自动卸下
     if (equippedHatIndex.value === index) equippedHatIndex.value = -1
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     playerStore.earnMoney(price)
     ownedHats.value.splice(index, 1)
     // 修正装备索引
@@ -1945,7 +1996,8 @@ export const useInventoryStore = defineStore('inventory', () => {
         return { success: false, message: `材料不足：${matName}。` }
       }
     }
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     if (playerStore.money < def.recipeMoney) {
       return { success: false, message: `铜钱不足（需要${def.recipeMoney}文）。` }
     }
@@ -1967,7 +2019,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 添加鞋子到收藏 */
   const addShoe = (defId: string, enchantmentId: string | null = null, affixes?: ForgeAffixRoll[] | null): boolean => {
     ownedShoes.value.push({ defId, enchantmentId: null, affixes: normalizeForgeAffixesForTarget('shoe', affixes, enchantmentId) })
-    useAchievementStore().discoverItem(defId)
+    discoverAchievementItem(defId)
     return true
   }
 
@@ -2003,7 +2055,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     clearActivePreset()
     // 自动卸下
     if (equippedShoeIndex.value === index) equippedShoeIndex.value = -1
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     playerStore.earnMoney(price)
     ownedShoes.value.splice(index, 1)
     // 修正装备索引
@@ -2034,7 +2087,8 @@ export const useInventoryStore = defineStore('inventory', () => {
         return { success: false, message: `材料不足：${matName}。` }
       }
     }
-    const playerStore = usePlayerStore()
+    const playerStore = getExistingPlayerStore()
+    if (!playerStore) return createPlayerStoreUnavailableResult()
     if (playerStore.money < def.recipeMoney) {
       return { success: false, message: `铜钱不足（需要${def.recipeMoney}文）。` }
     }
@@ -2123,7 +2177,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (!unlockedTrinkets.value.some(def => def.id === defId)) return false
     if (equippedTrinketId.value !== defId) clearActivePreset()
     equippedTrinketId.value = defId
-    playerStore.markLifestyleUnlock(`trinket_equipped_${defId}`)
+    getExistingPlayerStore()?.markLifestyleUnlock(`trinket_equipped_${defId}`)
     return true
   }
 

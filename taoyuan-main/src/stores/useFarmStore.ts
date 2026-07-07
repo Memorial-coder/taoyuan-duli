@@ -2,7 +2,7 @@
  * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
  */
 import { ref, computed } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, getActivePinia } from 'pinia'
 import type { FarmPlot, FarmSize, FarmMapType, Season, Quality } from '@/types'
 import type { SprinklerType, FertilizerType, PlantedFruitTree, PlantedGreenhouseFruitTree, FruitTreeType, WildTreeType, PlantedWildTree } from '@/types'
 import type { SeedGenetics } from '@/types/breeding'
@@ -12,10 +12,27 @@ import { FRUIT_TREE_DEFS, MAX_FRUIT_TREES, GREENHOUSE_FRUIT_TREE_SLOT_COUNT } fr
 import { MAX_WILD_TREES, getWildTreeDef } from '@/data/wildTrees'
 import { GREENHOUSE_PLOT_COUNT } from '@/data/buildings'
 import { getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
-import { useWalletStore } from './useWalletStore'
-import { useNpcStore } from './useNpcStore'
 import { useGameStore } from './useGameStore'
-import { useHiddenNpcStore } from './useHiddenNpcStore'
+
+type WalletStore = ReturnType<(typeof import('./useWalletStore'))['useWalletStore']>
+type NpcStore = ReturnType<(typeof import('./useNpcStore'))['useNpcStore']>
+type HiddenNpcStore = ReturnType<(typeof import('./useHiddenNpcStore'))['useHiddenNpcStore']>
+
+const getLoadedWalletStore = () => getActivePinia()?._s.get('wallet') as WalletStore | undefined
+const getLoadedNpcStore = () => getActivePinia()?._s.get('npc') as NpcStore | undefined
+const getLoadedHiddenNpcStore = () => getActivePinia()?._s.get('hiddenNpc') as HiddenNpcStore | undefined
+
+const getLoadedNpcFunctionEffectValue = (effectType: string): number =>
+  getLoadedNpcStore()?.getNpcFunctionEffectValue(effectType) ?? 0
+
+const isLoadedNpcFunctionEffectUnlocked = (effectType: string): boolean =>
+  getLoadedNpcStore()?.isNpcFunctionEffectUnlocked(effectType) ?? false
+
+const getLoadedHiddenNpcAbilityValue = (abilityId: string): number =>
+  getLoadedHiddenNpcStore()?.getAbilityValue(abilityId) ?? 0
+
+const isLoadedHiddenNpcAbilityActive = (abilityId: string): boolean =>
+  getLoadedHiddenNpcStore()?.isAbilityActive(abilityId) ?? false
 
 /** 已放置洒水器 */
 export interface PlacedSprinkler {
@@ -87,12 +104,11 @@ const normalizeFarmSizeForMap = (size: FarmSize, farmMapType: FarmMapType): Farm
 }
 
 export const useFarmStore = defineStore('farm', () => {
-  const npcStore = useNpcStore()
   /** NPC function build speed bonus */
-  const npcBuildSpeedReduction = computed(() => npcStore.getNpcFunctionEffectValue('build_speed') / 100)
+  const npcBuildSpeedReduction = computed(() => getLoadedNpcFunctionEffectValue('build_speed') / 100)
   /** NPC function orchard care bonus */
-  const npcOrchardCareBonus = computed(() => npcStore.getNpcFunctionEffectValue('orchard_care') / 100)
-  const npcGraftingUnlocked = computed(() => npcStore.isNpcFunctionEffectUnlocked('grafting'))
+  const npcOrchardCareBonus = computed(() => getLoadedNpcFunctionEffectValue('orchard_care') / 100)
+  const npcGraftingUnlocked = computed(() => isLoadedNpcFunctionEffectUnlocked('grafting'))
   const farmSize = ref<FarmSize>(4)
   const plots = ref<FarmPlot[]>(createPlots(4))
   const sprinklers = ref<PlacedSprinkler[]>([])
@@ -358,8 +374,8 @@ export const useFarmStore = defineStore('farm', () => {
 
   const getCurrentCropGrowthBonus = (extraCropGrowthBonus: number = 0): number => {
     const gameStore = useGameStore()
-    const spiritGrowth = gameStore.season === 'spring' ? useHiddenNpcStore().getAbilityValue('tao_yao_2') / 100 : 0
-    return useWalletStore().getCropGrowthBonus() + spiritGrowth + Math.max(0, Number(extraCropGrowthBonus) || 0)
+    const spiritGrowth = gameStore.season === 'spring' ? getLoadedHiddenNpcAbilityValue('tao_yao_2') / 100 : 0
+    return (getLoadedWalletStore()?.getCropGrowthBonus() ?? 0) + spiritGrowth + Math.max(0, Number(extraCropGrowthBonus) || 0)
   }
 
   const applyFertilizer = (plotId: number, fertilizerType: FertilizerType): boolean => {
@@ -746,11 +762,10 @@ export const useFarmStore = defineStore('farm', () => {
   const dailyFruitTreeUpdate = (currentSeason: Season, options: FruitTreeUpdateOptions = {}): { fruits: { fruitId: string; quality: Quality }[] } => {
     const results: { fruitId: string; quality: Quality }[] = []
     // 仙缘能力
-    const hiddenNpcStore2 = useHiddenNpcStore()
-    const extraFruit = hiddenNpcStore2.isAbilityActive('tao_yao_1') // 花泽：果树+1产量
-    const spiritPeachActive = hiddenNpcStore2.isAbilityActive('tao_yao_3') // 灵桃：桃树概率产灵桃
+    const extraFruit = isLoadedHiddenNpcAbilityActive('tao_yao_1') // 花泽：果树+1产量
+    const spiritPeachActive = isLoadedHiddenNpcAbilityActive('tao_yao_3') // 灵桃：桃树概率产灵桃
     const orchardCareExtra = Math.random() < npcOrchardCareBonus.value
-    const graftingUnlocked = npcStore.isNpcFunctionEffectUnlocked('grafting')
+    const graftingUnlocked = isLoadedNpcFunctionEffectUnlocked('grafting')
     for (const tree of fruitTrees.value) {
       tree.growthDays++
       tree.todayFruit = false
@@ -814,7 +829,7 @@ export const useFarmStore = defineStore('farm', () => {
   const fruitTreeSeasonUpdate = (isNewYear: boolean): void => {
     // NPC function: rare_sapling - each season get 1 rare sapling
   /** NPC功能解锁：嫁接功能 */
-      const _hasRareSapling = npcStore.isNpcFunctionEffectUnlocked('rare_sapling')
+      const _hasRareSapling = isLoadedNpcFunctionEffectUnlocked('rare_sapling')
     if (_hasRareSapling && !isNewYear) {
       // Check if a tree slot is available; if so, plant a random mature tree
       if (fruitTrees.value.length < MAX_FRUIT_TREES) {

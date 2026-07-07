@@ -1,6 +1,12 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  getCombinedItemCount,
+  hasCombinedItems,
+  removeCombinedItem,
+  removeCombinedItems
+} from '@/composables/useCombinedInventory'
+import {
   EQUIPMENT_ACCESSORY_DAILY_PURCHASES,
   EQUIPMENT_ACCESSORY_DEFS,
   EQUIPMENT_ACCESSORY_FAMILIES,
@@ -274,19 +280,12 @@ export const useEquipmentAccessoryStore = defineStore('equipmentAccessory', () =
     return inventoryStore.addItemsExact(refunds.map(entry => ({ ...entry, quality: 'normal' as const })))
   }
 
-  const hasMaterials = (entries: EquipmentAccessoryMaterialCost[]): boolean => {
-    const inventoryStore = useInventoryStore()
-    return mergeMaterialCosts(entries).every(entry => inventoryStore.getTotalItemCount(entry.itemId) >= entry.quantity)
-  }
+  const hasMaterials = (entries: EquipmentAccessoryMaterialCost[]): boolean =>
+    hasCombinedItems(mergeMaterialCosts(entries))
 
   const consumeMaterials = (entries: EquipmentAccessoryMaterialCost[]): boolean => {
-    const inventoryStore = useInventoryStore()
     const normalized = mergeMaterialCosts(entries)
-    if (!hasMaterials(normalized)) return false
-    for (const entry of normalized) {
-      if (!inventoryStore.removeItemAnywhere(entry.itemId, entry.quantity)) return false
-    }
-    return true
+    return removeCombinedItems(normalized)
   }
 
   const previewAccessoryUpgrade = (instanceId: string): Result<{ cost?: ReturnType<typeof getEquipmentAccessoryUpgradeCost>; currentValue: Partial<Record<EquipmentAccessoryEffectKey, number>>; nextValue: Partial<Record<EquipmentAccessoryEffectKey, number>> }> => {
@@ -528,8 +527,7 @@ export const useEquipmentAccessoryStore = defineStore('equipmentAccessory', () =
     const first = preview.materials[0]!
     const rule = getEquipmentAccessoryFusionRule(first.tier, first.quality)
     if (!rule) return { success: false, message: '缺少这组配件的合成规则。', consumed: [], refunds: [] }
-    const inventoryStore = useInventoryStore()
-    if (options.useProtection && inventoryStore.getTotalItemCount(EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID) < 1) {
+    if (options.useProtection && getCombinedItemCount(EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID) < 1) {
       return { success: false, message: '稳固石不足。', consumed: [], refunds: [] }
     }
 
@@ -539,7 +537,7 @@ export const useEquipmentAccessoryStore = defineStore('equipmentAccessory', () =
       ? options.forceOutcome === 'success'
       : pity >= rule.pityThreshold || Math.random() < rule.successRate
 
-    if (options.useProtection && !inventoryStore.removeItemAnywhere(EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID, 1)) {
+    if (options.useProtection && !removeCombinedItem(EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID, 1)) {
       return { success: false, message: '稳固石不足。', consumed: [], refunds: [] }
     }
 

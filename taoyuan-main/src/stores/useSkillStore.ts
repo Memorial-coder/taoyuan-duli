@@ -17,7 +17,7 @@ import { HYBRID_MASTERY_DEFS, MASTERY_REWARD_DEFS, PRIMARY_MASTERY_DEFS } from '
 import { SKILL_MASTERY_EFFECT_VALUES, SKILL_MASTERY_NODE_DEFS, getSkillMasteryNodeDefs } from '@/data/skillMastery'
 import { BLESSINGS } from '@/data/blessings'
 import { useInventoryStore } from './useInventoryStore'
-import { useGameStore } from './useGameStore'
+import { getExistingGameStoreSnapshot } from './gameStoreAccess'
 import { usePlayerStore } from './usePlayerStore'
 
 /** 各等级所需累计经验 **/
@@ -171,6 +171,7 @@ const includesPerk = <T extends SkillPerk>(options: readonly T[] | undefined, pe
   !!perk && !!options?.includes(perk as T)
 
 const SKILL_TYPES: SkillType[] = ['farming', 'foraging', 'fishing', 'mining', 'combat']
+const useGameStore = getExistingGameStoreSnapshot
 const SKILL_MASTERY_NODE_BY_ID = new Map<SkillMasteryNodeId, (typeof SKILL_MASTERY_NODE_DEFS)[number]>(
   SKILL_MASTERY_NODE_DEFS.map(node => [node.id, node] as const)
 )

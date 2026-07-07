@@ -6,6 +6,9 @@ import legacy from '@vitejs/plugin-legacy'
 
 const configDirname = dirname(fileURLToPath(import.meta.url))
 
+const matchesSourceModule = (normalizedId: string, paths: string[]) =>
+  paths.some(path => normalizedId.endsWith(path))
+
 const createManualChunkName = (id: string) => {
   const normalizedId = id.replace(/\\/g, '/')
 
@@ -19,6 +22,117 @@ const createManualChunkName = (id: string) => {
 
   if (normalizedId.includes('/node_modules/@capacitor/')) {
     return 'vendor-capacitor'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/utils/accountStorage.ts',
+    '/src/utils/apiClient.ts'
+  ])) {
+    return 'runtime-account'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/composables/useAudio.ts'
+  ])) {
+    return 'runtime-audio'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/timeConstants.ts'
+  ])) {
+    return 'data-time'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/stores/useGameStore.ts',
+    '/src/stores/gameStoreAccess.ts'
+  ])) {
+    return 'store-game-core'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/stores/useInventoryStore.ts',
+    '/src/utils/inventoryCapacity.ts',
+    '/src/utils/inventoryUseRules.ts',
+    '/src/utils/durability.ts',
+    '/src/composables/useDurability.ts'
+  ])) {
+    return 'store-inventory'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/stores/useSettingsStore.ts',
+    '/src/data/systemFlags.ts',
+    '/src/data/themes.ts',
+    '/src/data/keyboardShortcuts.ts',
+    '/src/data/balance/lateGameBalance.ts'
+  ])) {
+    return 'store-settings'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/items.ts'
+  ])) {
+    return 'data-items'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/cropUseProfiles.ts',
+    '/src/data/petFeeds.ts'
+  ])) {
+    return 'data-crop-use'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/itemLinkage.ts',
+    '/src/data/processedItemGroups.ts'
+  ])) {
+    return 'data-item-linkage'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/weapons.ts',
+    '/src/data/rings.ts',
+    '/src/data/hats.ts',
+    '/src/data/shoes.ts',
+    '/src/data/trinkets.ts',
+    '/src/data/equipmentSets.ts',
+    '/src/data/equipmentAccessories.ts',
+    '/src/data/toolEnchantments.ts',
+    '/src/data/equipmentEnchantments.ts',
+    '/src/data/forgeAffixes.ts'
+  ])) {
+    return 'data-equipment'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/mine.ts',
+    '/src/data/quarry.ts'
+  ])) {
+    return 'data-mining'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/animals.ts',
+    '/src/data/bookseller.ts',
+    '/src/data/hiddenNpcs.ts',
+    '/src/data/mysteryBoxes.ts',
+    '/src/data/npcs.ts',
+    '/src/data/potential.ts',
+    '/src/data/prizeTickets.ts',
+    '/src/data/rewardTickets.ts',
+    '/src/data/villageProjects.ts',
+    '/src/data/wallet.ts',
+    '/src/data/weeklyBudgets.ts'
+  ])) {
+    return 'data-world'
+  }
+
+  if (matchesSourceModule(normalizedId, [
+    '/src/data/glossary.ts',
+    '/src/data/itemEncyclopedia.ts'
+  ])) {
+    return 'data-glossary'
   }
 
   return undefined

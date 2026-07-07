@@ -1,5 +1,5 @@
 <template>
-  <Transition name="panel-fade">
+  <Transition name="panel-fade" appear>
     <div v-if="props.open" class="game-modal-overlay fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3" @click.self="$emit('close')">
       <div
         class="map-container game-panel w-full max-w-sm md:max-w-150 max-h-[85vh] overflow-y-auto relative"

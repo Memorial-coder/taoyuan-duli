@@ -76,6 +76,14 @@ assert(
 assert(potentialViewSource.includes('pendingUpgradeNodeId') && potentialViewSource.includes('upgradePreview'), 'potential page must stage upgrade preview state before spending resources.')
 assert(potentialViewSource.includes('openUpgradePreview') && potentialViewSource.includes('confirmUpgrade'), 'potential page must preview and confirm potential upgrades separately.')
 assert(potentialViewSource.includes('下一级预览') && potentialViewSource.includes('确认参悟'), 'potential upgrade dialog must show the next-rank preview and confirmation action.')
+assert(!potentialViewSource.includes('<Teleport to="body">'), 'potential upgrade dialog must not teleport to body because fullscreen hides body-level overlays.')
+assert(
+  potentialViewSource.includes("import { useFullscreenTeleportTarget } from '@/composables/useFullscreenTeleportTarget'") &&
+    potentialViewSource.includes('<Teleport :to="teleportTarget">') &&
+    potentialViewSource.includes('const { teleportTarget, syncTeleportTarget } = useFullscreenTeleportTarget()') &&
+    /const openUpgradePreview = \(node: PotentialNodeDef\) => \{[\s\S]*syncTeleportTarget\(\)[\s\S]*pendingUpgradeNodeId\.value = node\.id/.test(potentialViewSource),
+  'potential upgrade dialog must teleport into the active fullscreen root before opening.'
+)
 assert(potentialViewSource.includes('potential-section-panel') && potentialViewSource.includes('potential-section-header') && potentialViewSource.includes('potential-section-title'), 'potential page must use shallow section panels for visual grouping.')
 assert(
   /data-testid="potential-overview-section"[\s\S]*data-testid="potential-resource-grid"[\s\S]*role="tablist"/.test(potentialViewSource),
@@ -99,7 +107,7 @@ assert(potentialViewSource.includes('getPotentialSourceProgress'), 'potential so
 assert(
   potentialViewSource.includes('source.routeName') &&
     potentialViewSource.includes('potential-source-route-${source.id}') &&
-    potentialViewSource.includes('navigateToPanel(source.routeName)') &&
+    potentialViewSource.includes('navigateToSourcePanel(source.routeName)') &&
     potentialViewSource.includes('MapPinned'),
   'potential source rows must provide route actions for connected source systems.'
 )

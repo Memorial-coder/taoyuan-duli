@@ -407,7 +407,7 @@
         <label class="accessory-toggle">
           <input v-model="fusionUseProtection" type="checkbox" />
           <span>使用稳固石，失败时保住 1 件材料配件</span>
-          <strong>{{ inventoryStore.getTotalItemCount(EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID) }}</strong>
+          <strong>{{ getCombinedItemCount(EQUIPMENT_ACCESSORY_PROTECT_ITEM_ID) }}</strong>
         </label>
         <div v-if="fusionPreview.refundOnSuccess?.length" class="accessory-cost-list">
           <div v-for="item in fusionPreview.refundOnSuccess" :key="item.itemId" class="accessory-cost-row">
@@ -465,10 +465,10 @@
     getEquipmentAccessoryRecipe
   } from '@/data/equipmentAccessories'
   import { getItemById } from '@/data/items'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { addLog } from '@/composables/useGameLog'
   import { getItemIconUrl, loadItemIconManifest, type ItemIconSize } from '@/composables/useItemIconManifest'
   import { useEquipmentAccessoryStore } from '@/stores/useEquipmentAccessoryStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import type {
@@ -485,7 +485,6 @@
   type CostLine = { key: string; label: string; quantity: number; owned: number; missing: number }
 
   const accessoryStore = useEquipmentAccessoryStore()
-  const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
   const npcStore = useNpcStore()
 
@@ -723,7 +722,7 @@
     entries
       .filter(entry => entry.quantity > 0)
       .map(entry => {
-        const owned = inventoryStore.getTotalItemCount(entry.itemId)
+        const owned = getCombinedItemCount(entry.itemId)
         return {
           key: entry.itemId,
           label: itemName(entry.itemId),

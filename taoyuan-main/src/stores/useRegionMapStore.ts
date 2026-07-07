@@ -24,6 +24,7 @@ import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOU
 import { getRegionExpeditionElixirPrepOption, type RegionExpeditionElixirPrepOption } from '@/data/eliteElixirPrep'
 import { getRegionResourceTurnInDemandEntries } from '@/data/linkageDemandPools'
 import { addLog, showFloat } from '@/composables/useGameLog'
+import { getCombinedItemCount, hasCombinedItems, removeCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { calculateConsumptionReduction, consumeEquipmentDurability } from '@/composables/useDurability'
 import { getWeaponById } from '@/data/weapons'
 import { getForgeAffixSignature, getLegacyAffixSignature } from '@/data/forgeAffixes'
@@ -686,9 +687,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!demand) return null
     const normalized = Math.max(1, Math.floor(Number(amount) || 1))
     const required = Math.max(1, Math.floor(Number(demand.minQuantity) || 1)) * normalized
-    const inventoryStore = useInventoryStore()
     const item = getItemById(demand.itemId)
-    const owned = inventoryStore.getTotalItemCount(demand.itemId)
+    const owned = getCombinedItemCount(demand.itemId)
     return {
       demandId: demand.id,
       itemId: demand.itemId,
@@ -3035,15 +3035,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return failResourceTurnIn(`${requirement.itemName}不足，需要 ${requirement.required}，当前 ${requirement.owned}。`)
     }
 
-    const inventoryStore = useInventoryStore()
-    const inventorySnapshot = inventoryStore.serialize()
     const previousLedger = saveData.value.resourceLedger[familyId] ?? 0
     if (!consumeFamilyResources(familyId, normalized)) {
       return failResourceTurnIn(`${familyLabel}不足，无法交付。`)
     }
-    if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.required)) {
+    if (!removeCombinedItem(requirement.itemId, requirement.required)) {
       saveData.value.resourceLedger[familyId] = previousLedger
-      inventoryStore.deserialize(inventorySnapshot)
       return failResourceTurnIn(`${requirement.itemName}库存已变化，交付未完成。`)
     }
 
@@ -3080,31 +3077,25 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const removeJourneyRequiredItems = (items: { itemId: string; quantity: number }[]) => {
-    const inventoryStore = useInventoryStore()
     const normalized = normalizeJourneyRequiredItems(items)
-    if (normalized.some(item => inventoryStore.getItemCount(item.itemId) < item.quantity)) return false
-    const inventorySnapshot = inventoryStore.serialize()
-    for (const item of normalized) {
-      if (!inventoryStore.removeItem(item.itemId, item.quantity)) {
-        inventoryStore.deserialize(inventorySnapshot)
-        return false
-      }
-    }
-    return true
+    if (!hasCombinedItems(normalized)) return false
+    return removeCombinedItems(normalized)
   }
 
   const canCraftJourneyRecipe = (recipeId: string) => {
     const recipe = JOURNEY_CRAFTING_RECIPES.find(entry => entry.id === recipeId)
     if (!recipe) return { ok: false, reason: '配方不存在。' }
     if (!isJourneyRecipeUnlocked(recipeId)) return { ok: false, reason: '这张旅程配方尚未解锁。' }
-    const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
     if (playerStore.money < recipe.requiredMoney) return { ok: false, reason: `铜钱不足，需要 ${recipe.requiredMoney} 文。` }
-    for (const material of normalizeJourneyRequiredItems(recipe.requiredItems)) {
-      if (inventoryStore.getItemCount(material.itemId) < material.quantity) {
+    const requiredItems = normalizeJourneyRequiredItems(recipe.requiredItems)
+    for (const material of requiredItems) {
+      if (getCombinedItemCount(material.itemId) < material.quantity) {
         return { ok: false, reason: `${getItemById(material.itemId)?.name ?? material.itemId} 不足。` }
       }
     }
+    if (!hasCombinedItems(requiredItems)) return { ok: false, reason: '材料不足。' }
+    const inventoryStore = useInventoryStore()
     if (recipe.reward.kind === 'weapon') {
       const duplicated = inventoryStore.ownedWeapons.some(
         weapon =>

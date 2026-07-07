@@ -180,11 +180,13 @@ assert(
 )
 assert(
   festivalStallStore.includes('const getItemCosts = (costs: FestivalStallBundleEntry[])') &&
-    festivalStallStore.includes('inventoryStore.getTotalItemCount(cost.itemId, cost.quality)') &&
-    festivalStallStore.includes('inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity, cost.quality)') &&
-    festivalStallStore.indexOf('inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity, cost.quality)') <
+    festivalStallStore.includes('hasCombinedItems(itemCosts)') &&
+    festivalStallStore.includes('removeCombinedItems(itemCosts)') &&
+    festivalStallStore.includes('const warehouseSnapshot = warehouseStore.serialize()') &&
+    festivalStallStore.includes('warehouseStore.deserialize(warehouseSnapshot)') &&
+    festivalStallStore.indexOf('removeCombinedItems(itemCosts)') <
       festivalStallStore.indexOf('inventoryStore.addItemsExact(itemRewards)'),
-  'festival stall current-session delta merge must remove item costs before adding rewards'
+  'festival stall current-session delta merge must remove combined item costs before adding rewards'
 )
 assert(
   festivalStallPanel.includes('festival-stall-submit-supply') &&

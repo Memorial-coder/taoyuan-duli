@@ -139,7 +139,7 @@ for (const token of [
   'getExhibitSetBlockedReason',
   'submitMuseumExhibitSetItem',
   'claimExhibitSetReward',
-  'inventoryStore.removeItemAnywhere(itemId, submitQuantity)',
+  'removeCombinedItem(itemId, submitQuantity)',
   'exhibitSetStates.value = data.exhibitSetStates',
   'exhibitSetStates: exhibitSetStates.value'
 ]) {
@@ -171,11 +171,14 @@ assert(
   'Exhibit set submission must snapshot exhibit set state, telemetry, and goal counters before consuming materials.'
 )
 assert(
-  submitFunctionSource.indexOf('const museumSnapshot = cloneMuseumSaveData(serialize())') < submitFunctionSource.indexOf('inventoryStore.removeItemAnywhere(itemId, submitQuantity)'),
-  'Exhibit set submission snapshots must be created before removeItemAnywhere consumes materials.'
+  submitFunctionSource.indexOf('const museumSnapshot = cloneMuseumSaveData(serialize())') < submitFunctionSource.indexOf('removeCombinedItem(itemId, submitQuantity)') &&
+    submitFunctionSource.includes('const warehouseSnapshot = warehouseStore.serialize()'),
+  'Exhibit set submission snapshots must be created before combined inventory consumes materials.'
 )
 assert(
-  submitFunctionSource.includes('telemetry.value = telemetrySnapshot') && submitFunctionSource.includes('goalStore.deserialize(goalSnapshot)'),
+  submitFunctionSource.includes('telemetry.value = telemetrySnapshot') &&
+    submitFunctionSource.includes('goalStore.deserialize(goalSnapshot)') &&
+    submitFunctionSource.includes('warehouseStore.deserialize(warehouseSnapshot)'),
   'Exhibit set submission failure must roll back telemetry and goal activity counters as well as materials.'
 )
 const refreshTelemetryStart = museumStoreSource.indexOf('const refreshOperationalTelemetry')

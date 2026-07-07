@@ -1,9 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { Quality, RewardTicketLedger } from '@/types'
+import { hasCombinedItems, removeCombinedItems } from '@/composables/useCombinedInventory'
 import { useInventoryStore } from '@/stores/useInventoryStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useSaveStore } from '@/stores/useSaveStore'
+import { useWarehouseStore } from '@/stores/useWarehouseStore'
 import { useWalletStore } from '@/stores/useWalletStore'
 import {
   fetchFestivalStall,
@@ -103,13 +105,18 @@ const applyPurchaseDeltaToCurrentSession = (result: FestivalStallActionResponse)
   const ticketRewards = getTicketRewards(rewards)
   const moneyDelta = getMoneyDelta(costs, rewards)
   const inventoryStore = useInventoryStore()
+  const warehouseStore = useWarehouseStore()
 
-  if (itemCosts.some(cost => inventoryStore.getTotalItemCount(cost.itemId, cost.quality) < cost.quantity)) return false
-  for (const cost of itemCosts) {
-    if (!inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity, cost.quality)) return false
+  if (!hasCombinedItems(itemCosts)) return false
+  const inventorySnapshot = inventoryStore.serialize()
+  const warehouseSnapshot = warehouseStore.serialize()
+  if (!removeCombinedItems(itemCosts)) return false
+
+  if (itemRewards.length > 0 && !inventoryStore.addItemsExact(itemRewards)) {
+    inventoryStore.deserialize(inventorySnapshot)
+    warehouseStore.deserialize(warehouseSnapshot)
+    return false
   }
-
-  if (itemRewards.length > 0 && !inventoryStore.addItemsExact(itemRewards)) return false
 
   if (moneyDelta !== 0) {
     const playerStore = usePlayerStore()

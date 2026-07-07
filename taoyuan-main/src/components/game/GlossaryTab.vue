@@ -12,13 +12,13 @@
             <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
             <input
               ref="searchInputRef"
-              v-model="search"
+              v-model="searchDraft"
               type="text"
               data-testid="glossary-search-input"
               placeholder="搜索名称、用途、解锁条件、礼物偏好…"
               class="w-full bg-transparent border border-accent/20 rounded-xs pl-6 pr-7 py-1 text-xs text-text placeholder:text-muted/50 outline-none focus:border-accent/50"
             />
-            <button v-if="search" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-text" @click="search = ''">
+            <button v-if="searchDraft" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-text" @click="clearSearch">
               <X :size="10" />
             </button>
           </div>
@@ -99,7 +99,7 @@
                 @click="selectedId = entry.id"
               >
                 <div class="flex items-start gap-2">
-                  <ItemIcon v-if="entry.itemId" :item="getItemById(entry.itemId)" size="sm" :show-badge="false" />
+                  <ItemIcon v-if="entry.itemId" :item="getGlossaryItemById(entry.itemId)" size="sm" :show-badge="false" />
                   <NpcPortrait
                     v-else-if="entry.npcPortrait"
                     :id="entry.npcPortrait.id"
@@ -238,7 +238,7 @@
                 v-for="panel in selectedEntry.relatedPanels"
                 :key="`${selectedEntry.id}_${panel.panel}`"
                 class="justify-center"
-                @click="navigateToPanel(panel.panel)"
+                @click="navigateToGlossaryPanel(panel.panel)"
               >
                 {{ panel.label }}
               </Button>
@@ -263,12 +263,11 @@
   import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import NpcPortrait from '@/components/game/NpcPortrait.vue'
   import { getItemIconVariant, setItemIconVariant } from '@/composables/useItemIconPreferences'
-  import { navigateToPanel } from '@/composables/useNavigation'
   import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
-  import { GLOSSARY, GLOSSARY_CATEGORY_LABELS, GLOSSARY_INTENT_LABELS } from '@/data/glossary'
-  import { getItemById } from '@/data/items'
   import type { ItemIconVariant } from '@/composables/useItemIconManifest'
+  import type { PanelKey } from '@/composables/useNavigation'
   import type { GlossaryCategory, GlossaryEntry, GlossaryIntentKey, GlossaryOpenPreset } from '@/data/glossary'
+  import type { ItemDef } from '@/types/item'
 
   const props = defineProps<{
     preset?: GlossaryOpenPreset | null
@@ -279,19 +278,58 @@
   }>()
 
   const search = ref('')
+  const searchDraft = ref('')
   const searchInputRef = ref<HTMLInputElement | null>(null)
   const activeCategory = ref<GlossaryCategory | 'all'>('all')
   const activeIntent = ref<GlossaryIntentKey | 'all'>('all')
   const includeSpoilers = ref(false)
   const selectedId = ref<string | null>(null)
+  const glossaryEntries = ref<GlossaryEntry[]>([])
+  const glossaryCategoryLabels = ref<Record<GlossaryCategory, string>>({} as Record<GlossaryCategory, string>)
+  const glossaryIntentLabels = ref<Record<GlossaryIntentKey, string>>({} as Record<GlossaryIntentKey, string>)
+  const getItemByIdRef = ref<(id: string) => ItemDef | undefined>(() => undefined)
+  const glossaryLoaded = ref(false)
+  let searchDebounceTimer: number | null = null
 
-  const glossaryMap = new Map(GLOSSARY.map(entry => [entry.id, entry]))
-  const spoilerCount = GLOSSARY.filter(entry => entry.spoiler).length
-  const sortedGlossary = [...GLOSSARY].sort((a, b) => {
+  const commitSearchDraft = () => {
+    search.value = searchDraft.value
+  }
+
+  const clearSearch = () => {
+    searchDraft.value = ''
+    search.value = ''
+  }
+
+  watch(searchDraft, () => {
+    if (searchDebounceTimer !== null) {
+      window.clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
+    searchDebounceTimer = window.setTimeout(() => {
+      searchDebounceTimer = null
+      commitSearchDraft()
+    }, 120)
+  })
+
+  const loadGlossaryData = async () => {
+    const [glossaryModule, itemsModule] = await Promise.all([
+      import('@/data/glossary'),
+      import('@/data/items')
+    ])
+    glossaryEntries.value = glossaryModule.GLOSSARY
+    glossaryCategoryLabels.value = glossaryModule.GLOSSARY_CATEGORY_LABELS
+    glossaryIntentLabels.value = glossaryModule.GLOSSARY_INTENT_LABELS
+    getItemByIdRef.value = itemsModule.getItemById
+    glossaryLoaded.value = true
+  }
+
+  const glossaryMap = computed(() => new Map(glossaryEntries.value.map(entry => [entry.id, entry])))
+  const spoilerCount = computed(() => glossaryEntries.value.filter(entry => entry.spoiler).length)
+  const sortedGlossary = computed(() => [...glossaryEntries.value].sort((a, b) => {
     const categoryDiff = a.categoryLabel.localeCompare(b.categoryLabel, 'zh-Hans-CN')
     if (categoryDiff !== 0) return categoryDiff
     return a.name.localeCompare(b.name, 'zh-Hans-CN')
-  })
+  }))
 
   const normalizeQuery = (value: string): string => value.toLowerCase().replace(/\s+/g, ' ').trim()
 
@@ -336,18 +374,28 @@
   }
 
   const derived = computed(() => {
+    if (!glossaryLoaded.value) {
+      return {
+        visibleEntries: [] as GlossaryEntry[],
+        visibleEntryCount: 0,
+        filteredEntries: [] as GlossaryEntry[],
+        categoryCounts: {} as Record<GlossaryCategory, number>,
+        intentCounts: {} as Record<GlossaryIntentKey, number>,
+        query: '',
+      }
+    }
     const q = normalizeQuery(search.value)
     const categoryCounts = Object.fromEntries(
-      Object.keys(GLOSSARY_CATEGORY_LABELS).map(key => [key, 0])
+      Object.keys(glossaryCategoryLabels.value).map(key => [key, 0])
     ) as Record<GlossaryCategory, number>
     const intentCounts = Object.fromEntries(
-      Object.keys(GLOSSARY_INTENT_LABELS).map(key => [key, 0])
+      Object.keys(glossaryIntentLabels.value).map(key => [key, 0])
     ) as Record<GlossaryIntentKey, number>
 
     const visibleBase: GlossaryEntry[] = []
     const filtered: GlossaryEntry[] = []
 
-    for (const entry of sortedGlossary) {
+    for (const entry of sortedGlossary.value) {
       if (!includeSpoilers.value && entry.spoiler) continue
       visibleBase.push(entry)
 
@@ -393,7 +441,7 @@
 
   const categories = computed(() => [
     { value: 'all' as const, label: '全部', count: filteredEntries.value.length },
-    ...Object.entries(GLOSSARY_CATEGORY_LABELS).map(([value, label]) => ({
+    ...Object.entries(glossaryCategoryLabels.value).map(([value, label]) => ({
       value: value as GlossaryCategory,
       label,
       count: derived.value.categoryCounts[value as GlossaryCategory],
@@ -402,7 +450,7 @@
 
   const intents = computed(() => [
     { value: 'all' as const, label: '全部问题', count: filteredEntries.value.length },
-    ...Object.entries(GLOSSARY_INTENT_LABELS).map(([value, label]) => ({
+    ...Object.entries(glossaryIntentLabels.value).map(([value, label]) => ({
       value: value as GlossaryIntentKey,
       label,
       count: derived.value.intentCounts[value as GlossaryIntentKey],
@@ -417,15 +465,16 @@
 
   const selectedEntry = computed(() => {
     if (!selectedId.value) return null
-    return glossaryMap.get(selectedId.value) ?? null
+    return glossaryMap.value.get(selectedId.value) ?? null
   })
 
   const relatedEntries = computed(() => {
     if (!selectedEntry.value) return [] as GlossaryEntry[]
-    return selectedEntry.value.relatedEntryIds.map(id => glossaryMap.get(id)).filter((entry): entry is GlossaryEntry => Boolean(entry))
+    return selectedEntry.value.relatedEntryIds.map(id => glossaryMap.value.get(id)).filter((entry): entry is GlossaryEntry => Boolean(entry))
   })
 
-  const selectedItem = computed(() => selectedEntry.value?.itemId ? getItemById(selectedEntry.value.itemId) ?? null : null)
+  const getGlossaryItemById = (itemId?: string): ItemDef | null => itemId ? getItemByIdRef.value(itemId) ?? null : null
+  const selectedItem = computed(() => getGlossaryItemById(selectedEntry.value?.itemId))
   const ITEM_ICON_VARIANTS: ItemIconVariant[] = ['01', '02', '03']
 
   const cycleSelectedItemIconVariant = () => {
@@ -474,7 +523,7 @@
     onPageUp: () => scrollGlossaryListByViewport(-1),
     onPageDown: () => scrollGlossaryListByViewport(1)
   })
-  const ROW_H = 108
+  const ROW_H = 112
   const VBUFFER = 5
   let rafId = 0
 
@@ -491,6 +540,7 @@
   }
 
   onMounted(() => {
+    void loadGlossaryData()
     syncListHeight()
     window.addEventListener('resize', syncListHeight)
   })
@@ -498,6 +548,7 @@
   onUnmounted(() => {
     window.removeEventListener('resize', syncListHeight)
     if (rafId) cancelAnimationFrame(rafId)
+    if (searchDebounceTimer !== null) window.clearTimeout(searchDebounceTimer)
   })
 
   const totalRows = computed(() => filteredEntries.value.length)
@@ -517,13 +568,19 @@
   })
 
   const resetFilters = () => {
-    search.value = ''
+    clearSearch()
     activeCategory.value = 'all'
     activeIntent.value = 'all'
     includeSpoilers.value = false
   }
 
-  const getIntentTags = (entry: GlossaryEntry): string[] => entry.intents.slice(0, 3).map(intent => GLOSSARY_INTENT_LABELS[intent])
+  const getIntentTags = (entry: GlossaryEntry): string[] =>
+    entry.intents.slice(0, 3).map(intent => glossaryIntentLabels.value[intent] ?? intent)
+
+  const navigateToGlossaryPanel = async (panelKey: string) => {
+    const { navigateToPanel } = await import('@/composables/useNavigation')
+    navigateToPanel(panelKey as PanelKey)
+  }
 
   const getPreviewText = (entry: GlossaryEntry): string => {
     if (activeIntent.value === 'acquire') return entry.source ?? entry.description
@@ -591,7 +648,9 @@
   }
 
   const applyPreset = (preset: GlossaryOpenPreset) => {
-    search.value = preset.search ?? ''
+    const nextSearch = preset.search ?? ''
+    searchDraft.value = nextSearch
+    search.value = nextSearch
     activeCategory.value = preset.category ?? 'all'
     activeIntent.value = preset.intent ?? 'all'
     if (preset.includeSpoilers !== undefined) includeSpoilers.value = preset.includeSpoilers

@@ -98,8 +98,8 @@ assert(npcStoreSource.includes('getLinkageDemandAntiRepeatTags(demandEntry)'), '
 assert(npcStoreSource.includes('getFamilyWishItemRequirementStatus'), 'useNpcStore missing family wish inventory status')
 assert(npcStoreSource.includes('getFamilyWishCompletionBlockReason'), 'useNpcStore missing family wish completion block reason')
 assert(npcStoreSource.includes('getFamilyWishMissingRequirementSummary'), 'useNpcStore missing weekly missing-material summary')
-assert(npcStoreSource.includes('removeItemAnywhereAtLeast'), 'family wish consumption must support min quality')
-assert(npcStoreSource.includes('removeItemAnywhere(requirement.itemId'), 'family wish consumption must remove real inventory items')
+assert(npcStoreSource.includes('removeCombinedItemAtLeast'), 'family wish consumption must support min quality across combined inventory')
+assert(npcStoreSource.includes('removeCombinedItem(requirement.itemId'), 'family wish consumption must remove real combined inventory items')
 assert(npcStoreSource.includes('sourceGroupId: entry.sourceGroupId'), 'requirement normalization must preserve sourceGroupId')
 assert(npcStoreSource.includes('demandId: demandEntry?.id'), 'requirement normalization must preserve demandId')
 assert(npcStoreSource.includes('demandTags: demandEntry?.tags'), 'requirement normalization must preserve demand tags')
@@ -111,6 +111,8 @@ const completeBlock = npcStoreSource.slice(
 assert(completeBlock.includes('missingRequirements'), 'completeFamilyWish must check missing requirements before completion')
 assert(completeBlock.includes('const inventorySnapshot = inventoryStore.serialize()'), 'completeFamilyWish must snapshot inventory before consuming')
 assert(completeBlock.includes('inventoryStore.deserialize(inventorySnapshot)'), 'completeFamilyWish must roll back inventory on failure')
+assert(completeBlock.includes('const warehouseSnapshot = warehouseStore.serialize()'), 'completeFamilyWish must snapshot warehouse before consuming')
+assert(completeBlock.includes('warehouseStore.deserialize(warehouseSnapshot)'), 'completeFamilyWish must roll back warehouse on failure')
 assert(
   completeBlock.indexOf('consumeFamilyWishItemRequirements(wishDef)') >= 0 &&
   completeBlock.indexOf('grantRelationshipReward') >= 0 &&

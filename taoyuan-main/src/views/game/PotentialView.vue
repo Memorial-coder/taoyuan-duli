@@ -224,7 +224,7 @@
             class="potential-plain-link potential-source-action mt-2"
             type="button"
             :data-testid="`potential-source-route-${source.id}`"
-            @click="navigateToPanel(source.routeName)"
+            @click="navigateToSourcePanel(source.routeName)"
           >
             <MapPinned :size="12" />
             <span>{{ source.routeLabel ?? '前往来源' }}</span>
@@ -233,7 +233,7 @@
       </div>
     </section>
 
-    <Teleport to="body">
+    <Teleport :to="teleportTarget">
       <Transition name="potential-upgrade-pop">
         <div
           v-if="upgradePreview"
@@ -332,12 +332,14 @@
     POTENTIAL_SOURCE_RULES,
     formatPotentialEffectValue
   } from '@/data/potential'
-  import { navigateToPanel } from '@/composables/useNavigation'
+  import { navigateToPanel, TABS, type PanelKey } from '@/composables/useNavigation'
+  import { useFullscreenTeleportTarget } from '@/composables/useFullscreenTeleportTarget'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { usePotentialStore } from '@/stores/usePotentialStore'
   import type { PotentialBranchId, PotentialNodeDef, PotentialResourceCost } from '@/types'
 
   const potentialStore = usePotentialStore()
+  const { teleportTarget, syncTeleportTarget } = useFullscreenTeleportTarget()
   const selectedBranchId = ref<PotentialBranchId>('body')
   const confirmRespecBranchId = ref<PotentialBranchId | null>(null)
   const pendingUpgradeNodeId = ref<PotentialNodeDef['id'] | null>(null)
@@ -412,6 +414,14 @@
     if (period === 'daily') return '今日'
     if (period === 'weekly') return '本周'
     return '本季'
+  }
+
+  const getSourcePanelKey = (routeName: string): PanelKey | null =>
+    TABS.find(tab => tab.key === routeName)?.key ?? null
+
+  const navigateToSourcePanel = (routeName?: string) => {
+    const panelKey = routeName ? getSourcePanelKey(routeName) : null
+    if (panelKey) navigateToPanel(panelKey)
   }
 
   const costDisplay = (node: PotentialNodeDef): string => {
@@ -558,6 +568,7 @@
 
   const openUpgradePreview = (node: PotentialNodeDef) => {
     if (potentialStore.getNodeRank(node.id) >= node.maxRank) return
+    syncTeleportTarget()
     pendingUpgradeNodeId.value = node.id
   }
 

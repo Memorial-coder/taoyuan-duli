@@ -1,15 +1,15 @@
 <template>
-  <div class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
+  <div class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="handleCloseRequest">
     <div class="game-panel save-manager-panel w-full max-w-md min-w-0 text-center relative max-h-[80vh] flex flex-col">
-      <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
+      <button class="absolute top-2 right-2 text-muted hover:text-text disabled:cursor-not-allowed disabled:opacity-40" :disabled="savingCurrent" @click="handleCloseRequest">
         <X :size="14" />
       </button>
       <Divider title class="my-4" :label="saveIntentTitle" />
       <div class="save-manager-storage-toggle mb-3 grid gap-2">
-        <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
+        <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" :disabled="savingCurrent" @click="switchMode('local')">
           本地存储
         </Button>
-        <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" @click="switchMode('server')">
+        <Button class="save-manager-storage-button min-w-0 justify-center py-1 px-2 text-xs leading-5" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" :disabled="savingCurrent" @click="switchMode('server')">
           服务端持久化
         </Button>
       </div>
@@ -93,18 +93,33 @@
       <div class="mb-3">
         <Button
           class="save-manager-primary-action min-w-0 text-center justify-center text-sm w-full leading-5"
-          :icon="Save"
+          :class="{ 'save-manager-primary-action--busy': savingCurrent }"
+          :icon="savingCurrent ? LoaderCircle : Save"
           :icon-size="12"
           :disabled="savingCurrent || saveStore.activeSlot < 0"
           @click="handleSaveCurrent"
         >
           {{ savingCurrent ? '保存中...' : saveStore.activeSlot >= 0 ? `保存当前进度到存档 ${saveStore.activeSlot + 1}` : '当前没有可保存的活跃存档' }}
         </Button>
+        <Transition name="panel-fade">
+          <div
+            v-if="savingCurrent"
+            class="mt-2 flex items-start gap-2 rounded-xs border border-accent/25 bg-accent/10 px-3 py-2 text-left text-[0.625rem] leading-5"
+            role="status"
+            aria-live="polite"
+          >
+            <LoaderCircle class="save-manager-loading-spin mt-0.5 shrink-0 text-accent" :size="14" />
+            <div class="min-w-0">
+              <p class="text-text">正在保存当前进度</p>
+              <p class="mt-0.5 text-muted">{{ saveLoadingDescription }}</p>
+            </div>
+          </div>
+        </Transition>
       </div>
       <div class="flex-1 flex min-h-0 min-w-0 flex-col space-y-2 mb-3" @click="menuOpen = null">
         <div v-for="info in slots" :key="info.slot">
           <div v-if="info.exists" class="save-manager-slot-row flex w-full min-w-0 gap-1">
-            <button v-if="props.allowLoad" class="btn save-manager-slot-button min-w-0 flex-1 text-xs" @click="$emit('load', info.slot)">
+            <button v-if="props.allowLoad" class="btn save-manager-slot-button min-w-0 flex-1 text-xs" :disabled="savingCurrent" @click="$emit('load', info.slot)">
               <span class="save-manager-slot-label inline-flex min-w-0 items-center space-x-1">
                 <FolderOpen class="shrink-0" :size="12" />
                 <span class="shrink-0">存档 {{ info.slot + 1 }}</span>
@@ -133,6 +148,7 @@
                 class="h-full min-w-10 shrink-0 px-2"
                 :icon="Settings"
                 :icon-size="12"
+                :disabled="savingCurrent"
                 @click.stop="menuOpen = menuOpen === info.slot ? null : info.slot"
               />
               <Transition name="menu-pop">
@@ -203,7 +219,7 @@
 
       <!-- 导入存档 -->
       <template>
-        <Button :icon="Upload" class="text-center justify-center text-sm w-full" @click="triggerImport">导入存档</Button>
+        <Button :icon="Upload" class="text-center justify-center text-sm w-full" :disabled="savingCurrent" @click="triggerImport">导入存档</Button>
         <input ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
       </template>
 
@@ -270,8 +286,8 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref, watch } from 'vue'
-  import { X, FolderOpen, Settings, Download, Trash2, Upload, CloudUpload, CloudDownload, Save, AlertTriangle } from 'lucide-vue-next'
+  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import { X, FolderOpen, Settings, Download, Trash2, Upload, CloudUpload, CloudDownload, Save, AlertTriangle, LoaderCircle } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import { SEASON_NAMES } from '@/stores/useGameStore'
@@ -296,11 +312,20 @@
   const uploading = ref(false)
   const downloading = ref(false)
   const savingCurrent = ref(false)
+  const saveSlowHint = ref('')
   const resolvingConflict = ref(false)
   const repairingFieldAnomaly = ref(false)
+  let saveSlowHintTimer: ReturnType<typeof window.setTimeout> | null = null
+  let saveVerySlowHintTimer: ReturnType<typeof window.setTimeout> | null = null
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
   const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
   const serverSaveFieldAnomaly = computed(() => saveStore.serverSaveFieldAnomaly)
+  const saveLoadingDescription = computed(() => {
+    if (saveSlowHint.value) return saveSlowHint.value
+    return saveStore.storageMode === 'server'
+      ? '正在写入服务端存档，请不要关闭页面。'
+      : '正在写入本地存档，请稍等。'
+  })
   const isSaveIntentAction = computed(() => props.saveIntent === 'save' || props.saveIntent === 'save-return' || props.saveIntent === 'save-refresh')
   const saveIntentTitle = computed(() => {
     if (props.saveIntent === 'save-refresh') return '保存并更新'
@@ -368,6 +393,47 @@
     return `${fieldPath}${action}${observed}${limit}${normalized}`
   }
 
+  const clearSaveLoadingTimers = () => {
+    if (saveSlowHintTimer !== null) {
+      window.clearTimeout(saveSlowHintTimer)
+      saveSlowHintTimer = null
+    }
+    if (saveVerySlowHintTimer !== null) {
+      window.clearTimeout(saveVerySlowHintTimer)
+      saveVerySlowHintTimer = null
+    }
+  }
+
+  const beginSaveLoading = () => {
+    clearSaveLoadingTimers()
+    saveSlowHint.value = ''
+    savingCurrent.value = true
+    saveSlowHintTimer = window.setTimeout(() => {
+      saveSlowHint.value = saveStore.storageMode === 'server'
+        ? '服务端响应较慢，仍在保存中。'
+        : '本地写入耗时较久，仍在保存中。'
+    }, 3000)
+    saveVerySlowHintTimer = window.setTimeout(() => {
+      saveSlowHint.value = saveStore.storageMode === 'server'
+        ? '这次保存比平时更久，可以继续等待；失败时会保留错误提示。'
+        : '这次本地写入比平时更久，可以继续等待。'
+    }, 8000)
+  }
+
+  const endSaveLoading = () => {
+    clearSaveLoadingTimers()
+    savingCurrent.value = false
+    saveSlowHint.value = ''
+  }
+
+  const handleCloseRequest = () => {
+    if (savingCurrent.value) {
+      showFloat('正在保存中，请稍等。', 'accent')
+      return
+    }
+    emit('close')
+  }
+
   const refreshSlots = async () => {
     slots.value = await saveStore.getSlots()
   }
@@ -382,21 +448,30 @@
   }
 
   const handleSaveCurrent = async () => {
-    if (saveStore.activeSlot < 0) {
+    const targetSlot = saveStore.activeSlot
+    if (targetSlot < 0) {
       showFloat('当前还没有活跃存档槽位。', 'danger')
       return
     }
-    savingCurrent.value = true
-    const ok = await saveStore.saveToSlot(saveStore.activeSlot)
-    savingCurrent.value = false
+    beginSaveLoading()
+    let ok = false
+    try {
+      ok = await saveStore.saveToSlot(targetSlot)
+    } catch (error) {
+      console.error('Failed to save current slot', error)
+      showFloat(saveStore.lastSaveErrorMessage || '保存失败。', 'danger')
+      return
+    } finally {
+      endSaveLoading()
+    }
     if (ok) {
       await refreshSlots()
       emit('change')
       const queued = saveStore.lastSaveResultStatus === 'queued'
-      const savedMessage = saveStore.lastServerSyncMessage || `已保存到存档 ${saveStore.activeSlot + 1}。`
+      const savedMessage = saveStore.lastServerSyncMessage || `已保存到存档 ${targetSlot + 1}。`
       if (props.saveIntent === 'save-refresh') {
         showFloat(
-          queued ? '已本地保底，服务恢复后会自动同步，正在刷新。' : `已保存到存档 ${saveStore.activeSlot + 1}，正在刷新。`,
+          queued ? '已本地保底，服务恢复后会自动同步，正在刷新。' : `已保存到存档 ${targetSlot + 1}，正在刷新。`,
           queued ? 'accent' : 'success'
         )
         reloadCurrentPageForUpdate()
@@ -404,7 +479,7 @@
       }
       if (props.saveIntent === 'save-return') {
         showFloat(
-          queued ? '已本地保底，服务恢复后会自动同步，正在返回。' : `已保存到存档 ${saveStore.activeSlot + 1}，正在返回。`,
+          queued ? '已本地保底，服务恢复后会自动同步，正在返回。' : `已保存到存档 ${targetSlot + 1}，正在返回。`,
           queued ? 'accent' : 'success'
         )
         window.location.href = props.returnUrl || '/'
@@ -421,7 +496,7 @@
         showFloat('云存档有新版本，请选择保存当前页面或改用服务端存档。', 'accent')
         return
       }
-      if (saveStore.serverSaveFieldAnomaly?.slot === saveStore.activeSlot) {
+      if (saveStore.serverSaveFieldAnomaly?.slot === targetSlot) {
         showFloat('检测到云存档字段异常，请在弹窗中确认是否修复后强制保存。', 'accent')
         return
       }
@@ -592,6 +667,10 @@
     })
   })
 
+  onBeforeUnmount(() => {
+    clearSaveLoadingTimers()
+  })
+
   watch(
     () => saveStore.storageMode,
     () => {
@@ -614,6 +693,28 @@
   .save-manager-primary-action :deep(span) {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .save-manager-primary-action--busy :deep(svg),
+  .save-manager-loading-spin {
+    animation: save-manager-spin 0.9s linear infinite;
+  }
+
+  @keyframes save-manager-spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .save-manager-primary-action--busy :deep(svg),
+    .save-manager-loading-spin {
+      animation: none;
+    }
   }
 
   .save-manager-slot-row {

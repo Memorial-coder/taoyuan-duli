@@ -185,7 +185,7 @@
   import { ACTION_TIME_COSTS, TOOL_TIME_SAVINGS, SKILL_TIME_REDUCTION_PER_LEVEL, MIN_ACTION_MINUTES } from '@/data/timeConstants'
   import { sfxForage } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 
   const FOREST_BEAST_ENCOUNTER_CHANCE = 0.12

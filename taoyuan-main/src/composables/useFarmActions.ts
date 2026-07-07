@@ -21,7 +21,7 @@ import type { Quality, ItemCategory } from '@/types'
 import type { FertilizerType } from '@/types/processing'
 import { getCropHarvestExperience } from '@/utils/farmingExperience'
 import { addLog, showFloat } from './useGameLog'
-import { handleEndDay } from './useEndDay'
+import { handleEndDay } from './useEndDayLazy'
 import { sfxDig, sfxPlant, sfxWater, sfxHarvest, sfxLevelUp, sfxBuy, sfxCoin } from './useAudio'
 
 export const QUALITY_NAMES: Record<Quality, string> = {

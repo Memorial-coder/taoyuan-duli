@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, getActivePinia } from 'pinia'
 import type {
   GiftPreference,
   NpcState,
@@ -125,16 +125,21 @@ import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import { getItemById } from '@/data/items'
 import { useWalletStore } from './useWalletStore'
 import { useInventoryStore } from './useInventoryStore'
-import { useGameStore } from './useGameStore'
+import { getExistingGameStoreSnapshot } from './gameStoreAccess'
 import { usePlayerStore } from './usePlayerStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useCookingStore } from './useCookingStore'
 import { useFarmStore } from './useFarmStore'
 import { useAnimalStore } from './useAnimalStore'
 import { useFishPondStore } from './useFishPondStore'
-import { useDecorationStore } from './useDecorationStore'
-import { useGoalStore } from './useGoalStore'
-import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
+import {
+  getCombinedItemCount,
+  getCombinedItemCountAtLeast,
+  removeCombinedItem,
+  removeCombinedItemAtLeast,
+  removeCombinedItems
+} from '@/composables/useCombinedInventory'
+import { useWarehouseStore } from './useWarehouseStore'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
 import { addLog } from '@/composables/useGameLog'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
@@ -142,6 +147,12 @@ import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 const ALL_FAMILY_WISH_DEFS = [...WS09_FAMILY_WISH_DEFS, ...WS15_FAMILY_WISH_DEFS]
 const ALL_ZHIJI_COMPANION_PROJECT_DEFS = [...WS09_ZHIJI_COMPANION_PROJECT_DEFS, ...WS15_ZHIJI_COMPANION_PROJECT_DEFS]
+const useGameStore = getExistingGameStoreSnapshot
+type DecorationStore = ReturnType<(typeof import('./useDecorationStore'))['useDecorationStore']>
+const getLoadedDecorationStore = (): DecorationStore | null => {
+  const store = getActivePinia()?._s.get('decoration') as DecorationStore | undefined
+  return store ?? null
+}
 const FAMILY_WISH_QUALITY_LABELS: Record<Quality, string> = {
   normal: '普通',
   fine: '优质',
@@ -440,8 +451,8 @@ const getFriendshipCap = (state: { married: boolean }, beautyCapBonus = 0): numb
   (state.married ? 4000 : 2500) + beautyCapBonus
 
 const getEffectiveFriendshipCap = (state: { married: boolean }): number => {
-  const decorationStore = useDecorationStore()
-  return getFriendshipCap(state, decorationStore.beautyScore >= 100 ? 250 : 0)
+  const decorationStore = getLoadedDecorationStore()
+  return getFriendshipCap(state, (decorationStore?.beautyScore ?? 0) >= 100 ? 250 : 0)
 }
 
 /** 好感等级阈值 (10心制, 每心250点, 上限2500) */
@@ -1011,10 +1022,9 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getRandomNpcSmallOrderContextLine = (target: RandomNpcDialogueContextTarget): string => {
     if (target.smallOrderCompleted || target.smallOrder.requestedItems.length === 0) return ''
-    const inventoryStore = useInventoryStore()
     const progress = target.smallOrder.requestedItems.map(item => ({
       ...item,
-      owned: inventoryStore.getTotalItemCount(item.itemId)
+      owned: getCombinedItemCount(item.itemId)
     }))
     if (progress.every(item => item.owned >= item.quantity)) {
       return `小订单「${target.smallOrder.title}」的材料已备齐，${target.name}明显把后续安排说得更细。`
@@ -1699,11 +1709,10 @@ export const useNpcStore = defineStore('npc', () => {
   const getChildTrainingRequirementStatus = (childId: number): ChildTrainingRequirementStatus[] => {
     const child = children.value.find(entry => entry.id === childId)
     if (!child || child.stage === 'baby') return []
-    const inventoryStore = useInventoryStore()
     return normalizeChildTrainingItemRequirements(getChildTrainingFocusForChild(child)).map(requirement => {
       const available = requirement.minQuality
-        ? inventoryStore.getTotalItemCountAtLeast(requirement.itemId, requirement.minQuality)
-        : inventoryStore.getTotalItemCount(requirement.itemId)
+        ? getCombinedItemCountAtLeast(requirement.itemId, requirement.minQuality)
+        : getCombinedItemCount(requirement.itemId)
       const minQuality = requirement.minQuality ?? 'normal'
       return {
         ...requirement,
@@ -1753,13 +1762,16 @@ export const useNpcStore = defineStore('npc', () => {
       }
     }
     const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
     const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     for (const requirement of requirements) {
       const removed = requirement.minQuality
-        ? inventoryStore.removeItemAnywhereAtLeast(requirement.itemId, requirement.quantity, requirement.minQuality)
-        : inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)
+        ? removeCombinedItemAtLeast(requirement.itemId, requirement.quantity, requirement.minQuality)
+        : removeCombinedItem(requirement.itemId, requirement.quantity)
       if (!removed) {
         inventoryStore.deserialize(inventorySnapshot)
+        warehouseStore.deserialize(warehouseSnapshot)
         return {
           success: false,
           consumedText: '',
@@ -2285,20 +2297,19 @@ export const useNpcStore = defineStore('npc', () => {
 
   const consumeRandomNpcArchiveRecallCost = (trigger: RandomNpcArchiveRecallTrigger): { success: boolean; message?: string } => {
     if (trigger !== 'old_letter' && trigger !== 'old_keepsake') return { success: true }
-    const inventoryStore = useInventoryStore()
     if (trigger === 'old_letter') {
-      if (inventoryStore.getTotalItemCount(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID) < RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY) {
+      if (getCombinedItemCount(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID) < RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY) {
         return { success: false, message: `需要纸张×${RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY}才能寄出旧信。` }
       }
-      if (!inventoryStore.removeItemAnywhere(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID, RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY)) {
+      if (!removeCombinedItem(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID, RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY)) {
         return { success: false, message: '纸张扣除失败，旧信没有寄出。' }
       }
       return { success: true }
     }
-    if (inventoryStore.getTotalItemCount(RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID) < RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY) {
+    if (getCombinedItemCount(RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID) < RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY) {
       return { success: false, message: `需要丝帕×${RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY}才能托付旧物。` }
     }
-    if (!inventoryStore.removeItemAnywhere(RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID, RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY)) {
+    if (!removeCombinedItem(RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID, RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY)) {
       return { success: false, message: '丝帕扣除失败，旧物没有托出。' }
     }
     return { success: true }
@@ -3278,11 +3289,10 @@ export const useNpcStore = defineStore('npc', () => {
   const recallRandomNpcArchiveByFestivalReunion = (visitorId: string): { success: boolean; message: string; visitor?: RandomNpcVisitorState } =>
     recallRandomNpcArchive(visitorId, 'festival_reunion')
   const getRandomNpcSmallOrderMissingItems = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }) => {
-    const inventoryStore = useInventoryStore()
     return order.requestedItems
       .map(item => ({
         ...item,
-        owned: inventoryStore.getTotalItemCount(item.itemId)
+        owned: getCombinedItemCount(item.itemId)
       }))
       .filter(item => item.owned < item.quantity)
   }
@@ -3474,11 +3484,8 @@ export const useNpcStore = defineStore('npc', () => {
       return { success: false, message: `材料不足：${summary}。`, affinityChange: 0 }
     }
 
-    const inventoryStore = useInventoryStore()
-    for (const item of target.smallOrder.requestedItems) {
-      if (!inventoryStore.removeItemAnywhere(item.itemId, item.quantity)) {
-        return { success: false, message: `交付${getItemById(item.itemId)?.name ?? item.itemId}时失败，请重新确认库存。`, affinityChange: 0 }
-      }
+    if (!removeCombinedItems(target.smallOrder.requestedItems)) {
+      return { success: false, message: '交付小订单材料时失败，请重新确认库存。', affinityChange: 0 }
     }
 
     const rewardAffinity = RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD
@@ -4378,11 +4385,8 @@ export const useNpcStore = defineStore('npc', () => {
       return { success: false, message: `材料不足：${summary}。`, resident }
     }
 
-    const inventoryStore = useInventoryStore()
-    for (const item of commission.requestedItems) {
-      if (!inventoryStore.removeItemAnywhere(item.itemId, item.quantity)) {
-        return { success: false, message: `交付${getItemById(item.itemId)?.name ?? item.itemId}时失败，请重新确认库存。`, resident }
-      }
+    if (!removeCombinedItems(commission.requestedItems)) {
+      return { success: false, message: '交付家族委托材料时失败，请重新确认库存。', resident }
     }
 
     const dayTag = getCurrentNpcDayTag()
@@ -6691,7 +6695,8 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getDecorationDemandBiasOverview = () => {
-    const decorationStore = useDecorationStore()
+    const decorationStore = getLoadedDecorationStore()
+    if (!decorationStore) return []
     return decorationStore.activeDecorationDemandBiases.map(rule => ({
       id: rule.id,
       label: rule.label,
@@ -6705,7 +6710,15 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getFamilyWishDecorationBias = (wishId: string) => {
-    const decorationStore = useDecorationStore()
+    const decorationStore = getLoadedDecorationStore()
+    if (!decorationStore) {
+      return {
+        wishId,
+        weight: 0,
+        summary: '',
+        matchedBiases: []
+      }
+    }
     const matchedBiases = decorationStore.activeDecorationDemandBiases
       .filter(rule => rule.familyWishIds.includes(wishId))
       .map(rule => ({
@@ -6861,11 +6874,10 @@ export const useNpcStore = defineStore('npc', () => {
     if (!wishId) return []
     const wishDef = ALL_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
     if (!wishDef) return []
-    const inventoryStore = useInventoryStore()
     return getEffectiveFamilyWishItemRequirements(wishDef).map(requirement => {
       const available = requirement.minQuality
-        ? inventoryStore.getTotalItemCountAtLeast(requirement.itemId, requirement.minQuality)
-        : inventoryStore.getTotalItemCount(requirement.itemId)
+        ? getCombinedItemCountAtLeast(requirement.itemId, requirement.minQuality)
+        : getCombinedItemCount(requirement.itemId)
       const minQuality = requirement.minQuality ?? 'normal'
       return {
         ...requirement,
@@ -6927,11 +6939,16 @@ export const useNpcStore = defineStore('npc', () => {
     }
 
     const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     for (const requirement of requirements) {
       const removed = requirement.minQuality
-        ? inventoryStore.removeItemAnywhereAtLeast(requirement.itemId, requirement.quantity, requirement.minQuality)
-        : inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)
+        ? removeCombinedItemAtLeast(requirement.itemId, requirement.quantity, requirement.minQuality)
+        : removeCombinedItem(requirement.itemId, requirement.quantity)
       if (!removed) {
+        inventoryStore.deserialize(inventorySnapshot)
+        warehouseStore.deserialize(warehouseSnapshot)
         const itemName = getItemById(requirement.itemId)?.name ?? requirement.itemId
         return {
           success: false,
@@ -6968,10 +6985,13 @@ export const useNpcStore = defineStore('npc', () => {
         return false
       }
       const inventoryStore = useInventoryStore()
+      const warehouseStore = useWarehouseStore()
       const inventorySnapshot = inventoryStore.serialize()
+      const warehouseSnapshot = warehouseStore.serialize()
       const consumeResult = consumeFamilyWishItemRequirements(wishDef)
       if (!consumeResult.success) {
         inventoryStore.deserialize(inventorySnapshot)
+        warehouseStore.deserialize(warehouseSnapshot)
         addLog(`【家庭心愿】「${wishDef.title}」材料扣除失败：${consumeResult.message ?? '请重新确认背包库存。'}`, {
           category: 'social',
           meta: { wishId }
@@ -6981,6 +7001,7 @@ export const useNpcStore = defineStore('npc', () => {
       const rewardResult = grantRelationshipReward(wishDef.reward, `家庭心愿「${wishDef.title}」`)
       if (!rewardResult.success) {
         inventoryStore.deserialize(inventorySnapshot)
+        warehouseStore.deserialize(warehouseSnapshot)
         addLog(rewardResult.message ?? `家庭心愿「${wishDef.title}」奖励发放失败。`, {
           category: 'social',
           meta: { wishId }
@@ -7005,7 +7026,9 @@ export const useNpcStore = defineStore('npc', () => {
           state.completedFamilyWishIds = [...state.completedFamilyWishIds, wishId]
         }
       }
-      useGoalStore().recordWeeklyActivityCounter('life_linkage_actions', 1)
+      void import('./useGoalStore').then(module => {
+        module.useGoalStore().recordWeeklyActivityCounter('life_linkage_actions', 1)
+      })
       const consumedText = consumeResult.consumedText ? `消耗 ${consumeResult.consumedText}，` : ''
       const rewardText = rewardResult.rewardText ? `奖励：${rewardResult.rewardText}。` : '奖励已结算。'
       addLog(`【家庭心愿】${consumedText}已完成「${wishDef.title}」，${rewardText}`, {
@@ -7029,12 +7052,12 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getSortedEligibleFamilyWishDefs = () => {
-    const decorationStore = useDecorationStore()
+    const decorationStore = getLoadedDecorationStore()
     return [...getEligibleFamilyWishDefs()].sort((left, right) => {
       const leftCompleted = familyWishBoard.value.completedWishIds.includes(left.id) ? -100 : 0
       const rightCompleted = familyWishBoard.value.completedWishIds.includes(right.id) ? -100 : 0
-      const leftDecorationWeight = decorationStore.getFamilyWishDecorationBiasWeight(left.id)
-      const rightDecorationWeight = decorationStore.getFamilyWishDecorationBiasWeight(right.id)
+      const leftDecorationWeight = decorationStore?.getFamilyWishDecorationBiasWeight(left.id) ?? 0
+      const rightDecorationWeight = decorationStore?.getFamilyWishDecorationBiasWeight(right.id) ?? 0
       const leftTierRank = relationshipTierRank[left.unlockTier]
       const rightTierRank = relationshipTierRank[right.unlockTier]
       return (
@@ -7872,10 +7895,13 @@ export const useNpcStore = defineStore('npc', () => {
     if (blockReason) return { success: false, message: blockReason }
 
     const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
     const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     const consumeResult = consumeChildTrainingRequirements(child)
     if (!consumeResult.success) {
       inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       return { success: false, message: consumeResult.message ?? '训练材料不足。' }
     }
 
@@ -7980,8 +8006,8 @@ export const useNpcStore = defineStore('npc', () => {
     }
 
     // 美观度好感加成
-    const decorationStore = useDecorationStore()
-    const beautyBonus = decorationStore.dailyFriendshipBonus
+    const decorationStore = getLoadedDecorationStore()
+    const beautyBonus = decorationStore?.dailyFriendshipBonus ?? 0
     if (beautyBonus > 0) {
       for (const state of npcStates.value) {
         const cap = getEffectiveFriendshipCap(state)

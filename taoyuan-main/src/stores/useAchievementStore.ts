@@ -12,12 +12,14 @@ import { useNpcStore } from './useNpcStore'
 import { useQuestStore } from './useQuestStore'
 import { useShopStore } from './useShopStore'
 import { useAnimalStore } from './useAnimalStore'
-import { useGameStore } from './useGameStore'
+import { getExistingGameStoreSnapshot } from './gameStoreAccess'
 import { useMuseumStore } from './useMuseumStore'
 import { useGuildStore } from './useGuildStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
+import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
 
 const SKILL_MAX_LEVEL = 20
+const useGameStore = getExistingGameStoreSnapshot
 
 export const useAchievementStore = defineStore('achievement', () => {
   const playerStore = usePlayerStore()
@@ -328,10 +330,10 @@ export const useAchievementStore = defineStore('achievement', () => {
 
     const currentSubmitted = bundleSubmissions.value[bundleId]?.[itemId] ?? 0
     const remaining = Math.max(0, req.quantity - currentSubmitted)
-    const acceptedQuantity = Math.min(Math.max(0, Math.floor(quantity)), remaining)
+    const acceptedQuantity = Math.min(Math.max(0, Math.floor(quantity)), remaining, getCombinedItemCount(itemId))
     if (acceptedQuantity <= 0) return false
 
-    if (!inventoryStore.removeItem(itemId, acceptedQuantity)) return false
+    if (!removeCombinedItem(itemId, acceptedQuantity)) return false
 
     if (!bundleSubmissions.value[bundleId]) {
       bundleSubmissions.value[bundleId] = {}

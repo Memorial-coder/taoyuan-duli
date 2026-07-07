@@ -635,25 +635,17 @@
   import { renderRichContent } from '@/utils/safeMarkdown'
   import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
+  import { getActivePinia } from 'pinia'
   import type { PanelKey } from '@/composables/useNavigation'
-  import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
-  import { useSaveStore } from '@/stores/useSaveStore'
-  import { useFarmStore } from '@/stores/useFarmStore'
-  import { useAnimalStore } from '@/stores/useAnimalStore'
-  import { usePlayerStore } from '@/stores/usePlayerStore'
-  import { useQuestStore } from '@/stores/useQuestStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
-  import { useMailboxStore } from '@/stores/useMailboxStore'
+  import { useSaveSlotStore } from '@/stores/useSaveSlotStore'
   import { useAnnouncementStore } from '@/stores/useAnnouncementStore'
   import { FARM_MAP_DEFS } from '@/data/farmMaps'
   import _pkg from '../../package.json'
   import { useAudio } from '@/composables/useAudio'
   import { showFloat, addLog } from '@/composables/useGameLog'
-  import { resetAllStoresForNewGame } from '@/composables/useResetGame'
-  import { useTutorialStore } from '@/stores/useTutorialStore'
   import type { FarmMapType, Gender } from '@/types'
   import { Capacitor } from '@capacitor/core'
-  import { buildScopedSingleKey, initCurrentAccount, migrateLegacySingleValue } from '@/utils/accountStorage'
+  import { buildScopedSingleKey, getCurrentAccountUserSnapshot, initCurrentAccount, migrateLegacySingleValue } from '@/utils/accountStorage'
   import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
   import type { TaoyuanAnnouncement } from '@/types/announcement'
   import { openAnnouncementTarget } from '@/utils/announcementApi'
@@ -665,15 +657,61 @@
   const isNativePlatform = Capacitor.isNativePlatform()
   const ADMIN_ENTRY_UNLOCK_CLICKS = 7
 
-  const gameStore = useGameStore()
-  const saveStore = useSaveStore()
-  const farmStore = useFarmStore()
-  const animalStore = useAnimalStore()
-  const playerStore = usePlayerStore()
-  const questStore = useQuestStore()
-  const inventoryStore = useInventoryStore()
-  const mailboxStore = useMailboxStore()
+  const saveStore = useSaveSlotStore()
   const announcementStore = useAnnouncementStore()
+  const MENU_SEASON_NAMES: Record<string, string> = {
+    spring: '春',
+    summer: '夏',
+    autumn: '秋',
+    winter: '冬'
+  }
+  type LoadedMailboxStore = { resetForAccountChange: () => void }
+  const resetLoadedMailboxForAccountChange = () => {
+    const mailboxStore = getActivePinia()?._s.get('taoyuanMailbox') as LoadedMailboxStore | undefined
+    mailboxStore?.resetForAccountChange()
+  }
+
+  const loadNewGameRuntime = async () => {
+    const [
+      gameModule,
+      farmModule,
+      animalModule,
+      playerModule,
+      questModule,
+      inventoryModule,
+      tutorialModule,
+      resetModule
+    ] = await Promise.all([
+      import('@/stores/useGameStore'),
+      import('@/stores/useFarmStore'),
+      import('@/stores/useAnimalStore'),
+      import('@/stores/usePlayerStore'),
+      import('@/stores/useQuestStore'),
+      import('@/stores/useInventoryStore'),
+      import('@/stores/useTutorialStore'),
+      import('@/composables/useResetGame')
+    ])
+    return {
+      gameStore: gameModule.useGameStore(),
+      farmStore: farmModule.useFarmStore(),
+      animalStore: animalModule.useAnimalStore(),
+      playerStore: playerModule.usePlayerStore(),
+      questStore: questModule.useQuestStore(),
+      inventoryStore: inventoryModule.useInventoryStore(),
+      tutorialStore: tutorialModule.useTutorialStore(),
+      resetAllStoresForNewGame: resetModule.resetAllStoresForNewGame
+    }
+  }
+
+  const loadPlayerRuntime = async () => {
+    const { usePlayerStore } = await import('@/stores/usePlayerStore')
+    return usePlayerStore()
+  }
+
+  const loadGameRuntime = async () => {
+    const { useGameStore } = await import('@/stores/useGameStore')
+    return useGameStore()
+  }
 
   const slots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
   type EntryLoadingStage = 'idle' | 'reading' | 'hydrating' | 'entering'
@@ -769,6 +807,39 @@
   let desktopMenuMediaQuery: MediaQueryList | null = null
   let entryLoadingSlowTimer: ReturnType<typeof setTimeout> | null = null
   let entryLoadingVerySlowTimer: ReturnType<typeof setTimeout> | null = null
+  type MenuIdleWindow = Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number
+    cancelIdleCallback?: (handle: number) => void
+  }
+  const menuIdleCancels: Array<() => void> = []
+
+  const scheduleMenuIdleTask = (task: () => void, timeout = 2500) => {
+    if (typeof window === 'undefined') return
+    let active = true
+    const run = () => {
+      if (!active) return
+      active = false
+      task()
+    }
+    const scheduler = window as MenuIdleWindow
+    if (typeof scheduler.requestIdleCallback === 'function') {
+      const handle = scheduler.requestIdleCallback(run, { timeout })
+      menuIdleCancels.push(() => {
+        active = false
+        scheduler.cancelIdleCallback?.(handle)
+      })
+      return
+    }
+    const handle = window.setTimeout(run, timeout)
+    menuIdleCancels.push(() => {
+      active = false
+      window.clearTimeout(handle)
+    })
+  }
+
+  const clearMenuIdleTasks = () => {
+    for (const cancel of menuIdleCancels.splice(0)) cancel()
+  }
 
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
   const pendingRedirectRoute = computed(() => resolveSafeGameRedirectRoute(route.query.redirect))
@@ -879,6 +950,42 @@
     pendingPostLoadNotice.value = null
   }
 
+  const clearEntryLoadingTimers = () => {
+    if (entryLoadingSlowTimer !== null) {
+      clearTimeout(entryLoadingSlowTimer)
+      entryLoadingSlowTimer = null
+    }
+    if (entryLoadingVerySlowTimer !== null) {
+      clearTimeout(entryLoadingVerySlowTimer)
+      entryLoadingVerySlowTimer = null
+    }
+  }
+
+  const beginEntryLoading = (slot: number) => {
+    clearEntryLoadingTimers()
+    loadingSlot.value = slot
+    entryLoadingStage.value = 'reading'
+    entryLoadingHint.value = ''
+    entryLoadingSlowTimer = setTimeout(() => {
+      entryLoadingHint.value = '存档数据较多，仍在加载中。'
+    }, 3000)
+    entryLoadingVerySlowTimer = setTimeout(() => {
+      entryLoadingHint.value = '这次加载比平时更久，可以继续等待；如果失败会回到存档列表。'
+    }, 8000)
+  }
+
+  const setEntryLoadingStage = (stage: Exclude<EntryLoadingStage, 'idle'>) => {
+    if (!isEntryLoading.value) return
+    entryLoadingStage.value = stage
+  }
+
+  const endEntryLoading = () => {
+    clearEntryLoadingTimers()
+    loadingSlot.value = null
+    entryLoadingStage.value = 'idle'
+    entryLoadingHint.value = ''
+  }
+
   const handleSelectFarm = (type: FarmMapType) => {
     selectedMap.value = type
     showFarmConfirm.value = true
@@ -897,21 +1004,37 @@
   }
 
   const refreshSlots = async () => {
-    slots.value = await saveStore.getSlots()
+    slotsLoading.value = true
+    try {
+      slots.value = await saveStore.getSlots()
+    } finally {
+      slotsLoading.value = false
+    }
+  }
+
+  const syncPendingServerSavesAfterFirstPaint = () => {
+    if (saveStore.storageMode !== 'server' || saveStore.pendingServerSlots.length === 0) return
+    scheduleMenuIdleTask(() => {
+      void saveStore.syncPendingServerSaves()
+        .then(() => refreshSlots())
+        .catch(() => {})
+    }, 3500)
   }
 
   const loadCurrentUser = async () => {
+    authChecking.value = true
     try {
-      const res = await fetch('/api/me', { credentials: 'include' })
-      const data = await res.json().catch(() => null)
-      currentUser.value = res.ok && data?.ok && data?.user
+      const user = getCurrentAccountUserSnapshot()
+      currentUser.value = user
         ? {
-            username: data.user.username,
-            display_name: data.user.display_name,
+            username: user.username,
+            ...(typeof user.display_name === 'string' ? { display_name: user.display_name } : {}),
           }
         : null
     } catch {
       currentUser.value = null
+    } finally {
+      authChecking.value = false
     }
   }
 
@@ -976,9 +1099,9 @@
     }
     await initCurrentAccount()
     saveStore.reloadAccountScopedState()
-    mailboxStore.resetForAccountChange()
+    resetLoadedMailboxForAccountChange()
     await loadCurrentUser()
-    if (saveStore.storageMode === 'server') {
+    if (saveStore.storageMode === 'server' && saveStore.pendingServerSlots.length > 0) {
       await saveStore.syncPendingServerSaves()
     }
     saveStore.refreshPendingServerState()
@@ -1025,7 +1148,7 @@
 
   const switchMode = async (mode: 'local' | 'server') => {
     saveStore.setStorageMode(mode)
-    if (mode === 'server') {
+    if (mode === 'server' && saveStore.pendingServerSlots.length > 0) {
       await saveStore.syncPendingServerSaves()
     }
     await refreshSlots()
@@ -1044,7 +1167,8 @@
     charGender.value = 'male'
   }
 
-  const resolveLoadedGameRoute = () => {
+  const resolveLoadedGameRoute = async () => {
+    const gameStore = await loadGameRuntime()
     if (gameStore.currentLocationGroup === 'village_area') return '/game/village'
     if (gameStore.currentLocationGroup === 'nature') return '/game/forage'
     if (gameStore.currentLocationGroup === 'mine') return '/game/mining'
@@ -1053,14 +1177,14 @@
     return '/game/farm'
   }
 
-  const navigateAfterLoad = () => {
-    const targetRoute = pendingPostLoadRoute.value || resolveLoadedGameRoute()
+  const navigateAfterLoad = async () => {
+    const targetRoute = pendingPostLoadRoute.value || (await resolveLoadedGameRoute())
     const notice = pendingPostLoadNotice.value
     clearPendingPostLoadState()
     if (notice) {
       addLog(notice)
     }
-    void router.push(targetRoute)
+    await router.push(targetRoute)
   }
 
   const warnGuestSaveUnavailable = () => {
@@ -1093,6 +1217,16 @@
       showFloat(saveStore.getSlotAllocationBlockReason() || '存档槽位已满，请先删除一个旧存档。', 'danger')
       return
     }
+    const {
+      gameStore,
+      farmStore,
+      animalStore,
+      playerStore,
+      questStore,
+      inventoryStore,
+      tutorialStore,
+      resetAllStoresForNewGame
+    } = await loadNewGameRuntime()
     // 重置所有游戏 store 到初始状态，防止上一个存档数据残留
     resetAllStoresForNewGame()
     playerStore.setIdentity((charName.value.trim() || '未命名').slice(0, 4), charGender.value)
@@ -1145,7 +1279,6 @@
     }
     questStore.initMainQuest()
     // 新手引导：游戏开始时立即显示欢迎提示
-    const tutorialStore = useTutorialStore()
     if (tutorialStore.enabled) {
       addLog('柳村长说：「欢迎来到桃源乡！背包里有白菜种子，去农场开垦土地、播种吧。」')
       tutorialStore.markTipShown('tip_welcome')
@@ -1166,14 +1299,24 @@
   }
 
   const loadGameFromSlot = async (slot: number, options: { route?: string; notice?: string } = {}) => {
+    if (isEntryLoading.value) return
+    beginEntryLoading(slot)
     pendingPostLoadRoute.value = options.route ?? pendingRedirectRoute.value
     pendingPostLoadNotice.value = options.notice ?? null
     if (await saveStore.loadFromSlot(slot)) {
+      setEntryLoadingStage('hydrating')
+      const playerStore = await loadPlayerRuntime()
       if (playerStore.needsIdentitySetup) {
         // 旧存档没有性别/名字数据，先让玩家设置
+        endEntryLoading()
         showIdentitySetup.value = true
       } else {
-        navigateAfterLoad()
+        setEntryLoadingStage('entering')
+        try {
+          await navigateAfterLoad()
+        } finally {
+          endEntryLoading()
+        }
       }
       return
     }
@@ -1181,6 +1324,7 @@
     showFloat(message, 'danger')
     addLog(message)
     clearPendingPostLoadState()
+    endEntryLoading()
   }
 
   const handleLoadGame = async (slot: number) => {
@@ -1189,12 +1333,18 @@
 
   /** 旧存档身份设置完成 */
   const handleIdentityConfirm = async () => {
+    const playerStore = await loadPlayerRuntime()
     playerStore.setIdentity((charName.value.trim() || '未命名').slice(0, 4), charGender.value)
     showIdentitySetup.value = false
     if (!(await saveStore.autoSave())) {
       showFloat('角色信息已更新，但当前存档写回失败，请尽快手动保存。', 'danger')
     }
-    navigateAfterLoad()
+    entryLoadingStage.value = 'entering'
+    try {
+      await navigateAfterLoad()
+    } finally {
+      endEntryLoading()
+    }
   }
 
   const openOnlinePanelFromMenu = async (entry: MainMenuOnlineEntry) => {
@@ -1287,7 +1437,7 @@
   } | null | undefined) => {
     if (!info?.exists) return '空槽位'
     const playerName = info.playerName || '未命名'
-    const season = info.season ? (SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season) : '?'
+    const season = info.season ? (MENU_SEASON_NAMES[String(info.season)] ?? info.season) : '?'
     const dayText = Number.isFinite(Number(info.year)) && Number.isFinite(Number(info.day))
       ? `第${Number(info.year)}年 ${season} 第${Number(info.day)}天`
       : '时间未知'
@@ -1438,17 +1588,16 @@
     void (async () => {
       await initCurrentAccount()
       saveStore.reloadAccountScopedState()
-      mailboxStore.resetForAccountChange()
-      if (saveStore.storageMode === 'server') {
-        await saveStore.syncPendingServerSaves()
-      }
-      await refreshSlots()
+      resetLoadedMailboxForAccountChange()
       await loadCurrentUser()
+      await refreshSlots()
+      syncPendingServerSavesAfterFirstPaint()
     })()
     void loadMenuConfig()
   })
 
   onUnmounted(() => {
+    clearMenuIdleTasks()
     if (!desktopMenuMediaQuery) return
     if (typeof desktopMenuMediaQuery.removeEventListener === 'function') {
       desktopMenuMediaQuery.removeEventListener('change', handleDesktopMenuChange)
@@ -1491,6 +1640,20 @@
   .logo:focus-visible {
     outline: 1px solid rgba(200, 164, 92, 0.55);
     outline-offset: 4px;
+  }
+
+  .main-menu-loading-spin {
+    animation: main-menu-spin 0.9s linear infinite;
+  }
+
+  @keyframes main-menu-spin {
+    from {
+      transform: rotate(0deg);
+    }
+
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .main-menu-about-markdown :deep(p),

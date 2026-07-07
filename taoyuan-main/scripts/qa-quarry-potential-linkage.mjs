@@ -123,7 +123,7 @@ assert(
 )
 assert(
   potentialViewSource.includes('potential-source-route-${source.id}') &&
-    potentialViewSource.includes('navigateToPanel(source.routeName)') &&
+    potentialViewSource.includes('navigateToSourcePanel(source.routeName)') &&
     potentialViewSource.includes('source.routeLabel'),
   'PotentialView must render source route actions for quarry stewardship.'
 )

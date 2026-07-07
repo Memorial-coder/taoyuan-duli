@@ -1,6 +1,5 @@
 ﻿import { ref, computed } from 'vue'
-import { defineStore } from 'pinia'
-import { useNpcStore } from './useNpcStore'
+import { defineStore, getActivePinia } from 'pinia'
 import type { Season, Weather, Location, LocationGroup, FarmMapType, Quality } from '@/types'
 import {
   DAY_START_HOUR,
@@ -15,18 +14,11 @@ import {
   TRAVEL_STAMINA,
   getLocationGroupName
 } from '@/data/timeConstants'
-import { useCookingStore } from './useCookingStore'
-import { useAnimalStore } from './useAnimalStore'
-import { useInventoryStore } from './useInventoryStore'
-import { usePlayerStore } from './usePlayerStore'
-import { useHiddenNpcStore } from './useHiddenNpcStore'
-import { useVillageProjectStore } from './useVillageProjectStore'
-import { processHiddenNpcDiscovery } from '@/composables/useHiddenNpcDiscovery'
 import {
   buildRareVisitorSeasonVisitLedgerId,
-  getRareVisitorById,
+  WANDERING_ARTIST_ACTION_SPEED_BONUS,
   WANDERING_ARTIST_VISITOR_ID
-} from '@/data/bookseller'
+} from '@/data/rareVisitorBonuses'
 
 const MAX_TRAVEL_SPEED_BONUS = 0.45
 const MAX_FOOD_ACTION_SPEED_BONUS = 0.25
@@ -38,6 +30,65 @@ type TravelCostDetails = {
   cost: number
   travelSpeedSavedMinutes: number
   actionSpeedSavedMinutes: number
+}
+
+type NpcEffectRuntimeStore = {
+  isNpcFunctionEffectUnlocked?: (effectId: string) => boolean
+}
+
+type HiddenNpcRuntimeStore = {
+  getAbilityValue?: (abilityId: string) => number
+}
+
+type LifestyleDiscoverySnapshot = {
+  lifestyleUnlocks?: Record<string, { lastSeenDayTag?: string }>
+}
+
+type PlayerRuntimeStore = {
+  consumeStamina?: (amount: number) => boolean
+  getLifestyleDiscoverySnapshot?: () => LifestyleDiscoverySnapshot
+}
+
+type CookingRuntimeStore = {
+  activeBuff?: { type?: string; value?: number } | null
+  getActiveAlchemyActionSpeedBonus?: () => number
+}
+
+type AnimalRuntimeStore = {
+  hasHorse?: boolean
+  horseTravelMultiplier?: number
+  horseStaminaMultiplier?: number
+}
+
+type InventoryRuntimeStore = {
+  getRingEffectValue?: (effectId: string) => number
+}
+
+type VillageProjectRuntimeStore = {
+  worldShortcutUnlocks?: Array<{ id: string; unlocked?: boolean }>
+}
+
+const getActiveRuntimeStore = <T>(storeId: string): T | undefined =>
+  getActivePinia()?._s.get(storeId) as T | undefined
+
+const isNpcFunctionEffectUnlocked = (effectId: string): boolean =>
+  getActiveRuntimeStore<NpcEffectRuntimeStore>('npc')?.isNpcFunctionEffectUnlocked?.(effectId) === true
+
+const getHiddenNpcAbilityValue = (abilityId: string): number => {
+  const value = getActiveRuntimeStore<HiddenNpcRuntimeStore>('hiddenNpc')?.getAbilityValue?.(abilityId)
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
+const getNumericRuntimeValue = (value: unknown, fallback = 0): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback
+
+const getRingEffectValue = (effectId: string): number =>
+  getNumericRuntimeValue(getActiveRuntimeStore<InventoryRuntimeStore>('inventory')?.getRingEffectValue?.(effectId), 0)
+
+const processHiddenNpcDiscoverySoon = () => {
+  void import('@/composables/useHiddenNpcDiscovery')
+    .then(({ processHiddenNpcDiscovery }) => processHiddenNpcDiscovery())
+    .catch(() => {})
 }
 
 /** 瀛ｈ妭椤哄簭 */
@@ -106,7 +157,7 @@ export const useGameStore = defineStore('game', () => {
   const timeDisplay = computed(() => formatTime(hour.value))
   const timePeriod = computed(() => getTimePeriod(hour.value))
   const isLateNight = computed(() => hour.value >= MIDNIGHT_HOUR)
-    const _hasExtraNightAction = computed(() => useNpcStore().isNpcFunctionEffectUnlocked('extra_night_action'))
+    const _hasExtraNightAction = computed(() => isNpcFunctionEffectUnlocked('extra_night_action'))
     const isPastBedtime = computed(() => hour.value >= (_hasExtraNightAction.value ? PASSOUT_HOUR + 1 : PASSOUT_HOUR))
 
   const getNextCalendarPoint = (baseYear = year.value, baseSeason = season.value, baseDay = day.value) => {
@@ -146,7 +197,7 @@ export const useGameStore = defineStore('game', () => {
     // 按季节概率随机
     const roll = Math.random()
     // 浠欑紭鑳藉姏锛氬敜闆紙long_ling_2锛変笅闆ㄦ鐜?15%锛岄€氳繃鍘嬬缉鏅村ぉ姒傜巼瀹炵幇
-    const rainBoost = useHiddenNpcStore().getAbilityValue('long_ling_2') / 100
+    const rainBoost = getHiddenNpcAbilityValue('long_ling_2') / 100
     switch (targetSeason) {
       case 'spring':
         return roll < 0.5 - rainBoost ? 'sunny' : roll < 0.75 ? 'rainy' : roll < 0.85 ? 'stormy' : 'windy'
@@ -162,24 +213,22 @@ export const useGameStore = defineStore('game', () => {
 
   /** 鎺ㄨ繘鏃堕棿锛堝皬鏃讹級锛岃繑鍥炵粨鏋?*/
   const getRareVisitorActionSpeedBonus = (): number => {
-    const visitor = getRareVisitorById(WANDERING_ARTIST_VISITOR_ID)
-    if (visitor?.visitReward.type !== 'action_speed') return 0
-
-    const playerStore = usePlayerStore()
-    const seasonVisitLedgerId = buildRareVisitorSeasonVisitLedgerId(visitor.id, year.value, season.value)
-    const seasonVisitEntry = playerStore.getLifestyleDiscoverySnapshot().lifestyleUnlocks[seasonVisitLedgerId]
+    const playerStore = getActiveRuntimeStore<PlayerRuntimeStore>('player')
+    const seasonVisitLedgerId = buildRareVisitorSeasonVisitLedgerId(WANDERING_ARTIST_VISITOR_ID, year.value, season.value)
+    const seasonVisitEntry = playerStore?.getLifestyleDiscoverySnapshot?.()?.lifestyleUnlocks?.[seasonVisitLedgerId]
     const currentDayTag = `${year.value}-${season.value}-${day.value}`
-    return seasonVisitEntry?.lastSeenDayTag === currentDayTag ? Math.max(0, visitor.visitReward.value) : 0
+    return seasonVisitEntry?.lastSeenDayTag === currentDayTag ? WANDERING_ARTIST_ACTION_SPEED_BONUS : 0
   }
 
   const getActionSpeedReduction = (): number => {
-    const cookingStore = useCookingStore()
-    const foodSpeedBuff = cookingStore.activeBuff?.type === 'speed'
-      ? Math.min(MAX_FOOD_ACTION_SPEED_BONUS, Math.max(0, cookingStore.activeBuff.value / 100))
+    const cookingStore = getActiveRuntimeStore<CookingRuntimeStore>('cooking')
+    const activeBuff = cookingStore?.activeBuff
+    const foodSpeedBuff = activeBuff?.type === 'speed'
+      ? Math.min(MAX_FOOD_ACTION_SPEED_BONUS, Math.max(0, getNumericRuntimeValue(activeBuff.value, 0) / 100))
       : 0
     const alchemySpeedBuff = Math.min(
       MAX_ALCHEMY_ACTION_SPEED_BONUS,
-      Math.max(0, cookingStore.getActiveAlchemyActionSpeedBonus())
+      Math.max(0, getNumericRuntimeValue(cookingStore?.getActiveAlchemyActionSpeedBonus?.(), 0))
     )
     const rareVisitorSpeedBuff = getRareVisitorActionSpeedBonus()
     const combined = 1 - (1 - foodSpeedBuff) * (1 - alchemySpeedBuff) * (1 - rareVisitorSpeedBuff)
@@ -207,8 +256,7 @@ export const useGameStore = defineStore('game', () => {
     const newHour = hour.value + effectiveHours
 
     // NPC function: extra_night_action allows 1 extra action after midnight
-    const _npcStore = useNpcStore()
-    const _hasExtraNightAction = _npcStore.isNpcFunctionEffectUnlocked('extra_night_action')
+    const _hasExtraNightAction = isNpcFunctionEffectUnlocked('extra_night_action')
     const _effectivePassout = _hasExtraNightAction ? PASSOUT_HOUR + 1 : PASSOUT_HOUR
     if (newHour >= _effectivePassout) {
       hour.value = PASSOUT_HOUR
@@ -220,7 +268,7 @@ export const useGameStore = defineStore('game', () => {
     }
 
     hour.value = newHour
-    processHiddenNpcDiscovery()
+    processHiddenNpcDiscoverySoon()
 
     // 璺ㄥ崍澶滄彁绀猴紙浠呬竴娆★級
     if (!midnightWarned.value && prevHour < MIDNIGHT_HOUR && hour.value >= MIDNIGHT_HOUR) {
@@ -237,7 +285,7 @@ export const useGameStore = defineStore('game', () => {
 
   const getActiveShortcutIdsForTravel = (from: LocationGroup, to: LocationGroup): string[] => {
     const key = `${from}->${to}`
-    const shortcutIds = useVillageProjectStore().worldShortcutUnlocks
+    const shortcutIds = (getActiveRuntimeStore<VillageProjectRuntimeStore>('villageProject')?.worldShortcutUnlocks ?? [])
       .filter(entry => entry.unlocked)
       .map(entry => entry.id)
     const matchesRoute = (id: string) => {
@@ -281,13 +329,12 @@ export const useGameStore = defineStore('game', () => {
     const key = `${currentLocationGroup.value}->${targetGroup}`
     const baseCost = TRAVEL_TIME[key] ?? 0.5
     // 鎷ユ湁椹噺灏?0%鏃呰鏃堕棿
-    const animalStore = useAnimalStore()
-    const horseMultiplier = animalStore.horseTravelMultiplier
+    const animalStore = getActiveRuntimeStore<AnimalRuntimeStore>('animal')
+    const horseMultiplier = getNumericRuntimeValue(animalStore?.horseTravelMultiplier, 1)
     // 瑁呭鏃呰閫熷害鍔犳垚锛堜笌椹彔涔橈級
-    const inventoryStore = useInventoryStore()
     const travelSpeedBonus = Math.min(
       MAX_TRAVEL_SPEED_BONUS,
-      Math.max(0, inventoryStore.getRingEffectValue('travel_speed'))
+      Math.max(0, getRingEffectValue('travel_speed'))
     )
     const shortcutMultiplier = getShortcutTravelMultiplier(currentLocationGroup.value, targetGroup)
     const costBeforeTravelSpeed = baseCost * horseMultiplier * shortcutMultiplier
@@ -318,17 +365,16 @@ export const useGameStore = defineStore('game', () => {
     // 浣撳姏娑堣€楋細鏈夐┈鍑忓崐锛堝悜涓嬪彇鏁达級
     const key = `${currentLocationGroup.value}->${targetGroup}`
     const baseStamina = TRAVEL_STAMINA[key] ?? 1
-    const animalStore = useAnimalStore()
-    const inventoryStore = useInventoryStore()
-    const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
+    const animalStore = getActiveRuntimeStore<AnimalRuntimeStore>('animal')
+    const ringGlobalReduction = getRingEffectValue('stamina_reduction')
     const reducedBaseStamina = Math.max(1, Math.floor(baseStamina * (1 - ringGlobalReduction)))
     const shortcutReduction = getShortcutStaminaReduction(currentLocationGroup.value, targetGroup)
     const staminaAfterShortcut = Math.max(1, reducedBaseStamina - shortcutReduction)
-    const staminaCost = animalStore.hasHorse
-      ? Math.max(1, Math.floor(staminaAfterShortcut * animalStore.horseStaminaMultiplier))
+    const staminaCost = animalStore?.hasHorse === true
+      ? Math.max(1, Math.floor(staminaAfterShortcut * getNumericRuntimeValue(animalStore.horseStaminaMultiplier, 1)))
       : staminaAfterShortcut
-    const playerStore = usePlayerStore()
-    if (!playerStore.consumeStamina(staminaCost)) {
+    const playerStore = getActiveRuntimeStore<PlayerRuntimeStore>('player')
+    if (playerStore?.consumeStamina && !playerStore.consumeStamina(staminaCost)) {
       return {
         ok: false,
         timeCost: 0,

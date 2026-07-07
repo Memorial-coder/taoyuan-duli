@@ -44,6 +44,11 @@ export interface CropUseSubstitutionPlan {
   missing: CropUseSubstitutionMissing[]
 }
 
+export interface CropUseSubstitutionPreference {
+  requirementItemId: string
+  preferredItemIds: string[]
+}
+
 const hasAnyTag = (profile: CropUseProfile | undefined, tags: CropUseTag[]): profile is CropUseProfile =>
   !!profile && tags.some(tag => profile.tags.includes(tag))
 
@@ -121,6 +126,22 @@ const getQualityCandidates = (requirement: CropUseSubstitutionRequirement): Qual
 
 const getEntryKey = (itemId: string, quality: Quality) => `${itemId}::${quality}`
 
+const normalizeSubstitutionPreferences = (
+  preferences: CropUseSubstitutionPreference[] = []
+): Map<string, string[]> => {
+  const byRequirementItemId = new Map<string, string[]>()
+  for (const preference of preferences) {
+    if (!preference.requirementItemId || !Array.isArray(preference.preferredItemIds)) continue
+    const current = byRequirementItemId.get(preference.requirementItemId) ?? []
+    for (const itemId of preference.preferredItemIds) {
+      if (!itemId || current.includes(itemId)) continue
+      current.push(itemId)
+    }
+    if (current.length > 0) byRequirementItemId.set(preference.requirementItemId, current)
+  }
+  return byRequirementItemId
+}
+
 export const getCropUseRequirementAvailableCount = (
   requirement: CropUseSubstitutionRequirement,
   getItemCount: (itemId: string, quality?: Quality) => number
@@ -132,7 +153,8 @@ export const getCropUseRequirementAvailableCount = (
 
 export const resolveCropUseSubstitutionPlan = (
   requirements: CropUseSubstitutionRequirement[],
-  getItemCount: (itemId: string, quality?: Quality) => number
+  getItemCount: (itemId: string, quality?: Quality) => number,
+  preferences: CropUseSubstitutionPreference[] = []
 ): CropUseSubstitutionPlan => {
   const normalized = requirements
     .map(requirement => ({
@@ -143,6 +165,14 @@ export const resolveCropUseSubstitutionPlan = (
   const remaining = normalized.map(requirement => requirement.quantity)
   const consumedByItemQuality = new Map<string, number>()
   const entries: CropUseSubstitutionEntry[] = []
+  const preferenceMap = normalizeSubstitutionPreferences(preferences)
+
+  const getPreferredItemIds = (requirement: CropUseSubstitutionRequirement): string[] => {
+    const preferredItemIds = preferenceMap.get(requirement.itemId)
+    if (!preferredItemIds?.length) return []
+    const allowedItemIds = new Set(getCropUseRequirementCandidateIds(requirement.itemId, requirement.tags))
+    return preferredItemIds.filter(itemId => allowedItemIds.has(itemId))
+  }
 
   const allocate = (requirementIndex: number, itemId: string, substitute: boolean) => {
     const requirement = normalized[requirementIndex]
@@ -165,6 +195,13 @@ export const resolveCropUseSubstitutionPlan = (
       })
     }
   }
+
+  normalized.forEach((requirement, index) => {
+    for (const itemId of getPreferredItemIds(requirement)) {
+      allocate(index, itemId, itemId !== requirement.itemId)
+      if (remaining[index]! <= 0) break
+    }
+  })
 
   normalized.forEach((requirement, index) => allocate(index, requirement.itemId, false))
 

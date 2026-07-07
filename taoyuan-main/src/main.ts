@@ -74,6 +74,23 @@ const loadProjectCreditMessage = async () => {
   }
 }
 
+type BootstrapIdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number
+}
+
+const scheduleBootstrapIdleTask = (task: () => void, timeout = 2000) => {
+  if (typeof window === 'undefined') {
+    task()
+    return
+  }
+  const scheduler = window as BootstrapIdleWindow
+  if (typeof scheduler.requestIdleCallback === 'function') {
+    scheduler.requestIdleCallback(task, { timeout })
+    return
+  }
+  window.setTimeout(task, timeout)
+}
+
 const handleProjectCreditMessageUpdated = (event: Event) => {
   if (!(event instanceof CustomEvent)) {
     return
@@ -152,9 +169,11 @@ const bootstrap = async () => {
     markBootstrapStage('account-context-ready')
   })
 
-  void loadProjectCreditMessage().finally(() => {
-    markBootstrapStage('credit-config-ready')
-  })
+  scheduleBootstrapIdleTask(() => {
+    void loadProjectCreditMessage().finally(() => {
+      markBootstrapStage('credit-config-ready')
+    })
+  }, 2500)
 
   void router.isReady().then(() => {
     logProjectCredit(router.currentRoute.value.fullPath || '/')

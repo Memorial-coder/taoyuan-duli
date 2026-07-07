@@ -1,15 +1,11 @@
 import type { Component } from 'vue'
+import { getActivePinia } from 'pinia'
 import router from '@/router'
 import { useGameStore } from '@/stores/useGameStore'
 import { isShopOpen, TAB_TO_LOCATION_GROUP } from '@/data/timeConstants'
 import { addLog, showFloat } from './useGameLog'
-import { handleEndDay } from './useEndDay'
 import { sfxClick, useAudio } from './useAudio'
 import { useGameClock } from './useGameClock'
-import { processHiddenNpcDiscovery } from './useHiddenNpcDiscovery'
-import { useTutorialStore } from '@/stores/useTutorialStore'
-import { useMiningStore } from '@/stores/useMiningStore'
-import { useHanhaiStore } from '@/stores/useHanhaiStore'
 import {
   Map,
   Wheat,
@@ -47,7 +43,6 @@ import {
   Target,
   MessageCircle
 } from 'lucide-vue-next'
-import { useNpcStore } from '@/stores/useNpcStore'
 
 export type PanelKey =
   | 'farm'
@@ -88,10 +83,28 @@ export type PanelKey =
   | 'decoration'
   | 'quarry'
 
+type NpcNavigationRuntimeStore = {
+  getSpouse?: () => unknown
+}
+
+type MiningNavigationRuntimeStore = {
+  isExploring?: boolean
+}
+
+type HanhaiNavigationRuntimeStore = {
+  hasActiveCasinoSession?: boolean
+}
+
+const getNavigationRuntimeStore = <T>(storeId: string): T | undefined =>
+  getActivePinia()?._s.get(storeId) as T | undefined
+
+const hasActiveSpouse = (): boolean =>
+  !!getNavigationRuntimeStore<NpcNavigationRuntimeStore>('npc')?.getSpouse?.()
+
 export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: () => Component }[] = [
   { key: 'farm', label: '农场', icon: Wheat },
   { key: 'animal', label: '牧场', icon: Egg },
-  { key: 'cottage', label: '小屋', icon: Home, getIcon: () => (useNpcStore().getSpouse() ? Heart : Home) },
+  { key: 'cottage', label: '小屋', icon: Home, getIcon: () => (hasActiveSpouse() ? Heart : Home) },
   { key: 'home', label: '设施', icon: Building },
   { key: 'breeding', label: '育种', icon: FlaskConical },
   { key: 'fishpond', label: '鱼塘', icon: Waves },
@@ -168,32 +181,49 @@ export const syncNavigationClockPauseForRoute = (routeName: unknown, clock: Navi
   clock.resumeClock('navigation')
 }
 
+const runEndDayWithClockPause = async () => {
+  const { pauseClock, resumeClock } = useGameClock()
+  pauseClock('endday')
+  try {
+    const { handleEndDay } = await import('./useEndDay')
+    handleEndDay()
+  } finally {
+    resumeClock('endday')
+  }
+}
+
+const processHiddenNpcDiscoverySoon = () => {
+  void import('./useHiddenNpcDiscovery')
+    .then(({ processHiddenNpcDiscovery }) => processHiddenNpcDiscovery())
+    .catch(() => {})
+}
+
+const markPanelVisitedSoon = (panelKey: PanelKey) => {
+  void import('@/stores/useTutorialStore')
+    .then(({ useTutorialStore }) => useTutorialStore().markPanelVisited(panelKey))
+    .catch(() => {})
+}
+
 export const navigateToPanel = (panelKey: PanelKey) => {
   const gameStore = useGameStore()
   const { startBgm } = useAudio()
   const currentRouteName = router.currentRoute.value.name
-  const miningStore = useMiningStore()
-  const hanhaiStore = useHanhaiStore()
+  const miningStore = getNavigationRuntimeStore<MiningNavigationRuntimeStore>('mining')
+  const hanhaiStore = getNavigationRuntimeStore<HanhaiNavigationRuntimeStore>('hanhai')
 
-  if (currentRouteName === 'mining' && panelKey !== 'mining' && miningStore.isExploring) {
+  if (currentRouteName === 'mining' && panelKey !== 'mining' && miningStore?.isExploring) {
     showFloat('请先离开矿洞后再切换页面。', 'danger')
     return false
   }
 
-  if (currentRouteName === 'hanhai' && panelKey !== 'hanhai' && hanhaiStore.hasActiveCasinoSession) {
+  if (currentRouteName === 'hanhai' && panelKey !== 'hanhai' && hanhaiStore?.hasActiveCasinoSession) {
     showFloat('当前有进行中的瀚海牌局，请先完成当前牌局。', 'danger')
     return false
   }
 
   if (gameStore.isPastBedtime) {
     addLog('已经凌晨 2 点了，你必须休息。')
-    const { pauseClock: pauseForEnd, resumeClock: resumeAfterEnd } = useGameClock()
-    pauseForEnd('endday')
-    try {
-      handleEndDay()
-    } finally {
-      resumeAfterEnd('endday')
-    }
+    void runEndDayWithClockPause().catch(() => {})
     return false
   }
 
@@ -213,15 +243,15 @@ export const navigateToPanel = (panelKey: PanelKey) => {
     addLog(travelResult.message)
   }
   if (travelResult.passedOut) {
-    handleEndDay()
+    void runEndDayWithClockPause().catch(() => {})
     return false
   }
 
   sfxClick()
   startBgm()
   void router.push({ name: panelKey }).then(() => {
-    useTutorialStore().markPanelVisited(panelKey)
-    processHiddenNpcDiscovery()
+    markPanelVisitedSoon(panelKey)
+    processHiddenNpcDiscoverySoon()
   })
 
   syncNavigationClockPauseForRoute(panelKey)

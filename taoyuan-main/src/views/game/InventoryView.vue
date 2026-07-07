@@ -57,29 +57,38 @@
           <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId, entry.quality)">查看</button>
         </div>
       </div>
-      <div v-if="filteredItems.length > 0" class="inventory-adaptive-item-grid grid grid-cols-3 md:grid-cols-5 gap-1.5">
-        <ItemCard
-          v-for="item in filteredItems"
-          :key="`${item.itemId}-${item.quality}`"
-          :item="getItemById(item.itemId) ?? null"
-          :quantity="item.quantity"
-          :quality="item.quality"
-          :locked="item.locked"
-          show-usage-tags
-          @usage-click="handleInventoryUsageTagClick"
-          @click="openVisibleInventoryItem(item)"
-        />
+      <div
+        v-if="filteredItems.length > 0"
+        ref="inventoryItemsViewportRef"
+        class="inventory-items-viewport"
+        @scroll="onInventoryItemsScroll"
+      >
+        <div :style="{ paddingTop: inventoryTopPad + 'px', paddingBottom: inventoryBottomPad + 'px' }">
+          <div class="inventory-adaptive-item-grid inventory-items-virtual-grid">
+            <ItemCard
+              v-for="item in virtualFilteredItems"
+              :key="`${item.itemId}-${item.quality}`"
+              :item="getItemById(item.itemId) ?? null"
+              :quantity="item.quantity"
+              :quality="item.quality"
+              :locked="item.locked"
+              show-usage-tags
+              @usage-click="handleInventoryUsageTagClick"
+              @click="openVisibleInventoryItem(item)"
+            />
 
         <!-- 空格子 -->
         <div
-          v-for="i in emptyInventorySlotCount"
-          :key="'empty-' + i"
-          class="border border-accent/10 rounded-xs p-1.5 text-center text-xs text-muted/30"
+          v-for="slot in virtualEmptyInventorySlots"
+          :key="'empty-' + slot"
+          class="inventory-empty-slot border border-accent/10 rounded-xs p-1.5 text-center text-xs text-muted/30"
         >
           空
         </div>
+          </div>
+        </div>
       </div>
-      <div v-else class="flex flex-col items-center justify-center py-4 text-muted">
+      <div v-if="filteredItems.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
         <Package :size="24" />
         <p class="text-xs mt-1">背包是空的</p>
       </div>
@@ -841,9 +850,9 @@
               <span class="text-xs text-muted">丹药效果</span>
               <span class="text-xs text-accent">{{ activeItemElixirEffect.description }}</span>
             </div>
-            <div v-if="activeItemElixirEffect && cookingStore.activeElixir" class="flex items-center justify-between gap-2 mt-0.5">
+            <div v-if="activeItemElixirEffect && activeElixirName" class="flex items-center justify-between gap-2 mt-0.5">
               <span class="text-xs text-muted shrink-0">今日丹药</span>
-              <span class="text-xs text-water text-right">{{ cookingStore.activeElixir.name }}</span>
+              <span class="text-xs text-water text-right">{{ activeElixirName }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">来源</span>
@@ -1265,21 +1274,17 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import { Apple, Archive, ArrowDown01, ArrowRight, BookMarked, Filter, Lock, LockOpen, Package, Trash2, X, Zap } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemCard from '@/components/game/ItemCard.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
   import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
-  import { useCookingStore } from '@/stores/useCookingStore'
-  import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
+  import { SEASON_NAMES } from '@/data/calendarLabels'
   import { getVisibleInventoryItemKey, mergeVisibleInventoryItems, useInventoryStore, type VisibleInventoryItemStack } from '@/stores/useInventoryStore'
-  import { useMiningStore } from '@/stores/useMiningStore'
-  import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
-  import { useSkillStore } from '@/stores/useSkillStore'
-  import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
-  import { getCropBySeedId, getItemById, getItemSource } from '@/data'
+  import { getCropBySeedId } from '@/data/crops'
+  import { getItemById, getItemSource } from '@/data/items'
   import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
   import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
   import { getRecipeById } from '@/data/recipes'
@@ -1289,10 +1294,10 @@
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
   import { getTrinketById } from '@/data/trinkets'
-  import { QUALITY_NAMES } from '@/composables/useFarmActions'
+  import { QUALITY_NAMES } from '@/data/qualityLabels'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
-  import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
+  import type { PanelKey } from '@/composables/useNavigation'
   import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
   import type { ItemLinkageUseTag } from '@/data/itemLinkage'
   import type { Quality, RingEffectType, ItemCategory, InventoryItem } from '@/types'
@@ -1311,6 +1316,43 @@
   ])
 
   const inventoryStore = useInventoryStore()
+
+  type CookingStore = ReturnType<(typeof import('@/stores/useCookingStore'))['useCookingStore']>
+  type MiningStore = ReturnType<(typeof import('@/stores/useMiningStore'))['useMiningStore']>
+  type PlayerStore = ReturnType<(typeof import('@/stores/usePlayerStore'))['usePlayerStore']>
+  type SkillStore = ReturnType<(typeof import('@/stores/useSkillStore'))['useSkillStore']>
+  type HiddenNpcStore = ReturnType<(typeof import('@/stores/useHiddenNpcStore'))['useHiddenNpcStore']>
+
+  let cookingStorePromise: Promise<CookingStore> | null = null
+  let miningStorePromise: Promise<MiningStore> | null = null
+  let playerStorePromise: Promise<PlayerStore> | null = null
+  let skillStorePromise: Promise<SkillStore> | null = null
+  let hiddenNpcStorePromise: Promise<HiddenNpcStore> | null = null
+
+  const getCookingStore = () => {
+    cookingStorePromise ??= import('@/stores/useCookingStore').then(module => module.useCookingStore())
+    return cookingStorePromise
+  }
+
+  const getMiningStore = () => {
+    miningStorePromise ??= import('@/stores/useMiningStore').then(module => module.useMiningStore())
+    return miningStorePromise
+  }
+
+  const getPlayerStore = () => {
+    playerStorePromise ??= import('@/stores/usePlayerStore').then(module => module.usePlayerStore())
+    return playerStorePromise
+  }
+
+  const getSkillStore = () => {
+    skillStorePromise ??= import('@/stores/useSkillStore').then(module => module.useSkillStore())
+    return skillStorePromise
+  }
+
+  const getHiddenNpcStore = () => {
+    hiddenNpcStorePromise ??= import('@/stores/useHiddenNpcStore').then(module => module.useHiddenNpcStore())
+    return hiddenNpcStorePromise
+  }
 
   type EquipmentDurabilityType = 'weapon' | 'ring' | 'hat' | 'shoe'
   type EquipmentDurabilityState = { current: number; max: number }
@@ -1378,18 +1420,16 @@
   /** 获取鞋子耐久 */
   const getShoeDurability = (idx: number | null): EquipmentDurabilityState | null => getEquipmentDurability('shoe', idx)
   const getShoeSturdiness = (idx: number | null): EquipmentSturdinessState | null => getEquipmentSturdiness('shoe', idx)
-  const miningStore = useMiningStore()
-  const playerStore = usePlayerStore()
-  const skillStore = useSkillStore()
-  const gameStore = useGameStore()
-  const cookingStore = useCookingStore()
   const settingsStore = useSettingsStore()
-  const hiddenNpcStore = useHiddenNpcStore()
 
   // === 页签 ===
 
   const tab = ref<'items' | 'tools' | 'temp'>('items')
   const inventoryTabs = ['items', 'tools', 'temp'] as const
+
+  watch(tab, value => {
+    if (value === 'tools') void refreshTrinketSlotUnlock()
+  }, { immediate: true })
 
   // === 物品筛选 ===
 
@@ -1451,6 +1491,8 @@
   const getCropUseFilterHint = (tag: CropUseTag): string => `${CROP_USE_TAG_LABELS[tag]}：${CROP_USE_TAG_FILTER_HINTS[tag]}`
   const CROP_USE_RECOMMENDATION_PRIORITY: CropUseTag[] = ['food', 'alchemy', 'pet_feed', 'animal_feed', 'order', 'gift', 'festival', 'online_cost', 'oil', 'flour', 'wine', 'pickle', 'medicine']
   const MAX_RENDERED_EMPTY_INVENTORY_SLOTS = 45
+  const INVENTORY_ITEM_ROW_HEIGHT = 70
+  const INVENTORY_ROW_BUFFER = 3
 
   interface CropUseInventoryRecommendation {
     itemId: string
@@ -1494,6 +1536,104 @@
     if (isFilterActive.value) return 0
     return Math.min(MAX_RENDERED_EMPTY_INVENTORY_SLOTS, Math.max(0, inventoryStore.capacity - filteredItems.value.length))
   })
+
+  const inventoryItemsViewportRef = ref<HTMLElement | null>(null)
+  const inventoryItemsScrollTop = ref(0)
+  const inventoryItemsViewportHeight = ref(360)
+  const inventoryItemsColumnCount = ref(3)
+  let inventoryItemsScrollRaf = 0
+
+  const getInventoryGridColumnCount = () => {
+    if (typeof window === 'undefined') return inventoryItemsColumnCount.value
+    const grid = inventoryItemsViewportRef.value?.querySelector<HTMLElement>('.inventory-items-virtual-grid')
+    const templateColumns = grid ? window.getComputedStyle(grid).gridTemplateColumns : ''
+    const columnCount = templateColumns.split(' ').filter(Boolean).length
+    if (columnCount > 0) return columnCount
+    return window.matchMedia('(min-width: 768px)').matches ? 5 : 3
+  }
+
+  const inventoryVirtualCellCount = computed(() => filteredItems.value.length + emptyInventorySlotCount.value)
+  const inventoryVirtualRowCount = computed(() => Math.ceil(inventoryVirtualCellCount.value / inventoryItemsColumnCount.value))
+  const inventoryVisibleRowRange = computed(() => {
+    const start = Math.max(0, Math.floor(inventoryItemsScrollTop.value / INVENTORY_ITEM_ROW_HEIGHT) - INVENTORY_ROW_BUFFER)
+    const end = Math.min(
+      inventoryVirtualRowCount.value,
+      Math.ceil((inventoryItemsScrollTop.value + inventoryItemsViewportHeight.value) / INVENTORY_ITEM_ROW_HEIGHT) + INVENTORY_ROW_BUFFER
+    )
+    return { start, end }
+  })
+
+  const inventoryVisibleStartCell = computed(() => inventoryVisibleRowRange.value.start * inventoryItemsColumnCount.value)
+  const inventoryVisibleEndCell = computed(() => Math.min(inventoryVirtualCellCount.value, inventoryVisibleRowRange.value.end * inventoryItemsColumnCount.value))
+  const virtualFilteredItems = computed(() =>
+    filteredItems.value.slice(inventoryVisibleStartCell.value, Math.min(inventoryVisibleEndCell.value, filteredItems.value.length))
+  )
+  const virtualEmptyInventorySlotStart = computed(() => Math.max(0, inventoryVisibleStartCell.value - filteredItems.value.length))
+  const virtualEmptyInventorySlots = computed(() => {
+    const visibleEmptyCount = Math.max(0, inventoryVisibleEndCell.value - Math.max(inventoryVisibleStartCell.value, filteredItems.value.length))
+    return Array.from({ length: visibleEmptyCount }, (_, index) => virtualEmptyInventorySlotStart.value + index + 1)
+  })
+  const inventoryTopPad = computed(() => inventoryVisibleRowRange.value.start * INVENTORY_ITEM_ROW_HEIGHT)
+  const inventoryBottomPad = computed(() => Math.max(0, (inventoryVirtualRowCount.value - inventoryVisibleRowRange.value.end) * INVENTORY_ITEM_ROW_HEIGHT))
+
+  const syncInventoryViewportMetrics = () => {
+    const element = inventoryItemsViewportRef.value
+    if (element) {
+      inventoryItemsViewportHeight.value = Math.max(160, element.clientHeight || inventoryItemsViewportHeight.value)
+      inventoryItemsScrollTop.value = element.scrollTop
+    }
+    inventoryItemsColumnCount.value = getInventoryGridColumnCount()
+  }
+
+  const resetInventoryVirtualScroll = () => {
+    inventoryItemsScrollTop.value = 0
+    if (inventoryItemsViewportRef.value) inventoryItemsViewportRef.value.scrollTop = 0
+    syncInventoryViewportMetrics()
+  }
+
+  const onInventoryItemsScroll = (event: Event) => {
+    if (inventoryItemsScrollRaf) return
+    const target = event.target as HTMLElement
+    inventoryItemsScrollRaf = window.requestAnimationFrame(() => {
+      inventoryItemsScrollTop.value = target.scrollTop
+      inventoryItemsScrollRaf = 0
+    })
+  }
+
+  onMounted(() => {
+    syncInventoryViewportMetrics()
+    window.addEventListener('resize', syncInventoryViewportMetrics)
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('resize', syncInventoryViewportMetrics)
+    if (inventoryItemsScrollRaf) window.cancelAnimationFrame(inventoryItemsScrollRaf)
+  })
+
+  const scrollInventoryItemsByViewport = (direction: -1 | 1) => {
+    const element = inventoryItemsViewportRef.value
+    if (tab.value !== 'items' || !element) {
+      scrollByViewport(direction)
+      return
+    }
+    element.scrollBy({
+      top: Math.max(160, element.clientHeight * 0.85) * direction,
+      behavior: 'smooth'
+    })
+  }
+
+  watch(
+    () => [
+      tab.value,
+      settingsStore.inventoryFilter.join('|'),
+      settingsStore.inventoryCropUseFilter.join('|'),
+      filteredItems.value.length,
+    ],
+    () => {
+      resetInventoryVirtualScroll()
+    },
+    { flush: 'post' }
+  )
 
   const buildCropUseRecommendationText = (tags: CropUseTag[]): string => {
     if (tags.includes('food') && tags.includes('alchemy')) return '推荐：料理 / 炼丹双路径作物，先按今日目标决定灶台或丹炉消耗。'
@@ -1540,8 +1680,9 @@
     if (item) openVisibleInventoryItem(item)
   }
 
-  const handleInventoryUsageTagClick = (tag: ItemLinkageUseTag) => {
+  const handleInventoryUsageTagClick = async (tag: ItemLinkageUseTag) => {
     if (!tag.panelKey) return
+    const { navigateToPanel } = await import('@/composables/useNavigation')
     navigateToPanel(tag.panelKey as PanelKey)
   }
 
@@ -1645,8 +1786,12 @@
 
   // === 饰品辅助 ===
 
-  const trinketReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'trinket_slot') ?? null)
-  const isTrinketSlotUnlocked = computed(() => !!trinketReward.value?.unlocked || inventoryStore.unlockedTrinkets.length > 0)
+  const trinketSlotUnlockedBySkill = ref(false)
+  async function refreshTrinketSlotUnlock() {
+    const skillStore = await getSkillStore()
+    trinketSlotUnlockedBySkill.value = !!skillStore.masteryRewards.find(entry => entry.id === 'trinket_slot')?.unlocked
+  }
+  const isTrinketSlotUnlocked = computed(() => trinketSlotUnlockedBySkill.value || inventoryStore.unlockedTrinkets.length > 0)
   const equippedTrinketName = computed(() => inventoryStore.equippedTrinket?.name ?? null)
   const unlockedTrinketList = computed(() => inventoryStore.unlockedTrinkets)
 
@@ -2046,8 +2191,8 @@
       activeShoeIdx.value !== null ||
       activeTempIdx.value !== null
     ),
-    onPageUp: () => scrollByViewport(-1),
-    onPageDown: () => scrollByViewport(1)
+    onPageUp: () => scrollInventoryItemsByViewport(-1),
+    onPageDown: () => scrollInventoryItemsByViewport(1)
   })
 
   const activeTempItem = computed(() => {
@@ -2237,17 +2382,65 @@
 
   const activeItemRecoveryParts = computed(() => getItemRecoveryDisplayParts(activeItemDef.value))
 
+  const activeElixirName = ref('')
+  const recoveryRuntime = ref({
+    loaded: false,
+    stamina: 0,
+    maxStamina: 0,
+    hp: 0,
+    maxHp: 0,
+    alchemistBonus: 1,
+    moonRabbitMedicineActive: false
+  })
+
+  const refreshActiveElixirSnapshot = async () => {
+    if (!activeItemElixirEffect.value) {
+      activeElixirName.value = ''
+      return
+    }
+    const cookingStore = await getCookingStore()
+    activeElixirName.value = cookingStore.activeElixir?.name ?? ''
+  }
+
+  const refreshRecoveryRuntime = async () => {
+    if (!activeItem.value) {
+      recoveryRuntime.value = { ...recoveryRuntime.value, loaded: false }
+      activeElixirName.value = ''
+      return
+    }
+
+    const [playerStore, skillStore, hiddenNpcStore] = await Promise.all([
+      getPlayerStore(),
+      getSkillStore(),
+      getHiddenNpcStore()
+    ])
+    recoveryRuntime.value = {
+      loaded: true,
+      stamina: playerStore.stamina,
+      maxStamina: playerStore.maxStamina,
+      hp: playerStore.hp,
+      maxHp: playerStore.getMaxHp(),
+      alchemistBonus: skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0,
+      moonRabbitMedicineActive: hiddenNpcStore.isAbilityActive('yue_tu_2')
+    }
+    await refreshActiveElixirSnapshot()
+  }
+
+  watch(activeItem, () => {
+    void refreshRecoveryRuntime()
+  }, { immediate: true })
+
   const getRecoveryVitals = () => ({
-    stamina: playerStore.stamina,
-    maxStamina: playerStore.maxStamina,
-    hp: playerStore.hp,
-    maxHp: playerStore.getMaxHp()
+    stamina: recoveryRuntime.value.stamina,
+    maxStamina: recoveryRuntime.value.maxStamina,
+    hp: recoveryRuntime.value.hp,
+    maxHp: recoveryRuntime.value.maxHp
   })
 
   const getInventoryRecoveryMultiplier = (itemId?: string) => {
-    const alchemistBonus = skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0
+    const alchemistBonus = recoveryRuntime.value.alchemistBonus
     const moonRabbitBonus =
-      itemId && MOON_RABBIT_TEA_MEDICINE_ITEM_IDS.has(itemId) && hiddenNpcStore.isAbilityActive('yue_tu_2') ? 1.5 : 1.0
+      itemId && MOON_RABBIT_TEA_MEDICINE_ITEM_IDS.has(itemId) && recoveryRuntime.value.moonRabbitMedicineActive ? 1.5 : 1.0
     return alchemistBonus * moonRabbitBonus
   }
 
@@ -2260,13 +2453,16 @@
   }
 
   const isEatBlocked = (itemId: string): boolean => {
+    if (!recoveryRuntime.value.loaded) return false
     const plan = getEatRecoveryPlan(itemId)
     return plan.hasRecovery && !plan.canUse && !canEatForFoodBuff(itemId)
   }
 
-  const handleEat = (itemId: string, quality: Quality) => {
+  const handleEat = async (itemId: string, quality: Quality) => {
     const def = getItemById(itemId)
     if (!def || !hasItemRecovery(def)) return
+    const playerStore = await getPlayerStore()
+    await refreshRecoveryRuntime()
     const plan = getEatRecoveryPlan(itemId)
     if (!plan.canUse && !canEatForFoodBuff(itemId)) {
       addLog(plan.blockedMessage)
@@ -2276,6 +2472,7 @@
     // 烹饪品走 cookingStore.eat()，以正确应用buff、厨房加成等
     if (itemId.startsWith('food_')) {
       const recipeId = itemId.slice(5) // 去掉 'food_' 前缀
+      const cookingStore = await getCookingStore()
       const result = cookingStore.eat(recipeId, quality)
       if (result.success) {
         addLog(result.message)
@@ -2286,6 +2483,7 @@
       if (!hasVisibleInventoryItem(itemId, quality)) {
         closeActiveItem()
       }
+      void refreshRecoveryRuntime()
       return
     }
 
@@ -2302,37 +2500,42 @@
     if (!hasVisibleInventoryItem(itemId, quality)) {
       closeActiveItem()
     }
+    void refreshRecoveryRuntime()
   }
 
   /** 可使用的特殊物品 */
   const USABLE_ITEMS = new Set(['rain_totem', 'stamina_fruit'])
+  const GUILD_GROWTH_ITEM_IDS = new Set(['guild_badge', 'life_talisman', 'lucky_coin', 'defense_charm'])
 
   const isUsable = (itemId: string): boolean => {
-    return USABLE_ITEMS.has(itemId) || miningStore.isGuildGrowthItem(itemId) || !!getAlchemyRecipeByOutputItemId(itemId)
+    return USABLE_ITEMS.has(itemId) || GUILD_GROWTH_ITEM_IDS.has(itemId) || !!getAlchemyRecipeByOutputItemId(itemId)
   }
 
   const isAlchemyElixirItem = (itemId: string): boolean => !!getAlchemyRecipeByOutputItemId(itemId)
 
-  const isUseBlocked = (itemId: string): boolean => isAlchemyElixirItem(itemId) && !!cookingStore.activeElixir
+  const isUseBlocked = (itemId: string): boolean => isAlchemyElixirItem(itemId) && !!activeElixirName.value
 
   const getUseButtonLabel = (itemId: string): string => (isUseBlocked(itemId) ? '今日已服丹' : '使用')
 
-  const handleUse = (itemId: string, quality: Quality) => {
+  const handleUse = async (itemId: string, quality: Quality) => {
     if (isVisibleInventoryItemLocked(itemId, quality)) {
       addLog('物品已锁定，先解锁才能使用。')
       return
     }
     const alchemyRecipe = getAlchemyRecipeByOutputItemId(itemId)
     if (alchemyRecipe?.alchemy) {
+      const cookingStore = await getCookingStore()
       const result = cookingStore.useElixir(itemId, quality)
       addLog(result.message)
+      activeElixirName.value = cookingStore.activeElixir?.name ?? ''
       if (result.success && !hasVisibleInventoryItem(itemId, quality)) {
         closeActiveItem()
       }
       return
     }
 
-    if (miningStore.isGuildGrowthItem(itemId)) {
+    if (GUILD_GROWTH_ITEM_IDS.has(itemId)) {
+      const miningStore = await getMiningStore()
       const result = miningStore.useGuildGrowthItem(itemId, quality)
       addLog(result.message)
       if (result.success && !hasVisibleInventoryItem(itemId, quality)) {
@@ -2343,10 +2546,12 @@
 
     if (itemId === 'rain_totem') {
       if (!inventoryStore.removeUnlockedItem(itemId, 1, quality)) return
-      gameStore.setTomorrowWeather('rainy')
+      const { useGameStore } = await import('@/stores/useGameStore')
+      useGameStore().setTomorrowWeather('rainy')
       addLog('你使用了雨图腾，明天将会下雨。')
     }
     if (itemId === 'stamina_fruit') {
+      const playerStore = await getPlayerStore()
       if (playerStore.staminaCapLevel >= 4) {
         addLog('体力上限已达到最高，无法再使用仙桃。')
         return
@@ -2400,6 +2605,39 @@
 </script>
 
 <style scoped>
+  .inventory-items-viewport {
+    max-height: clamp(10rem, calc(100vh - 15rem), 32rem);
+    min-height: 10rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.125rem;
+  }
+
+  .inventory-items-virtual-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.375rem;
+    align-items: stretch;
+  }
+
+  .inventory-items-virtual-grid :deep(.item-card),
+  .inventory-empty-slot {
+    height: 64px;
+    min-height: 64px;
+  }
+
+  .inventory-empty-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (min-width: 768px) {
+    .inventory-items-virtual-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+  }
+
   .inventory-equipment-row {
     min-width: 0;
     max-width: 100%;

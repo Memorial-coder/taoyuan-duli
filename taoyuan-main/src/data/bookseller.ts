@@ -1,9 +1,16 @@
 import type { RewardTicketLedger, Season } from '@/types'
 import { BOOKS, type BooksellerBookDef } from './books'
+import {
+  BOOKSELLER_VISITOR_ID,
+  WANDERING_ARTIST_VISITOR_ID
+} from './rareVisitorBonuses'
 
-export const BOOKSELLER_VISITOR_ID = 'bookseller'
-export const WANDERING_ARTIST_VISITOR_ID = 'wandering_artist'
-export const RARE_VISITOR_SEASON_VISIT_LEDGER_PREFIX = 'rare_visitor_season_visit'
+export {
+  BOOKSELLER_VISITOR_ID,
+  WANDERING_ARTIST_VISITOR_ID,
+  RARE_VISITOR_SEASON_VISIT_LEDGER_PREFIX,
+  buildRareVisitorSeasonVisitLedgerId
+} from './rareVisitorBonuses'
 
 export type RareVisitorKind = 'merchant' | 'performer' | 'wanderer'
 
@@ -49,9 +56,6 @@ export interface BooksellerStockEntry extends BooksellerBookDef {
 }
 
 const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
-
-export const buildRareVisitorSeasonVisitLedgerId = (visitorId: string, year: number, season: Season): string =>
-  `${RARE_VISITOR_SEASON_VISIT_LEDGER_PREFIX}:${visitorId}:${year}-${season}`
 
 const seededRandom = (seed: number): (() => number) => {
   let state = seed

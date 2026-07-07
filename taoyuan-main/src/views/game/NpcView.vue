@@ -2587,7 +2587,7 @@
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { triggerHeartEvent } from '@/composables/useDialogs'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import type {
@@ -2714,11 +2714,11 @@
   const randomNpcOldLetterItemId = 'paper'
   const randomNpcOldLetterCostQuantity = 1
   const randomNpcOldLetterItemName = computed(() => getItemById(randomNpcOldLetterItemId)?.name ?? '纸张')
-  const randomNpcOldLetterCount = computed(() => inventoryStore.getTotalItemCount(randomNpcOldLetterItemId))
+  const randomNpcOldLetterCount = computed(() => getCombinedItemCount(randomNpcOldLetterItemId))
   const randomNpcOldKeepsakeItemId = 'silk_ribbon'
   const randomNpcOldKeepsakeCostQuantity = 1
   const randomNpcOldKeepsakeItemName = computed(() => getItemById(randomNpcOldKeepsakeItemId)?.name ?? '丝帕')
-  const randomNpcOldKeepsakeCount = computed(() => inventoryStore.getTotalItemCount(randomNpcOldKeepsakeItemId))
+  const randomNpcOldKeepsakeCount = computed(() => getCombinedItemCount(randomNpcOldKeepsakeItemId))
   const selectedRandomNpcVisitor = computed(() =>
     selectedRandomNpcDetail.value?.kind === 'visitor'
       ? randomNpcBoard.value.activeVisitors.find(visitor => visitor.id === selectedRandomNpcDetail.value?.id) ?? null
@@ -3461,7 +3461,7 @@
     canRecallRandomNpcArchive(summary) && randomNpcOldKeepsakeCount.value >= randomNpcOldKeepsakeCostQuantity
   const canRecallRandomNpcArchiveByFestivalReunion = (summary: RandomNpcArchiveSummary): boolean =>
     canRecallRandomNpcArchive(summary) && !!todayEvent.value
-  const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
+  const getRandomNpcSmallOrderItemCount = (itemId: string): number => getCombinedItemCount(itemId)
   const canFulfillRandomNpcSmallOrder = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
   const getRandomNpcSmallOrderProgressText = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): string =>

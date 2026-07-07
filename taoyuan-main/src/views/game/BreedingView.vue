@@ -933,7 +933,7 @@
   } from '@/data/breeding'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { addLog, showFloat } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useGoalStore } from '@/stores/useGoalStore'

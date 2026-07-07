@@ -155,6 +155,105 @@
               <p v-if="ing.cropUseText" class="text-[0.625rem] text-muted/80 leading-snug">{{ ing.cropUseText }}</p>
               <p v-if="ing.substitutionText" class="text-[0.625rem] text-accent/80 leading-snug">{{ ing.substitutionText }}</p>
             </div>
+
+            <div
+              v-if="modalInfo.preferenceGroups.length > 0"
+              class="mt-2 border-t border-accent/10 pt-2"
+              data-testid="cooking-material-priority"
+            >
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <p class="text-xs text-muted">先用材料</p>
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 text-[0.625rem] text-accent/80 disabled:text-muted/40"
+                  :disabled="!hasAnyMaterialPreferenceOverride"
+                  data-testid="cooking-material-priority-reset-all"
+                  @click="resetAllMaterialPreferences"
+                >
+                  <RotateCcw :size="10" />
+                  重置
+                </button>
+              </div>
+              <div
+                v-for="group in modalInfo.preferenceGroups"
+                :key="`priority-${group.requirementItemId}`"
+                class="py-0.5"
+              >
+                <div class="mb-1 flex items-center justify-between gap-2">
+                  <p class="text-[0.625rem] text-muted/80 truncate">{{ group.requirementName }}</p>
+                  <button
+                    type="button"
+                    class="text-[0.625rem] text-accent/70 disabled:text-muted/40 shrink-0"
+                    :disabled="!hasMaterialPreferenceOverride(group.requirementItemId)"
+                    :data-testid="`cooking-material-priority-reset-${group.requirementItemId}`"
+                    @click="resetMaterialPreference(group.requirementItemId)"
+                  >
+                    还原
+                  </button>
+                </div>
+                <div class="space-y-1">
+                  <div
+                    v-for="(candidate, index) in group.candidates"
+                    :key="candidate.itemId"
+                    class="flex items-center gap-1.5 rounded-xs bg-bg/40 px-1.5 py-1"
+                    :data-testid="`cooking-material-priority-candidate-${group.requirementItemId}-${candidate.itemId}`"
+                  >
+                    <span class="w-5 text-[0.625rem] text-muted/70 tabular-nums">#{{ index + 1 }}</span>
+                    <ItemIcon :item="candidate.item" size="xs" />
+                    <span class="min-w-0 flex-1 truncate text-xs text-text">{{ candidate.name }}</span>
+                    <span v-if="candidate.substitute" class="text-[0.625rem] text-accent/70">替</span>
+                    <span class="text-[0.625rem] text-muted whitespace-nowrap">×{{ candidate.available }}</span>
+                    <button
+                      type="button"
+                      class="cooking-material-priority__icon"
+                      :disabled="index === 0"
+                      :title="`${candidate.name}上移`"
+                      :data-testid="`cooking-material-priority-up-${group.requirementItemId}-${candidate.itemId}`"
+                      @click="moveMaterialPreference(group.requirementItemId, candidate.itemId, -1)"
+                    >
+                      <ArrowUp :size="11" />
+                    </button>
+                    <button
+                      type="button"
+                      class="cooking-material-priority__icon"
+                      :disabled="index === group.candidates.length - 1"
+                      :title="`${candidate.name}下移`"
+                      :data-testid="`cooking-material-priority-down-${group.requirementItemId}-${candidate.itemId}`"
+                      @click="moveMaterialPreference(group.requirementItemId, candidate.itemId, 1)"
+                    >
+                      <ArrowDown :size="11" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 本次材料消耗预览 -->
+          <div
+            v-if="modalInfo.consumptionEntries.length > 0"
+            class="border border-accent/10 rounded-xs p-2 mb-2"
+            data-testid="cooking-material-consumption-preview"
+          >
+            <p class="text-xs text-muted mb-1">本次使用</p>
+            <div
+              v-for="entry in modalInfo.consumptionEntries"
+              :key="entry.key"
+              class="flex items-center justify-between gap-2 py-0.5"
+              :data-testid="`cooking-material-consumption-${entry.requirementItemId}-${entry.itemId}`"
+            >
+              <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                <ItemIcon :item="entry.item" size="xs" :quality="entry.quality" />
+                <span class="truncate">
+                  {{ entry.name }}
+                  <span v-if="entry.quality !== 'normal'" :class="qualityTextClass(entry.quality)">
+                    [{{ QUALITY_NAMES[entry.quality] }}]
+                  </span>
+                  <span v-if="entry.substitute" class="text-accent/80">代{{ entry.requirementName }}</span>
+                </span>
+              </span>
+              <span class="text-xs text-accent whitespace-nowrap">×{{ entry.quantity }}</span>
+            </div>
           </div>
 
           <!-- 制作耗时 -->
@@ -217,7 +316,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue'
-  import { UtensilsCrossed, Zap, X, Minus, Plus } from 'lucide-vue-next'
+  import { UtensilsCrossed, Zap, X, Minus, Plus, ArrowUp, ArrowDown, RotateCcw } from 'lucide-vue-next'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
@@ -226,11 +325,17 @@
   import { getItemById } from '@/data'
   import { getCropUseTagMatches } from '@/data/cropUseProfiles'
   import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
-  import { formatCropUseSubstitutionSummary, getLowestCropUsePlanQuality } from '@/utils/cropUseSubstitution'
+  import {
+    formatCropUseSubstitutionSummary,
+    getCropUseRequirementCandidateIds,
+    getLowestCropUsePlanQuality,
+    type CropUseSubstitutionPreference
+  } from '@/utils/cropUseSubstitution'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import type { Quality, RecipeDef } from '@/types'
   import Button from '@/components/game/Button.vue'
@@ -246,6 +351,7 @@
   const showOnlyMakeable = ref(false)
   const modalRecipeId = ref<string | null>(null)
   const modalQty = ref(1)
+  const modalMaterialPreferences = ref<Record<string, string[]>>({})
 
   useKeyboardShortcutContextActions({
     hasBlockingModal: () => !!modalRecipeId.value,
@@ -255,6 +361,104 @@
 
   const uniqueStrings = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)))
   const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
+
+  type CookingMaterialPreferenceCandidate = {
+    itemId: string
+    item: ReturnType<typeof getItemById> | null
+    name: string
+    available: number
+    substitute: boolean
+  }
+
+  type CookingMaterialPreferenceGroup = {
+    requirementItemId: string
+    requirementName: string
+    candidates: CookingMaterialPreferenceCandidate[]
+  }
+
+  type CookingConsumptionPreviewEntry = {
+    key: string
+    requirementItemId: string
+    requirementName: string
+    itemId: string
+    item: ReturnType<typeof getItemById> | null
+    name: string
+    quantity: number
+    quality: Quality
+    substitute: boolean
+  }
+
+  const normalizeCookingQuantity = (quantity: number): number => Math.max(1, Math.floor(Number(quantity) || 1))
+
+  const getCookingPreferenceCandidates = (requirementItemId: string): CookingMaterialPreferenceCandidate[] => {
+    return getCropUseRequirementCandidateIds(requirementItemId, ['food'])
+      .map((itemId): CookingMaterialPreferenceCandidate | null => {
+        const available = getCombinedItemCount(itemId)
+        if (available <= 0) return null
+        const item = getItemById(itemId) ?? null
+        return {
+          itemId,
+          item,
+          name: item?.name ?? itemId,
+          available,
+          substitute: itemId !== requirementItemId
+        }
+      })
+      .filter((candidate): candidate is CookingMaterialPreferenceCandidate => candidate !== null)
+  }
+
+  const orderMaterialPreferenceCandidates = (
+    requirementItemId: string,
+    candidates: CookingMaterialPreferenceCandidate[]
+  ): CookingMaterialPreferenceCandidate[] => {
+    const candidateById = new Map(candidates.map(candidate => [candidate.itemId, candidate]))
+    const preferredIds = modalMaterialPreferences.value[requirementItemId] ?? []
+    return [
+      ...preferredIds.map(itemId => candidateById.get(itemId)).filter((candidate): candidate is CookingMaterialPreferenceCandidate => !!candidate),
+      ...candidates.filter(candidate => !preferredIds.includes(candidate.itemId))
+    ]
+  }
+
+  const buildMaterialPreferenceGroups = (recipe: RecipeDef): CookingMaterialPreferenceGroup[] => {
+    return recipe.ingredients
+      .map((ingredient): CookingMaterialPreferenceGroup | null => {
+        const candidates = getCookingPreferenceCandidates(ingredient.itemId)
+        if (candidates.length <= 1) return null
+        return {
+          requirementItemId: ingredient.itemId,
+          requirementName: getItemName(ingredient.itemId),
+          candidates: orderMaterialPreferenceCandidates(ingredient.itemId, candidates)
+        }
+      })
+      .filter((group): group is CookingMaterialPreferenceGroup => group !== null)
+  }
+
+  const buildConsumptionPreviewEntries = (
+    plan: ReturnType<typeof cookingStore.getCookingUsePlan>
+  ): CookingConsumptionPreviewEntry[] => {
+    const entriesByKey = new Map<string, CookingConsumptionPreviewEntry>()
+    for (const entry of plan.entries) {
+      const key = `${entry.requirementItemId}:${entry.itemId}:${entry.quality}:${entry.substitute ? 'sub' : 'base'}`
+      const current = entriesByKey.get(key)
+      if (current) {
+        current.quantity += entry.quantity
+        continue
+      }
+      const item = getItemById(entry.itemId) ?? null
+      entriesByKey.set(key, {
+        key,
+        requirementItemId: entry.requirementItemId,
+        requirementName: getItemName(entry.requirementItemId),
+        itemId: entry.itemId,
+        item,
+        name: item?.name ?? entry.itemId,
+        quantity: entry.quantity,
+        quality: entry.quality,
+        substitute: entry.substitute
+      })
+    }
+    return [...entriesByKey.values()]
+  }
 
   const formatIngredientSubstitutionText = (
     entries: ReturnType<typeof cookingStore.getCookingUsePlan>['entries'],
@@ -348,6 +552,54 @@
 
   type RecipeInfo = (typeof recipeInfos.value)[number]
 
+  const modalRecipeInfo = computed(() => {
+    if (!modalRecipeId.value) return null
+    return recipeInfos.value.find(i => i.recipe.id === modalRecipeId.value) ?? null
+  })
+
+  const modalPreferenceGroups = computed(() => {
+    return modalRecipeInfo.value ? buildMaterialPreferenceGroups(modalRecipeInfo.value.recipe) : []
+  })
+
+  const modalCookingPreferences = computed<CropUseSubstitutionPreference[]>(() => {
+    return modalPreferenceGroups.value.map(group => ({
+      requirementItemId: group.requirementItemId,
+      preferredItemIds: group.candidates.map(candidate => candidate.itemId)
+    }))
+  })
+
+  const hasAnyMaterialPreferenceOverride = computed(() => Object.keys(modalMaterialPreferences.value).length > 0)
+
+  const hasMaterialPreferenceOverride = (requirementItemId: string): boolean =>
+    Array.isArray(modalMaterialPreferences.value[requirementItemId])
+
+  const moveMaterialPreference = (requirementItemId: string, itemId: string, offset: -1 | 1) => {
+    const group = modalPreferenceGroups.value.find(entry => entry.requirementItemId === requirementItemId)
+    if (!group) return
+    const order = group.candidates.map(candidate => candidate.itemId)
+    const index = order.indexOf(itemId)
+    const nextIndex = index + offset
+    if (index < 0 || nextIndex < 0 || nextIndex >= order.length) return
+    const nextOrder = [...order]
+    const [moved] = nextOrder.splice(index, 1)
+    if (!moved) return
+    nextOrder.splice(nextIndex, 0, moved)
+    modalMaterialPreferences.value = {
+      ...modalMaterialPreferences.value,
+      [requirementItemId]: nextOrder
+    }
+  }
+
+  const resetMaterialPreference = (requirementItemId: string) => {
+    const next = { ...modalMaterialPreferences.value }
+    delete next[requirementItemId]
+    modalMaterialPreferences.value = next
+  }
+
+  const resetAllMaterialPreferences = () => {
+    modalMaterialPreferences.value = {}
+  }
+
   const recipeRecoveryText = (info: RecipeInfo): string => {
     const parts = [`+${info.recipe.effect.staminaRestore}体力`]
     if (info.recipe.effect.healthRestore) parts.push(`+${info.recipe.effect.healthRestore}生命`)
@@ -370,17 +622,28 @@
 
   /** 当前弹窗对应的食谱信息（响应式，材料变化时自动更新） */
   const modalInfo = computed(() => {
-    if (!modalRecipeId.value) return null
-    const info = recipeInfos.value.find(i => i.recipe.id === modalRecipeId.value)
+    const info = modalRecipeInfo.value
     if (!info) return null
+    const preferences = modalCookingPreferences.value
+    const cookingPlan = cookingStore.getCookingUsePlan(info.recipe.id, 1, preferences)
+    const canCook = hasRequiredCookingSkill(info.recipe) && cookingPlan.fulfilled
+    const quality = canCook ? cookingStore.getPreviewCookQualityWithNpc(info.recipe.id, preferences) : getCookingPlanQuality(cookingPlan)
+    const maxQty = cookingStore.maxCookable(info.recipe.id, preferences)
+    const requestedQty = normalizeCookingQuantity(modalQty.value)
+    const previewQty = maxQty > 0 ? Math.min(requestedQty, maxQty) : requestedQty
+    const consumptionPlan = cookingStore.getCookingUsePlan(info.recipe.id, previewQty, preferences)
     return {
       ...info,
-      maxQty: cookingStore.maxCookable(info.recipe.id),
-      ingredients: buildRecipeIngredientInfos(info.recipe, info.cookingPlan)
+      canCook,
+      quality,
+      cookingPlan,
+      substitutionText: formatCropUseSubstitutionSummary(cookingPlan, getItemName),
+      maxQty,
+      ingredients: buildRecipeIngredientInfos(info.recipe, cookingPlan),
+      preferenceGroups: modalPreferenceGroups.value,
+      consumptionEntries: buildConsumptionPreviewEntries(consumptionPlan)
     }
   })
-
-  const normalizeCookingQuantity = (quantity: number): number => Math.max(1, Math.floor(Number(quantity) || 1))
 
   const getCookingTimeCostHours = (quantity: number): number => ACTION_TIME_COSTS.cook * normalizeCookingQuantity(quantity)
 
@@ -407,10 +670,12 @@
   const openModal = (recipeId: string) => {
     modalRecipeId.value = recipeId
     modalQty.value = 1
+    modalMaterialPreferences.value = {}
   }
 
   const closeModal = () => {
     modalRecipeId.value = null
+    modalMaterialPreferences.value = {}
   }
 
   const onModalQtyInput = (event: Event) => {
@@ -445,7 +710,7 @@
       return
     }
     const qty = Math.min(modalQty.value, modalInfo.value.maxQty)
-    const result = cookingStore.cook(modalInfo.value.recipe.id, qty)
+    const result = cookingStore.cook(modalInfo.value.recipe.id, qty, modalCookingPreferences.value)
     sfxClick()
     addLog(result.message)
     const tr = gameStore.advanceTime(getCookingTimeCostHours(qty))
@@ -542,6 +807,26 @@
 
   .cooking-recipe-card__meta {
     color: var(--color-accent);
+  }
+
+  .cooking-material-priority__icon {
+    display: inline-flex;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 24%, transparent);
+    border-radius: 4px;
+    color: var(--color-accent);
+    transition: border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+  }
+
+  .cooking-material-priority__icon:disabled {
+    cursor: not-allowed;
+    border-color: color-mix(in srgb, var(--color-muted) 18%, transparent);
+    color: color-mix(in srgb, var(--color-muted) 58%, transparent);
+    opacity: 0.7;
   }
 
   @media (min-width: 768px) {

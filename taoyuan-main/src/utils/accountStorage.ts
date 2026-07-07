@@ -5,13 +5,20 @@ const DEFAULT_SAVE_MODE = 'server'
 let currentAccountKey = DEFAULT_ACCOUNT_KEY
 let currentCsrfToken = ''
 let currentAccountRefreshPromise: Promise<CurrentAccountContext> | null = null
+let currentAccountUser: CurrentAccountUserSummary | null = null
 
 export type SaveMode = 'local' | 'server'
+
+export interface CurrentAccountUserSummary {
+  username: string
+  display_name?: string
+}
 
 export interface CurrentAccountContext {
   accountKey: string
   csrfToken: string
   loggedIn: boolean
+  user: CurrentAccountUserSummary | null
 }
 
 const sanitizeAccountKey = (value: string | null | undefined): string => {
@@ -48,8 +55,11 @@ const persistCurrentAccountKey = () => {
 const buildCurrentAccountContext = (): CurrentAccountContext => ({
   accountKey: currentAccountKey || DEFAULT_ACCOUNT_KEY,
   csrfToken: currentCsrfToken || '',
-  loggedIn: !!currentAccountKey && currentAccountKey !== DEFAULT_ACCOUNT_KEY
+  loggedIn: !!currentAccountKey && currentAccountKey !== DEFAULT_ACCOUNT_KEY,
+  user: currentAccountUser
 })
+
+export const getCurrentAccountUserSnapshot = (): CurrentAccountUserSummary | null => currentAccountUser
 
 export const getStoredSaveMode = (): SaveMode => {
   try {
@@ -106,6 +116,7 @@ export const migrateLegacySingleValue = (legacyKey: string, scopedKey: string) =
 export const clearCurrentAccountContext = () => {
   currentAccountKey = DEFAULT_ACCOUNT_KEY
   currentCsrfToken = ''
+  currentAccountUser = null
   persistCurrentAccountKey()
   return buildCurrentAccountContext()
 }
@@ -121,12 +132,22 @@ export const forceRefreshCurrentAccountContext = async (): Promise<CurrentAccoun
         return clearCurrentAccountContext()
       }
       if (res.ok && data?.ok) {
-        currentAccountKey = sanitizeAccountKey(data?.user?.username)
+        const username = typeof data?.user?.username === 'string' ? data.user.username : ''
+        currentAccountKey = sanitizeAccountKey(username)
         currentCsrfToken = typeof data?.csrf_token === 'string' ? data.csrf_token : ''
+        currentAccountUser = username
+          ? {
+              username,
+              ...(typeof data?.user?.display_name === 'string' ? { display_name: data.user.display_name } : {})
+            }
+          : null
         persistCurrentAccountKey()
+      } else {
+        currentAccountUser = null
       }
       return buildCurrentAccountContext()
     } catch {
+      currentAccountUser = null
       return buildCurrentAccountContext()
     }
   })()

@@ -186,7 +186,10 @@
         class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showElevatorModal = false"
       >
-        <div class="game-panel max-w-xs w-full relative">
+        <div
+          data-testid="mining-elevator-panel"
+          class="game-panel max-w-xs w-full relative max-h-[82dvh] overflow-y-auto overscroll-contain"
+        >
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showElevatorModal = false">
             <X :size="14" />
           </button>
@@ -231,7 +234,11 @@
               <span class="text-xs text-muted">第{{ miningStore.getSkullCavernEntryFloor() }}层</span>
             </div>
             <!-- 骷髅矿穴安全点楼层 -->
-            <div v-if="skullElevatorFloors.length > 0" class="flex flex-wrap space-x-1 mt-1.5">
+            <div
+              v-if="skullElevatorFloors.length > 0"
+              data-testid="mining-skull-elevator-floor-list"
+              class="mt-1.5 grid max-h-48 grid-cols-5 gap-1 overflow-y-auto pr-1"
+            >
               <Button
                 v-for="sp in skullElevatorFloors"
                 :key="sp"
@@ -936,7 +943,7 @@
   import { useAudio } from '@/composables/useAudio'
   import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
   import { addLog, showFloat } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { formatKeyboardShortcutBinding, type KeyboardShortcutActionId } from '@/data/keyboardShortcuts'
 
   const miningStore = useMiningStore()
@@ -2108,6 +2115,7 @@
   }
 
   .mining-status-strip {
+    container-type: inline-size;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
@@ -2133,6 +2141,10 @@
     line-height: 1;
   }
 
+  .mining-status-item > svg {
+    flex: 0 0 auto;
+  }
+
   .mining-status-label,
   .mining-status-value {
     min-width: 0;
@@ -2142,10 +2154,12 @@
   }
 
   .mining-status-label {
+    flex: 0 0 auto;
     color: rgb(var(--color-muted-rgb));
   }
 
   .mining-status-value {
+    flex: 0 1 auto;
     font-weight: 600;
   }
 
@@ -2189,7 +2203,7 @@
   }
 
 
-  @media (max-width: 360px) {
+  @container (max-width: 340px) {
     .mining-status-item {
       gap: 2px;
       padding-right: 3px;

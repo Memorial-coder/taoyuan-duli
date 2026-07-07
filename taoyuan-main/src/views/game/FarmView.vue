@@ -599,12 +599,12 @@
         <div
           data-testid="shipping-box-entry"
           class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
-          @click="showShippingBox = true"
+          @click="openShippingBox"
         >
           <div class="flex items-center space-x-1.5">
             <Package :size="14" class="text-accent" />
             <span class="text-sm text-accent">出货箱</span>
-            <span v-if="shopStore.shippingBox.length > 0" class="text-xs text-muted">{{ shopStore.shippingBox.length }}种</span>
+            <span v-if="shippingBoxEntries.length > 0" class="text-xs text-muted">{{ shippingBoxEntries.length }}种</span>
           </div>
           <span v-if="shippingBoxTotal > 0" class="text-xs text-accent">≈{{ shippingBoxTotal }}文</span>
           <span v-else class="text-xs text-muted">空</span>
@@ -619,107 +619,127 @@
           @click.self="showShippingBox = false"
         >
           <div
-            class="game-panel flex h-[88dvh] max-h-[88dvh] w-full max-w-none flex-col overflow-hidden rounded-t-xs md:h-[82dvh] md:max-h-[82dvh] md:max-w-4xl md:rounded-xs"
+            class="game-panel shipping-box-modal flex h-[88dvh] max-h-[88dvh] w-full max-w-none flex-col overflow-hidden rounded-t-xs md:h-[82dvh] md:max-h-[82dvh] md:max-w-4xl md:rounded-xs"
             data-testid="shipping-box-modal"
           >
-            <div class="flex shrink-0 items-start justify-between gap-3 border-b border-accent/10 pb-2">
+            <div class="shipping-box-modal__header flex shrink-0 items-start justify-between gap-3 border-b border-accent/10 pb-2">
               <div class="min-w-0">
-                <div class="flex items-center space-x-1.5 text-sm text-accent">
-                  <Package :size="14" />
-                  <span>出货箱</span>
-                  <span v-if="shopStore.shippingBox.length > 0" class="text-xs text-muted">{{ shopStore.shippingBox.length }}种</span>
+                <div class="shipping-box-title-row text-accent">
+                  <span class="shipping-box-title-icon">
+                    <Package :size="15" />
+                  </span>
+                  <span class="shipping-box-title-text">出货箱</span>
+                  <span v-if="shippingBoxEntries.length > 0" class="shipping-box-count-chip">{{ shippingBoxEntries.length }}种</span>
                 </div>
                 <p class="mt-1 text-xs text-muted">放入的物品将在次日结算，当前预计 {{ shippingBoxTotal }} 文。</p>
                 <p v-if="inventoryStore.getRingEffectValue('sell_price_bonus') > 0" class="mt-1 text-xs text-success">
                   装备加成中：售价 +{{ Math.round(inventoryStore.getRingEffectValue('sell_price_bonus') * 100) }}%
                 </p>
               </div>
-              <button class="shrink-0 text-muted hover:text-text" @click="showShippingBox = false">
+              <button class="shipping-box-close shrink-0 text-muted hover:text-text" aria-label="关闭出货箱" @click="showShippingBox = false">
                 <X :size="16" />
               </button>
             </div>
 
-            <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
-              <section class="flex min-h-0 flex-col border border-accent/10 rounded-xs p-2" data-testid="shipping-box-loaded-section">
-                <div class="mb-2 flex shrink-0 items-center justify-between">
+            <div class="shipping-box-layout min-h-0 flex-1 pt-3">
+              <section class="shipping-box-section shipping-box-section--loaded flex min-h-0 flex-col" data-testid="shipping-box-loaded-section">
+                <div class="shipping-box-section-head mb-2 flex shrink-0 items-center justify-between">
                   <p class="text-xs text-muted">已放入</p>
                   <span class="text-xs text-accent">{{ shippingBoxTotal }}文</span>
                 </div>
-                <div v-if="shopStore.shippingBox.length > 0" class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                <div v-if="shippingBoxEntries.length > 0" class="shipping-box-scroll min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                   <div
-                    v-for="(entry, idx) in shopStore.shippingBox"
+                    v-for="(entry, idx) in shippingBoxEntries"
                     :key="`${entry.itemId}-${entry.quality}-${idx}`"
-                    class="flex min-h-[52px] items-center justify-between gap-2 border border-accent/20 rounded-xs px-2 py-1.5 hover:bg-accent/5"
+                    class="shipping-box-loaded-card flex min-h-[52px] items-center justify-between gap-2 rounded-xs px-2 py-1.5"
                   >
                     <div class="flex min-w-0 items-center gap-2">
                       <ItemIcon :item="getItemById(entry.itemId)" size="xs" :quality="entry.quality" />
                       <div class="min-w-0">
                         <span class="block truncate text-xs" :class="qualityTextClass(entry.quality)">{{ getItemName(entry.itemId) }}</span>
                         <span class="block text-[0.625rem] text-muted">
-                          {{ QUALITY_NAMES[entry.quality] }} · ×{{ entry.quantity }} · ≈{{ shopStore.calculateSellPrice(entry.itemId, entry.quantity, entry.quality) }}文
+                          {{ QUALITY_NAMES[entry.quality] }} · ×{{ entry.quantity }} · ≈{{ calculateShippingPrice(entry.itemId, entry.quantity, entry.quality) }}文
                         </span>
                       </div>
                     </div>
-                    <Button class="shrink-0 px-2 py-1 text-xs" @click="handleRemoveFromBox(entry.itemId, entry.quantity, entry.quality)">
+                    <Button class="shipping-box-return-btn shrink-0 px-2 py-1 text-xs" @click="handleRemoveFromBox(entry.itemId, entry.quantity, entry.quality)">
                       取回
                     </Button>
                   </div>
                 </div>
-                <div v-else class="flex min-h-[180px] flex-1 flex-col items-center justify-center text-muted">
+                <div v-else class="shipping-box-empty flex flex-1 flex-col items-center justify-center text-muted">
                   <Package :size="36" class="text-muted/30" />
                   <p class="mt-2 text-xs">出货箱是空的</p>
                 </div>
               </section>
 
-              <section class="flex min-h-0 flex-col border border-accent/10 rounded-xs p-2" data-testid="shipping-box-inventory-section">
-                <div class="grid shrink-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_120px_132px]">
-                  <input
-                    v-model="shippingBoxSearch"
-                    data-testid="shipping-box-search"
-                    class="online-input w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
-                    placeholder="搜索背包物品"
-                  />
-                  <select
-                    v-model="shippingBoxCategory"
-                    data-testid="shipping-box-category"
-                    class="online-select w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
-                  >
-                    <option value="all">全部分类</option>
-                    <option v-for="cat in SHIPPING_FILTER_CATEGORIES" :key="cat" :value="cat">{{ SHIPPING_CATEGORY_NAMES[cat] }}</option>
-                  </select>
-                  <select
-                    v-model="shippingBoxSort"
-                    data-testid="shipping-box-sort"
-                    class="online-select w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
-                  >
-                    <option value="price-desc">售价高到低</option>
-                    <option value="quantity-desc">数量多到少</option>
-                    <option value="name-asc">名称 A-Z</option>
-                  </select>
+              <section class="shipping-box-section shipping-box-section--inventory flex min-h-0 flex-col" data-testid="shipping-box-inventory-section">
+                <div class="shipping-box-inventory-head">
+                  <p class="text-xs text-muted">背包可出货</p>
+                  <span class="text-[0.625rem] text-accent">{{ filteredShippableItems.length }}种可选</span>
+                </div>
+                <div class="shipping-box-filter-bar shrink-0">
+                  <label class="shipping-box-search-field">
+                    <Search :size="13" class="shipping-box-search-icon" />
+                    <input
+                      v-model="shippingBoxSearch"
+                      data-testid="shipping-box-search"
+                      class="online-input shipping-box-control shipping-box-control--search"
+                      placeholder="搜索背包物品"
+                    />
+                  </label>
+                  <label class="shipping-box-select-field">
+                    <span class="shipping-box-field-label">分类</span>
+                    <select
+                      v-model="shippingBoxCategory"
+                      data-testid="shipping-box-category"
+                      class="online-select shipping-box-control"
+                    >
+                      <option value="all">全部分类</option>
+                      <option v-for="cat in SHIPPING_FILTER_CATEGORIES" :key="cat" :value="cat">{{ SHIPPING_CATEGORY_NAMES[cat] }}</option>
+                    </select>
+                    <ChevronDown :size="13" class="shipping-box-select-icon" />
+                  </label>
+                  <label class="shipping-box-select-field">
+                    <span class="shipping-box-field-label">排序</span>
+                    <select
+                      v-model="shippingBoxSort"
+                      data-testid="shipping-box-sort"
+                      class="online-select shipping-box-control"
+                    >
+                      <option value="price-desc">售价高到低</option>
+                      <option value="quantity-desc">数量多到少</option>
+                      <option value="name-asc">名称 A-Z</option>
+                    </select>
+                    <ChevronDown :size="13" class="shipping-box-select-icon" />
+                  </label>
                 </div>
 
-                <div v-if="filteredShippableItems.length > 0" class="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                <div v-if="filteredShippableItems.length > 0" class="shipping-box-item-list mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                   <div
                     v-for="item in filteredShippableItems"
                     :key="`${item.itemId}-${item.quality}`"
-                    class="grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border border-accent/10 rounded-xs px-2 py-1.5"
+                    class="shipping-box-item-card grid min-h-[58px] items-center rounded-xs px-2 py-1.5"
                   >
-                    <div class="flex min-w-0 items-center gap-2">
+                    <div class="shipping-box-item-main flex min-w-0 items-center gap-2">
                       <ItemIcon :item="item.def" size="xs" :quality="item.quality" />
                       <div class="min-w-0">
-                        <span class="block truncate text-xs" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
-                        <span class="block text-[0.625rem] text-muted">
-                          {{ SHIPPING_CATEGORY_NAMES[item.def.category] ?? item.def.category }} · {{ QUALITY_NAMES[item.quality] }} · ×{{ item.quantity }} · ≈{{ item.totalPrice }}文
+                        <span class="shipping-box-item-title block truncate text-xs" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
+                        <span class="shipping-box-item-meta text-[0.625rem] text-muted">
+                          <span>{{ SHIPPING_CATEGORY_NAMES[item.def.category] ?? item.def.category }}</span>
+                          <span>{{ QUALITY_NAMES[item.quality] }}</span>
+                          <span>×{{ item.quantity }}</span>
+                          <span>≈{{ item.totalPrice }}文</span>
                         </span>
                       </div>
                     </div>
-                    <div class="flex shrink-0 items-center gap-1">
-                      <Button class="px-2 py-1 text-xs" data-testid="shipping-box-add-one" @click="handleAddToBox(item.itemId, 1, item.quality)">
+                    <div class="shipping-box-item-actions shrink-0">
+                      <Button class="shipping-box-action-btn px-2 py-1 text-xs" data-testid="shipping-box-add-one" @click="handleAddToBox(item.itemId, 1, item.quality)">
                         放入1
                       </Button>
                       <Button
                         v-if="item.quantity > 1"
-                        class="px-2 py-1 text-xs"
+                        class="shipping-box-action-btn px-2 py-1 text-xs"
                         data-testid="shipping-box-add-five"
                         @click="handleAddToBox(item.itemId, Math.min(5, item.quantity), item.quality)"
                       >
@@ -727,7 +747,7 @@
                       </Button>
                       <Button
                         v-if="item.quantity > 1"
-                        class="px-2 py-1 text-xs"
+                        class="shipping-box-action-btn px-2 py-1 text-xs"
                         data-testid="shipping-box-add-all"
                         @click="handleAddToBox(item.itemId, item.quantity, item.quality)"
                       >
@@ -736,7 +756,7 @@
                     </div>
                   </div>
                 </div>
-                <div v-else class="flex min-h-[220px] flex-1 flex-col items-center justify-center text-muted">
+                <div v-else class="shipping-box-empty shipping-box-empty--inventory flex flex-1 flex-col items-center justify-center text-muted">
                   <Wheat :size="36" class="text-muted/30" />
                   <p class="mt-2 text-xs">没有匹配的可出货物品</p>
                 </div>
@@ -1118,8 +1138,8 @@
                 <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
                 <span class="truncate">{{ getItemName(mat.itemId) }}</span>
               </span>
-              <span :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
-                {{ inventoryStore.getItemCount(mat.itemId) }}/{{ mat.quantity }}
+              <span :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
+                {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
             </div>
           </div>
@@ -1507,7 +1527,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, type Component } from 'vue'
+  import { ref, computed, onMounted, shallowRef, type Component } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     Droplets,
@@ -1554,7 +1574,6 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
-  import { useShopStore } from '@/stores/useShopStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useWalletStore } from '@/stores/useWalletStore'
@@ -1567,8 +1586,9 @@
   import { FERTILIZERS, getFertilizerById } from '@/data/processing'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { navigateToPanel } from '@/composables/useNavigation'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { harvestFarmPlotWithRewards, harvestGreenhousePlotWithRewards } from '@/composables/useFarmHarvest'
   import { getShopById, isShopAvailable, getShopClosedReason } from '@/data/shops'
   import { getCropEffectiveGrowthDays, getPlotEffectiveGrowthDays } from '@/utils/farmGrowth'
@@ -1609,7 +1629,21 @@
   const hiddenNpcStore = useHiddenNpcStore()
   const homeStore = useHomeStore()
   const playerStore = usePlayerStore()
-  const shopStore = useShopStore()
+  type FarmShopStore = ReturnType<(typeof import('@/stores/useShopStore'))['useShopStore']>
+  const shopStore = shallowRef<FarmShopStore | null>(null)
+  let shopStorePromise: Promise<FarmShopStore> | null = null
+
+  const getShopStore = async () => {
+    if (shopStore.value) return shopStore.value
+    shopStorePromise ??= import('@/stores/useShopStore').then(module => module.useShopStore())
+    shopStore.value = await shopStorePromise
+    return shopStore.value
+  }
+
+  const openShippingBox = () => {
+    showShippingBox.value = true
+    void getShopStore()
+  }
   const breedingStore = useBreedingStore()
   const settingsStore = useSettingsStore()
   const walletStore = useWalletStore()
@@ -1839,7 +1873,7 @@
       })
       .map(item => ({
         ...item,
-        totalPrice: shopStore.calculateSellPrice(item.itemId, item.quantity, item.quality)
+        totalPrice: calculateShippingPrice(item.itemId, item.quantity, item.quality)
       }))
 
     return items.sort((left, right) => {
@@ -1849,16 +1883,21 @@
     })
   })
 
+  const shippingBoxEntries = computed(() => shopStore.value?.shippingBox ?? [])
+  const calculateShippingPrice = (itemId: string, quantity: number, quality: Quality) =>
+    shopStore.value?.calculateSellPrice(itemId, quantity, quality) ?? 0
+
   const shippingBoxTotal = computed(() => {
-    return shopStore.shippingBox.reduce(
+    return shippingBoxEntries.value.reduce(
       (sum: number, entry: { itemId: string; quantity: number; quality: Quality }) =>
-        sum + shopStore.calculateSellPrice(entry.itemId, entry.quantity, entry.quality),
+        sum + calculateShippingPrice(entry.itemId, entry.quantity, entry.quality),
       0
     )
   })
 
-  const handleAddToBox = (itemId: string, quantity: number, quality: Quality) => {
-    if (shopStore.addToShippingBox(itemId, quantity, quality)) {
+  const handleAddToBox = async (itemId: string, quantity: number, quality: Quality) => {
+    const loadedShopStore = await getShopStore()
+    if (loadedShopStore.addToShippingBox(itemId, quantity, quality)) {
       const name = getItemName(itemId)
       addLog(`将${name}×${quantity}放入了出货箱。`)
     } else if (inventoryStore.items.some(item => item.itemId === itemId && item.quality === quality && !item.locked && item.origin === 'shop')) {
@@ -1866,8 +1905,9 @@
     }
   }
 
-  const handleRemoveFromBox = (itemId: string, quantity: number, quality: Quality) => {
-    if (shopStore.removeFromShippingBox(itemId, quantity, quality)) {
+  const handleRemoveFromBox = async (itemId: string, quantity: number, quality: Quality) => {
+    const loadedShopStore = await getShopStore()
+    if (loadedShopStore.removeFromShippingBox(itemId, quantity, quality)) {
       const name = getItemName(itemId)
       addLog(`从出货箱取出了${name}×${quantity}。`)
     }
@@ -3391,23 +3431,19 @@
       return totals
     }, new Map<string, number>()).entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
     for (const mat of materialCost) {
-      if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) {
+      if (getCombinedItemCount(mat.itemId) < mat.quantity) {
         addLog('材料不足，无法升级温室。')
         return
       }
     }
-    const inventorySnapshot = inventoryStore.serialize()
     if (!playerStore.spendMoney(upgrade.cost)) {
       addLog('铜钱不足，无法升级温室。')
       return
     }
-    for (const mat of materialCost) {
-      if (!inventoryStore.removeItem(mat.itemId, mat.quantity)) {
-        playerStore.earnMoney(upgrade.cost, { countAsEarned: false })
-        inventoryStore.deserialize(inventorySnapshot)
-        addLog('材料不足，无法升级温室。')
-        return
-      }
+    if (!removeCombinedItems(materialCost)) {
+      playerStore.earnMoney(upgrade.cost, { countAsEarned: false })
+      addLog('材料不足，无法升级温室。')
+      return
     }
     farmStore.upgradeGreenhouse(upgrade.plotCount)
     addLog(`温室已升级至${upgrade.name}！（${upgrade.plotCount}个地块）`)
@@ -3560,5 +3596,352 @@
     opacity: 1;
     font-weight: 400;
     -webkit-text-fill-color: rgb(var(--color-muted));
+  }
+
+  .shipping-box-modal {
+    padding: 10px;
+  }
+
+  .shipping-box-modal__header {
+    padding-bottom: 9px;
+  }
+
+  .shipping-box-title-row {
+    display: flex;
+    min-width: 0;
+    min-height: 30px;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .shipping-box-title-icon {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.32);
+    border-radius: 2px;
+    background: rgb(var(--color-accent-rgb) / 0.08);
+  }
+
+  .shipping-box-title-text {
+    font-size: 0.875rem;
+    line-height: 1.2;
+  }
+
+  .shipping-box-count-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 2px 6px;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.2);
+    border-radius: 2px;
+    color: rgb(var(--color-muted-rgb));
+    font-size: 0.625rem;
+    line-height: 1;
+  }
+
+  .shipping-box-close {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.14);
+    border-radius: 2px;
+    background: rgb(var(--color-bg) / 0.22);
+  }
+
+  .shipping-box-layout {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .shipping-box-section {
+    overflow: hidden;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.12);
+    border-radius: 2px;
+    background: rgb(var(--color-bg) / 0.2);
+    padding: 8px;
+  }
+
+  .shipping-box-section--loaded {
+    max-height: min(28dvh, 210px);
+  }
+
+  .shipping-box-section--inventory {
+    min-height: 0;
+  }
+
+  .shipping-box-section-head {
+    min-height: 22px;
+  }
+
+  .shipping-box-scroll,
+  .shipping-box-item-list {
+    scrollbar-gutter: stable;
+  }
+
+  .shipping-box-loaded-card,
+  .shipping-box-item-card {
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.12);
+    background: rgb(var(--color-bg) / 0.18);
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .shipping-box-loaded-card:hover,
+  .shipping-box-item-card:hover {
+    border-color: rgb(var(--color-accent-rgb) / 0.28);
+    background: rgb(var(--color-accent-rgb) / 0.06);
+  }
+
+  .shipping-box-empty {
+    min-height: 92px;
+    border: 1px dashed rgb(var(--color-accent-rgb) / 0.14);
+    border-radius: 2px;
+    background: rgb(var(--color-bg) / 0.14);
+  }
+
+  .shipping-box-empty--inventory {
+    min-height: 180px;
+  }
+
+  .shipping-box-inventory-head {
+    display: flex;
+    min-height: 24px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+  }
+
+  .shipping-box-filter-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 7px;
+    border: 1px solid rgb(var(--color-accent-rgb) / 0.14);
+    border-radius: 2px;
+    background: rgb(var(--color-bg) / 0.34);
+  }
+
+  .shipping-box-search-field,
+  .shipping-box-select-field {
+    position: relative;
+    display: block;
+    min-width: 0;
+  }
+
+  .shipping-box-search-field {
+    grid-column: 1 / -1;
+  }
+
+  .shipping-box-search-icon,
+  .shipping-box-select-icon {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgb(var(--color-muted-rgb) / 0.82);
+    pointer-events: none;
+  }
+
+  .shipping-box-search-icon {
+    left: 10px;
+  }
+
+  .shipping-box-select-icon {
+    right: 9px;
+  }
+
+  .shipping-box-field-label {
+    position: absolute;
+    top: 5px;
+    left: 10px;
+    z-index: 1;
+    color: rgb(var(--color-muted-rgb) / 0.82);
+    font-size: 0.5625rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .shipping-box-control {
+    width: 100%;
+    min-width: 0 !important;
+    min-height: 42px;
+    border-color: rgb(var(--color-accent-rgb) / 0.16);
+    background: rgb(var(--color-bg) / 0.62);
+    font-size: 0.6875rem;
+  }
+
+  .shipping-box-control--search {
+    padding-left: 30px;
+  }
+
+  .shipping-box-select-field .shipping-box-control {
+    appearance: none;
+    padding: 16px 28px 5px 10px;
+  }
+
+  .shipping-box-item-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .shipping-box-item-main {
+    min-width: 0;
+  }
+
+  .shipping-box-item-title {
+    max-width: 100%;
+  }
+
+  .shipping-box-item-meta {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    column-gap: 8px;
+    row-gap: 1px;
+    line-height: 1.55;
+  }
+
+  .shipping-box-item-meta > span {
+    white-space: nowrap;
+  }
+
+  .shipping-box-item-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    gap: 6px;
+  }
+
+  .shipping-box-action-btn,
+  .shipping-box-return-btn {
+    min-height: 34px;
+    white-space: nowrap;
+  }
+
+  .shipping-box-action-btn {
+    width: 100%;
+    padding-inline: 8px;
+  }
+
+  @media (min-width: 768px) {
+    .shipping-box-modal {
+      padding: 12px;
+    }
+
+    .shipping-box-layout {
+      grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.44fr);
+      grid-template-rows: minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .shipping-box-section {
+      padding: 10px;
+    }
+
+    .shipping-box-section--loaded {
+      max-height: none;
+    }
+
+    .shipping-box-empty {
+      min-height: 180px;
+    }
+
+    .shipping-box-filter-bar {
+      grid-template-columns: minmax(220px, 1fr) minmax(118px, 0.44fr) minmax(132px, 0.5fr);
+      gap: 0;
+      padding: 0;
+      overflow: hidden;
+      background: rgb(var(--color-bg) / 0.44);
+    }
+
+    .shipping-box-search-field {
+      grid-column: auto;
+    }
+
+    .shipping-box-search-field,
+    .shipping-box-select-field {
+      border-right: 1px solid rgb(var(--color-accent-rgb) / 0.12);
+    }
+
+    .shipping-box-select-field:last-child {
+      border-right: 0;
+    }
+
+    .shipping-box-control {
+      min-height: 48px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .shipping-box-control:focus {
+      box-shadow: inset 0 0 0 1px rgb(var(--color-accent-rgb) / 0.42);
+    }
+
+    .shipping-box-item-card {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+    }
+
+    .shipping-box-item-actions {
+      display: flex;
+      width: auto;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .shipping-box-action-btn {
+      width: auto;
+      min-width: 72px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .shipping-box-modal__header {
+      padding-bottom: 8px;
+    }
+
+    .shipping-box-title-icon {
+      width: 26px;
+      height: 26px;
+    }
+
+    .shipping-box-title-text {
+      font-size: 0.8125rem;
+    }
+
+    .shipping-box-close {
+      width: 30px;
+      height: 30px;
+    }
+
+    .shipping-box-section {
+      padding: 7px;
+    }
+
+    .shipping-box-loaded-card {
+      min-height: 48px;
+    }
+
+    .shipping-box-item-card {
+      padding: 8px;
+    }
+
+    .shipping-box-item-main :deep(.item-icon--xs),
+    .shipping-box-loaded-card :deep(.item-icon--xs) {
+      width: 32px !important;
+      height: 32px !important;
+      flex: 0 0 auto;
+    }
   }
 </style>

@@ -1,6 +1,5 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useAudio } from '@/composables/useAudio'
 import { LATE_GAME_FEATURE_FLAGS, LATE_GAME_FEATURE_FLAG_CONFIG_MAP, createLateGameFeatureFlagState, normalizeLateGameFeatureOverrides } from '@/data/systemFlags'
 import { LATE_GAME_BALANCE_CONFIG } from '@/data/balance/lateGameBalance'
 import { getThemeByKey, hexToRgb, type ThemeKey } from '@/data/themes'
@@ -72,6 +71,8 @@ const normalizeCropUseFilterState = (data: any) => {
 
 export const useSettingsStore = defineStore('settings', () => {
   const fontSize = ref(DEFAULT_FONT_SIZE)
+  const sfxEnabled = ref(true)
+  const bgmEnabled = ref(true)
   const theme = ref<ThemeKey>(DEFAULT_THEME)
   const qmsgPosition = ref<QmsgPosition>(DEFAULT_QMSG_POSITION)
   const qmsgTimeout = ref(2500)
@@ -300,8 +301,19 @@ export const useSettingsStore = defineStore('settings', () => {
     keyboardShortcutBindings.value = createDefaultKeyboardShortcutBindings()
   }
 
+  const syncAudioSettings = async () => {
+    const { useAudio } = await import('@/composables/useAudio')
+    const audio = useAudio()
+    audio.sfxEnabled.value = sfxEnabled.value
+    audio.bgmEnabled.value = bgmEnabled.value
+    if (audio.bgmEnabled.value) {
+      audio.startBgm()
+    } else {
+      audio.stopBgm()
+    }
+  }
+
   const serialize = () => {
-    const { sfxEnabled, bgmEnabled } = useAudio()
     const selectedCropUseTags = sanitizeInventoryCropUseFilter(inventoryCropUseFilter.value)
     return {
       fontSize: fontSize.value,
@@ -387,14 +399,9 @@ export const useSettingsStore = defineStore('settings', () => {
       ? data.lateGameBalanceOverrides
       : {}
     syncQmsgConfig()
-    const { sfxEnabled, bgmEnabled, startBgm, stopBgm } = useAudio()
     sfxEnabled.value = data?.sfxEnabled ?? true
     bgmEnabled.value = data?.bgmEnabled ?? true
-    if (bgmEnabled.value) {
-      startBgm()
-    } else {
-      stopBgm()
-    }
+    void syncAudioSettings()
   }
 
   // 初始化时立即同步到 Qmsg，确保新游戏/首次加载也能生效

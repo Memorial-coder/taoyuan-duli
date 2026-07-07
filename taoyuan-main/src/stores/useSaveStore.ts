@@ -1,45 +1,10 @@
 ﻿import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, getActivePinia } from 'pinia'
 import { Capacitor } from '@capacitor/core'
 import CryptoJS from 'crypto-js'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { saveAs } from 'file-saver'
-import { useGameStore, SEASON_NAMES } from './useGameStore'
-import { usePlayerStore } from './usePlayerStore'
-import { useInventoryStore } from './useInventoryStore'
-import { useFarmStore } from './useFarmStore'
-import { useSkillStore } from './useSkillStore'
-import { usePotentialStore } from './usePotentialStore'
-import { useNpcStore } from './useNpcStore'
-import { useMiningStore } from './useMiningStore'
-import { useCookingStore } from './useCookingStore'
-import { useProcessingStore } from './useProcessingStore'
-import { useAchievementStore } from './useAchievementStore'
-import { useAnimalStore } from './useAnimalStore'
-import { useHomeStore } from './useHomeStore'
-import { useFishingStore } from './useFishingStore'
-import { useGoalStore } from './useGoalStore'
-import { useWalletStore } from './useWalletStore'
-import { useQuestStore } from './useQuestStore'
-import { useShopStore } from './useShopStore'
-import { useSettingsStore } from './useSettingsStore'
-import { useWarehouseStore } from './useWarehouseStore'
-import { useBreedingStore } from './useBreedingStore'
-import { useMuseumStore } from './useMuseumStore'
-import { useGuildStore } from './useGuildStore'
-import { useSecretNoteStore } from './useSecretNoteStore'
-import { useHanhaiStore } from './useHanhaiStore'
-import { useFishPondStore } from './useFishPondStore'
-import { useTutorialStore } from './useTutorialStore'
-import { useHiddenNpcStore } from './useHiddenNpcStore'
-import { useDecorationStore } from './useDecorationStore'
-import { useVillageProjectStore } from './useVillageProjectStore'
-import { useQuarryStore } from './useQuarryStore'
-import { useRegionMapStore } from './useRegionMapStore'
-import { useFrontierChronicleStore } from './useFrontierChronicleStore'
-import { usePlayerRecordCenterStore } from './usePlayerRecordCenterStore'
-import { useEquipmentAccessoryStore } from './useEquipmentAccessoryStore'
 import {
   BUILT_IN_SAMPLE_SAVES,
   type BuiltInSampleSaveDef,
@@ -59,7 +24,8 @@ import {
   WS12_QA_GOVERNANCE_CONTENT_TIERS,
   WS12_QA_GOVERNANCE_FEATURE_FLAGS,
   WS12_QA_GOVERNANCE_TUNING_CONFIG,
-  WS12_SAVE_MIGRATION_PROFILES
+  WS12_SAVE_MIGRATION_PROFILES,
+  createDefaultQaGovernanceRuntimeState
 } from '@/data/goals'
 import { buildScopedSingleKey, buildScopedStorageKey, ensureCurrentAccount, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
 import { deleteServerSlotRaw, fetchServerSlotEntries, fetchServerSlotRaw, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
@@ -73,6 +39,12 @@ const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
 const SAVE_VERSION = 6
 const PENDING_SERVER_SAVE_KEY_PREFIX = 'taoyuanxiang_pending_server_saves_'
+const SAVE_SEASON_NAMES: Record<string, string> = {
+  spring: '春',
+  summer: '夏',
+  autumn: '秋',
+  winter: '冬'
+}
 const EXPORT_FILE_NAME_RESERVED_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
 const sanitizeExportFileName = (value: string): string =>
   Array.from(value)
@@ -82,6 +54,129 @@ const sanitizeExportFileName = (value: string): string =>
     })
     .join('')
     .trim() || 'taoyuan_save'
+
+const getLoadedPiniaStore = <T = any>(id: string): T | null => {
+  const pinia = getActivePinia() as any
+  return (pinia?._s?.get?.(id) as T | undefined) ?? null
+}
+
+type GameplaySaveRuntime = Record<string, any>
+let gameplaySaveRuntimePromise: Promise<GameplaySaveRuntime> | null = null
+
+const loadGameplaySaveRuntime = async (): Promise<GameplaySaveRuntime> => {
+  if (!gameplaySaveRuntimePromise) {
+    gameplaySaveRuntimePromise = Promise.all([
+      import('./useGameStore'),
+      import('./usePlayerStore'),
+      import('./useInventoryStore'),
+      import('./useFarmStore'),
+      import('./useSkillStore'),
+      import('./usePotentialStore'),
+      import('./useNpcStore'),
+      import('./useMiningStore'),
+      import('./useCookingStore'),
+      import('./useProcessingStore'),
+      import('./useAchievementStore'),
+      import('./useAnimalStore'),
+      import('./useHomeStore'),
+      import('./useFishingStore'),
+      import('./useWalletStore'),
+      import('./useGoalStore'),
+      import('./useQuestStore'),
+      import('./useShopStore'),
+      import('./useSettingsStore'),
+      import('./useWarehouseStore'),
+      import('./useBreedingStore'),
+      import('./useMuseumStore'),
+      import('./useGuildStore'),
+      import('./useSecretNoteStore'),
+      import('./useHanhaiStore'),
+      import('./useFishPondStore'),
+      import('./useTutorialStore'),
+      import('./useHiddenNpcStore'),
+      import('./useDecorationStore'),
+      import('./useVillageProjectStore'),
+      import('./useQuarryStore'),
+      import('./useRegionMapStore'),
+      import('./useFrontierChronicleStore'),
+      import('./usePlayerRecordCenterStore'),
+      import('./useEquipmentAccessoryStore')
+    ]).then(([
+      gameModule,
+      playerModule,
+      inventoryModule,
+      farmModule,
+      skillModule,
+      potentialModule,
+      npcModule,
+      miningModule,
+      cookingModule,
+      processingModule,
+      achievementModule,
+      animalModule,
+      homeModule,
+      fishingModule,
+      walletModule,
+      goalModule,
+      questModule,
+      shopModule,
+      settingsModule,
+      warehouseModule,
+      breedingModule,
+      museumModule,
+      guildModule,
+      secretNoteModule,
+      hanhaiModule,
+      fishPondModule,
+      tutorialModule,
+      hiddenNpcModule,
+      decorationModule,
+      villageProjectModule,
+      quarryModule,
+      regionMapModule,
+      frontierChronicleModule,
+      playerRecordCenterModule,
+      equipmentAccessoryModule
+    ]) => ({
+      gameStore: gameModule.useGameStore(),
+      playerStore: playerModule.usePlayerStore(),
+      inventoryStore: inventoryModule.useInventoryStore(),
+      farmStore: farmModule.useFarmStore(),
+      skillStore: skillModule.useSkillStore(),
+      potentialStore: potentialModule.usePotentialStore(),
+      npcStore: npcModule.useNpcStore(),
+      miningStore: miningModule.useMiningStore(),
+      cookingStore: cookingModule.useCookingStore(),
+      processingStore: processingModule.useProcessingStore(),
+      achievementStore: achievementModule.useAchievementStore(),
+      animalStore: animalModule.useAnimalStore(),
+      homeStore: homeModule.useHomeStore(),
+      fishingStore: fishingModule.useFishingStore(),
+      walletStore: walletModule.useWalletStore(),
+      goalStore: goalModule.useGoalStore(),
+      questStore: questModule.useQuestStore(),
+      shopStore: shopModule.useShopStore(),
+      settingsStore: settingsModule.useSettingsStore(),
+      warehouseStore: warehouseModule.useWarehouseStore(),
+      breedingStore: breedingModule.useBreedingStore(),
+      museumStore: museumModule.useMuseumStore(),
+      guildStore: guildModule.useGuildStore(),
+      secretNoteStore: secretNoteModule.useSecretNoteStore(),
+      hanhaiStore: hanhaiModule.useHanhaiStore(),
+      fishPondStore: fishPondModule.useFishPondStore(),
+      tutorialStore: tutorialModule.useTutorialStore(),
+      hiddenNpcStore: hiddenNpcModule.useHiddenNpcStore(),
+      decorationStore: decorationModule.useDecorationStore(),
+      villageProjectStore: villageProjectModule.useVillageProjectStore(),
+      quarryStore: quarryModule.useQuarryStore(),
+      regionMapStore: regionMapModule.useRegionMapStore(),
+      frontierChronicleStore: frontierChronicleModule.useFrontierChronicleStore(),
+      playerRecordCenterStore: playerRecordCenterModule.usePlayerRecordCenterStore(),
+      equipmentAccessoryStore: equipmentAccessoryModule.useEquipmentAccessoryStore()
+    }))
+  }
+  return gameplaySaveRuntimePromise
+}
 
 export type ServerSaveSyncStatus = 'idle' | 'syncing' | 'queued' | 'synced' | 'error'
 export type SaveExecutionStatus = 'saved' | 'queued' | 'failed' | 'conflict'
@@ -1100,20 +1195,25 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   const getSaveBlockReason = (): string => {
-    const miningStore = useMiningStore()
-    if (miningStore.isExploring) return '矿洞探索中无法保存，请先离开矿洞。'
+    const miningStore = getLoadedPiniaStore('mining')
+    if (miningStore?.isExploring) return '矿洞探索中无法保存，请先离开矿洞。'
 
-    const fishingStore = useFishingStore()
-    if (fishingStore.currentFish) return '钓鱼进行中无法保存，请先完成当前钓鱼。'
+    const fishingStore = getLoadedPiniaStore('fishing')
+    if (fishingStore?.currentFish) return '钓鱼进行中无法保存，请先完成当前钓鱼。'
 
-    const hanhaiStore = useHanhaiStore()
-    if (hanhaiStore.hasActiveCasinoSession) return '瀚海赌局进行中无法保存，请先完成当前牌局。'
+    const hanhaiStore = getLoadedPiniaStore('hanhai')
+    if (hanhaiStore?.hasActiveCasinoSession) return '瀚海赌局进行中无法保存，请先完成当前牌局。'
 
     return ''
   }
 
   const qaGovernanceOverview = computed(() => {
-    const playerStore = usePlayerStore()
+    const playerStore = getLoadedPiniaStore('player')
+    const runtimeState = playerStore?.qaGovernanceRuntimeState ?? createDefaultQaGovernanceRuntimeState()
+    const economyTelemetry = playerStore?.economyTelemetry ?? {
+      saveVersion: 0,
+      lastAuditDayTag: ''
+    }
     return {
       baselineAudit: qaGovernanceBaselineAudit,
       featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
@@ -1130,19 +1230,19 @@ export const useSaveStore = defineStore('save', () => {
       compensationPresetCount: WS12_COMPENSATION_MAIL_PRESETS.length,
       supportsEncryptedTransfer: true,
       supportsModeSwitch: true,
-      runtimeState: playerStore.qaGovernanceRuntimeState,
-      telemetrySaveVersion: playerStore.economyTelemetry.saveVersion,
-      lastAuditDayTag: playerStore.economyTelemetry.lastAuditDayTag
+      runtimeState,
+      telemetrySaveVersion: economyTelemetry.saveVersion,
+      lastAuditDayTag: economyTelemetry.lastAuditDayTag
     }
   })
 
   const qaGovernanceCrossSystemOverview = computed(() => {
-    const playerStore = usePlayerStore()
-    const questStore = useQuestStore()
-    const processingStore = useProcessingStore()
-    const villageProjectStore = useVillageProjectStore()
-    const museumStore = useMuseumStore()
-    const goalStore = useGoalStore()
+    const playerStore = getLoadedPiniaStore('player')
+    const questStore = getLoadedPiniaStore('quest')
+    const processingStore = getLoadedPiniaStore('processing')
+    const villageProjectStore = getLoadedPiniaStore('villageProject')
+    const museumStore = getLoadedPiniaStore('museum')
+    const goalStore = getLoadedPiniaStore('goal')
 
     const loops = WS12_QA_GOVERNANCE_LOOP_LINK_DEFS.map(def => {
       let active = false
@@ -1150,9 +1250,9 @@ export const useSaveStore = defineStore('save', () => {
 
       switch (def.id) {
         case 'ws12_loop_income_to_consumption': {
-          const overdueMaintenanceCount = villageProjectStore.maintenanceSummaries.filter(summary => summary.overdue).length
-          const activeDonationCount = villageProjectStore.donationSummaries.filter(summary => summary.unlocked && !summary.targetReached).length
-          active = playerStore.getRecentNetIncome(7) > 0 && (overdueMaintenanceCount > 0 || activeDonationCount > 0)
+          const overdueMaintenanceCount = villageProjectStore?.maintenanceSummaries?.filter((summary: any) => summary.overdue).length ?? 0
+          const activeDonationCount = villageProjectStore?.donationSummaries?.filter((summary: any) => summary.unlocked && !summary.targetReached).length ?? 0
+          active = (playerStore?.getRecentNetIncome?.(7) ?? 0) > 0 && (overdueMaintenanceCount > 0 || activeDonationCount > 0)
           evidence = overdueMaintenanceCount > 0
             ? `当前有 ${overdueMaintenanceCount} 项维护逾期。`
             : activeDonationCount > 0
@@ -1161,9 +1261,9 @@ export const useSaveStore = defineStore('save', () => {
           break
         }
         case 'ws12_loop_growth_to_order': {
-          const readyMachineCount = processingStore.machines.filter(machine => machine.ready).length
-          active = readyMachineCount > 0 || !!questStore.specialOrder
-          evidence = questStore.specialOrder
+          const readyMachineCount = processingStore?.machines?.filter((machine: any) => machine.ready).length ?? 0
+          active = readyMachineCount > 0 || !!questStore?.specialOrder
+          evidence = questStore?.specialOrder
             ? `特殊订单“${questStore.specialOrder.description}”可直接承接当前加工产出。`
             : readyMachineCount > 0
               ? `当前有 ${readyMachineCount} 台机器产物待领取。`
@@ -1171,15 +1271,17 @@ export const useSaveStore = defineStore('save', () => {
           break
         }
         case 'ws12_loop_display_to_reputation': {
-          active = museumStore.displayRatingOverview.state.score > 0 || goalStore.goalReputation > 0
-          evidence = `展陈评分 ${museumStore.displayRatingOverview.state.score}，目标声望 ${goalStore.goalReputation}。`
+          const museumScore = museumStore?.displayRatingOverview?.state?.score ?? 0
+          const goalReputation = goalStore?.goalReputation ?? 0
+          active = museumScore > 0 || goalReputation > 0
+          evidence = `展陈评分 ${museumScore}，目标声望 ${goalReputation}。`
           break
         }
         case 'ws12_loop_activity_to_reward': {
-          active = !!goalStore.currentEventCampaign || !!questStore.currentLimitedTimeQuestCampaign
-          evidence = goalStore.currentEventCampaign
+          active = !!goalStore?.currentEventCampaign || !!questStore?.currentLimitedTimeQuestCampaign
+          evidence = goalStore?.currentEventCampaign
             ? `当前活动“${goalStore.currentEventCampaign.label}”正在运行。`
-            : questStore.currentLimitedTimeQuestCampaign
+            : questStore?.currentLimitedTimeQuestCampaign
               ? `当前限时窗口“${questStore.currentLimitedTimeQuestCampaign.label}”待结算。`
               : ''
           break
@@ -1203,7 +1305,12 @@ export const useSaveStore = defineStore('save', () => {
   })
 
   const getQaGovernanceDebugSnapshot = () => {
-    const playerStore = usePlayerStore()
+    const playerStore = getLoadedPiniaStore('player')
+    const runtimeState = playerStore?.qaGovernanceRuntimeState ?? createDefaultQaGovernanceRuntimeState()
+    const economyTelemetry = playerStore?.economyTelemetry ?? {
+      saveVersion: 0,
+      lastAuditDayTag: ''
+    }
     return {
       featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
       contentTierIds: WS12_QA_GOVERNANCE_CONTENT_TIERS.map(tier => tier.id),
@@ -1216,11 +1323,11 @@ export const useSaveStore = defineStore('save', () => {
       migrationProfileIds: WS12_SAVE_MIGRATION_PROFILES.map(profile => profile.id),
       regressionSuiteIds: WS12_AUTOMATED_REGRESSION_SUITES.map(suite => suite.id),
       compensationPresetIds: WS12_COMPENSATION_MAIL_PRESETS.map(preset => preset.id),
-      runtimeState: { ...playerStore.qaGovernanceRuntimeState },
+      runtimeState: { ...runtimeState },
       crossSystemLoopIds: qaGovernanceCrossSystemOverview.value.loops.map(loop => loop.id),
       activeStorageLockIds: [...qaGovernanceStorageActionLocks.value],
-      telemetrySaveVersion: playerStore.economyTelemetry.saveVersion,
-      lastAuditDayTag: playerStore.economyTelemetry.lastAuditDayTag
+      telemetrySaveVersion: economyTelemetry.saveVersion,
+      lastAuditDayTag: economyTelemetry.lastAuditDayTag
     }
   }
 
@@ -1249,47 +1356,50 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   const resetQaGovernanceRuntimeState = () => {
-    const playerStore = usePlayerStore()
+    const playerStore = getLoadedPiniaStore('player')
+    if (!playerStore) return createDefaultQaGovernanceRuntimeState()
     playerStore.resetQaGovernanceRuntimeState()
     return playerStore.qaGovernanceRuntimeState
   }
 
-  const buildCurrentSaveData = () => {
-    const gameStore = useGameStore()
-    const playerStore = usePlayerStore()
-    const inventoryStore = useInventoryStore()
-    const farmStore = useFarmStore()
-    const skillStore = useSkillStore()
-    const potentialStore = usePotentialStore()
-    const npcStore = useNpcStore()
-    const miningStore = useMiningStore()
-    const cookingStore = useCookingStore()
-    const processingStore = useProcessingStore()
-    const achievementStore = useAchievementStore()
-    const animalStore = useAnimalStore()
-    const homeStore = useHomeStore()
-    const fishingStore = useFishingStore()
-    const walletStore = useWalletStore()
-    const goalStore = useGoalStore()
-    const questStore = useQuestStore()
-    const shopStore = useShopStore()
-    const settingsStore = useSettingsStore()
-    const warehouseStore = useWarehouseStore()
-    const breedingStore = useBreedingStore()
-    const museumStore = useMuseumStore()
-    const guildStore = useGuildStore()
-    const secretNoteStore = useSecretNoteStore()
-    const hanhaiStore = useHanhaiStore()
-    const fishPondStore = useFishPondStore()
-    const tutorialStore = useTutorialStore()
-    const hiddenNpcStore = useHiddenNpcStore()
-    const decorationStore = useDecorationStore()
-    const villageProjectStore = useVillageProjectStore()
-    const quarryStore = useQuarryStore()
-    const regionMapStore = useRegionMapStore()
-    const frontierChronicleStore = useFrontierChronicleStore()
-    const playerRecordCenterStore = usePlayerRecordCenterStore()
-    const equipmentAccessoryStore = useEquipmentAccessoryStore()
+  const buildCurrentSaveData = async () => {
+    const {
+      gameStore,
+      playerStore,
+      inventoryStore,
+      farmStore,
+      skillStore,
+      potentialStore,
+      npcStore,
+      miningStore,
+      cookingStore,
+      processingStore,
+      achievementStore,
+      animalStore,
+      homeStore,
+      fishingStore,
+      walletStore,
+      goalStore,
+      questStore,
+      shopStore,
+      settingsStore,
+      warehouseStore,
+      breedingStore,
+      museumStore,
+      guildStore,
+      secretNoteStore,
+      hanhaiStore,
+      fishPondStore,
+      tutorialStore,
+      hiddenNpcStore,
+      decorationStore,
+      villageProjectStore,
+      quarryStore,
+      regionMapStore,
+      frontierChronicleStore,
+      playerRecordCenterStore,
+      equipmentAccessoryStore
+    } = await loadGameplaySaveRuntime()
 
     const payload = {
       game: gameStore.serialize(),
@@ -1394,51 +1504,53 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  const applySaveData = (
+  const applySaveData = async (
     data: Record<string, any>,
     slot: number,
     mode: SaveMode = storageMode.value,
     options: ApplySaveDataOptions = {},
-  ): boolean => {
+  ): Promise<boolean> => {
     const normalized = normalizeSaveEnvelope(data)
     if (!normalized) return false
     const payload = normalized.data
 
-    const gameStore = useGameStore()
-    const playerStore = usePlayerStore()
-    const inventoryStore = useInventoryStore()
-    const farmStore = useFarmStore()
-    const skillStore = useSkillStore()
-    const potentialStore = usePotentialStore()
-    const npcStore = useNpcStore()
-    const miningStore = useMiningStore()
-    const cookingStore = useCookingStore()
-    const processingStore = useProcessingStore()
-    const achievementStore = useAchievementStore()
-    const animalStore = useAnimalStore()
-    const homeStore = useHomeStore()
-    const fishingStore = useFishingStore()
-    const walletStore = useWalletStore()
-    const goalStore = useGoalStore()
-    const questStore = useQuestStore()
-    const shopStore = useShopStore()
-    const settingsStore = useSettingsStore()
-    const warehouseStore = useWarehouseStore()
-    const breedingStore = useBreedingStore()
-    const museumStore = useMuseumStore()
-    const guildStore = useGuildStore()
-    const secretNoteStore = useSecretNoteStore()
-    const hanhaiStore = useHanhaiStore()
-    const fishPondStore = useFishPondStore()
-    const tutorialStore = useTutorialStore()
-    const hiddenNpcStore = useHiddenNpcStore()
-    const decorationStore = useDecorationStore()
-    const villageProjectStore = useVillageProjectStore()
-    const quarryStore = useQuarryStore()
-    const regionMapStore = useRegionMapStore()
-    const frontierChronicleStore = useFrontierChronicleStore()
-    const playerRecordCenterStore = usePlayerRecordCenterStore()
-    const equipmentAccessoryStore = useEquipmentAccessoryStore()
+    const {
+      gameStore,
+      playerStore,
+      inventoryStore,
+      farmStore,
+      skillStore,
+      potentialStore,
+      npcStore,
+      miningStore,
+      cookingStore,
+      processingStore,
+      achievementStore,
+      animalStore,
+      homeStore,
+      fishingStore,
+      walletStore,
+      goalStore,
+      questStore,
+      shopStore,
+      settingsStore,
+      warehouseStore,
+      breedingStore,
+      museumStore,
+      guildStore,
+      secretNoteStore,
+      hanhaiStore,
+      fishPondStore,
+      tutorialStore,
+      hiddenNpcStore,
+      decorationStore,
+      villageProjectStore,
+      quarryStore,
+      regionMapStore,
+      frontierChronicleStore,
+      playerRecordCenterStore,
+      equipmentAccessoryStore
+    } = await loadGameplaySaveRuntime()
 
       // 核心块缺失时直接拒绝加载，避免先重置当前会话再因反序列化失败把现场清空
     if (!payload.game || !payload.player || !payload.inventory || !payload.farm) {
@@ -1931,7 +2043,7 @@ export const useSaveStore = defineStore('save', () => {
 
       const repairedRaw = saveResult.raw ?? anomaly.localRaw
       const parsed = repairedRaw ? parseSaveData(repairedRaw) : null
-      const applied = parsed ? applySaveData(parsed, slot, 'server') : false
+      const applied = parsed ? await applySaveData(parsed, slot, 'server') : false
       if (!applied) {
         refreshRuntimeOnlineIdentityFromRaw(slot, 'server', repairedRaw)
       }
@@ -2052,7 +2164,7 @@ export const useSaveStore = defineStore('save', () => {
     }
     try {
       const targetMode = storageMode.value
-      const data = buildCurrentSaveData()
+      const data = await buildCurrentSaveData()
       const ok = await setRawByMode(slot, encrypt(JSON.stringify(data)))
       if (!ok) return false
       applyActiveSlotSelection(slot, targetMode)
@@ -2109,14 +2221,14 @@ export const useSaveStore = defineStore('save', () => {
         setLoadError('incompatible_schema', slot, loadMode)
         return false
       }
-      const runtimeSnapshot = buildCurrentSaveData()
+      const runtimeSnapshot = await buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
       const previousRuntimeSessionSlot = runtimeSessionSlot.value
       const previousRuntimeSessionMode = runtimeSessionMode.value
       const previousActiveBuiltInSampleSave = activeBuiltInSampleSave.value
       const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
-      const applied = applySaveData(parsed.rawData, slot, loadMode)
+      const applied = await applySaveData(parsed.rawData, slot, loadMode)
       if (!applied) {
         setLoadError('apply_failed', slot, loadMode)
         return false
@@ -2131,7 +2243,7 @@ export const useSaveStore = defineStore('save', () => {
         try {
           await setServerActiveSlot(slot)
         } catch (error) {
-          const restored = applySaveData(
+          const restored = await applySaveData(
             runtimeSnapshot,
             previousRuntimeSessionSlot,
             previousRuntimeSessionMode ?? previousActiveSlotMode ?? loadMode
@@ -2184,7 +2296,7 @@ export const useSaveStore = defineStore('save', () => {
       }
       const uploadEntry = shouldRefreshRuntimeCopy
         ? buildPendingServerSaveEntry(
-            encrypt(JSON.stringify(buildCurrentSaveData())),
+            encrypt(JSON.stringify(await buildCurrentSaveData())),
             conflict.remoteRevision,
             'runtime'
           )
@@ -2292,7 +2404,7 @@ export const useSaveStore = defineStore('save', () => {
       if (!raw) return false
       const info = (await getSlots(mode)).find(s => s.slot === slot)
       const name = info?.exists
-        ? `桃源乡_存档${slot + 1}_第${info.year}年_${SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season}_第${info.day}天`
+        ? `桃源乡_存档${slot + 1}_第${info.year}年_${SAVE_SEASON_NAMES[String(info.season)] ?? info.season}_第${info.day}天`
         : `桃源乡_存档${slot + 1}`
       const fileName = `${sanitizeExportFileName(name)}${SAVE_FILE_EXT}`
 
@@ -2339,7 +2451,7 @@ export const useSaveStore = defineStore('save', () => {
         setLastSaveState('failed', '存档文件无法解密，或不是当前版本可识别的桃源乡存档。', '')
         return false
       }
-      const runtimeSnapshot = buildCurrentSaveData()
+      const runtimeSnapshot = await buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
       const previousRuntimeSessionSlot = runtimeSessionSlot.value
@@ -2347,8 +2459,8 @@ export const useSaveStore = defineStore('save', () => {
       const previousActiveBuiltInSampleSave = activeBuiltInSampleSave.value
       const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
       const restoreMode = previousRuntimeSessionMode ?? previousActiveSlotMode ?? storageMode.value
-      const validationPassed = applySaveData(data, previousActiveSlot, restoreMode)
-      const restorePassed = applySaveData(runtimeSnapshot, previousRuntimeSessionSlot, restoreMode)
+      const validationPassed = await applySaveData(data, previousActiveSlot, restoreMode)
+      const restorePassed = await applySaveData(runtimeSnapshot, previousRuntimeSessionSlot, restoreMode)
       activeSlot.value = previousActiveSlot
       activeSlotMode.value = previousActiveSlotMode
       runtimeSessionSlot.value = previousRuntimeSessionSlot

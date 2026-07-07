@@ -265,7 +265,7 @@
               v-for="req in activeBundle.requiredItems.filter(r => getSubmittedCount(activeBundle!.id, r.itemId) < r.quantity)"
               :key="'submit_' + req.itemId"
               class="w-full justify-center"
-              :disabled="!inventoryStore.hasItem(req.itemId)"
+              :disabled="getCombinedItemCount(req.itemId) <= 0"
               @click="handleSubmit(activeBundle!.id, req.itemId)"
             >
               <ItemIcon :item="getItemById(req.itemId)" size="xs" :show-badge="false" />
@@ -610,7 +610,6 @@
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useGuildStore } from '@/stores/useGuildStore'
-  import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useGoalStore } from '@/stores/useGoalStore'
@@ -630,12 +629,12 @@
   import type { GlossaryOpenPreset } from '@/data/glossary'
   import { COLLECTION_CATEGORY_NAMES, COLLECTION_CATEGORY_COLORS } from '@/data/collectionRegistry'
   import { sfxClick } from '@/composables/useAudio'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { addLog } from '@/composables/useGameLog'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import type { ItemCategory, AchievementDef, CommunityBundleDef, SecretNoteDef, RegionId, Season, Weather } from '@/types'
 
   const achievementStore = useAchievementStore()
-  const inventoryStore = useInventoryStore()
   const shopStore = useShopStore()
   const animalStore = useAnimalStore()
   const secretNoteStore = useSecretNoteStore()
@@ -1202,7 +1201,7 @@
 
     const submitted = getSubmittedCount(bundleId, itemId)
     const needed = req.quantity - submitted
-    const available = inventoryStore.getItemCount(itemId)
+    const available = getCombinedItemCount(itemId)
     const toSubmit = Math.min(needed, available)
     if (toSubmit <= 0) return
 

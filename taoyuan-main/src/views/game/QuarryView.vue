@@ -518,7 +518,7 @@ import type { CombatAction, ItemDef, QuarryCell, QuarryMineExploreMode, QuarryMi
 import { sfxMine, sfxAttack, sfxHurt, sfxClick, sfxEncounter, sfxDefend, sfxFlee, sfxVictory } from '@/composables/useAudio'
 import { useAudio } from '@/composables/useAudio'
 import { addLog, showFloat } from '@/composables/useGameLog'
-import { handleEndDay } from '@/composables/useEndDay'
+import { handleEndDay } from '@/composables/useEndDayLazy'
 import { useKeyboardShortcutActions } from '@/composables/useKeyboardShortcuts'
 import { scrollByViewport, useKeyboardShortcutContextActions } from '@/composables/useKeyboardShortcutContextActions'
 
@@ -580,10 +580,18 @@ const quarryWeeklyNextStepText = computed(() => {
   return `距离下一次潜能奖励还差 ${remaining} 格。`
 })
 const recentLog = computed(() => exploreLog.value.slice(-8))
-const sceneGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${quarryStore.activeSize}, minmax(0, 1fr))`,
-  '--quarry-cell-size': `clamp(13px, ${Math.max(0.9, 3.5 - quarryStore.activeSize * 0.06).toFixed(2)}vw, ${quarryStore.activeSize > 20 ? 28 : 36}px)`
-}))
+const sceneGridStyle = computed(() => {
+  const activeSize = quarryStore.activeSize
+  const minSize = activeSize > 20 ? 13 : 24
+  const maxSize = activeSize > 20 ? 28 : activeSize > 12 ? 36 : 44
+  const fittedViewportSize = `calc(${(100 / activeSize).toFixed(3)}vw - ${(72 / activeSize).toFixed(2)}px)`
+
+  return {
+    gridTemplateColumns: `repeat(${activeSize}, var(--quarry-cell-size))`,
+    gridTemplateRows: `repeat(${activeSize}, var(--quarry-cell-size))`,
+    '--quarry-cell-size': `clamp(${minSize}px, ${fittedViewportSize}, ${maxSize}px)`
+  }
+})
 const quarryMineStatusText = computed(() => {
   const status = quarryStore.quarryMineStatus
   if (status.completed) return status.daysUntilRefresh > 0 ? `${status.daysUntilRefresh} 天后刷新` : '等待刷新'
@@ -1406,10 +1414,10 @@ const handleExpand = () => {
 
 .quarry-grid {
   --quarry-cell-size: 28px;
+  --quarry-cell-gap: 3px;
   display: grid;
   width: max-content;
-  min-width: 100%;
-  gap: 3px;
+  gap: var(--quarry-cell-gap);
   margin: 0 auto;
   border: 1px solid rgb(var(--color-bg) / 0.58);
   border-radius: 2px;
@@ -1418,7 +1426,7 @@ const handleExpand = () => {
     linear-gradient(90deg, rgb(var(--color-text) / 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgb(var(--color-text) / 0.025) 1px, transparent 1px),
     rgb(43 35 28 / 0.72);
-  background-size: calc(var(--quarry-cell-size) + 3px) calc(var(--quarry-cell-size) + 3px);
+  background-size: calc(var(--quarry-cell-size) + var(--quarry-cell-gap)) calc(var(--quarry-cell-size) + var(--quarry-cell-gap));
   box-shadow: inset 0 0 24px rgb(0 0 0 / 0.22);
 }
 
@@ -2358,7 +2366,7 @@ const handleExpand = () => {
   }
 
   .quarry-grid {
-    gap: 2px;
+    --quarry-cell-gap: 2px;
     padding: 5px;
   }
 

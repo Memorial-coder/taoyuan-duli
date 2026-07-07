@@ -512,9 +512,9 @@
                 </span>
                 <span
                   class="text-xs"
-                  :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity * shopBuyQty ? 'text-success' : 'text-danger'"
+                  :class="getCombinedItemCount(mat.itemId) >= mat.quantity * shopBuyQty ? 'text-success' : 'text-danger'"
                 >
-                  {{ inventoryStore.getItemCount(mat.itemId) }}/{{ mat.quantity * shopBuyQty }}
+                  {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity * shopBuyQty }}
                 </span>
               </div>
             </template>
@@ -748,6 +748,7 @@
   import type { MonsterDef, GuildShopItemDef, MonsterGoalDef } from '@/types'
   import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
@@ -891,7 +892,7 @@
     }
     if (item.materials) {
       for (const mat of item.materials) {
-        max = Math.min(max, Math.floor(inventoryStore.getItemCount(mat.itemId) / mat.quantity))
+        max = Math.min(max, Math.floor(getCombinedItemCount(mat.itemId) / mat.quantity))
       }
     }
     if (item.dailyLimit) max = Math.min(max, guildStore.getDailyRemaining(item.itemId, item.dailyLimit))
@@ -1082,7 +1083,7 @@
     if (item.totalLimit && guildStore.getTotalRemaining(item.itemId, item.totalLimit) < safeQty) return '该商品已达到总限购上限。'
     if (item.materials) {
       for (const mat of item.materials) {
-        if (inventoryStore.getItemCount(mat.itemId) < mat.quantity * safeQty) {
+        if (getCombinedItemCount(mat.itemId) < mat.quantity * safeQty) {
           return `${getMaterialName(mat.itemId)}不足。`
         }
       }

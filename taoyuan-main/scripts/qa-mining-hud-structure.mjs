@@ -46,8 +46,27 @@ assert(miningViewSource.includes('gameStore.isLateNight'), 'time HUD must react 
 assert(miningViewSource.includes('playerStore.staminaPercent'), 'stamina HUD must react to stamina percentage.')
 assert(miningViewSource.includes('playerStore.getHpPercent()'), 'HP HUD must react to HP percentage.')
 
+assert(miningViewSource.includes('data-testid="mining-elevator-panel"'), 'mining elevator modal must expose a stable panel test id.')
+assert(
+  /data-testid="mining-elevator-panel"[\s\S]*class="[^"]*max-h-\[82dvh\][^"]*\boverflow-y-auto\b[^"]*\boverscroll-contain\b/.test(miningViewSource),
+  'mining elevator modal must cap panel height and contain long-list scrolling.'
+)
+assert(miningViewSource.includes('data-testid="mining-skull-elevator-floor-list"'), 'skull cavern floor shortcuts must expose a stable list test id.')
+assert(
+  /data-testid="mining-skull-elevator-floor-list"[\s\S]*class="[^"]*\bmax-h-48\b[^"]*\boverflow-y-auto\b/.test(miningViewSource),
+  'skull cavern floor shortcuts must scroll internally when many safe points are unlocked.'
+)
+
 assert(miningViewSource.includes('grid-template-columns: repeat(3, minmax(0, 1fr))'), 'mining HUD must remain a stable three-column strip.')
-assert(miningViewSource.includes('@media (max-width: 360px)'), 'mining HUD must keep a narrow-mobile fallback.')
+assert(
+  miningViewSource.includes('container-type: inline-size'),
+  'mining HUD strip must use inline-size container queries so compact dialogs trigger the narrow fallback.'
+)
+assert(
+  miningViewSource.includes('@container (max-width: 340px)'),
+  'mining HUD must hide labels when the strip itself is narrow enough to compress time.'
+)
+assert(miningViewSource.includes('.mining-status-item > svg'), 'mining HUD icons must not shrink before labels collapse.')
 assert(miningViewSource.includes('env(safe-area-inset-top, 0px)'), 'mining dialog overlay must respect mobile safe-area top inset.')
 assert(miningViewSource.includes('rgb(var(--color-accent-rgb) / 0.18)'), 'mining HUD translucent accent border must use the RGB token.')
 assert(miningViewSource.includes('rgb(var(--color-muted-rgb))'), 'mining HUD label color must use the RGB token.')

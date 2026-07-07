@@ -36,10 +36,10 @@
           </div>
 
           <div
-            v-if="androidUpdateMode === 'required' && saveStore.pendingServerSlots.length > 0"
+            v-if="androidUpdateMode === 'required' && pendingServerSlotCount > 0"
             class="rounded-xs border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning leading-6"
           >
-            检测到 {{ saveStore.pendingServerSlots.length }} 个待同步服务端存档。更新前可先尝试同步，避免云端进度缺失。
+            检测到 {{ pendingServerSlotCount }} 个待同步服务端存档。更新前可先尝试同步，避免云端进度缺失。
           </div>
 
           <div
@@ -64,7 +64,7 @@
 
           <div class="flex flex-wrap justify-center gap-2">
             <button
-              v-if="androidUpdateMode === 'required' && saveStore.pendingServerSlots.length > 0"
+              v-if="androidUpdateMode === 'required' && pendingServerSlotCount > 0"
               class="btn"
               :disabled="syncingRequiredUpdateSaves"
               @click="syncRequiredUpdateSaves"
@@ -115,7 +115,7 @@
   import { Capacitor } from '@capacitor/core'
   import { App as CapApp } from '@capacitor/app'
   import { Browser } from '@capacitor/browser'
-  import { useSaveStore } from '@/stores/useSaveStore'
+  import type { SaveSlotInfo } from '@/stores/useSaveStore'
   import { createDefaultAndroidAppReleaseConfig, normalizeAndroidAppReleaseConfig } from '@/utils/androidRelease'
   import { parseJsonSafe } from '@/utils/protectedApi'
   import { showFloat } from '@/composables/useGameLog'
@@ -123,18 +123,25 @@
 
   const route = useRoute()
   const router = useRouter()
-  const saveStore = useSaveStore()
   const showExitConfirm = ref(false)
   const androidReleaseConfig = ref(createDefaultAndroidAppReleaseConfig())
   const androidUpdateMode = ref<'hidden' | 'optional' | 'required'>('hidden')
   const currentAndroidVersionName = ref('')
   const currentAndroidVersionCode = ref(0)
   const syncingRequiredUpdateSaves = ref(false)
-  const localExportSlots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
+  const localExportSlots = ref<SaveSlotInfo[]>([])
+  const pendingServerSlotCount = ref(0)
   const { teleportTarget } = useFullscreenTeleportTarget()
   let visibilityHandler: (() => void) | null = null
   let onlineHandler: (() => void) | null = null
   let backButtonListener: { remove: () => Promise<void> } | null = null
+  type SaveStore = ReturnType<(typeof import('@/stores/useSaveStore'))['useSaveStore']>
+  let saveStorePromise: Promise<SaveStore> | null = null
+
+  const getSaveStore = () => {
+    saveStorePromise ??= import('@/stores/useSaveStore').then(module => module.useSaveStore())
+    return saveStorePromise
+  }
 
   const ANDROID_UPDATE_DISMISS_KEY_PREFIX = 'taoyuan_android_update_dismissed_'
   const isAndroidNative = Capacitor.getPlatform() === 'android'
@@ -197,7 +204,8 @@
       localExportSlots.value = []
       return
     }
-    localExportSlots.value = (await saveStore.getSlots('local')).filter(slot => slot.exists)
+    const runtimeSaveStore = await getSaveStore()
+    localExportSlots.value = (await runtimeSaveStore.getSlots('local')).filter(slot => slot.exists)
   }
 
   const applyAndroidReleaseGate = async (configValue: unknown) => {
@@ -258,18 +266,23 @@
   }
 
   const syncPendingServerSavesAndRefreshGate = async () => {
-    await saveStore.syncPendingServerSaves()
+    if (!isAndroidNative) return
+    const runtimeSaveStore = await getSaveStore()
+    await runtimeSaveStore.syncPendingServerSaves()
+    pendingServerSlotCount.value = runtimeSaveStore.pendingServerSlots.length
     await refreshAndroidReleaseGate()
   }
 
   const syncRequiredUpdateSaves = async () => {
     syncingRequiredUpdateSaves.value = true
     try {
-      const result = await saveStore.syncPendingServerSaves()
+      const runtimeSaveStore = await getSaveStore()
+      const result = await runtimeSaveStore.syncPendingServerSaves()
+      pendingServerSlotCount.value = runtimeSaveStore.pendingServerSlots.length
       if (result.syncedSlots.length > 0) {
         showFloat('待同步服务端存档已补传。', 'success')
       } else if (result.failedSlots.length > 0) {
-        showFloat(saveStore.lastServerSyncMessage || '服务端存档同步失败，请稍后重试。', 'danger')
+        showFloat(runtimeSaveStore.lastServerSyncMessage || '服务端存档同步失败，请稍后重试。', 'danger')
       } else {
         showFloat('当前没有待同步的服务端存档。', 'accent')
       }
@@ -280,7 +293,8 @@
   }
 
   const exportLocalSave = async (slot: number) => {
-    if (!(await saveStore.exportSave(slot, 'local'))) {
+    const runtimeSaveStore = await getSaveStore()
+    if (!(await runtimeSaveStore.exportSave(slot, 'local'))) {
       showFloat('导出本地存档失败。', 'danger')
       return
     }

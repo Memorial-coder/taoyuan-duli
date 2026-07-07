@@ -135,7 +135,7 @@ for (const token of [
   'getRelicPreparedRewardBundle',
   'applyTravelPrepToRewards',
   'mergeTicketRewards',
-  'removeItemAnywhere(cost.itemId, cost.quantity)',
+  'removeCombinedItems(travelPrep.def.costItems)',
   "'hanhai_travel_prep_sink'",
   'prepCostSummary',
   'successRateBonus',

@@ -2340,7 +2340,7 @@
   import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import { handleBuySeed, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
-  import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
+  import { getCombinedItemCount, hasCombinedItems, removeCombinedItems } from '@/composables/useCombinedInventory'
   import { scrollByViewport, useKeyboardShortcutTabActions } from '@/composables/useKeyboardShortcutContextActions'
   import { getInventoryExpansionPrice, getNextInventoryCapacity } from '@/utils/inventoryCapacity'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
@@ -4408,10 +4408,7 @@
   }
 
   const hasWeaponMaterials = (w: WeaponDef): boolean => {
-    for (const mat of w.shopMaterials) {
-      if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
-    }
-    return true
+    return hasCombinedItems(w.shopMaterials)
   }
 
   const handleBuyWeapon = (w: WeaponDef) => {
@@ -4425,12 +4422,10 @@
       addLog('铜钱不足。')
       return
     }
-    for (const mat of w.shopMaterials) {
-      if (!inventoryStore.removeItem(mat.itemId, mat.quantity)) {
-        playerStore.earnMoney(actualPrice, { countAsEarned: false })
-        addLog('材料不足。')
-        return
-      }
+    if (!removeCombinedItems(w.shopMaterials)) {
+      playerStore.earnMoney(actualPrice, { countAsEarned: false })
+      addLog('材料不足。')
+      return
     }
     inventoryStore.addWeapon(w.id)
     const matStr =
@@ -4475,20 +4470,82 @@
     durability_consumption_reduction: '耐久减耗'
   }
 
+  const normalizeShopMaterialRequirements = (materials: { itemId: string; quantity: number }[] = []) => {
+    const totals = new Map<string, number>()
+    for (const material of materials) {
+      const quantity = Math.max(0, Math.floor(Number(material.quantity) || 0))
+      if (!material.itemId || quantity <= 0) continue
+      totals.set(material.itemId, (totals.get(material.itemId) ?? 0) + quantity)
+    }
+    return [...totals.entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
+  }
+
+  const craftEquipmentFromCombinedMaterials = (options: {
+    recipe?: { itemId: string; quantity: number }[]
+    recipeMoney: number
+    itemName: string
+    alreadyOwned: boolean
+    duplicateMessage: string
+    unavailableMessage: string
+    grant: () => boolean
+  }): { success: boolean; message: string } => {
+    if (options.alreadyOwned) return { success: false, message: options.duplicateMessage }
+    if (!options.recipe) return { success: false, message: options.unavailableMessage }
+
+    const recipe = normalizeShopMaterialRequirements(options.recipe)
+    const missing = recipe.find(mat => getCombinedItemCount(mat.itemId) < mat.quantity)
+    if (missing) {
+      const matName = getItemById(missing.itemId)?.name ?? missing.itemId
+      return { success: false, message: `材料不足：${matName}。` }
+    }
+    if (playerStore.money < options.recipeMoney) {
+      return { success: false, message: `铜钱不足（需要${options.recipeMoney}文）。` }
+    }
+
+    const playerSnapshot = playerStore.serialize()
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
+    const rollback = () => {
+      playerStore.deserialize(playerSnapshot)
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+    }
+
+    if (!playerStore.spendMoney(options.recipeMoney)) {
+      return { success: false, message: `铜钱不足（需要${options.recipeMoney}文）。` }
+    }
+    if (!removeCombinedItems(recipe)) {
+      rollback()
+      return { success: false, message: '材料不足。' }
+    }
+    if (!options.grant()) {
+      rollback()
+      return { success: false, message: '装备发放失败，请稍后再试。' }
+    }
+
+    return { success: true, message: `合成了${options.itemName}！` }
+  }
+
   const craftableRings = computed(() => CRAFTABLE_RINGS)
 
   const canCraftRing = (ring: RingDef): boolean => {
     if (!ring.recipe) return false
     if (inventoryStore.hasRing(ring.id)) return false
     if (playerStore.money < ring.recipeMoney) return false
-    for (const mat of ring.recipe) {
-      if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
-    }
-    return true
+    return hasCombinedItems(ring.recipe)
   }
 
   const handleCraftRing = (defId: string) => {
-    const result = inventoryStore.craftRing(defId)
+    const ring = CRAFTABLE_RINGS.find(item => item.id === defId)
+    const result = craftEquipmentFromCombinedMaterials({
+      recipe: ring?.recipe,
+      recipeMoney: ring?.recipeMoney ?? 0,
+      itemName: ring?.name ?? '戒指',
+      alreadyOwned: inventoryStore.hasRing(defId),
+      duplicateMessage: ring ? `已拥有${ring.name}，无需重复合成。` : '你已经拥有这枚戒指了。',
+      unavailableMessage: '该戒指无法合成。',
+      grant: () => inventoryStore.addRing(defId)
+    })
     if (result.success) {
       sfxBuy()
       showFloat(result.message, 'success')
@@ -4604,24 +4661,27 @@
     if (!hat.recipe) return false
     if (inventoryStore.hasHat(hat.id)) return false
     if (playerStore.money < hat.recipeMoney) return false
-    for (const mat of hat.recipe) {
-      if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
-    }
-    return true
+    return hasCombinedItems(hat.recipe)
   }
 
   const canCraftShoe = (shoe: ShoeDef): boolean => {
     if (!shoe.recipe) return false
     if (inventoryStore.hasShoe(shoe.id)) return false
     if (playerStore.money < shoe.recipeMoney) return false
-    for (const mat of shoe.recipe) {
-      if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
-    }
-    return true
+    return hasCombinedItems(shoe.recipe)
   }
 
   const handleCraftHat = (defId: string) => {
-    const result = inventoryStore.craftHat(defId)
+    const hat = CRAFTABLE_HATS.find(item => item.id === defId)
+    const result = craftEquipmentFromCombinedMaterials({
+      recipe: hat?.recipe,
+      recipeMoney: hat?.recipeMoney ?? 0,
+      itemName: hat?.name ?? '帽子',
+      alreadyOwned: inventoryStore.hasHat(defId),
+      duplicateMessage: '你已经拥有这顶帽子了。',
+      unavailableMessage: '该帽子无法合成。',
+      grant: () => inventoryStore.addHat(defId)
+    })
     if (result.success) {
       sfxBuy()
       showFloat(result.message, 'success')
@@ -4632,7 +4692,16 @@
   }
 
   const handleCraftShoe = (defId: string) => {
-    const result = inventoryStore.craftShoe(defId)
+    const shoe = CRAFTABLE_SHOES.find(item => item.id === defId)
+    const result = craftEquipmentFromCombinedMaterials({
+      recipe: shoe?.recipe,
+      recipeMoney: shoe?.recipeMoney ?? 0,
+      itemName: shoe?.name ?? '鞋子',
+      alreadyOwned: inventoryStore.hasShoe(defId),
+      duplicateMessage: '你已经拥有这双鞋子了。',
+      unavailableMessage: '该鞋子无法合成。',
+      grant: () => inventoryStore.addShoe(defId)
+    })
     if (result.success) {
       sfxBuy()
       showFloat(result.message, 'success')

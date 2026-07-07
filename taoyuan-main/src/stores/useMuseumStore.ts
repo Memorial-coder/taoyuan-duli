@@ -52,6 +52,8 @@ import { useRegionMapStore } from './useRegionMapStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import type { RegionId } from '@/types/region'
+import { getCombinedItemCount, removeCombinedItem, removeCombinedItems } from '@/composables/useCombinedInventory'
+import { useWarehouseStore } from './useWarehouseStore'
 
 const HALL_ZONE_IDS = [...new Set(MUSEUM_HALL_LEVELS.map(level => level.hallZoneId))] as MuseumHallZoneId[]
 const ALL_MUSEUM_SCHOLAR_COMMISSIONS = [...MUSEUM_SCHOLAR_COMMISSIONS, ...WS14_MUSEUM_SCHOLAR_COMMISSIONS]
@@ -415,14 +417,13 @@ export const useMuseumStore = defineStore('museum', () => {
   })
 
   const exhibitSetOverview = computed(() => {
-    const inventoryStore = useInventoryStore()
     return MUSEUM_EXHIBIT_SETS.map(def => {
       const state = exhibitSetStates.value[def.id] ?? initialState.exhibitSetStates[def.id]!
       const unlocked = exhibitLevel.value >= def.unlockExhibitLevel
       const requirements = def.requirements.map(requirement => {
         const submitted = Math.max(0, Math.min(requirement.quantity, Math.floor(Number(state.submittedItems[requirement.itemId]) || 0)))
         const remaining = Math.max(0, requirement.quantity - submitted)
-        const owned = inventoryStore.getTotalItemCount(requirement.itemId)
+        const owned = getCombinedItemCount(requirement.itemId)
         const duplicateReady = !requirement.duplicateOnly || !getMuseumItemDef(requirement.itemId) || isDonated(requirement.itemId)
         return {
           ...requirement,
@@ -830,9 +831,8 @@ export const useMuseumStore = defineStore('museum', () => {
   const getScholarCommissionMaterialStatus = (commissionId: string) => {
     const commission = getScholarCommissionOverview(commissionId)
     if (!commission) return []
-    const inventoryStore = useInventoryStore()
     return normalizeScholarCommissionMaterialRequirements(commission.materialRequirements).map(requirement => {
-      const owned = inventoryStore.getTotalItemCount(requirement.itemId)
+      const owned = getCombinedItemCount(requirement.itemId)
       return {
         ...requirement,
         owned,
@@ -861,7 +861,7 @@ export const useMuseumStore = defineStore('museum', () => {
     const blockedDuplicateRequirement = overview.requirements.find(requirement => requirement.remaining > 0 && requirement.owned > 0 && !requirement.duplicateReady)
     if (blockedDuplicateRequirement) return `${blockedDuplicateRequirement.itemName} 需要先完成首件捐赠，展组只收副本。`
     const availableRequirement = overview.requirements.find(requirement => requirement.remaining > 0 && requirement.owned > 0 && requirement.duplicateReady)
-    if (!availableRequirement) return '背包中没有可提交的展组副本材料。'
+    if (!availableRequirement) return '库存中没有可提交的展组副本材料。'
     return ''
   }
 
@@ -1192,7 +1192,9 @@ export const useMuseumStore = defineStore('museum', () => {
     }
 
     const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
     const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     const playerSnapshot = playerStore.serialize()
     const goalSnapshot = goalStore.serialize()
     const npcSnapshot = npcStore.serialize()
@@ -1216,7 +1218,7 @@ export const useMuseumStore = defineStore('museum', () => {
     const missingMaterials = materialRequirements
       .map(requirement => ({
         ...requirement,
-        owned: inventoryStore.getTotalItemCount(requirement.itemId),
+        owned: getCombinedItemCount(requirement.itemId),
         itemName: getItemById(requirement.itemId)?.name ?? requirement.itemId
       }))
       .filter(requirement => requirement.owned < requirement.quantity)
@@ -1227,10 +1229,8 @@ export const useMuseumStore = defineStore('museum', () => {
       }
     }
 
-    for (const requirement of materialRequirements) {
-      if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)) {
-        throw new Error('museum scholar commission material removal failed')
-      }
+    if (!removeCombinedItems(materialRequirements)) {
+      throw new Error('museum scholar commission material removal failed')
     }
 
     if (commission.reward.money) {
@@ -1284,6 +1284,7 @@ export const useMuseumStore = defineStore('museum', () => {
     }
     } catch {
       inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       playerStore.deserialize(playerSnapshot)
       goalStore.deserialize(goalSnapshot)
       npcStore.deserialize(npcSnapshot)
@@ -1311,7 +1312,9 @@ export const useMuseumStore = defineStore('museum', () => {
     }
 
     const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
     const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
     const museumSnapshot = cloneMuseumSaveData(serialize())
     const exhibitSetSnapshot = museumSnapshot.exhibitSetStates
     const telemetrySnapshot = museumSnapshot.telemetry
@@ -1327,11 +1330,11 @@ export const useMuseumStore = defineStore('museum', () => {
       if (!requirement) return failExhibitSetSubmission('该物品不属于此专题展组。')
       if (requirement.remaining <= 0) return failExhibitSetSubmission('该展品需求已经提交完成。')
       if (!requirement.duplicateReady) return failExhibitSetSubmission(`${requirement.itemName} 需要先完成首件捐赠，展组只收副本。`)
-      if (requirement.owned <= 0) return failExhibitSetSubmission(`背包中没有可提交的 ${requirement.itemName}。`)
+      if (requirement.owned <= 0) return failExhibitSetSubmission(`库存中没有可提交的 ${requirement.itemName}。`)
 
       const submitQuantity = Math.min(submitQuantityRequest, requirement.remaining, requirement.owned)
-      if (!inventoryStore.removeItemAnywhere(itemId, submitQuantity)) {
-        return failExhibitSetSubmission(`提交 ${requirement.itemName} 失败，背包数量不足。`)
+      if (!removeCombinedItem(itemId, submitQuantity)) {
+        return failExhibitSetSubmission(`提交 ${requirement.itemName} 失败，库存数量不足。`)
       }
 
       const currentState = exhibitSetStates.value[setId] ?? initialState.exhibitSetStates[setId]
@@ -1370,6 +1373,7 @@ export const useMuseumStore = defineStore('museum', () => {
       }
     } catch {
       inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       exhibitSetStates.value = exhibitSetSnapshot
       telemetry.value = telemetrySnapshot
       goalStore.deserialize(goalSnapshot)

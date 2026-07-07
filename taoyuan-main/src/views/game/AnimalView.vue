@@ -226,7 +226,14 @@
           <span class="text-xs text-muted">{{ getAnimalsInBuilding(bDef.type).length }}/{{ getBuildingCapacity(bDef.type) }}</span>
           <Button v-if="getBuildingLevel(bDef.type) < 3" :icon="ArrowUp" @click="openUpgradeModal(bDef.type)">升级</Button>
         </div>
-        <Button v-else :icon="Hammer" @click="handleBuildBuilding(bDef.type)">建造 ({{ bDef.cost }}文)</Button>
+        <Button
+          v-else
+          :icon="Hammer"
+          :disabled="!canBuildBuilding(bDef.type)"
+          @click="handleBuildBuilding(bDef.type)"
+        >
+          建造 ({{ bDef.cost }}文)
+        </Button>
       </div>
 
       <template v-if="isBuildingBuilt(bDef.type)">
@@ -376,9 +383,14 @@
       </template>
       <template v-else>
         <div class="flex flex-wrap gap-1.5">
-          <span v-for="mat in bDef.materialCost" :key="mat.itemId" class="flex items-center gap-1 text-xs text-muted">
+          <span
+            v-for="mat in bDef.materialCost"
+            :key="mat.itemId"
+            class="flex items-center gap-1 text-xs"
+            :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-muted' : 'text-danger'"
+          >
             <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
-            {{ getItemName(mat.itemId) }}×{{ mat.quantity }}
+            {{ getItemName(mat.itemId) }} {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
           </span>
         </div>
       </template>
@@ -391,7 +403,14 @@
         <div v-if="animalStore.stableBuilt" class="flex items-center space-x-2">
           <span class="text-xs text-muted">{{ animalStore.getHorse ? '1/1' : '0/1' }}</span>
         </div>
-        <Button v-else :icon="Hammer" @click="handleBuildBuilding('stable')">建造 ({{ stableDef?.cost ?? 10000 }}文)</Button>
+        <Button
+          v-else
+          :icon="Hammer"
+          :disabled="!canBuildBuilding('stable')"
+          @click="handleBuildBuilding('stable')"
+        >
+          建造 ({{ stableDef?.cost ?? 10000 }}文)
+        </Button>
       </div>
 
       <template v-if="animalStore.stableBuilt">
@@ -514,9 +533,14 @@
       </template>
       <template v-else>
         <div class="flex flex-wrap gap-1.5">
-          <span v-for="mat in stableDef?.materialCost ?? []" :key="mat.itemId" class="flex items-center gap-1 text-xs text-muted">
+          <span
+            v-for="mat in stableDef?.materialCost ?? []"
+            :key="mat.itemId"
+            class="flex items-center gap-1 text-xs"
+            :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-muted' : 'text-danger'"
+          >
             <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
-            {{ getItemName(mat.itemId) }}×{{ mat.quantity }}
+            {{ getItemName(mat.itemId) }} {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
           </span>
         </div>
         <p class="text-xs text-muted mt-1">拥有马匹可减少30%旅行时间。</p>
@@ -779,7 +803,9 @@
                 <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
                 <span class="truncate">{{ mat.name }}</span>
               </span>
-              <span class="text-xs" :class="mat.have >= mat.need ? 'text-success' : 'text-danger'">{{ mat.have }} / {{ mat.need }}</span>
+              <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.need ? 'text-success' : 'text-danger'">
+                {{ getCombinedItemCount(mat.itemId) }} / {{ mat.need }}
+              </span>
             </div>
           </div>
 
@@ -830,7 +856,8 @@
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import type { Animal, AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState, PetType } from '@/types'
   import { addLog } from '@/composables/useGameLog'
-  import { handleEndDay } from '@/composables/useEndDay'
+  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
+  import { handleEndDay } from '@/composables/useEndDayLazy'
   import { useTutorialStore } from '@/stores/useTutorialStore'
 
   const router = useRouter()
@@ -947,6 +974,13 @@
 
   /** 马厩建筑定义 */
   const stableDef = computed(() => ANIMAL_BUILDINGS.find(b => b.type === 'stable'))
+
+  const canBuildBuilding = (type: AnimalBuildingType): boolean => {
+    const def = ANIMAL_BUILDINGS.find(b => b.type === type)
+    if (!def) return false
+    if (playerStore.money < def.cost) return false
+    return def.materialCost.every(mat => getCombinedItemCount(mat.itemId) >= mat.quantity)
+  }
 
   /** 当前选择的饲料类型 */
   const selectedFeed = ref<string>(HAY_ITEM_ID)
@@ -1240,7 +1274,7 @@
     targetLevel: number
     targetCapacity: number
     cost: number
-    materials: { itemId: string; name: string; need: number; have: number }[]
+    materials: { itemId: string; name: string; need: number }[]
   }
 
   const upgradeModal = ref<UpgradeModalData | null>(null)
@@ -1261,8 +1295,7 @@
       materials: upgrade.materialCost.map(m => ({
         itemId: m.itemId,
         name: getItemName(m.itemId),
-        need: m.quantity,
-        have: inventoryStore.getItemCount(m.itemId)
+        need: m.quantity
       }))
     }
   }
@@ -1270,7 +1303,7 @@
   const canConfirmUpgrade = computed(() => {
     if (!upgradeModal.value) return false
     if (playerStore.money < upgradeModal.value.cost) return false
-    return upgradeModal.value.materials.every(m => inventoryStore.getItemCount(m.itemId) >= m.need)
+    return upgradeModal.value.materials.every(m => getCombinedItemCount(m.itemId) >= m.need)
   })
 
   const confirmUpgradeBuilding = () => {

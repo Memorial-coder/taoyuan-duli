@@ -48,6 +48,7 @@ import {
 } from '@/data/hanhai'
 import { getItemById } from '@/data'
 import { addLog } from '@/composables/useGameLog'
+import { getCombinedItemCount, removeCombinedItems } from '@/composables/useCombinedInventory'
 import type {
   BuckshotSetup,
   BuckshotPlayerAction,
@@ -83,6 +84,7 @@ import { useGoalStore } from './useGoalStore'
 import { useRegionMapStore } from './useRegionMapStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useWarehouseStore } from './useWarehouseStore'
 import { getWeekCycleInfo, WEEKS_PER_SEASON } from '@/utils/weekCycle'
 
 const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
@@ -695,9 +697,11 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
     const walletStore = useWalletStore()
+    const warehouseStore = useWarehouseStore()
     return {
       player: playerStore.serialize(),
       inventory: inventoryStore.serialize(),
+      warehouse: warehouseStore.serialize(),
       wallet: walletStore.serialize(),
       hanhai: serialize()
     }
@@ -707,8 +711,10 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
     const walletStore = useWalletStore()
+    const warehouseStore = useWarehouseStore()
     playerStore.deserialize(snapshots.player)
     inventoryStore.deserialize(snapshots.inventory)
+    warehouseStore.deserialize(snapshots.warehouse)
     walletStore.deserialize(snapshots.wallet)
     deserialize(snapshots.hanhai)
   }
@@ -885,11 +891,10 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   const formatTravelPrepCosts = (costItems: { itemId: string; quantity: number }[]) =>
     costItems.map(cost => `${getItemName(cost.itemId)}×${cost.quantity}`).join('、') || '不消耗额外物资'
   const getTravelPrepMissingCostLabels = (costItems: { itemId: string; quantity: number }[]) => {
-    const inventoryStore = useInventoryStore()
     return costItems
       .map(cost => ({
         ...cost,
-        owned: inventoryStore.getTotalItemCount(cost.itemId)
+        owned: getCombinedItemCount(cost.itemId)
       }))
       .filter(cost => cost.owned < cost.quantity)
       .map(cost => `${getItemName(cost.itemId)} ${cost.owned}/${cost.quantity}`)
@@ -1437,7 +1442,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       }
 
       const extraCosts = item.costItems ?? []
-      const lackingCost = extraCosts.find(cost => inventoryStore.getTotalItemCount(cost.itemId) < cost.quantity)
+      const lackingCost = extraCosts.find(cost => getCombinedItemCount(cost.itemId) < cost.quantity)
       if (lackingCost) {
         return {
           success: false,
@@ -1450,11 +1455,9 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         return { success: false, message: '金钱不足。' }
       }
 
-      for (const cost of extraCosts) {
-        if (!inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity)) {
-          rollbackHanhaiAction(snapshots)
-          return { success: false, message: `${getItemName(cost.itemId)}不足，无法兑换${item.name}。` }
-        }
+      if (!removeCombinedItems(extraCosts)) {
+        rollbackHanhaiAction(snapshots)
+        return { success: false, message: `${getItemName(lackingCost?.itemId ?? extraCosts[0]?.itemId ?? '')}不足，无法兑换${item.name}。` }
       }
 
       if (!inventoryStore.addItemsExact(rewardItems)) {
@@ -1520,15 +1523,12 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         return failRelicExplore('背包空间不足，暂时无法探索。', { costMoney: exploreCost })
       }
 
-      for (const cost of travelPrep?.def.costItems ?? []) {
-        if (!inventoryStore.removeItemAnywhere(cost.itemId, cost.quantity)) {
-          rollbackHanhaiAction(snapshots)
-          return failRelicExplore(`${getItemName(cost.itemId)}不足，无法使用${travelPrep?.def.label ?? '出行准备物'}。`, {
-            costMoney: exploreCost,
-            itemId: cost.itemId,
-            quantity: cost.quantity
-          })
-        }
+      if (travelPrep && !removeCombinedItems(travelPrep.def.costItems)) {
+        rollbackHanhaiAction(snapshots)
+        return failRelicExplore(`${travelPrep.def.label}材料不足，无法使用出行准备物。`, {
+          costMoney: exploreCost,
+          prepId: travelPrep.def.id
+        })
       }
 
       const rewardSummary = grantRewardBundle(preparedRewards, { ticketSource: 'hanhai_relic' })

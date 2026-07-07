@@ -69,17 +69,19 @@ for (const marker of [
   assert(npcStoreSource.includes(marker), `useNpcStore missing ${marker}`)
 }
 assert(npcStoreSource.includes('CHILD_TRAINING_REQUIREMENTS[focus]'), 'child training should read shared data config')
-assert(npcStoreSource.includes('getTotalItemCountAtLeast'), 'child training UI status must support min quality inventory counts')
-assert(npcStoreSource.includes('getTotalItemCount(requirement.itemId)'), 'child training UI status must count combined inventory')
-assert(npcStoreSource.includes('removeItemAnywhereAtLeast'), 'child training consumption must support min quality')
-assert(npcStoreSource.includes('removeItemAnywhere(requirement.itemId'), 'child training must remove real inventory items')
+assert(npcStoreSource.includes('getCombinedItemCountAtLeast'), 'child training UI status must support min quality combined inventory counts')
+assert(npcStoreSource.includes('getCombinedItemCount(requirement.itemId)'), 'child training UI status must count combined inventory')
+assert(npcStoreSource.includes('removeCombinedItemAtLeast'), 'child training consumption must support min quality across combined inventory')
+assert(npcStoreSource.includes('removeCombinedItem(requirement.itemId'), 'child training must remove real combined inventory items')
 
 const interactBlock = getBetween(npcStoreSource, 'const interactWithChild', 'const hasDailyTip')
 assert(interactBlock.includes('const blockReason = getChildTrainingBlockReason(childId)'), 'interactWithChild must check training block reason first')
 assert(interactBlock.includes('if (blockReason) return { success: false'), 'blocked child training must return failure instead of mutating state')
 assert(interactBlock.includes('const inventorySnapshot = inventoryStore.serialize()'), 'interactWithChild must snapshot inventory before consuming')
+assert(interactBlock.includes('const warehouseSnapshot = warehouseStore.serialize()'), 'interactWithChild must snapshot warehouse before consuming')
 assert(interactBlock.includes('consumeChildTrainingRequirements(child)'), 'interactWithChild must consume configured requirements')
 assert(interactBlock.includes('inventoryStore.deserialize(inventorySnapshot)'), 'interactWithChild must roll back inventory on failure')
+assert(interactBlock.includes('warehouseStore.deserialize(warehouseSnapshot)'), 'interactWithChild must roll back warehouse on failure')
 assert(
   interactBlock.indexOf('consumeChildTrainingRequirements(child)') >= 0 &&
     interactBlock.indexOf('child.interactedToday = true') >= 0 &&
