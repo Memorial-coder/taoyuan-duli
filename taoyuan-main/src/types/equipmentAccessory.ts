@@ -24,6 +24,8 @@ export type EquipmentAccessorySource =
   | 'guild'
   | 'debug'
   | 'fusion'
+  | 'dungeon'
+  | 'weekly_dungeon'
 
 export type EquipmentAccessoryEffectKey =
   | 'accessory_attack_flat'

@@ -80,6 +80,19 @@ const ORE_ITEMS: ItemDef[] = [
   { id: 'battery', name: '电池组', category: 'material', description: '避雷针吸收雷电后产出的能量。', sellPrice: 100, edible: false }
 ]
 
+/** 秘境奖励物品 */
+const DUNGEON_REWARD_ITEMS: ItemDef[] = [
+  { id: 'night_watch_old_bell', name: '夜巡旧铃', category: 'artifact', description: '稻田夜巡中遗落的旧铃。', sellPrice: 80, edible: false },
+  { id: 'stream_water_mark', name: '溪灵水纹', category: 'artifact', description: '青溪水祟留下的水纹印记。', sellPrice: 120, edible: false },
+  { id: 'beast_path_old_fang', name: '兽道旧牙', category: 'artifact', description: '荒丘兽道旁拾得的旧牙。', sellPrice: 180, edible: false },
+  { id: 'ancestral_lamp_residue', name: '祠灯残页', category: 'artifact', description: '古祠灯影间残存的纸页。', sellPrice: 220, edible: false },
+  { id: 'foxfire_bamboo_ember', name: '狐火余烬', category: 'artifact', description: '狐火竹林中未冷的余烬。', sellPrice: 260, edible: false },
+  { id: 'frost_well_jade', name: '霜井寒玉', category: 'artifact', description: '霜井旧道深处凝出的寒玉。', sellPrice: 420, edible: false },
+  { id: 'deep_vein_relic', name: '深脉遗物', category: 'artifact', description: '深脉裂隙中出土的遗物。', sellPrice: 520, edible: false },
+  { id: 'sealed_altar_fragment', name: '封坛残片', category: 'artifact', description: '每周封坛试炼留下的残片。', sellPrice: 800, edible: false },
+  { id: 'mountain_sea_keepsake', name: '山海封坛珍藏', category: 'artifact', description: '山海封坛纪念收藏。', sellPrice: 1200, edible: false }
+]
+
 /** 杂项 */
 const MISC_ITEMS: ItemDef[] = [
   { id: 'wood', name: '木材', category: 'material', description: '建造和制作的基础材料。', sellPrice: 5, edible: false },
@@ -223,7 +236,7 @@ const FISH_ITEMS: ItemDef[] = FISH.map(fish => ({
 }))
 
 /** 从食谱定义自动生成烹饪物品 */
-const _preFoodItems: ItemDef[] = [...SEED_ITEMS, ...CROP_ITEMS, ...ORE_ITEMS, ...MISC_ITEMS, ...FISH_ITEMS]
+const _preFoodItems: ItemDef[] = [...SEED_ITEMS, ...CROP_ITEMS, ...ORE_ITEMS, ...DUNGEON_REWARD_ITEMS, ...MISC_ITEMS, ...FISH_ITEMS]
 const FOOD_ITEMS: ItemDef[] = RECIPES.map(recipe => {
   const baseSellPrice = Math.floor(recipe.effect.staminaRestore * 2)
   // 计算材料总售价，保底：食物售价不低于材料总售价的1.2倍
@@ -2031,6 +2044,7 @@ export const ITEMS: ItemDef[] = [
   ...SEED_ITEMS,
   ...CROP_ITEMS,
   ...ORE_ITEMS,
+  ...DUNGEON_REWARD_ITEMS,
   ...MISC_ITEMS,
   ...FISH_ITEMS,
   ...FOOD_ITEMS,
